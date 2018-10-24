@@ -1,11 +1,13 @@
-
-
 '''
 Module 'bamtools' - Contains Functions for extracting info froma a bam file
 '''
 
 ## DEPENDENCIES ##
+# External
 import pysam
+
+# Internal
+import log
 
 ## FUNCTIONS ##
 def makeGenomicBins(bam, windowSize, targetRefList):
@@ -59,21 +61,34 @@ def makeGenomicBins(bam, windowSize, targetRefList):
 
 def collectSV(ref, beg, end, bam, targetSV, sample):
     '''
+    Collect structural variant (SV) candidates from a genomic region. 
+
+    Input:
+        1. ref: target referenge
+        2. beg: target interval begin position
+        3. end: target interval end position
+        4. bam: indexed BAM file
+        5. targetSV: list of target SV to search for (3 possible SV types: insertions (INS), deletions (DEL) and clippings (CLIPPING))
+        6. sample: type of sample (TUMOUR, NORMAL or None)
 
     Output:
-        1. INS_List: list of insertion objects    
-        2. DEL_List: list of deletion objects    
-        3. CLIP_List: list of clipped sequence objects
-        4. readDict: dictionary containing the read alignments supporting the SV events. Format:
+        1. INS_list: list of INS objects
+        2. DEL_list: list of DEL objects   
+        3. CLIPPING_left_list: list of CLIPPING objects on the left
+        4. CLIPPING_left_list: list of CLIPPING objects on the right
+        5. [TO DO] readDict: dictionary containing the read alignments supporting the SV events. Format:
                 key   -> read identifier
                 value -> list of alignments for this read
+
+
+    Note: some filters are hardcoded (i.e. minimum lengths). At one point improve to take a dictionary as input specifying the filters configuration.
     '''
     
     ## Initialize lists with SV
-    INS_List = []    
-    DEL_List = []    
-    CLIPPED_left_List = []
-    CLIPPED_right_List = []
+    INS_list = []    
+    DEL_list = []    
+    CLIPPING_left_list = []
+    CLIPPING_right_list = []
     
     ## Open BAM file for reading
     bamFile = pysam.AlignmentFile(bam, "rb")
@@ -81,43 +96,51 @@ def collectSV(ref, beg, end, bam, targetSV, sample):
     ## Extract alignments
     iterator = bamFile.fetch(ref, beg, end)
             
-    # Iterate over the read alignments
+    # For each read alignment
     for alignmentObj in iterator:
-
+        
         ### Discard unmapped reads, PCR duplicates and reads with sequence not available
         if (alignmentObj.is_unmapped == False) and (alignmentObj.is_duplicate == False) and (alignmentObj.query_sequence != None):
             
-            ## 1. Collect clipped read alignments
+            ## 1. Collect CLIPPINGS
             if 'CLIPPING' in targetSV:
 
                 clippingLeftObj, clippingRightObj = collectCLIPPING(alignmentObj, sample)
 
                 if clippingLeftObj != None:
-
-                    CLIPPED_left_List.append(clippingLeftObj)
+                    CLIPPING_left_list.append(clippingLeftObj)
 
                 if clippingRightObj != None:
-                    
-                    CLIPPED_right_List.append(clippingRightObj)
+                    CLIPPING_right_list.append(clippingRightObj)
     
             ## 2. Collect INDELS
             if ('INS' in targetSV) or ('DEL' in targetSV):
-                INS_List_tmp, DEL_List_tmp = collectINDELS(alignmentObj, targetSV, sample)
+                INS_list_tmp, DEL_list_tmp = collectINDELS(alignmentObj, targetSV, sample)
 
-                INS_List = INS_List + INS_List_tmp
-                DEL_List = DEL_List + DEL_List_tmp                
-                
+                INS_list = INS_list + INS_list_tmp
+                DEL_list = DEL_list + DEL_list_tmp            
+
+    # return sv candidates
+    return INS_list, DEL_list, CLIPPING_left_list, CLIPPING_right_list
 
 def collectCLIPPING(alignmentObj, sample):
     '''
+    Check for a read alignment if the read is clipped on both sides and return the corresponding clipping objects 
 
+    Input: 
+        1. alignmentObj: pysam read alignment object 
+        2. sample: type of sample (TUMOUR, NORMAL or None)
+        
     Output:
-        1. CLIP_List: list of clipped sequence objects
-        2. readDict: dictionary containing the read alignments supporting the SV events. Format:
+        1. clippingLeftObj: CLIPPING object for left clipping (None if no clipping found) 
+        2. clippingRightObj: CLIPPING object for right clipping (None if no clipping found)
+        3. [TO DO] readDict: dictionary containing the read alignments supporting the SV events. Format:
                 key   -> read identifier
                 value -> list of alignments for this read
 
-
+    Note: some filters are hardcoded (i.e. minimum lengths). At one point improve to take a dictionary as input specifying the filters configuration.
+    Note: consider to include a minimum mapping quality filter
+    Note: include filter to discard reads clipped at both their begin and end (useful with illumina data)
     '''
     # Initialize as None
     clippingLeftObj, clippingRightObj = [None, None]
@@ -138,12 +161,26 @@ def collectCLIPPING(alignmentObj, sample):
     return clippingLeftObj, clippingRightObj
 
 
-
 def collectINDELS(alignmentObj, targetSV, sample):
     '''
+    Collect insertions and deletions longer than a threshold that are completely spanned within an input read alignment
+
+    Input: 
+        1. alignmentObj: pysam read alignment object instance
+        2. sample: type of sample (TUMOUR, NORMAL or None)
+
+    Output:
+        1. INS_list: list of INS objects
+        2. DEL_list: list of DEL objects
+        3. [TO DO] readDict: dictionary containing the read alignments supporting the SV events. Format:
+                key   -> read identifier
+                value -> list of alignments for this read
+
+    Note: some filters are hardcoded (i.e. minimum lengths). At one point improve to take a dictionary as input specifying the filters configuration.
+    Note: consider to include a minimum mapping quality filter
     '''
-    INS_List = []    
-    DEL_List = []    
+    INS_list = []    
+    DEL_list = []    
 
     ## Set read id
     mate = '/1' if alignmentObj.is_read1 else '/2'
@@ -168,7 +205,7 @@ def collectINDELS(alignmentObj, targetSV, sample):
             insertLength = len(insertSeq)
 
             insObj = INS(alignmentObj.reference_name, posRef, insertLength, insertSeq, readId, sample)
-            INS_List.append(insObj)   
+            INS_list.append(insObj)   
 
         ## b) DELETION to the reference >= Xbp
         if ('DEL' in targetSV) and (operation == 2) and (length >= 50):
@@ -177,7 +214,7 @@ def collectINDELS(alignmentObj, targetSV, sample):
             end = posRef + length
 
             delObj = DEL(alignmentObj.reference_name, beg, end, length, readId, sample)
-            DEL_List.append(delObj)   
+            DEL_list.append(delObj)   
 
         #### Update position over reference and read sequence
         ### a) Operations consuming query and reference
@@ -205,18 +242,19 @@ def collectINDELS(alignmentObj, targetSV, sample):
         # - Op P, tag 6, padding (silent deletion from padded reference)
         # Do not do anything
 
-    return INS_List, DEL_List 
+    return INS_list, DEL_list 
 
 
 ## CLASSES ##
 class CLIPPING():
     '''
+    Clipping class
     '''
     def __init__(self, alignmentObj, clippedSide, sample):
-        '''
-        '''
-        self.ref = alignmentObj.reference_name
-        self.pos = alignmentObj.reference_start if clippedSide == 'left' else alignmentObj.reference_end
+        self.type = 'CLIPPING' 
+        self.ref = str(alignmentObj.reference_name)
+        self.pos = int(alignmentObj.reference_start if clippedSide == 'left' else alignmentObj.reference_end)
+        self.length = None
         self.clippedSide = clippedSide
         self.sample = sample
 
@@ -225,51 +263,56 @@ class CLIPPING():
         self.readId = alignmentObj.query_name + mate  
 
         ## call functions
-        self.type = ''
-        self.clippingType(alignmentObj, clippedSide)
+        self.clippingType = ''
+        self.determine_clippingType(alignmentObj, clippedSide)
 
-    def clippingType(self, alignmentObj, clippedSide):
+    def determine_clippingType(self, alignmentObj, clippedSide):
         '''
+        Determine if soft or hard clipping
+
+        Input: 
+            1. alignmentObj: pysam read alignment object instance
+            2. clippedSide: clipped side relative to the read (left or right)
+
+        Output:
+            - Update 'clippingType' class attribute 
         '''
         ### Extract operation
         ## a) Clipping at the begin 
         if clippedSide == 'left':
-
             operation =  alignmentObj.cigartuples[0][0]  
 
         ## b) Clipping at the end
         else:
-            
             operation = alignmentObj.cigartuples[-1][0]
 
         ### Define if soft or had clipping
-        self.type = 'soft' if (operation == 4) else 'hard'
+        self.clippingType = 'soft' if (operation == 4) else 'hard'
        
 
 class INS():
-    """
-    """
+    '''
+    Short insertion class. Insertion completely spanned by the read sequence
+    '''
     def __init__(self, ref, pos, length, seq, readId, sample):
-
-        """
-        """
-        self.ref = ref
-        self.pos = pos
+        self.type = 'INS' 
+        self.ref = str(ref)
+        self.pos = int(pos)
         self.length = length
         self.seq = seq
         self.readId = readId   
         self.sample = sample 
 
-class DEL():
-    """
-    """
-    def __init__(self, ref, beg, end, length, readId, sample):
 
-        """
-        """
-        self.ref = ref
-        self.beg = beg
-        self.end = end
+class DEL():
+    '''
+    Short deletion class. Deletion completely spanned by the read sequence
+    '''
+    def __init__(self, ref, beg, end, length, readId, sample):
+        self.type = 'DEL' 
+        self.ref = str(ref)
+        self.pos = int(beg)
+        self.end = int(end)
         self.length = length
         self.readId = readId   
         self.sample = sample 
