@@ -12,11 +12,130 @@ import threading
 import log
 import bamtools
 import structures
+import variants
 
 ## FUNCTIONS ##
+def clusterCLIPPING(CLIPPING_list, maxBkpDist):
+    '''
+    Cluster CLIPPING events based on breakpoint position coordinates
+
+    Input:
+        1. CLIPPING_list: list of CLIPPING objects
+        2. maxDist: maximum distance between two breakpoints to include them into the same cluster
+
+    Output:
+        1. clusterDict: positions dictionary containing the clusters
+    ''' 
+    step = 'CLUSTER-CLIPPING'
+    msg = 'Input (CLIPPING_list, maxBkpDist): ' +  "\t".join([str(len(CLIPPING_list)), str(maxBkpDist)])    
+    log.step(step, msg)
+
+    ## 1. Organize CLIPPING events by their breakpoint position ##
+    posDict = structures.buildPosDict(CLIPPING_list, maxBkpDist)
+
+    ## 2. Cluster CLIPPING events ##
+    # Initialize list of already processed windows
+    processedWindows = []
+    clusterList = []
+
+    # For each genomic window
+    for windowIndex, events in posDict.items():
+    
+        # Skip already processed windows
+        if windowIndex in processedWindows:
+            continue
+
+        processedWindows.append(windowIndex)
+
+        ## Create cluster containing CLIPPINGS on the region
+        cluster = variants.CLIPPING_cluster(events)
+        clusterList.append(cluster)
+
+        ## 2.1 Go backward from current window (*).  
+        #       <---2--- <---1---
+        # |---------|--------|----*----|---------
+        # Go one window backward in each iteration. Extend the cluster 
+        # if last clipping breakpoint in previous window within 
+        # maximum cluster distance or end iteration, otherwise 
+        backwardIndex = windowIndex - 1
+
+        while True:
+        
+            # A) There are CLIPPINGS in the window 
+            if backwardIndex in posDict:
+                
+                # Compute the distance between the right most CLIPPING in the new window
+                # and the cluster begin 
+                CLIPPINGS = posDict[backwardIndex]
+                lastCLIPPING = CLIPPINGS[-1]
+                bkpDist = cluster.pos - lastCLIPPING.pos
+
+                # a) Last CLIPPING within maximum distance 
+                if bkpDist <= maxBkpDist:
+
+                    processedWindows.append(backwardIndex)
+
+                    # Add CLIPPINGS within window to the cluster 
+                    cluster.add(CLIPPINGS, 'left')
+         
+                # b) CLIPPING outside 
+                else:
+                    break
+
+            # B) No CLIPPINGS in the window. Stop iterating
+            else:
+                break 
+            
+            backwardIndex -= 1
+        
+        ## 2.2 Go forward from current window (*).  
+        #                ---1---> ---2--->
+        # |---------|----*----|--------|---------
+        # Go one window forward in each iteration. Extend the cluster 
+        # if first clipping breakpoint in next window within 
+        # maximum cluster distance or end iteration, otherwise 
+        forwardIndex = windowIndex + 1
+
+        while True:
+        
+            # A) There are CLIPPINGS in the window 
+            if forwardIndex in posDict:
+                
+                # Compute the distance between the left most CLIPPING in the new window
+                # and the cluster end 
+                CLIPPINGS = posDict[forwardIndex]
+                firstCLIPPING = CLIPPINGS[0]
+                bkpDist = firstCLIPPING.pos - cluster.end 
+
+                # a) Last CLIPPING within maximum distance 
+                if bkpDist <= maxBkpDist:
+
+                    processedWindows.append(forwardIndex)
+
+                    # Add CLIPPINGS within window to the cluster 
+                    cluster.add(CLIPPINGS, 'right')
+         
+                # b) CLIPPING outside 
+                else:
+                    break
+
+            # B) No CLIPPINGS in the window. Stop iterating
+            else:
+                break 
+            
+            forwardIndex += 1        
+
+    ## 2. Organize CLIPPING clusters into a dictionary ##
+    clustersDict = structures.buildPosDict(clusterList, 1000)
+
+    return clustersDict
+
+## Pending, create these functions:
+#clusterINS
+#clusterDEL
+
 
 ## CLASSES ##
-
 class SVcaller_nano():
     '''
     Structural variation (SV) caller from single molecule sequencing data
@@ -68,16 +187,17 @@ class SVcaller_nano():
         log.info(msg)
         time.sleep(random.uniform(0, 1))
     
-        print("THREAD: ", self.bam, self.normalBam, self.mode, threadId)
+        # print("THREAD: ", self.bam, self.normalBam, self.mode, threadId)
 
         ## For each window
         for window in windowsList:
     
             ref, beg, end = window
 
-            print("WINDOW: ", ref, beg, end, self.mode)
+            msg = "SV calling in window: " + "_".join([str(ref), str(beg), str(end)]) 
+            log.subHeader(msg)
 
-            ## 1. Search for SV in the bam file/s ##
+            ## 1. Search for SV candidate events in the bam file/s ##
             # a) Single sample mode
             if self.mode == "SINGLE":
                 INS_list, DEL_list, CLIPPING_left_list, CLIPPING_right_list = bamtools.collectSV(ref, beg, end, self.bam, self.confDict['targetSV'], None)
@@ -85,10 +205,10 @@ class SVcaller_nano():
             # b) Paired sample mode (tumour & matched normal)
             else:
 
-                ## Search for SV in the tumour
+                ## Search for SV events in the tumour
                 INS_list_T, DEL_list_T, CLIPPING_left_list_T, CLIPPING_right_list_T = bamtools.collectSV(ref, beg, end, self.bam, self.confDict['targetSV'], 'TUMOUR')
 
-                ## Search for SV in the normal
+                ## Search for SV events in the normal
                 INS_list_N, DEL_list_N, CLIPPING_left_list_N, CLIPPING_right_list_N = bamtools.collectSV(ref, beg, end, self.normalBam, self.confDict['targetSV'], 'NORMAL')
 
                 ## Join tumour and normal lists
@@ -97,14 +217,20 @@ class SVcaller_nano():
                 CLIPPING_left_list = CLIPPING_left_list_T + CLIPPING_left_list_N
                 CLIPPING_right_list = CLIPPING_right_list_T + CLIPPING_right_list_N
 
+            step = 'COLLECT'
+            msg = 'Number of SV events (INS, DEL, CLIPPING_left, CLIPPING_right): ' +  "\t".join([str(len(INS_list)), str(len(DEL_list)), str(len(CLIPPING_left_list)), str(len(CLIPPING_right_list))])    
+            log.step(step, msg)
+
+            ## 2. Group events into SV clusters ##
+            ## 2.1 Cluster CLIPPINGS 
+            CLIPPING_left_clustersDict = clusterCLIPPING(CLIPPING_left_list, self.confDict['maxBkpDist'])
+            CLIPPING_right_clustersDict = clusterCLIPPING(CLIPPING_right_list, self.confDict['maxBkpDist'])
+
+            ## 2.2 Cluster insertions 
+
+            ## 2.3 Cluster deletions
+
+
+
+
             
-
-            ## 2. Organize events into a dictionary by genomic position ##
-            event_list = INS_list + DEL_list + CLIPPING_left_list + CLIPPING_right_list
-
-            print('TIOOO', self.mode, len(event_list), len(INS_list), len(DEL_list), len(CLIPPING_left_list), len(CLIPPING_right_list))
-
-            bkpDictObj = structures.breakpointDict()
-
-            bkpDictObj.buildBkpDict(event_list, self.confDict['clusterSize'])
-

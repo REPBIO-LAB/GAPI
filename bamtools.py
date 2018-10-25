@@ -1,5 +1,5 @@
 '''
-Module 'bamtools' - Contains Functions for extracting info froma a bam file
+Module 'bamtools' - Contains functions for extracting data from bam files
 '''
 
 ## DEPENDENCIES ##
@@ -8,6 +8,7 @@ import pysam
 
 # Internal
 import log
+import variants
 
 ## FUNCTIONS ##
 def makeGenomicBins(bam, windowSize, targetRefList):
@@ -152,11 +153,11 @@ def collectCLIPPING(alignmentObj, sample):
     ## Clipping >= X bp at the left
     #  Note: soft (Operation=4) or hard clipped (Operation=5)     
     if ((firstOperation == 4) or (firstOperation == 5)) and (firstOperationLen >= 500):
-        clippingLeftObj = CLIPPING(alignmentObj, 'left', sample)
+        clippingLeftObj = variants.CLIPPING(alignmentObj, 'left', sample)
         
     ## Clipping > X bp at the right
     if ((lastOperation == 4) or (lastOperation == 5)) and (lastOperationLen >= 500):
-        clippingRightObj = CLIPPING(alignmentObj, 'right', sample) 
+        clippingRightObj = variants.CLIPPING(alignmentObj, 'right', sample) 
    
     return clippingLeftObj, clippingRightObj
 
@@ -204,7 +205,7 @@ def collectINDELS(alignmentObj, targetSV, sample):
             insertSeq = alignmentObj.query_sequence[insertBeg:insertEnd]
             insertLength = len(insertSeq)
 
-            insObj = INS(alignmentObj.reference_name, posRef, insertLength, insertSeq, readId, sample)
+            insObj = variants.INS(alignmentObj.reference_name, posRef, insertLength, insertSeq, readId, sample)
             INS_list.append(insObj)   
 
         ## b) DELETION to the reference >= Xbp
@@ -213,7 +214,7 @@ def collectINDELS(alignmentObj, targetSV, sample):
             beg = posRef
             end = posRef + length
 
-            delObj = DEL(alignmentObj.reference_name, beg, end, length, readId, sample)
+            delObj = variants.DEL(alignmentObj.reference_name, beg, end, length, readId, sample)
             DEL_list.append(delObj)   
 
         #### Update position over reference and read sequence
@@ -243,79 +244,6 @@ def collectINDELS(alignmentObj, targetSV, sample):
         # Do not do anything
 
     return INS_list, DEL_list 
-
-
-## CLASSES ##
-class CLIPPING():
-    '''
-    Clipping class
-    '''
-    def __init__(self, alignmentObj, clippedSide, sample):
-        self.type = 'CLIPPING' 
-        self.ref = str(alignmentObj.reference_name)
-        self.pos = int(alignmentObj.reference_start if clippedSide == 'left' else alignmentObj.reference_end)
-        self.length = None
-        self.clippedSide = clippedSide
-        self.sample = sample
-
-        ## Set supporting read id
-        mate = '/1' if alignmentObj.is_read1 else '/2'
-        self.readId = alignmentObj.query_name + mate  
-
-        ## call functions
-        self.clippingType = ''
-        self.determine_clippingType(alignmentObj, clippedSide)
-
-    def determine_clippingType(self, alignmentObj, clippedSide):
-        '''
-        Determine if soft or hard clipping
-
-        Input: 
-            1. alignmentObj: pysam read alignment object instance
-            2. clippedSide: clipped side relative to the read (left or right)
-
-        Output:
-            - Update 'clippingType' class attribute 
-        '''
-        ### Extract operation
-        ## a) Clipping at the begin 
-        if clippedSide == 'left':
-            operation =  alignmentObj.cigartuples[0][0]  
-
-        ## b) Clipping at the end
-        else:
-            operation = alignmentObj.cigartuples[-1][0]
-
-        ### Define if soft or had clipping
-        self.clippingType = 'soft' if (operation == 4) else 'hard'
-       
-
-class INS():
-    '''
-    Short insertion class. Insertion completely spanned by the read sequence
-    '''
-    def __init__(self, ref, pos, length, seq, readId, sample):
-        self.type = 'INS' 
-        self.ref = str(ref)
-        self.pos = int(pos)
-        self.length = length
-        self.seq = seq
-        self.readId = readId   
-        self.sample = sample 
-
-
-class DEL():
-    '''
-    Short deletion class. Deletion completely spanned by the read sequence
-    '''
-    def __init__(self, ref, beg, end, length, readId, sample):
-        self.type = 'DEL' 
-        self.ref = str(ref)
-        self.pos = int(beg)
-        self.end = int(end)
-        self.length = length
-        self.readId = readId   
-        self.sample = sample 
 
 
  

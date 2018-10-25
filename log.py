@@ -3,15 +3,10 @@ Module 'log' - Contains functions to report log information
 '''
 
 ## DEPENDENCIES ##
+# External
 import time
 
 ## FUNCTIONS ##
-def log(label, string):
-    '''
-        Display labelled information
-    '''
-    print('[' + label + ']', string)
-
 
 def subHeader(string):
     '''
@@ -20,7 +15,6 @@ def subHeader(string):
     timeInfo = time.strftime("%Y-%m-%d %H:%M")
     print(timeInfo, '**', string, '**')
 
-
 def info(string):
     '''
         Display basic information
@@ -28,3 +22,8 @@ def info(string):
     timeInfo = time.strftime("%Y-%m-%d %H:%M")
     print(timeInfo, string)
 
+def step(label, string):
+    '''
+        Display labelled information
+    '''
+    print('[' + label + ']', string)

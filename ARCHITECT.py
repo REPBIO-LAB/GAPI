@@ -56,7 +56,7 @@ print()
 ## 1. Create configuration dictionary
 confDict = {}
 windowSize = 1000000
-clusterSize = 100
+maxBkpDist = 100
 targetRefs = ['22']
 #targetRefs = list(range(1, 23, 1))
 #targetRefs = None
@@ -64,7 +64,7 @@ targetSV = ['INS', 'CLIPPING']
 
 confDict['threads'] = threads
 confDict['windowSize'] = windowSize
-confDict['clusterSize'] = clusterSize
+confDict['maxBkpDist'] = maxBkpDist
 confDict['targetRefs'] = targetRefs
 confDict['targetSV'] = targetSV
 
