@@ -56,17 +56,20 @@ print()
 ## 1. Create configuration dictionary
 confDict = {}
 windowSize = 1000000
-maxBkpDist = 100
 targetRefs = ['22']
 #targetRefs = list(range(1, 23, 1))
 #targetRefs = None
 targetSV = ['INS', 'CLIPPING']
+maxBkpDist = 50
+minRootClusterSize = 2
 
 confDict['threads'] = threads
 confDict['windowSize'] = windowSize
-confDict['maxBkpDist'] = maxBkpDist
 confDict['targetRefs'] = targetRefs
 confDict['targetSV'] = targetSV
+confDict['maxBkpDist'] = maxBkpDist
+confDict['minRootClusterSize'] = minRootClusterSize
+
 
 ## 2. Launch structural variation (SV) caller
 callerObj = callers.SVcaller_nano(mode, bam, normalBam, confDict, outDir)

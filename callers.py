@@ -15,42 +15,51 @@ import structures
 import variants
 
 ## FUNCTIONS ##
-def clusterCLIPPING(CLIPPING_list, maxBkpDist):
+def clusterCLIPPING(CLIPPING_list, maxBkpDist, minClusterSize):
     '''
     Cluster CLIPPING events based on breakpoint position coordinates
 
     Input:
         1. CLIPPING_list: list of CLIPPING objects
-        2. maxDist: maximum distance between two breakpoints to include them into the same cluster
+        2. maxBkpDist: maximum distance between two breakpoints to include them into the same cluster
+        3. minClusterSize: minimum number of clippings required to build a root cluster in a window
 
     Output:
         1. clusterDict: positions dictionary containing the clusters
     ''' 
     step = 'CLUSTER-CLIPPING'
-    msg = 'Input (CLIPPING_list, maxBkpDist): ' +  "\t".join([str(len(CLIPPING_list)), str(maxBkpDist)])    
+    msg = 'Input (CLIPPING_list, maxBkpDist, minClusterSize): ' +  "\t".join([str(len(CLIPPING_list)), str(maxBkpDist), str(minClusterSize)])    
     log.step(step, msg)
 
     ## 1. Organize CLIPPING events by their breakpoint position ##
     posDict = structures.buildPosDict(CLIPPING_list, maxBkpDist)
 
     ## 2. Cluster CLIPPING events ##
-    # Initialize list of already processed windows
-    processedWindows = []
+    # Initialize list with windows already incorporated into clusters
+    windowsInClusters = []
     clusterList = []
 
     # For each genomic window
-    for windowIndex, events in posDict.items():
+    for windowIndex, CLIPPINGS in posDict.items():
     
-        # Skip already processed windows
-        if windowIndex in processedWindows:
+        ### Number of CLIPPING events in the window
+        nbCLIPPINGS = len(CLIPPINGS)
+
+        ### Skip window fulfilling one of these conditions:
+        # a) Window already incorporated into a cluster 
+        if windowIndex in windowsInClusters:
+            continue
+    
+        # b) Window without enough number of CLIPPING events to build a root cluster
+        elif (nbCLIPPINGS < minClusterSize):
             continue
 
-        processedWindows.append(windowIndex)
-
-        ## Create cluster containing CLIPPINGS on the region
-        cluster = variants.CLIPPING_cluster(events)
+        ### Create root cluster containing CLIPPINGS on the window
+        cluster = variants.CLIPPING_cluster(CLIPPINGS)
         clusterList.append(cluster)
+        windowsInClusters.append(windowIndex) # now window incorporated into cluster
 
+        ### Root cluster extension
         ## 2.1 Go backward from current window (*).  
         #       <---2--- <---1---
         # |---------|--------|----*----|---------
@@ -73,10 +82,9 @@ def clusterCLIPPING(CLIPPING_list, maxBkpDist):
                 # a) Last CLIPPING within maximum distance 
                 if bkpDist <= maxBkpDist:
 
-                    processedWindows.append(backwardIndex)
-
                     # Add CLIPPINGS within window to the cluster 
                     cluster.add(CLIPPINGS, 'left')
+                    windowsInClusters.append(backwardIndex) # now window incorporated into cluster
          
                 # b) CLIPPING outside 
                 else:
@@ -110,11 +118,10 @@ def clusterCLIPPING(CLIPPING_list, maxBkpDist):
                 # a) Last CLIPPING within maximum distance 
                 if bkpDist <= maxBkpDist:
 
-                    processedWindows.append(forwardIndex)
-
                     # Add CLIPPINGS within window to the cluster 
                     cluster.add(CLIPPINGS, 'right')
-         
+                    windowsInClusters.append(forwardIndex) # now window incorporated into cluster
+
                 # b) CLIPPING outside 
                 else:
                     break
@@ -125,15 +132,15 @@ def clusterCLIPPING(CLIPPING_list, maxBkpDist):
             
             forwardIndex += 1        
 
-    ## 2. Organize CLIPPING clusters into a dictionary ##
+    ## 3. Organize CLIPPING clusters into a dictionary ##
     clustersDict = structures.buildPosDict(clusterList, 1000)
+    nbClusters = len(clusterList)
 
-    return clustersDict
+    return clustersDict, nbClusters
 
 ## Pending, create these functions:
 #clusterINS
 #clusterDEL
-
 
 ## CLASSES ##
 class SVcaller_nano():
@@ -223,11 +230,14 @@ class SVcaller_nano():
 
             ## 2. Group events into SV clusters ##
             ## 2.1 Cluster CLIPPINGS 
-            CLIPPING_left_clustersDict = clusterCLIPPING(CLIPPING_left_list, self.confDict['maxBkpDist'])
-            CLIPPING_right_clustersDict = clusterCLIPPING(CLIPPING_right_list, self.confDict['maxBkpDist'])
+            CLIPPING_left_clustersDict, nbClustersLeft = clusterCLIPPING(CLIPPING_left_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'])
+            CLIPPING_right_clustersDict, nbClustersRight = clusterCLIPPING(CLIPPING_right_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'])
+
+            step = 'CLUSTER-CLIPPING'
+            msg = 'Number of CLIPPING clusters (left clipping, right clipping): ' +  "\t".join([str(nbClustersLeft), str(nbClustersRight)])    
+            log.step(step, msg)
 
             ## 2.2 Cluster insertions 
-
             ## 2.3 Cluster deletions
 
 
