@@ -12,47 +12,47 @@ import structures
 import variants
 
 ## FUNCTIONS ##
-def clusterCLIPPING(CLIPPING_list, maxBkpDist, minClusterSize):
+def clusterByPosDict(events, maxPosDist, minClusterSize):
     '''
-    Cluster CLIPPING events based on breakpoint position coordinates
+    Cluster events (CLIPPING, INS, DEL...) by breakpoint position coordinates. Organize data into a dictionary with genomic windows for clustering
 
     Input:
-        1. CLIPPING_list: list of CLIPPING objects
-        2. maxBkpDist: maximum distance between two breakpoints to include them into the same cluster
-        3. minClusterSize: minimum number of clippings required to build a root cluster in a window
+        1. events: list of objects. Every object must have a 'pos' argument (position)
+        2. maxPosDist: maximum distance between two positions to include them into the same cluster
+        3. minClusterSize: minimum number of events required to build a root cluster in a window
 
     Output:
-        1. clusterDict: positions dictionary containing the clusters
+        1. clusterDict: dictionary containing the clusters organized in genomic windows
     ''' 
-    step = 'CLUSTER-CLIPPING'
-    msg = 'Input (CLIPPING_list, maxBkpDist, minClusterSize): ' +  "\t".join([str(len(CLIPPING_list)), str(maxBkpDist), str(minClusterSize)])    
-    log.step(step, msg)
+    # step = 'CLUSTER'
+    # msg = 'Input (events, maxPosDist, minClusterSize): ' +  "\t".join([str(len(events)), str(maxPosDist), str(minClusterSize)])    
+    # log.step(step, msg)
 
-    ## 1. Organize CLIPPING events by their breakpoint position ##
-    posDict = structures.buildPosDict(CLIPPING_list, maxBkpDist)
+    ## 1. Organize events by their breakpoint position ##
+    posDict = structures.buildPosDict(events, maxPosDist)
 
-    ## 2. Cluster CLIPPING events ##
+    ## 2. Cluster events ##
     # Initialize list with windows already incorporated into clusters
     windowsInClusters = []
     clusterList = []
 
     # For each genomic window
-    for windowIndex, CLIPPINGS in posDict.items():
+    for windowIndex, events in posDict.items():
     
-        ### Number of CLIPPING events in the window
-        nbCLIPPINGS = len(CLIPPINGS)
+        ### Number of events in the window
+        nbEvents = len(events)
 
-        ### Skip window fulfilling one of these conditions:
+        ### Skip windows fulfilling one of these conditions:
         # a) Window already incorporated into a cluster 
         if windowIndex in windowsInClusters:
             continue
     
-        # b) Window without enough number of CLIPPING events to build a root cluster
-        elif (nbCLIPPINGS < minClusterSize):
+        # b) Window without enough number of events to build a root cluster
+        elif (nbEvents < minClusterSize):
             continue
 
-        ### Create root cluster containing CLIPPINGS on the window
-        cluster = variants.CLIPPING_cluster(CLIPPINGS)
+        ### Create root cluster containing events on the window
+        cluster = variants.cluster(events)
         clusterList.append(cluster)
         windowsInClusters.append(windowIndex) # now window incorporated into cluster
 
@@ -61,33 +61,33 @@ def clusterCLIPPING(CLIPPING_list, maxBkpDist, minClusterSize):
         #       <---2--- <---1---
         # |---------|--------|----*----|---------
         # Go one window backward in each iteration. Extend the cluster 
-        # if last clipping breakpoint in previous window within 
+        # if last breakpoint position in previous window within 
         # maximum cluster distance or end iteration, otherwise 
         backwardIndex = windowIndex - 1
 
         while True:
         
-            # A) There are CLIPPINGS in the window 
+            # A) There are breakpoints in the window 
             if backwardIndex in posDict:
                 
-                # Compute the distance between the right most CLIPPING in the new window
-                # and the cluster begin 
-                CLIPPINGS = posDict[backwardIndex]
-                lastCLIPPING = CLIPPINGS[-1]
-                bkpDist = cluster.pos - lastCLIPPING.pos
+                # Compute the distance between the right most breakpoint position
+                # in the new window and the cluster begin 
+                events = posDict[backwardIndex]
+                lastEvent = events[-1]
+                posDist = cluster.pos - lastEvent.pos
 
-                # a) Last CLIPPING within maximum distance 
-                if bkpDist <= maxBkpDist:
+                # a) Last event within maximum distance 
+                if posDist <= maxPosDist:
 
-                    # Add CLIPPINGS within window to the cluster 
-                    cluster.add(CLIPPINGS, 'left')
+                    # Add events within window to the cluster 
+                    cluster.add(events, 'left')
                     windowsInClusters.append(backwardIndex) # now window incorporated into cluster
          
-                # b) CLIPPING outside 
+                # b) Event outside 
                 else:
                     break
 
-            # B) No CLIPPINGS in the window. Stop iterating
+            # B) No events in the window. Stop iterating
             else:
                 break 
             
@@ -97,39 +97,39 @@ def clusterCLIPPING(CLIPPING_list, maxBkpDist, minClusterSize):
         #                ---1---> ---2--->
         # |---------|----*----|--------|---------
         # Go one window forward in each iteration. Extend the cluster 
-        # if first clipping breakpoint in next window within 
+        # if first breakpoint position in next window within 
         # maximum cluster distance or end iteration, otherwise 
         forwardIndex = windowIndex + 1
 
         while True:
         
-            # A) There are CLIPPINGS in the window 
+            # A) There are breakpoints in the window 
             if forwardIndex in posDict:
                 
-                # Compute the distance between the left most CLIPPING in the new window
+                # Compute the distance between the left most position in the new window
                 # and the cluster end 
-                CLIPPINGS = posDict[forwardIndex]
-                firstCLIPPING = CLIPPINGS[0]
-                bkpDist = firstCLIPPING.pos - cluster.end 
+                events = posDict[forwardIndex]
+                firstEvent = events[0]
+                posDist = firstEvent.pos - cluster.end 
 
-                # a) Last CLIPPING within maximum distance 
-                if bkpDist <= maxBkpDist:
+                # a) Last event within maximum distance 
+                if posDist <= maxPosDist:
 
-                    # Add CLIPPINGS within window to the cluster 
-                    cluster.add(CLIPPINGS, 'right')
+                    # Add events within window to the cluster 
+                    cluster.add(events, 'right')
                     windowsInClusters.append(forwardIndex) # now window incorporated into cluster
 
-                # b) CLIPPING outside 
+                # b) Events outside 
                 else:
                     break
 
-            # B) No CLIPPINGS in the window. Stop iterating
+            # B) No events in the window. Stop iterating
             else:
                 break 
             
             forwardIndex += 1        
 
-    ## 3. Organize CLIPPING clusters into a dictionary ##
+    ## 3. Organize clusters into a dictionary ##
     clustersDict = structures.buildPosDict(clusterList, 1000)
     nbClusters = len(clusterList)
 

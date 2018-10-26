@@ -103,16 +103,21 @@ class SVcaller_nano():
 
             ## 2. Group events into SV clusters ##
             ## 2.1 Cluster CLIPPINGS 
-            CLIPPING_left_clustersDict, nbClustersLeft = clustering.clusterCLIPPING(CLIPPING_left_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'])
-            CLIPPING_right_clustersDict, nbClustersRight = clustering.clusterCLIPPING(CLIPPING_right_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'])
+            CLIPPING_left_clusters, nbClustersLeft = clustering.clusterByPosDict(CLIPPING_left_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'])
+            CLIPPING_right_clusters, nbClustersRight = clustering.clusterByPosDict(CLIPPING_right_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'])
 
             step = 'CLUSTER-CLIPPING'
             msg = 'Number of CLIPPING clusters (left clipping, right clipping): ' +  "\t".join([str(nbClustersLeft), str(nbClustersRight)])    
             log.step(step, msg)
 
             ## 2.2 Cluster insertions 
-            clustering.clusterCLIPPING(CLIPPING_left_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'])
-            
+            INS_clusters, nbINS = clustering.clusterByPosDict(INS_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'])
+
+            step = 'CLUSTER-INS'
+            msg = 'Number of INS clusters: ' +  str(nbINS)    
+            log.step(step, msg)
+
+
             ## 2.3 Cluster deletions
 
 

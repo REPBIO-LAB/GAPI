@@ -87,31 +87,31 @@ class DEL():
 
 
 ## SECONDARY CLASSES ##
-class CLIPPING_cluster():
+class cluster():
     '''
-    CLIPPINGS cluster class
+    Events cluster class
     '''
-    def __init__(self, CLIPPINGS):
+    def __init__(self, events):
         '''
 
         '''
 
         # Define cluster chromosome, begin and end position
-        self.ref = CLIPPINGS[0].ref
-        self.pos = CLIPPINGS[0].pos
-        self.end = CLIPPINGS[-1].pos
-        self.CLIPPING_list = CLIPPINGS
+        self.ref = events[0].ref
+        self.pos = events[0].pos
+        self.end = events[-1].pos
+        self.events = events
     
-    def add(self, CLIPPINGS, side):
+    def add(self, new_events, side):
         '''
       
         '''
         if side == 'left':
-            self.beg = CLIPPINGS[0].pos
-            self.CLIPPING_list = CLIPPINGS + self.CLIPPING_list 
+            self.beg = new_events[0].pos
+            self.events = new_events + self.events 
         else:
-            self.end = CLIPPINGS[-1].pos
-            self.CLIPPING_list = self.CLIPPING_list + CLIPPINGS 
+            self.end = new_events[-1].pos
+            self.events = self.events + new_events 
         
 
 
