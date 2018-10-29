@@ -103,15 +103,17 @@ class SVcaller_nano():
 
             ## 2. Group events into SV clusters ##
             ## 2.1 Cluster CLIPPINGS  
-            CLIPPING_left_clusters, nbClustersLeft = clustering.clusterByPos(CLIPPING_left_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'])
-            CLIPPING_right_clusters, nbClustersRight = clustering.clusterByPos(CLIPPING_right_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'])
+            clustering.clusterByPos(CLIPPING_left_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'CLIPPING')
+            
+            CLIPPING_left_clusters, nbClustersLeft = clustering.clusterByPos(CLIPPING_left_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'CLIPPING')
+            CLIPPING_right_clusters, nbClustersRight = clustering.clusterByPos(CLIPPING_right_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'CLIPPING')
 
             step = 'CLUSTER-CLIPPING'
             msg = 'Number of CLIPPING clusters (left clipping, right clipping): ' +  "\t".join([str(nbClustersLeft), str(nbClustersRight)])    
             log.step(step, msg)
             
             ## 2.2 Cluster insertions 
-            INS_clusters, nbINS = clustering.clusterByPos(INS_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'])
+            INS_clusters, nbINS = clustering.clusterByPos(INS_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'INS')
 
             step = 'CLUSTER-INS'
             msg = 'Number of INS clusters: ' +  str(nbINS)    
@@ -126,7 +128,7 @@ class SVcaller_nano():
             # overlap are clustered together. 
 
             ## 2. Group clusters into SV metaclusters ##
-
+            
 
 
 

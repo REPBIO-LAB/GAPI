@@ -1,5 +1,5 @@
 '''
-Module 'callers' - Contains classes and functions for calling variants from next generation sequencing data
+Module 'clustering' - Contains algorithms for clustering sets of objects based on coordinates
 '''
 
 ## DEPENDENCIES ##
@@ -12,14 +12,15 @@ import structures
 import variants
 
 ## FUNCTIONS ##
-def clusterByPos(events, maxDist, minClusterSize):
+def clusterByPos(events, maxDist, minClusterSize, clusterType):
     '''
     Cluster events (CLIPPING, INS...) by breakpoint position coordinates. Organize data into a dictionary with genomic windows for clustering
 
     Input:
-        1. events: list of objects. Every object must have a 'pos' argument (position)
+        1. events: list of objects. Every object must have a 'pos' argument (position) and be an instance of the same class. 
         2. maxDist: maximum distance between two positions to include them into the same cluster
         3. minClusterSize: minimum number of events required to build a root cluster in a window
+        4. clusterType: type of clusters to create (None: undefined cluster type; INS: insertion; DEL: deletion; CLIPPING: clipping)
 
     Output:
         1. clusterDict: dictionary containing the clusters organized in genomic windows
@@ -49,7 +50,7 @@ def clusterByPos(events, maxDist, minClusterSize):
             continue
 
         ### Create root cluster containing events on the window
-        cluster = variants.cluster(events)
+        cluster = variants.makeCluster(events, clusterType)
         clusterList.append(cluster)
         windowsInClusters.append(windowIndex) # now window incorporated into cluster
 
@@ -132,9 +133,10 @@ def clusterByPos(events, maxDist, minClusterSize):
 
     return clustersDict, nbClusters
 
+
 def makeMetaClusters(events, maxDist, minClusterSize):
     '''
-    Group clusters into metaclusters. D
+    Group clusters into metaclusters. 
     Cluster events (CLIPPING, INS, DEL...) by breakpoint position coordinates. Organize data into a dictionary with genomic windows for clustering
 
     Input:
