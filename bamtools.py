@@ -11,14 +11,14 @@ import log
 import variants
 
 ## FUNCTIONS ##
-def makeGenomicBins(bam, windowSize, targetRefList):
+def makeGenomicBins(bam, windowSize, targetRefs):
     '''
     Split the genome into a set of non overlapping windows of 'windowSize' bp. 
 
     Input:
         1. bam: BAM file
         2. windowSize: size of the windows
-        3. targetRefList: list of target references. None if all the references are considered
+        3. targetRefs: list of target references. None if all the references are considered
 
     Output:
         1. windowsList: List of non overlapping windows. Each list item corresponds to a tuple (ref, beg, end)
@@ -28,31 +28,31 @@ def makeGenomicBins(bam, windowSize, targetRefList):
     bamFile = pysam.AlignmentFile(bam, 'rb')
 
     ## Make dictionary with the length for each reference
-    refLengthsDict = dict(list(zip(bamFile.references, bamFile.lengths)))
+    refLengths  = dict(list(zip(bamFile.references, bamFile.lengths)))
 
     ## Select target references
-    if targetRefList != None:
-        targetRefList = [str(i) for i in targetRefList]
-        refLengthsDict = {ref: refLengthsDict[ref] for ref in targetRefList} 
+    if targetRefs != None:
+        targetRefs = [str(i) for i in targetRefs]
+        refLengths  = {ref: refLengths [ref] for ref in targetRefs} 
 
     ## Split each reference into evenly sized windows
     windowsList = []
 
     # For each reference
-    for ref, length in refLengthsDict.items():
+    for ref, length in refLengths .items():
     
         ## Define window boundaries
-        boundariesList = [boundary for boundary in range(0, length, windowSize)]    
-        boundariesList = boundariesList + [length]
+        boundaries = [boundary for boundary in range(0, length, windowSize)]    
+        boundaries = boundaries + [length]
  
         ## Make windows
-        for idx, beg in enumerate(boundariesList):
+        for idx, beg in enumerate(boundaries):
 
             ## Skip last element from the list
-            if beg < boundariesList[-1]:
-                end = boundariesList[idx + 1]
-                windowTuple = (ref, beg, end)
-                windowsList.append(windowTuple)
+            if beg < boundaries[-1]:
+                end = boundaries[idx + 1]
+                window = (ref, beg, end)
+                windowsList.append(window)
 
     ## Close bam file
     bamFile.close()
@@ -60,7 +60,7 @@ def makeGenomicBins(bam, windowSize, targetRefList):
     return windowsList
 
 
-def collectSV(ref, beg, end, bam, targetSV, sample):
+def collectSV(ref, beg, end, bam, confDict, sample):
     '''
     Collect structural variant (SV) candidates from a genomic region. 
 
@@ -69,7 +69,12 @@ def collectSV(ref, beg, end, bam, targetSV, sample):
         2. beg: target interval begin position
         3. end: target interval end position
         4. bam: indexed BAM file
-        5. targetSV: list of target SV to search for (3 possible SV types: insertions (INS), deletions (DEL) and clippings (CLIPPING))
+        5. confDict: 
+            * targetSV       -> list with target SV (INS: insertion; DEL: deletion)
+            * minMAPQ        -> minimum mapping quality
+            * minCLIPPINGlen -> minimum clipping lenght
+            * minINDELlen    -> minimum INS and DEL lenght
+
         6. sample: type of sample (TUMOUR, NORMAL or None)
 
     Output:
@@ -80,9 +85,8 @@ def collectSV(ref, beg, end, bam, targetSV, sample):
         5. [TO DO] readDict: dictionary containing the read alignments supporting the SV events. Format:
                 key   -> read identifier
                 value -> list of alignments for this read
-
-
-    Note: some filters are hardcoded (i.e. minimum lengths). At one point improve to take a dictionary as input specifying the filters configuration.
+    
+    * include secondary alignment filter???
     '''
     
     ## Initialize lists with SV
@@ -100,13 +104,20 @@ def collectSV(ref, beg, end, bam, targetSV, sample):
     # For each read alignment
     for alignmentObj in iterator:
         
-        ### Discard unmapped reads, PCR duplicates and reads with sequence not available
-        if (alignmentObj.is_unmapped == False) and (alignmentObj.is_duplicate == False) and (alignmentObj.query_sequence != None):
+        ### Select good quality alignments not having any of these properties:
+        # - Unmapped 
+        # - Secondary alignment (disabled, explore the possibility of including this filter)
+        # - PCR or optical duplicate
+        # - Read sequence not available
+        # - Mapping quality < threshold
+        MAPQ = int(alignmentObj.mapping_quality)   
+ 
+        if (alignmentObj.is_unmapped == False) and (alignmentObj.is_duplicate == False) and (alignmentObj.query_sequence != None) and (MAPQ >= confDict['minMAPQ']):
             
             ## 1. Collect CLIPPINGS
-            if 'CLIPPING' in targetSV:
+            if 'CLIPPING' in confDict['targetSV']:
 
-                clippingLeftObj, clippingRightObj = collectCLIPPING(alignmentObj, sample)
+                clippingLeftObj, clippingRightObj = collectCLIPPING(alignmentObj, confDict, sample)
 
                 if clippingLeftObj != None:
                     CLIPPING_left_list.append(clippingLeftObj)
@@ -115,8 +126,8 @@ def collectSV(ref, beg, end, bam, targetSV, sample):
                     CLIPPING_right_list.append(clippingRightObj)
     
             ## 2. Collect INDELS
-            if ('INS' in targetSV) or ('DEL' in targetSV):
-                INS_list_tmp, DEL_list_tmp = collectINDELS(alignmentObj, targetSV, sample)
+            if ('INS' in confDict['targetSV']) or ('DEL' in confDict['targetSV']):
+                INS_list_tmp, DEL_list_tmp = collectINDELS(alignmentObj, confDict, sample)
 
                 INS_list = INS_list + INS_list_tmp
                 DEL_list = DEL_list + DEL_list_tmp            
@@ -124,13 +135,15 @@ def collectSV(ref, beg, end, bam, targetSV, sample):
     # return sv candidates
     return INS_list, DEL_list, CLIPPING_left_list, CLIPPING_right_list
 
-def collectCLIPPING(alignmentObj, sample):
+def collectCLIPPING(alignmentObj, confDict, sample):
     '''
-    Check for a read alignment if the read is clipped on both sides and return the corresponding clipping objects 
+    For a read alignment check if the read is clipped on each side and return the corresponding clipping objects 
 
     Input: 
         1. alignmentObj: pysam read alignment object 
-        2. sample: type of sample (TUMOUR, NORMAL or None)
+        2. confDict: configuration dictionary containing the following mandatory key value pairs:
+            * minCLIPPINGlen -> minimum clipping lenght
+        3. sample: type of sample (TUMOUR, NORMAL or None). Move to confDict
         
     Output:
         1. clippingLeftObj: CLIPPING object for left clipping (None if no clipping found) 
@@ -139,8 +152,6 @@ def collectCLIPPING(alignmentObj, sample):
                 key   -> read identifier
                 value -> list of alignments for this read
 
-    Note: some filters are hardcoded (i.e. minimum lengths). At one point improve to take a dictionary as input specifying the filters configuration.
-    Note: consider to include a minimum mapping quality filter
     Note: include filter to discard reads clipped at both their begin and end (useful with illumina data)
     '''
     # Initialize as None
@@ -152,23 +163,27 @@ def collectCLIPPING(alignmentObj, sample):
 
     ## Clipping >= X bp at the left
     #  Note: soft (Operation=4) or hard clipped (Operation=5)     
-    if ((firstOperation == 4) or (firstOperation == 5)) and (firstOperationLen >= 500):
+    if ((firstOperation == 4) or (firstOperation == 5)) and (firstOperationLen >= confDict['minCLIPPINGlen']):
+        
         clippingLeftObj = variants.CLIPPING(alignmentObj, 'left', sample)
         
     ## Clipping > X bp at the right
-    if ((lastOperation == 4) or (lastOperation == 5)) and (lastOperationLen >= 500):
+    if ((lastOperation == 4) or (lastOperation == 5)) and (lastOperationLen >= confDict['minCLIPPINGlen']):
         clippingRightObj = variants.CLIPPING(alignmentObj, 'right', sample) 
    
     return clippingLeftObj, clippingRightObj
 
 
-def collectINDELS(alignmentObj, targetSV, sample):
+def collectINDELS(alignmentObj, confDict, sample):
     '''
     Collect insertions and deletions longer than a threshold that are completely spanned within an input read alignment
 
     Input: 
         1. alignmentObj: pysam read alignment object instance
-        2. sample: type of sample (TUMOUR, NORMAL or None)
+        2. confDict: configuration dictionary containing the following mandatory key value pairs:
+            * targetSV    -> list with target SV (INS: insertion; DEL: deletion)
+            * minINDELlen -> minimum INS and DEL lenght
+        3. sample: type of sample (TUMOUR, NORMAL or None). Move to confDict
 
     Output:
         1. INS_list: list of INS objects
@@ -176,9 +191,6 @@ def collectINDELS(alignmentObj, targetSV, sample):
         3. [TO DO] readDict: dictionary containing the read alignments supporting the SV events. Format:
                 key   -> read identifier
                 value -> list of alignments for this read
-
-    Note: some filters are hardcoded (i.e. minimum lengths). At one point improve to take a dictionary as input specifying the filters configuration.
-    Note: consider to include a minimum mapping quality filter
     '''
     INS_list = []    
     DEL_list = []    
@@ -196,9 +208,9 @@ def collectINDELS(alignmentObj, targetSV, sample):
                 
         operation = int(cigarTuple[0])
         length = int(cigarTuple[1])
-            
-        ## a) INSERTION to the reference >= Xbp
-        if ('INS' in targetSV) and (operation == 1) and (length >= 50):
+
+        ## a) INSERTION to the reference >= Xbp 
+        if ('INS' in confDict['targetSV']) and (operation == 1) and (length >= confDict['minINDELlen']):
        
             insertBeg = posQuery
             insertEnd = posQuery + length
@@ -208,8 +220,8 @@ def collectINDELS(alignmentObj, targetSV, sample):
             insObj = variants.INS(alignmentObj.reference_name, posRef, insertLength, insertSeq, readId, sample)
             INS_list.append(insObj)   
 
-        ## b) DELETION to the reference >= Xbp
-        if ('DEL' in targetSV) and (operation == 2) and (length >= 50):
+        ## b) DELETION to the reference >= Xbp 
+        if ('DEL' in confDict['targetSV']) and (operation == 2) and (length >= confDict['minINDELlen']):
 
             beg = posRef
             end = posRef + length

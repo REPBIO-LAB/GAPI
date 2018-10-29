@@ -12,24 +12,21 @@ import structures
 import variants
 
 ## FUNCTIONS ##
-def clusterByPosDict(events, maxPosDist, minClusterSize):
+def clusterByPos(events, maxDist, minClusterSize):
     '''
-    Cluster events (CLIPPING, INS, DEL...) by breakpoint position coordinates. Organize data into a dictionary with genomic windows for clustering
+    Cluster events (CLIPPING, INS...) by breakpoint position coordinates. Organize data into a dictionary with genomic windows for clustering
 
     Input:
         1. events: list of objects. Every object must have a 'pos' argument (position)
-        2. maxPosDist: maximum distance between two positions to include them into the same cluster
+        2. maxDist: maximum distance between two positions to include them into the same cluster
         3. minClusterSize: minimum number of events required to build a root cluster in a window
 
     Output:
         1. clusterDict: dictionary containing the clusters organized in genomic windows
     ''' 
-    # step = 'CLUSTER'
-    # msg = 'Input (events, maxPosDist, minClusterSize): ' +  "\t".join([str(len(events)), str(maxPosDist), str(minClusterSize)])    
-    # log.step(step, msg)
 
-    ## 1. Organize events by their breakpoint position ##
-    posDict = structures.buildPosDict(events, maxPosDist)
+    ## 1. Organize events by their breakpoint position in genomic windows ##
+    eventsDict = structures.mapEvents2windows(events, 'pos', maxDist)
 
     ## 2. Cluster events ##
     # Initialize list with windows already incorporated into clusters
@@ -37,7 +34,7 @@ def clusterByPosDict(events, maxPosDist, minClusterSize):
     clusterList = []
 
     # For each genomic window
-    for windowIndex, events in posDict.items():
+    for windowIndex, events in eventsDict.items():
     
         ### Number of events in the window
         nbEvents = len(events)
@@ -68,16 +65,16 @@ def clusterByPosDict(events, maxPosDist, minClusterSize):
         while True:
         
             # A) There are breakpoints in the window 
-            if backwardIndex in posDict:
+            if backwardIndex in eventsDict:
                 
                 # Compute the distance between the right most breakpoint position
                 # in the new window and the cluster begin 
-                events = posDict[backwardIndex]
+                events = eventsDict[backwardIndex]
                 lastEvent = events[-1]
-                posDist = cluster.pos - lastEvent.pos
+                posDist = cluster.beg - lastEvent.pos
 
                 # a) Last event within maximum distance 
-                if posDist <= maxPosDist:
+                if posDist <= maxDist:
 
                     # Add events within window to the cluster 
                     cluster.add(events, 'left')
@@ -104,16 +101,16 @@ def clusterByPosDict(events, maxPosDist, minClusterSize):
         while True:
         
             # A) There are breakpoints in the window 
-            if forwardIndex in posDict:
+            if forwardIndex in eventsDict:
                 
                 # Compute the distance between the left most position in the new window
                 # and the cluster end 
-                events = posDict[forwardIndex]
+                events = eventsDict[forwardIndex]
                 firstEvent = events[0]
                 posDist = firstEvent.pos - cluster.end 
 
                 # a) Last event within maximum distance 
-                if posDist <= maxPosDist:
+                if posDist <= maxDist:
 
                     # Add events within window to the cluster 
                     cluster.add(events, 'right')
@@ -130,13 +127,26 @@ def clusterByPosDict(events, maxPosDist, minClusterSize):
             forwardIndex += 1        
 
     ## 3. Organize clusters into a dictionary ##
-    clustersDict = structures.buildPosDict(clusterList, 1000)
+    clustersDict = structures.mapEvents2windows(clusterList, 'beg', 1000)
     nbClusters = len(clusterList)
 
     return clustersDict, nbClusters
 
+def makeMetaClusters(events, maxDist, minClusterSize):
+    '''
+    Group clusters into metaclusters. D
+    Cluster events (CLIPPING, INS, DEL...) by breakpoint position coordinates. Organize data into a dictionary with genomic windows for clustering
+
+    Input:
+        1. events: list of objects. Every object must have a 'pos' argument (position)
+        2. maxDist: maximum distance between two positions to include them into the same cluster
+        3. minClusterSize: minimum number of events required to build a root cluster in a window
+
+    Output:
+        1. clusterDict: dictionary containing the clusters organized in genomic windows
+    ''' 
+
 ## Pending, create these functions:
-#clusterINS
 #clusterDEL
 
 ## CLASSES ##

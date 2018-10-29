@@ -80,16 +80,16 @@ class SVcaller_nano():
             ## 1. Search for SV candidate events in the bam file/s ##
             # a) Single sample mode
             if self.mode == "SINGLE":
-                INS_list, DEL_list, CLIPPING_left_list, CLIPPING_right_list = bamtools.collectSV(ref, beg, end, self.bam, self.confDict['targetSV'], None)
+                INS_list, DEL_list, CLIPPING_left_list, CLIPPING_right_list = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, None)
 
             # b) Paired sample mode (tumour & matched normal)
             else:
 
                 ## Search for SV events in the tumour
-                INS_list_T, DEL_list_T, CLIPPING_left_list_T, CLIPPING_right_list_T = bamtools.collectSV(ref, beg, end, self.bam, self.confDict['targetSV'], 'TUMOUR')
+                INS_list_T, DEL_list_T, CLIPPING_left_list_T, CLIPPING_right_list_T = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, 'TUMOUR')
 
                 ## Search for SV events in the normal
-                INS_list_N, DEL_list_N, CLIPPING_left_list_N, CLIPPING_right_list_N = bamtools.collectSV(ref, beg, end, self.normalBam, self.confDict['targetSV'], 'NORMAL')
+                INS_list_N, DEL_list_N, CLIPPING_left_list_N, CLIPPING_right_list_N = bamtools.collectSV(ref, beg, end, self.normalBam, self.confDict, 'NORMAL')
 
                 ## Join tumour and normal lists
                 INS_list = INS_list_T + INS_list_N
@@ -102,23 +102,32 @@ class SVcaller_nano():
             log.step(step, msg)
 
             ## 2. Group events into SV clusters ##
-            ## 2.1 Cluster CLIPPINGS 
-            CLIPPING_left_clusters, nbClustersLeft = clustering.clusterByPosDict(CLIPPING_left_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'])
-            CLIPPING_right_clusters, nbClustersRight = clustering.clusterByPosDict(CLIPPING_right_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'])
+            ## 2.1 Cluster CLIPPINGS  
+            CLIPPING_left_clusters, nbClustersLeft = clustering.clusterByPos(CLIPPING_left_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'])
+            CLIPPING_right_clusters, nbClustersRight = clustering.clusterByPos(CLIPPING_right_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'])
 
             step = 'CLUSTER-CLIPPING'
             msg = 'Number of CLIPPING clusters (left clipping, right clipping): ' +  "\t".join([str(nbClustersLeft), str(nbClustersRight)])    
             log.step(step, msg)
-
+            
             ## 2.2 Cluster insertions 
-            INS_clusters, nbINS = clustering.clusterByPosDict(INS_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'])
+            INS_clusters, nbINS = clustering.clusterByPos(INS_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'])
 
             step = 'CLUSTER-INS'
             msg = 'Number of INS clusters: ' +  str(nbINS)    
             log.step(step, msg)
 
-
+            for windowIndex, clustersWindow in INS_clusters.items():
+                print('WINDOW', windowIndex, [(cluster.ref, cluster.beg, cluster.end, len(cluster.events)) for cluster in clustersWindow])
+            
             ## 2.3 Cluster deletions
+            # We should use a different clustering algorithm for deletions. Only rely on deletion begin makes no sense (POS)
+            # I think a better strategy would be to rely on reciprocal overlap. I.E. those deletions with at least 80% with reciprocal 
+            # overlap are clustered together. 
+
+            ## 2. Group clusters into SV metaclusters ##
+
+
 
 
 

@@ -1,10 +1,6 @@
 #!/usr/bin/env python
 #coding: utf-8
 
-
-
-#### MAIN ####
-
 ## Import modules ##
 # External
 import argparse
@@ -60,6 +56,10 @@ targetRefs = ['22']
 #targetRefs = list(range(1, 23, 1))
 #targetRefs = None
 targetSV = ['INS', 'CLIPPING']
+minMAPQ = 20
+minINDELlen = 50 
+minCLIPPINGlen = 500
+
 maxBkpDist = 50
 minRootClusterSize = 2
 
@@ -67,9 +67,13 @@ confDict['threads'] = threads
 confDict['windowSize'] = windowSize
 confDict['targetRefs'] = targetRefs
 confDict['targetSV'] = targetSV
+
+confDict['minMAPQ'] = minMAPQ
+confDict['minINDELlen'] = minINDELlen
+confDict['minCLIPPINGlen'] = minCLIPPINGlen
+
 confDict['maxBkpDist'] = maxBkpDist
 confDict['minRootClusterSize'] = minRootClusterSize
-
 
 ## 2. Launch structural variation (SV) caller
 callerObj = callers.SVcaller_nano(mode, bam, normalBam, confDict, outDir)

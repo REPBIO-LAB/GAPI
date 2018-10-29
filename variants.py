@@ -8,6 +8,23 @@ Module 'variants' - Contains classes for dealing with genomic variation
 # Internal
 
 
+###############
+## FUNCTIONS ##
+###############
+
+'''
+def make_cluster(events, clusterType):
+    Function to create a cluster object instance
+
+    Input:
+        1. events: list of events that will compose the cluster
+        2. clusterType: type of cluster (None: undefined cluster type; INS: insertion; DEL: deletion; CLIPPING: clipping)
+ 
+    Output:
+        1. cluster: cluster object instance
+'''
+    
+
 #############
 ## CLASSES ##
 #############
@@ -93,25 +110,31 @@ class cluster():
     '''
     def __init__(self, events):
         '''
-
         '''
 
         # Define cluster chromosome, begin and end position
         self.ref = events[0].ref
-        self.pos = events[0].pos
+        self.beg = events[0].pos
         self.end = events[-1].pos
         self.events = events
     
-    def add(self, new_events, side):
+    def add(self, newEvents, side):
         '''
-      
+        Incorporate events into the cluster. 
+
+        Input: 
+            1. newEvents: sorted list of events (from lower to upper position)
+            2. side: add events to the 'left' or to the 'right' of the cluster
+
+        Output:
+            - Update 'clippingType' class attribute 
         '''
         if side == 'left':
-            self.beg = new_events[0].pos
-            self.events = new_events + self.events 
+            self.beg = newEvents[0].pos
+            self.events = newEvents + self.events 
         else:
-            self.end = new_events[-1].pos
-            self.events = self.events + new_events 
+            self.end = newEvents[-1].pos
+            self.events = self.events + newEvents 
         
 
 
