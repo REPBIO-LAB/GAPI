@@ -103,32 +103,38 @@ class SVcaller_nano():
 
             ## 2. Group events into SV clusters ##          
             ## 2.1 Cluster insertions 
-            INS_clusters, nbINS = clustering.clusterByPos(INS_events, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'INS')
-
+            INS_clusters = clustering.clusterByPos(INS_events, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'INS')
+            
             step = 'CLUSTER-INS'
-            msg = 'Number of INS clusters: ' +  str(nbINS)    
+            msg = 'Number of INS clusters: ' +  str(INS_clusters.nbEvents())  
             log.step(step, msg)
 
-            for windowIndex, clustersWindow in INS_clusters.items():
-                print('WINDOW', windowIndex, [(cluster.ref, cluster.beg, cluster.end, len(cluster.events)) for cluster in clustersWindow])
-            
+            #for windowIndex, clustersWindow in INS_clusters.data.items():
+            #    print('INS-WINDOW', windowIndex, [(cluster.ref, cluster.beg, cluster.end, len(cluster.events)) for cluster in clustersWindow])
+    
             ## 2.2 Cluster deletions
             # We should use a different clustering algorithm for deletions. Only rely on deletion begin makes no sense (POS)
             # I think a better strategy would be to rely on reciprocal overlap. I.E. those deletions with at least 80% with reciprocal 
             # overlap are clustered together. 
-
-            ## 2.3 Cluster CLIPPINGS  
-            clustering.clusterByPos(CLIPPING_left_events, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'CLIPPING')
             
-            CLIPPING_left_clusters, nbClustersLeft = clustering.clusterByPos(CLIPPING_left_events, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'CLIPPING')
-            CLIPPING_right_clusters, nbClustersRight = clustering.clusterByPos(CLIPPING_right_events, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'CLIPPING')
+            ## 2.3 Cluster CLIPPINGS  
+            CLIPPING_left_clusters = clustering.clusterByPos(CLIPPING_left_events, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'CLIPPING')
+            CLIPPING_right_clusters = clustering.clusterByPos(CLIPPING_right_events, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'CLIPPING')
 
             step = 'CLUSTER-CLIPPING'
-            msg = 'Number of CLIPPING clusters (left clipping, right clipping): ' +  "\t".join([str(nbClustersLeft), str(nbClustersRight)])    
+            msg = 'Number of CLIPPING clusters (left clipping, right clipping): ' +  "\t".join([str(CLIPPING_left_clusters.nbEvents()), str(CLIPPING_right_clusters.nbEvents())])    
             log.step(step, msg)
 
+            '''
+            for windowIndex, clustersWindow in CLIPPING_left_clusters.data.items():
+                print('CLIPPING-LEFT-WINDOW', windowIndex, [(cluster.ref, cluster.beg, cluster.end, len(cluster.events)) for cluster in clustersWindow])
+           
+            for windowIndex, clustersWindow in CLIPPING_right_clusters.data.items():
+                print('CLIPPING-RIGHT-WINDOW', windowIndex, [(cluster.ref, cluster.beg, cluster.end, len(cluster.events)) for cluster in clustersWindow])
+            '''
+            
             ## 3. Group clusters into SV metaclusters ##
-            clustering.buildMetaClusters(INS_clusters, None, CLIPPING_left_clusters, CLIPPING_right_clusters)
-
-
+            #metaTypes = ['INS+CLIPPING']
+            #clustering.buildMetaClusters(INS_clusters, None, CLIPPING_left_clusters, CLIPPING_right_clusters, metaTypes, self.confDict)
+            
             

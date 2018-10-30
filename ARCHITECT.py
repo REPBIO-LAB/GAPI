@@ -62,6 +62,7 @@ minCLIPPINGlen = 500
 
 maxBkpDist = 50
 minRootClusterSize = 2
+maxClusterDist = 100
 
 confDict['threads'] = threads
 confDict['windowSize'] = windowSize
@@ -74,6 +75,7 @@ confDict['minCLIPPINGlen'] = minCLIPPINGlen
 
 confDict['maxBkpDist'] = maxBkpDist
 confDict['minRootClusterSize'] = minRootClusterSize
+confDict['maxClusterDist'] = maxClusterDist
 
 ## 2. Launch structural variation (SV) caller
 callerObj = callers.SVcaller_nano(mode, bam, normalBam, confDict, outDir)
