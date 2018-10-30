@@ -13,7 +13,7 @@ import log
 ## FUNCTIONS ##
 ###############
 
-def makeCluster(events, clusterType):
+def createCluster(events, clusterType):
     '''
     Function to create a cluster object instance
 
@@ -52,7 +52,7 @@ def makeCluster(events, clusterType):
 
     ## d) Unexpected cluster type
     else:
-        log.info('Error at \'makeCluster\'. Unexpected cluster type')
+        log.info('Error at \'createCluster\'. Unexpected cluster type')
         sys.exit(1)
 
     return cluster

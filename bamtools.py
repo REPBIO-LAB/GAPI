@@ -21,7 +21,7 @@ def makeGenomicBins(bam, windowSize, targetRefs):
         3. targetRefs: list of target references. None if all the references are considered
 
     Output:
-        1. windowsList: List of non overlapping windows. Each list item corresponds to a tuple (ref, beg, end)
+        1. windows: List of non overlapping windows. Each list item corresponds to a tuple (ref, beg, end)
     '''    
 
     ## Open BAM file for reading
@@ -36,7 +36,7 @@ def makeGenomicBins(bam, windowSize, targetRefs):
         refLengths  = {ref: refLengths [ref] for ref in targetRefs} 
 
     ## Split each reference into evenly sized windows
-    windowsList = []
+    windows = []
 
     # For each reference
     for ref, length in refLengths .items():
@@ -52,12 +52,12 @@ def makeGenomicBins(bam, windowSize, targetRefs):
             if beg < boundaries[-1]:
                 end = boundaries[idx + 1]
                 window = (ref, beg, end)
-                windowsList.append(window)
+                windows.append(window)
 
     ## Close bam file
     bamFile.close()
     
-    return windowsList
+    return windows
 
 
 def collectSV(ref, beg, end, bam, confDict, sample):
@@ -78,10 +78,10 @@ def collectSV(ref, beg, end, bam, confDict, sample):
         6. sample: type of sample (TUMOUR, NORMAL or None)
 
     Output:
-        1. INS_list: list of INS objects
-        2. DEL_list: list of DEL objects   
-        3. CLIPPING_left_list: list of CLIPPING objects on the left
-        4. CLIPPING_left_list: list of CLIPPING objects on the right
+        1. INS_events: list of INS objects
+        2. DEL_events: list of DEL objects   
+        3. CLIPPING_left_events: list of CLIPPING objects on the left
+        4. CLIPPING_left_events: list of CLIPPING objects on the right
         5. [TO DO] readDict: dictionary containing the read alignments supporting the SV events. Format:
                 key   -> read identifier
                 value -> list of alignments for this read
@@ -90,10 +90,10 @@ def collectSV(ref, beg, end, bam, confDict, sample):
     '''
     
     ## Initialize lists with SV
-    INS_list = []    
-    DEL_list = []    
-    CLIPPING_left_list = []
-    CLIPPING_right_list = []
+    INS_events = []    
+    DEL_events = []    
+    CLIPPING_left_events = []
+    CLIPPING_right_events = []
     
     ## Open BAM file for reading
     bamFile = pysam.AlignmentFile(bam, "rb")
@@ -120,20 +120,20 @@ def collectSV(ref, beg, end, bam, confDict, sample):
                 clippingLeftObj, clippingRightObj = collectCLIPPING(alignmentObj, confDict, sample)
 
                 if clippingLeftObj != None:
-                    CLIPPING_left_list.append(clippingLeftObj)
+                    CLIPPING_left_events.append(clippingLeftObj)
 
                 if clippingRightObj != None:
-                    CLIPPING_right_list.append(clippingRightObj)
+                    CLIPPING_right_events.append(clippingRightObj)
     
             ## 2. Collect INDELS
             if ('INS' in confDict['targetSV']) or ('DEL' in confDict['targetSV']):
-                INS_list_tmp, DEL_list_tmp = collectINDELS(alignmentObj, confDict, sample)
+                INS_events_tmp, DEL_events_tmp = collectINDELS(alignmentObj, confDict, sample)
 
-                INS_list = INS_list + INS_list_tmp
-                DEL_list = DEL_list + DEL_list_tmp            
+                INS_events = INS_events + INS_events_tmp
+                DEL_events = DEL_events + DEL_events_tmp            
 
     # return sv candidates
-    return INS_list, DEL_list, CLIPPING_left_list, CLIPPING_right_list
+    return INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events
 
 def collectCLIPPING(alignmentObj, confDict, sample):
     '''
@@ -186,14 +186,14 @@ def collectINDELS(alignmentObj, confDict, sample):
         3. sample: type of sample (TUMOUR, NORMAL or None). Move to confDict
 
     Output:
-        1. INS_list: list of INS objects
-        2. DEL_list: list of DEL objects
+        1. INS_events: list of INS objects
+        2. DEL_events: list of DEL objects
         3. [TO DO] readDict: dictionary containing the read alignments supporting the SV events. Format:
                 key   -> read identifier
                 value -> list of alignments for this read
     '''
-    INS_list = []    
-    DEL_list = []    
+    INS_events = []    
+    DEL_events = []    
 
     ## Set read id
     mate = '/1' if alignmentObj.is_read1 else '/2'
@@ -218,7 +218,7 @@ def collectINDELS(alignmentObj, confDict, sample):
             insertLength = len(insertSeq)
 
             insObj = variants.INS(alignmentObj.reference_name, posRef, insertLength, insertSeq, readId, sample)
-            INS_list.append(insObj)   
+            INS_events.append(insObj)   
 
         ## b) DELETION to the reference >= Xbp 
         if ('DEL' in confDict['targetSV']) and (operation == 2) and (length >= confDict['minINDELlen']):
@@ -227,7 +227,7 @@ def collectINDELS(alignmentObj, confDict, sample):
             end = posRef + length
 
             delObj = variants.DEL(alignmentObj.reference_name, beg, end, length, readId, sample)
-            DEL_list.append(delObj)   
+            DEL_events.append(delObj)   
 
         #### Update position over reference and read sequence
         ### a) Operations consuming query and reference
@@ -255,7 +255,7 @@ def collectINDELS(alignmentObj, confDict, sample):
         # - Op P, tag 6, padding (silent deletion from padded reference)
         # Do not do anything
 
-    return INS_list, DEL_list 
+    return INS_events, DEL_events 
 
 
  

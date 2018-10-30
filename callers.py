@@ -33,17 +33,17 @@ class SVcaller_nano():
         Search for structural variants (SV) genome wide
         '''
         ## 1. Split the reference genome into a set of genomic bins
-        windowsList = bamtools.makeGenomicBins(self.bam, self.confDict['windowSize'], self.confDict['targetRefs'])
+        windows = bamtools.makeGenomicBins(self.bam, self.confDict['windowSize'], self.confDict['targetRefs'])
 
         ## 2. Split windows list into X evenly sized chunks. X = number of threads
-        chunkSize = int(round(len(windowsList) / float(self.confDict['threads'])))
-        chunksList = [windowsList[i:i + chunkSize] for i in range(0, len(windowsList), chunkSize)]
+        chunkSize = int(round(len(windows) / float(self.confDict['threads'])))
+        chunks = [windows[i:i + chunkSize] for i in range(0, len(windows), chunkSize)]
 
         ## 3. Assign one thread per chunk
         threads = list()
         counter = 1
 
-        for chunk in chunksList:
+        for chunk in chunks:
             msg = "chunk" + str(counter) + ": " + str(len(chunk)) + " windows to process"
             log.info(msg)
 
@@ -58,7 +58,7 @@ class SVcaller_nano():
         # Wait till threads have finished with MEI calling
         [t.join() for t in threads]
 
-    def callSV_windows(self, windowsList):
+    def callSV_windows(self, windows):
         '''
         Search for structural variants (SV) in a set of genomic windows of interest
         '''
@@ -70,7 +70,7 @@ class SVcaller_nano():
         # print("THREAD: ", self.bam, self.normalBam, self.mode, threadId)
 
         ## For each window
-        for window in windowsList:
+        for window in windows:
     
             ref, beg, end = window
 
@@ -80,40 +80,30 @@ class SVcaller_nano():
             ## 1. Search for SV candidate events in the bam file/s ##
             # a) Single sample mode
             if self.mode == "SINGLE":
-                INS_list, DEL_list, CLIPPING_left_list, CLIPPING_right_list = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, None)
+                INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, None)
 
             # b) Paired sample mode (tumour & matched normal)
             else:
 
                 ## Search for SV events in the tumour
-                INS_list_T, DEL_list_T, CLIPPING_left_list_T, CLIPPING_right_list_T = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, 'TUMOUR')
+                INS_events_T, DEL_events_T, CLIPPING_left_events_T, CLIPPING_right_events_T = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, 'TUMOUR')
 
                 ## Search for SV events in the normal
-                INS_list_N, DEL_list_N, CLIPPING_left_list_N, CLIPPING_right_list_N = bamtools.collectSV(ref, beg, end, self.normalBam, self.confDict, 'NORMAL')
+                INS_events_N, DEL_events_N, CLIPPING_left_events_N, CLIPPING_right_events_N = bamtools.collectSV(ref, beg, end, self.normalBam, self.confDict, 'NORMAL')
 
                 ## Join tumour and normal lists
-                INS_list = INS_list_T + INS_list_N
-                DEL_list = DEL_list_T + DEL_list_N
-                CLIPPING_left_list = CLIPPING_left_list_T + CLIPPING_left_list_N
-                CLIPPING_right_list = CLIPPING_right_list_T + CLIPPING_right_list_N
+                INS_events = INS_events_T + INS_events_N
+                DEL_events = DEL_events_T + DEL_events_N
+                CLIPPING_left_events = CLIPPING_left_events_T + CLIPPING_left_events_N
+                CLIPPING_right_events = CLIPPING_right_events_T + CLIPPING_right_events_N
 
             step = 'COLLECT'
-            msg = 'Number of SV events (INS, DEL, CLIPPING_left, CLIPPING_right): ' +  "\t".join([str(len(INS_list)), str(len(DEL_list)), str(len(CLIPPING_left_list)), str(len(CLIPPING_right_list))])    
+            msg = 'Number of SV events (INS, DEL, CLIPPING_left, CLIPPING_right): ' +  "\t".join([str(len(INS_events)), str(len(DEL_events)), str(len(CLIPPING_left_events)), str(len(CLIPPING_right_events))])    
             log.step(step, msg)
 
-            ## 2. Group events into SV clusters ##
-            ## 2.1 Cluster CLIPPINGS  
-            clustering.clusterByPos(CLIPPING_left_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'CLIPPING')
-            
-            CLIPPING_left_clusters, nbClustersLeft = clustering.clusterByPos(CLIPPING_left_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'CLIPPING')
-            CLIPPING_right_clusters, nbClustersRight = clustering.clusterByPos(CLIPPING_right_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'CLIPPING')
-
-            step = 'CLUSTER-CLIPPING'
-            msg = 'Number of CLIPPING clusters (left clipping, right clipping): ' +  "\t".join([str(nbClustersLeft), str(nbClustersRight)])    
-            log.step(step, msg)
-            
-            ## 2.2 Cluster insertions 
-            INS_clusters, nbINS = clustering.clusterByPos(INS_list, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'INS')
+            ## 2. Group events into SV clusters ##          
+            ## 2.1 Cluster insertions 
+            INS_clusters, nbINS = clustering.clusterByPos(INS_events, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'INS')
 
             step = 'CLUSTER-INS'
             msg = 'Number of INS clusters: ' +  str(nbINS)    
@@ -122,16 +112,23 @@ class SVcaller_nano():
             for windowIndex, clustersWindow in INS_clusters.items():
                 print('WINDOW', windowIndex, [(cluster.ref, cluster.beg, cluster.end, len(cluster.events)) for cluster in clustersWindow])
             
-            ## 2.3 Cluster deletions
+            ## 2.2 Cluster deletions
             # We should use a different clustering algorithm for deletions. Only rely on deletion begin makes no sense (POS)
             # I think a better strategy would be to rely on reciprocal overlap. I.E. those deletions with at least 80% with reciprocal 
             # overlap are clustered together. 
 
-            ## 2. Group clusters into SV metaclusters ##
+            ## 2.3 Cluster CLIPPINGS  
+            clustering.clusterByPos(CLIPPING_left_events, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'CLIPPING')
             
+            CLIPPING_left_clusters, nbClustersLeft = clustering.clusterByPos(CLIPPING_left_events, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'CLIPPING')
+            CLIPPING_right_clusters, nbClustersRight = clustering.clusterByPos(CLIPPING_right_events, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'CLIPPING')
 
+            step = 'CLUSTER-CLIPPING'
+            msg = 'Number of CLIPPING clusters (left clipping, right clipping): ' +  "\t".join([str(nbClustersLeft), str(nbClustersRight)])    
+            log.step(step, msg)
 
-
+            ## 3. Group clusters into SV metaclusters ##
+            clustering.buildMetaClusters(INS_clusters, None, CLIPPING_left_clusters, CLIPPING_right_clusters)
 
 
             

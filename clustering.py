@@ -1,5 +1,5 @@
 '''
-Module 'clustering' - Contains algorithms for clustering sets of objects based on coordinates
+Module 'clustering' - Contains functions for clustering sets of objects based on coordinates
 '''
 
 ## DEPENDENCIES ##
@@ -14,7 +14,7 @@ import variants
 ## FUNCTIONS ##
 def clusterByPos(events, maxDist, minClusterSize, clusterType):
     '''
-    Cluster events (CLIPPING, INS...) by breakpoint position coordinates. Organize data into a dictionary with genomic windows for clustering
+    Algorithm to cluster events (CLIPPING, INS...) by breakpoint position coordinates. Organize data into a dictionary with genomic windows for clustering
 
     Input:
         1. events: list of objects. Every object must have a 'pos' argument (position) and be an instance of the same class. 
@@ -32,7 +32,7 @@ def clusterByPos(events, maxDist, minClusterSize, clusterType):
     ## 2. Cluster events ##
     # Initialize list with windows already incorporated into clusters
     windowsInClusters = []
-    clusterList = []
+    clusters = []
 
     # For each genomic window
     for windowIndex, events in eventsDict.items():
@@ -50,8 +50,8 @@ def clusterByPos(events, maxDist, minClusterSize, clusterType):
             continue
 
         ### Create root cluster containing events on the window
-        cluster = variants.makeCluster(events, clusterType)
-        clusterList.append(cluster)
+        cluster = variants.createCluster(events, clusterType)
+        clusters.append(cluster)
         windowsInClusters.append(windowIndex) # now window incorporated into cluster
 
         ### Root cluster extension
@@ -128,16 +128,15 @@ def clusterByPos(events, maxDist, minClusterSize, clusterType):
             forwardIndex += 1        
 
     ## 3. Organize clusters into a dictionary ##
-    clustersDict = structures.mapEvents2windows(clusterList, 'beg', 1000)
-    nbClusters = len(clusterList)
+    clustersDict = structures.mapEvents2windows(clusters, 'beg', 1000)
+    nbClusters = len(clusters)
 
     return clustersDict, nbClusters
 
 
-def makeMetaClusters(events, maxDist, minClusterSize):
+def buildMetaClusters(INS_clusters, DEL_clusters, CLIPPING_left_clusters, CLIPPING_right_clusters):
     '''
     Group clusters into metaclusters. 
-    Cluster events (CLIPPING, INS, DEL...) by breakpoint position coordinates. Organize data into a dictionary with genomic windows for clustering
 
     Input:
         1. events: list of objects. Every object must have a 'pos' argument (position)
@@ -148,7 +147,5 @@ def makeMetaClusters(events, maxDist, minClusterSize):
         1. clusterDict: dictionary containing the clusters organized in genomic windows
     ''' 
 
-## Pending, create these functions:
-#clusterDEL
 
 ## CLASSES ##
