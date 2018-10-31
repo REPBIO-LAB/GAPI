@@ -73,5 +73,14 @@ class windowsHash():
 
         return nbEvents
 
+    def windowBoundaries(self, windowIndex):
+        '''
+        Compute the begin and end boundaries for a given window index
+        '''
+        beg = windowIndex * self.windowSize
+        end = ((windowIndex + 1) * self.windowSize) - 1
+
+        return beg, end
+
 
 

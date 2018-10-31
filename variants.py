@@ -136,9 +136,12 @@ class DEL():
 
 
 ## SECONDARY CLASSES ##
+# Classes composed by primary classes
 class cluster():
     '''
-    Events cluster class
+    Events cluster class. A cluster is composed by a set of events, all of them of the same type. 
+    Each event is supported by a single read. One cluster can completely represent a single structural 
+    variation event or partially if multiple clusters are required (see 'metaCluster' class)
     '''
     def __init__(self, ref, beg, end, events):
         '''
@@ -168,8 +171,6 @@ class cluster():
             self.end = newEvents[-1].pos
             self.events = self.events + newEvents 
         
-
-
 class INS_cluster(cluster):
     '''
     Insertion (INS) cluster subclass
@@ -190,3 +191,14 @@ class CLIPPING_cluster(cluster):
     '''
     def __init__(self, ref, beg, end, events):
         cluster.__init__(self, ref, beg, end, events)
+
+## TERTIARY CLASSES ##
+# Classes composed primary and secondary classes
+
+class metaCluster():
+    '''
+    MetaCluster class. A metaCluster is composed by a set of clusters (of the same or different type)
+    and represents a single structural variation event
+    '''
+    #def __init__(self, ref, beg, end, events):
+    #    cluster.__init__(self, ref, beg, end, events)

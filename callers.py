@@ -132,9 +132,9 @@ class SVcaller_nano():
             for windowIndex, clustersWindow in CLIPPING_right_clusters.data.items():
                 print('CLIPPING-RIGHT-WINDOW', windowIndex, [(cluster.ref, cluster.beg, cluster.end, len(cluster.events)) for cluster in clustersWindow])
             '''
-            
+
             ## 3. Group clusters into SV metaclusters ##
-            #metaTypes = ['INS+CLIPPING']
-            #clustering.buildMetaClusters(INS_clusters, None, CLIPPING_left_clusters, CLIPPING_right_clusters, metaTypes, self.confDict)
+            targetMetaClusters = ['INS']
+            clustering.buildMetaClusters(INS_clusters, None, CLIPPING_left_clusters, CLIPPING_right_clusters, targetMetaClusters, self.confDict)
             
             
