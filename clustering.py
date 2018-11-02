@@ -8,130 +8,158 @@ import time
 
 # Internal
 import log
-import structures
 import variants
 import gRanges
 
 ## FUNCTIONS ##
-def clusterByPos(events, maxDist, minClusterSize, clusterType):
+def clusterByDistFast(binHash, maxDist, minClusterSize, clusterType):
     '''
-    Algorithm to cluster events (CLIPPING, INS...) by breakpoint position coordinates. Organize data into a dictionary with genomic windows for clustering
+    '''
+    clusters = []
+    binsInClusters = []
+
+    #print('HOLA: ', binHash)
+
+    # For each bin 
+    for binIndex in binHash:
+
+        #print('TIO: ', binIndex)
+
+        # There are elements of the target cluster type in the bin
+        if clusterType in binHash[binIndex]:
+
+            #print('MOLON: ', clusterType)
+
+            ### Number of events in the bin
+            events = binHash[binIndex][clusterType]
+            nbEvents = len(events)
+
+            ### Skip bins fulfilling one of these conditions:
+            # a) Bin already incorporated into a cluster 
+            if binIndex in binsInClusters:
+                continue
+    
+            # b) Bin without enough number of events to build a root cluster
+            elif (nbEvents < minClusterSize):
+                continue
+
+            ### Create root cluster containing events on the bin
+            cluster = variants.createCluster(events, clusterType)
+            clusters.append(cluster)
+            binsInClusters.append(binIndex) # now bin incorporated into cluster
+
+            ### Root cluster extension
+            ## 2.1 Go backward from current bin (*).  
+            #       <---2--- <---1---
+            # |---------|--------|----*----|---------
+            # Go one bin backward in each iteration. Extend the cluster 
+            # if last event in previous bin within 
+            # maximum cluster distance or end iteration, otherwise 
+            backwardIndex = binIndex - 1
+
+            while True:
+        
+                # A) There are events in the bin 
+                if (backwardIndex in binHash) and (clusterType in binHash[backwardIndex]):
+                
+                    # Compute the distance between the right most event
+                    # in the new bin and the cluster begin 
+                    events = binHash[backwardIndex][clusterType]
+                    lastEvent = events[-1]
+                    dist = cluster.beg - lastEvent.end
+
+                    # a) Last event within maximum distance 
+                    if dist <= maxDist:
+
+                        # Add events within bin to the cluster 
+                        cluster.add(events, 'left')
+                        binsInClusters.append(backwardIndex) # now bin incorporated into cluster
+                        backwardIndex -= 1
+
+                    # b) Event outside 
+                    else:
+                        break
+
+                # B) No events in the bin. Stop iterating
+                else:
+                    break 
+
+            ## 2.2 Go forward from current bin (*).  
+            #                ---1---> ---2--->
+            # |---------|----*----|--------|---------
+            # Go one bin forward in each iteration. Extend the cluster 
+            # if first event in next bin within 
+            # maximum cluster distance or end iteration, otherwise 
+            forwardIndex = binIndex + 1
+
+            while True:
+        
+                # A) There are events in the bin 
+                if (forwardIndex in binHash) and (clusterType in binHash[forwardIndex]):
+
+                    # Compute the distance between the left most position in the new bin
+                    # and the cluster end 
+                    events = binHash[forwardIndex][clusterType]
+                    firstEvent = events[0]
+                    dist = firstEvent.beg - cluster.end 
+
+                    # a) Last event within maximum distance 
+                    if dist <= maxDist:
+
+                        # Add events within bin to the cluster 
+                        cluster.add(events, 'right')
+                        binsInClusters.append(forwardIndex) # now bin incorporated into cluster
+                        forwardIndex += 1        
+
+                    # b) Events outside 
+                    else:
+                        break
+
+                # B) No events in the bin. Stop iterating
+                else:
+                    break 
+
+
+def clusterByDist(binDb, maxDist, minClusterSize, clusterType):
+    '''
+    Cluster events (CLIPPING, INS...) by begin and end coordinates. 
+
+    Two algorithms:
+    - maxDist <= bin side -> fast approach
+    - maxDist > bin side -> iterative approach
 
     Input:
-        1. events: list of objects. Every object must have a 'pos' argument (position) and be an instance of the same class. 
+        1. binDb: Data structure containing a set of events organized in genomic bins
         2. maxDist: maximum distance between two positions to include them into the same cluster
         3. minClusterSize: minimum number of events required to build a root cluster in a window
-        4. clusterType: type of clusters to create (None: undefined cluster type; INS: insertion; DEL: deletion; CLIPPING: clipping)
+        4. clusterType: type of clusters to create (INS: insertion; DEL: deletion; CLIPPING: clipping)
 
     Output:
-        1. clustersHash: clusters organized into a 'windowsHash' object
     ''' 
-
-    ## 1. Organize events by their breakpoint position in genomic windows ##
-    eventsHash = structures.windowsHash(events, 'pos', maxDist)
-    
+    print('INPUT: ', binDb, maxDist, minClusterSize, clusterType, binDb.binSizes)
+ 
     ## 2. Cluster events ##
-    # Initialize list with windows already incorporated into clusters
-    windowsInClusters = []
-    clusters = []
+    for binSize in sorted(binDb.binSizes, reverse=True):
 
-    # For each genomic window
-    for windowIndex, events in eventsHash.data.items():
+        binHash = binDb.data[binSize]
+        print('TIOO: ', binSize, binHash)
+
+
+        # a) Fast clustering algorithm
+        #if (binSize <= maxDist):
+        #    clusterByDistFast(binHash, maxDist, minClusterSize, clusterType)
+
+        # b) Iterative clustering algorithm
+        #else:
+        #    clusterByDistIterative(binHash, maxDist, minClusterSize, clusterType)
     
-        ### Number of events in the window
-        nbEvents = len(events)
 
-        ### Skip windows fulfilling one of these conditions:
-        # a) Window already incorporated into a cluster 
-        if windowIndex in windowsInClusters:
-            continue
-    
-        # b) Window without enough number of events to build a root cluster
-        elif (nbEvents < minClusterSize):
-            continue
-
-        ### Create root cluster containing events on the window
-        cluster = variants.createCluster(events, clusterType)
-        clusters.append(cluster)
-        windowsInClusters.append(windowIndex) # now window incorporated into cluster
-
-        ### Root cluster extension
-        ## 2.1 Go backward from current window (*).  
-        #       <---2--- <---1---
-        # |---------|--------|----*----|---------
-        # Go one window backward in each iteration. Extend the cluster 
-        # if last breakpoint position in previous window within 
-        # maximum cluster distance or end iteration, otherwise 
-        backwardIndex = windowIndex - 1
-
-        while True:
-        
-            # A) There are breakpoints in the window 
-            if backwardIndex in eventsHash.data:
-                
-                # Compute the distance between the right most breakpoint position
-                # in the new window and the cluster begin 
-                events = eventsHash.data[backwardIndex]
-                lastEvent = events[-1]
-                posDist = cluster.beg - lastEvent.pos
-
-                # a) Last event within maximum distance 
-                if posDist <= maxDist:
-
-                    # Add events within window to the cluster 
-                    cluster.add(events, 'left')
-                    windowsInClusters.append(backwardIndex) # now window incorporated into cluster
-                    backwardIndex -= 1
-
-                # b) Event outside 
-                else:
-                    break
-
-            # B) No events in the window. Stop iterating
-            else:
-                break 
-                    
-        ## 2.2 Go forward from current window (*).  
-        #                ---1---> ---2--->
-        # |---------|----*----|--------|---------
-        # Go one window forward in each iteration. Extend the cluster 
-        # if first breakpoint position in next window within 
-        # maximum cluster distance or end iteration, otherwise 
-        forwardIndex = windowIndex + 1
-
-        while True:
-        
-            # A) There are breakpoints in the window 
-            if forwardIndex in eventsHash.data:
-                
-                # Compute the distance between the left most position in the new window
-                # and the cluster end 
-                events = eventsHash.data[forwardIndex]
-                firstEvent = events[0]
-                posDist = firstEvent.pos - cluster.end 
-
-                # a) Last event within maximum distance 
-                if posDist <= maxDist:
-
-                    # Add events within window to the cluster 
-                    cluster.add(events, 'right')
-                    windowsInClusters.append(forwardIndex) # now window incorporated into cluster
-                    forwardIndex += 1        
-
-                # b) Events outside 
-                else:
-                    break
-
-            # B) No events in the window. Stop iterating
-            else:
-                break 
-            
-
+    '''
     ## 3. Organize clusters ##
-    clustersHash = structures.windowsHash(clusters, 'beg', 1000)
+    clustersHash = structures.binsHash(clusters, 'beg', 1000)
 
     return clustersHash
-
+    '''
 
 def buildMetaClusters(INS_clusters, DEL_clusters, CLIPPING_left_clusters, CLIPPING_right_clusters, targetMetaClusters, confDict):
     '''
@@ -150,7 +178,7 @@ def buildMetaClusters(INS_clusters, DEL_clusters, CLIPPING_left_clusters, CLIPPI
         <--CLIP--> +  <--CLIP--> + ...  
     
     Input:
-        1. INS_clusters: insertion clusters organized into a 'windowsHash' object. None if not provided
+        1. INS_clusters: insertion clusters organized into a 'binsHash' object. None if not provided
         2. DEL_clusters: deletion '' ''
         3. CLIPPING_left_clusters: left clipping '' ''
         4. CLIPPING_right_clusters: right clipping '' ''
@@ -159,7 +187,7 @@ def buildMetaClusters(INS_clusters, DEL_clusters, CLIPPING_left_clusters, CLIPPI
             * maxClusterDist -> maximum cluster distance
 
     Output:
-        1. INS_metaClusters: insertion metaclusters organized into a 'windowsHash' object
+        1. INS_metaClusters: insertion metaclusters organized into a 'binsHash' object
         2. DEL_metaclusters: deletion metaclusters organized into a '???' object
         3. CLIPPING_metaClusters: clipping metaclusters organized into a 'graph??' object
     ''' 

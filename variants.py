@@ -26,28 +26,20 @@ def createCluster(events, clusterType):
     '''
     cluster = ''
     
+    ref = events[0].ref
+    beg = events[0].beg
+    end = events[-1].end
+
     ## a) Create INS cluster
     if (clusterType == 'INS'):
-        
-        ref = events[0].ref
-        beg = events[0].pos
-        end = events[-1].pos
         cluster = INS_cluster(ref, beg, end, events)
 
     ## b) Create DEL cluster
     elif (clusterType == 'DEL'):
-
-        ref = events[0].ref
-        beg = events[0].beg
-        end = events[-1].end
         cluster = DEL_cluster(ref, beg, end, events)
 
     ## c) Create CLIPPING cluster
     elif (clusterType == 'CLIPPING'):
-
-        ref = events[0].ref
-        beg = events[0].pos
-        end = events[-1].pos
         cluster = CLIPPING_cluster(ref, beg, end, events)
 
     ## d) Unexpected cluster type
@@ -70,8 +62,7 @@ class CLIPPING():
     def __init__(self, alignmentObj, clippedSide, sample):
         self.type = 'CLIPPING' 
         self.ref = str(alignmentObj.reference_name)
-        self.pos = int(alignmentObj.reference_start if clippedSide == 'left' else alignmentObj.reference_end)
-        self.length = None
+        self.beg, self.end = (alignmentObj.reference_start, alignmentObj.reference_start + 1) if clippedSide == 'left' else (alignmentObj.reference_end - 1, alignmentObj.reference_end) 
         self.clippedSide = clippedSide
         self.sample = sample
 
@@ -111,10 +102,11 @@ class INS():
     '''
     Short insertion class. Insertion completely spanned by the read sequence
     '''
-    def __init__(self, ref, pos, length, seq, readId, sample):
+    def __init__(self, ref, beg, end, length, seq, readId, sample):
         self.type = 'INS' 
         self.ref = str(ref)
-        self.pos = int(pos)
+        self.beg = int(beg)
+        self.end = int(end)
         self.length = int(length)
         self.seq = seq
         self.readId = readId   
@@ -165,10 +157,10 @@ class cluster():
             - Update 'clippingType' class attribute 
         '''
         if side == 'left':
-            self.beg = newEvents[0].pos
+            self.beg = newEvents[0].beg
             self.events = newEvents + self.events 
         else:
-            self.end = newEvents[-1].pos
+            self.end = newEvents[-1].end
             self.events = self.events + newEvents 
         
 class INS_cluster(cluster):

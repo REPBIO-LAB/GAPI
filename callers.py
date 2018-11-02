@@ -11,6 +11,7 @@ import threading
 # Internal
 import log
 import bamtools
+import structures
 import clustering
 
 ## FUNCTIONS ##
@@ -65,8 +66,7 @@ class SVcaller_nano():
         threadId = threading.currentThread().getName()
         msg = threadId + ' launched'
         log.info(msg)
-        time.sleep(random.uniform(0, 1))
-    
+        time.sleep(random.uniform(0, 1))    
         # print("THREAD: ", self.bam, self.normalBam, self.mode, threadId)
 
         ## For each window
@@ -101,10 +101,16 @@ class SVcaller_nano():
             msg = 'Number of SV events (INS, DEL, CLIPPING_left, CLIPPING_right): ' +  "\t".join([str(len(INS_events)), str(len(DEL_events)), str(len(CLIPPING_left_events)), str(len(CLIPPING_right_events))])    
             log.step(step, msg)
 
-            ## 2. Group events into SV clusters ##          
-            ## 2.1 Cluster insertions 
-            INS_clusters = clustering.clusterByPos(INS_events, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'INS')
-            
+            ## 2. Organize all the SV events into genomic bins prior clustering ##
+            binSizes = [50, 1000, 10000, 100000, 1000000]
+            data = [(INS_events, 'INS'), (DEL_events, 'DEL'), (CLIPPING_left_events, 'CLIPPING-LEFT'), (CLIPPING_right_events, 'CLIPPING-RIGHT')]
+            binDb = structures.createBinDb(data, binSizes)
+
+            ## 3. Group events into SV clusters ##          
+            ## 3.1 Cluster insertions 
+            clustering.clusterByDist(binDb, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'INS')
+
+            '''            
             step = 'CLUSTER-INS'
             msg = 'Number of INS clusters: ' +  str(INS_clusters.nbEvents())  
             log.step(step, msg)
@@ -117,24 +123,27 @@ class SVcaller_nano():
             # I think a better strategy would be to rely on reciprocal overlap. I.E. those deletions with at least 80% with reciprocal 
             # overlap are clustered together. 
             
+            #binDb = clustering.clusterByOverlap(binDb, self.confDict['minPercOverlap'], self.confDict['minRootClusterSize'], 'DEL')
+
+
             ## 2.3 Cluster CLIPPINGS  
-            CLIPPING_left_clusters = clustering.clusterByPos(CLIPPING_left_events, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'CLIPPING')
-            CLIPPING_right_clusters = clustering.clusterByPos(CLIPPING_right_events, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'CLIPPING')
+            #binDb = clustering.clusterByDistance(binDb, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'CLIPPING-RIGHT')
+            #binDb = clustering.clusterByDistance(binDb, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'CLIPPING-LEFT')
 
             step = 'CLUSTER-CLIPPING'
             msg = 'Number of CLIPPING clusters (left clipping, right clipping): ' +  "\t".join([str(CLIPPING_left_clusters.nbEvents()), str(CLIPPING_right_clusters.nbEvents())])    
             log.step(step, msg)
 
-            '''
+            
             for windowIndex, clustersWindow in CLIPPING_left_clusters.data.items():
                 print('CLIPPING-LEFT-WINDOW', windowIndex, [(cluster.ref, cluster.beg, cluster.end, len(cluster.events)) for cluster in clustersWindow])
            
             for windowIndex, clustersWindow in CLIPPING_right_clusters.data.items():
                 print('CLIPPING-RIGHT-WINDOW', windowIndex, [(cluster.ref, cluster.beg, cluster.end, len(cluster.events)) for cluster in clustersWindow])
-            '''
+            
 
             ## 3. Group clusters into SV metaclusters ##
             targetMetaClusters = ['INS']
-            clustering.buildMetaClusters(INS_clusters, None, CLIPPING_left_clusters, CLIPPING_right_clusters, targetMetaClusters, self.confDict)
-            
+            clustering.buildMetaClusters(binDb, targetMetaClusters, self.confDict)
+            '''
             

@@ -7,60 +7,97 @@ Module 'structures' - Contains functions and classes to organize data into more 
 # Internal
 import log
 
-
 ## FUNCTIONS ##
+def createBinDb(data, binSizes):
+    '''
+    Input:
+        1. data: tuple list containing the list of events corresponding to each provided event type. E.g: 
+                 [ tuple1(event_list, event_type), ..., tupleN(event_list, event_type)]
+        2. binSizes: list of bin sizes 
+
+    Output:
+        1. binDbObj: 'binDb' instance containing all the input events organized in genomic bins
+    '''            
+    binDbObj = binDb(binSizes)
+    
+    # For each type of event add the corresponding 
+    # event instances to the data structure 
+    for events, eventType in data:
+        binDbObj.addEvents2bins(events, eventType)
+    
+    return binDbObj
 
 ## CLASSES ##
 
-class windowsHash():
+class binDb():
     '''
-    Hash structure to organize a set of events into genomic windows/intervals
+    Database to organize a set of events into a hierarchy of genomic bins
     '''
-    def __init__(self, events, mapAttribute, windowSize):
+    def __init__(self, binSizes):
         '''
-        Organize events into windows of coordinates. 
+        Organize events into a hierarchy of genomic bins
 
         Input:
-            1. events: list of objects. Every object must have the attribute defined in "mapAttribute" variable
-            2. mapAttribute: Object attribute used for mapping the objects to the corresponding window
-            3. windowSize: Size of each window
+            1. binSizes: list of bin sizes 
         '''
-        self.mapAttribute = mapAttribute
-        self.windowSize = windowSize
+        self.binSizes = sorted(binSizes)
         self.data = {}
-        self.mapEvents2windows(events)
+        
+        ## Initialize one bin dictionary per size
+        for binSize in self.binSizes:
+            self.data[binSize] = {}
+
     
-    def mapEvents2windows(self, events):
+    def addEvents2bins(self, events, eventType):
         '''
-        Organize events into windows of coordinates. 
+        Organize events into a hierarchy of genomic bins
 
         Input:
-            1. events: list of objects. Every object must have the attribute defined in "mapAttribute" variable
+            1. events: list of objects. Every object must have 'beg' and 'end' attributes
+            2. eventType: type of events (DEL, INS, CLIPPING, ...)
 
         Output:
-            1. Add events to 'data' attribute. 'data' is a dictionary containing events organized in genomic windows:
-            windowIndex -> List of events belonging to that window sorted by "mapAttribute"
-        '''
-
-        ## 1. Organize the objects into the dictionary 
+            1. Add events to 'data' attribute. 'data' is a dictionary containing events organized in genomic bins:
+            binIndex -> List of events belonging to that bin sorted by "mapAttribute"
+        '''        
+        ## 1. Allocate each event into a genomic bin 
         # For each event
         for event in events:
         
-            # Determine to what window index the event belongs
-            windowIndex = int(getattr(event, self.mapAttribute)/ self.windowSize)
+            # For each bin size (from smaller to bigger bin sizes)
+            for binSize in self.binSizes:
 
-            # a) First event into that window -> Initialize window
-            if windowIndex not in self.data:
-                self.data[windowIndex] = [ event ]
+                # Determine to what bin index the event belongs
+                binIndexBeg = int(event.beg / binSize)
+                binIndexEnd = int(event.end / binSize)
+
+                # A) Event fits in one bin
+                if (binIndexBeg == binIndexEnd):
+
+                    # a) First event into that bin -> Initialize bin dict 
+                    if binIndexBeg not in self.data[binSize]:
+                        self.data[binSize][binIndexBeg] = {}
+                        self.data[binSize][binIndexBeg][eventType] = [event]
+                
+                    # b) First event of that type in this bin -> Initialize events list
+                    elif eventType not in self.data[binSize][binIndexBeg]:
+                        self.data[binSize][binIndexBeg][eventType] = [event]
             
-            # b) Add event into the existing window 
-            else:
-                self.data[windowIndex].append(event)
+                    # c) There are already events of this type in this bin -> Add event to the list
+                    else:
+                        self.data[binSize][binIndexBeg][eventType].append(event)
+        
+                    # Do not check other bin sizes once event allocated in a bin
+                    break
 
-        ## 2. For each window sort the events in increasing coordinates order
-        for windowIndex, events in self.data.items():
+                ## B) Event spans several bins. Try with the next bin size 
 
-            events.sort(key=lambda event: getattr(event, self.mapAttribute))
+        ## 2. For each bin sort the events in increasing coordinates order
+        for binSize in self.data.keys():
+            for binIndex in self.data[binSize].keys():
+                if eventType in self.data[binSize][binIndex]:
+                    self.data[binSize][binIndex][eventType].sort(key=lambda event: event.beg)
+
         
     def nbEvents(self):
         '''
@@ -68,19 +105,21 @@ class windowsHash():
         '''
         nbEvents = 0
 
-        for events in self.data.values():
-            nbEvents += len(events)     
+        for binSize in self.data.keys():
+            for binIndex in self.data[binSize].keys():
+                for eventType in self.data[binSize][binIndex].keys():
+                    events = self.data[binSize][binIndex][eventType]
+                    nbEvents += len(events)     
 
         return nbEvents
 
-    def windowBoundaries(self, windowIndex):
-        '''
-        Compute the begin and end boundaries for a given window index
-        '''
-        beg = windowIndex * self.windowSize
-        end = ((windowIndex + 1) * self.windowSize) - 1
+    '''
+    def binBoundaries(self, binIndex):
+        Compute the begin and end boundaries for a given bin index
+        beg = binIndex * self.binSize
+        end = ((binIndex + 1) * self.binSize) - 1
 
-        return beg, end
-
+    #    return beg, end
+    '''
 
 

@@ -212,12 +212,14 @@ def collectINDELS(alignmentObj, confDict, sample):
         ## a) INSERTION to the reference >= Xbp 
         if ('INS' in confDict['targetSV']) and (operation == 1) and (length >= confDict['minINDELlen']):
        
+            beg = posRef 
+            end = posRef + 1
             insertBeg = posQuery
             insertEnd = posQuery + length
             insertSeq = alignmentObj.query_sequence[insertBeg:insertEnd]
             insertLength = len(insertSeq)
 
-            insObj = variants.INS(alignmentObj.reference_name, posRef, insertLength, insertSeq, readId, sample)
+            insObj = variants.INS(alignmentObj.reference_name, beg, end, insertLength, insertSeq, readId, sample)
             INS_events.append(insObj)   
 
         ## b) DELETION to the reference >= Xbp 
