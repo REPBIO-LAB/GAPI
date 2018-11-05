@@ -102,48 +102,51 @@ class SVcaller_nano():
             log.step(step, msg)
 
             ## 2. Organize all the SV events into genomic bins prior clustering ##
-            binSizes = [50, 1000, 10000, 100000, 1000000]
-            data = [(INS_events, 'INS'), (DEL_events, 'DEL'), (CLIPPING_left_events, 'CLIPPING-LEFT'), (CLIPPING_right_events, 'CLIPPING-RIGHT')]
-            binDb = structures.createBinDb(data, binSizes)
-
-            ## 3. Group events into SV clusters ##          
-            ## 3.1 Cluster insertions 
-            clustering.clusterByDist(binDb, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'INS')
-
-            '''            
-            step = 'CLUSTER-INS'
-            msg = 'Number of INS clusters: ' +  str(INS_clusters.nbEvents())  
+            step = 'BINNING'
+            msg = 'Organize all the SV events into genomic bins prior clustering'
             log.step(step, msg)
 
-            #for windowIndex, clustersWindow in INS_clusters.data.items():
-            #    print('INS-WINDOW', windowIndex, [(cluster.ref, cluster.beg, cluster.end, len(cluster.events)) for cluster in clustersWindow])
+            ## 2.1 Insertions
+            binSizes = [50]
+            data = [(INS_events, 'INS')]
+            INS_bins = structures.createBinDb(data, binSizes)
+
+            ## 2.2 Deletions
+            # missing events: 22_24000000_25000000, 22_23000000_2400000. I guess due to size longer than maximum windows size (1Mb)
+            binSizes = [100, 1000, 10000, 100000, 1000000]
+            data = [(DEL_events, 'DEL')]
+            DEL_bins = structures.createBinDb(data, binSizes)
+
+            ## 2.3 Left-clippings
+            binSizes = [50]
+            data = [(CLIPPING_left_events, 'LEFT-CLIPPING')]
+            left_CLIPPING_bins = structures.createBinDb(data, binSizes)
+
+            ## 2.4 Right-clippings
+            binSizes = [50]
+            data = [(CLIPPING_right_events, 'RIGHT-CLIPPING')]
+            right_CLIPPING_bins = structures.createBinDb(data, binSizes)
+
+            ## 3. Group events into SV clusters ##     
+            ## 3.1 Cluster insertions         
+            INS_clusters = clustering.clusterByDist1D(INS_bins, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'INS')
+            step = 'CLUSTER-INS'
+            msg = 'Number of INS clusters: ' +  str(INS_clusters.nbEvents()[0])  
+            log.step(step, msg)
     
+            '''
             ## 2.2 Cluster deletions
             # We should use a different clustering algorithm for deletions. Only rely on deletion begin makes no sense (POS)
             # I think a better strategy would be to rely on reciprocal overlap. I.E. those deletions with at least 80% with reciprocal 
             # overlap are clustered together. 
             
-            #binDb = clustering.clusterByOverlap(binDb, self.confDict['minPercOverlap'], self.confDict['minRootClusterSize'], 'DEL')
-
+            #binDb = clustering.clusterByOverlap(DEL_bins, self.confDict['minPercOverlap'], self.confDict['minRootClusterSize'], 'DEL')
+            '''
 
             ## 2.3 Cluster CLIPPINGS  
-            #binDb = clustering.clusterByDistance(binDb, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'CLIPPING-RIGHT')
-            #binDb = clustering.clusterByDistance(binDb, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'CLIPPING-LEFT')
-
+            left_CLIPPING_clusters = clustering.clusterByDist1D(left_CLIPPING_bins, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'LEFT-CLIPPING')
+            right_CLIPPING_clusters = clustering.clusterByDist1D(right_CLIPPING_bins, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'RIGHT-CLIPPING')
             step = 'CLUSTER-CLIPPING'
-            msg = 'Number of CLIPPING clusters (left clipping, right clipping): ' +  "\t".join([str(CLIPPING_left_clusters.nbEvents()), str(CLIPPING_right_clusters.nbEvents())])    
+            msg = 'Number of CLIPPING clusters (left clipping, right clipping): ' +  "\t".join([str(left_CLIPPING_clusters.nbEvents()[0]), str(right_CLIPPING_clusters.nbEvents()[0])])    
             log.step(step, msg)
-
-            
-            for windowIndex, clustersWindow in CLIPPING_left_clusters.data.items():
-                print('CLIPPING-LEFT-WINDOW', windowIndex, [(cluster.ref, cluster.beg, cluster.end, len(cluster.events)) for cluster in clustersWindow])
-           
-            for windowIndex, clustersWindow in CLIPPING_right_clusters.data.items():
-                print('CLIPPING-RIGHT-WINDOW', windowIndex, [(cluster.ref, cluster.beg, cluster.end, len(cluster.events)) for cluster in clustersWindow])
-            
-
-            ## 3. Group clusters into SV metaclusters ##
-            targetMetaClusters = ['INS']
-            clustering.buildMetaClusters(binDb, targetMetaClusters, self.confDict)
-            '''
             

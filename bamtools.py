@@ -213,7 +213,7 @@ def collectINDELS(alignmentObj, confDict, sample):
         if ('INS' in confDict['targetSV']) and (operation == 1) and (length >= confDict['minINDELlen']):
        
             beg = posRef 
-            end = posRef + 1
+            end = posRef 
             insertBeg = posQuery
             insertEnd = posQuery + length
             insertSeq = alignmentObj.query_sequence[insertBeg:insertEnd]

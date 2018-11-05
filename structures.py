@@ -27,8 +27,8 @@ def createBinDb(data, binSizes):
     
     return binDbObj
 
-## CLASSES ##
 
+## CLASSES ##
 class binDb():
     '''
     Database to organize a set of events into a hierarchy of genomic bins
@@ -57,8 +57,7 @@ class binDb():
             2. eventType: type of events (DEL, INS, CLIPPING, ...)
 
         Output:
-            1. Add events to 'data' attribute. 'data' is a dictionary containing events organized in genomic bins:
-            binIndex -> List of events belonging to that bin sorted by "mapAttribute"
+            1. ....
         '''        
         ## 1. Allocate each event into a genomic bin 
         # For each event
@@ -74,19 +73,19 @@ class binDb():
                 # A) Event fits in one bin
                 if (binIndexBeg == binIndexEnd):
 
-                    # a) First event into that bin -> Initialize bin dict 
+                    # a) First event into that bin -> Initialize dict and bin  
                     if binIndexBeg not in self.data[binSize]:
                         self.data[binSize][binIndexBeg] = {}
-                        self.data[binSize][binIndexBeg][eventType] = [event]
-                
-                    # b) First event of that type in this bin -> Initialize events list
+                        self.data[binSize][binIndexBeg][eventType] = eventsBin([event])                
+
+                    # b) First event of that type in this bin -> Initialize bin
                     elif eventType not in self.data[binSize][binIndexBeg]:
-                        self.data[binSize][binIndexBeg][eventType] = [event]
-            
-                    # c) There are already events of this type in this bin -> Add event to the list
+                        self.data[binSize][binIndexBeg][eventType] = eventsBin([event]) 
+
+                    # c) There are already events of this type in this bin -> Add event to the bin
                     else:
-                        self.data[binSize][binIndexBeg][eventType].append(event)
-        
+                        self.data[binSize][binIndexBeg][eventType].add([event])
+       
                     # Do not check other bin sizes once event allocated in a bin
                     break
 
@@ -96,22 +95,24 @@ class binDb():
         for binSize in self.data.keys():
             for binIndex in self.data[binSize].keys():
                 if eventType in self.data[binSize][binIndex]:
-                    self.data[binSize][binIndex][eventType].sort(key=lambda event: event.beg)
-
+                    self.data[binSize][binIndex][eventType].sort()
         
     def nbEvents(self):
         '''
         Compute the number of events composing the hash structure
         '''
-        nbEvents = 0
+        totalNbEvents = 0
+        nbEventsBinSizes = {}
 
         for binSize in self.data.keys():
+            nbEventsBinSizes[binSize] = 0
+
             for binIndex in self.data[binSize].keys():
                 for eventType in self.data[binSize][binIndex].keys():
-                    events = self.data[binSize][binIndex][eventType]
-                    nbEvents += len(events)     
+                    totalNbEvents += self.data[binSize][binIndex][eventType].nbEvents()
+                    nbEventsBinSizes[binSize] += self.data[binSize][binIndex][eventType].nbEvents()
 
-        return nbEvents
+        return totalNbEvents, nbEventsBinSizes
 
     '''
     def binBoundaries(self, binIndex):
@@ -122,4 +123,40 @@ class binDb():
     #    return beg, end
     '''
 
+class eventsBin():
+    '''
+    Contain a set of events of the same type in a genomic bin
+    '''
+    def __init__(self, events):
+        self.events = events
+        self.notProcessed = list(range(0,len(events), 1)) 
 
+    def add(self, events):
+        '''
+        Contain a set of events of the same type in a genomic bin
+        '''
+        self.events = self.events + events
+        offset = len(self.notProcessed) 
+        self.notProcessed = self.notProcessed + list(range(offset,len(events) + offset, 1)) 
+
+    def nbEvents(self):
+        '''
+        Compute the number of events composing the bin
+        '''
+        return len(self.events)
+
+    def sort(self):
+        '''
+        Sort events in increasing coordinates order
+        '''
+        self.events.sort(key=lambda event: event.beg)
+
+    def processed(self):
+        '''
+        Return True if all the events in the bin have been processed or False, otherwise
+        '''
+        
+        if (len(self.notProcessed) == 0):
+            return True
+        else:
+            return False

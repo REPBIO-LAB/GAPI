@@ -39,7 +39,7 @@ def createCluster(events, clusterType):
         cluster = DEL_cluster(ref, beg, end, events)
 
     ## c) Create CLIPPING cluster
-    elif (clusterType == 'CLIPPING'):
+    elif (clusterType == 'CLIPPING') or (clusterType == 'LEFT-CLIPPING') or (clusterType == 'RIGHT-CLIPPING'):
         cluster = CLIPPING_cluster(ref, beg, end, events)
 
     ## d) Unexpected cluster type
@@ -62,8 +62,8 @@ class CLIPPING():
     def __init__(self, alignmentObj, clippedSide, sample):
         self.type = 'CLIPPING' 
         self.ref = str(alignmentObj.reference_name)
-        self.beg, self.end = (alignmentObj.reference_start, alignmentObj.reference_start + 1) if clippedSide == 'left' else (alignmentObj.reference_end - 1, alignmentObj.reference_end) 
-        self.clippedSide = clippedSide
+        self.beg, self.end = (alignmentObj.reference_start, alignmentObj.reference_start) if clippedSide == 'left' else (alignmentObj.reference_end, alignmentObj.reference_end) 
+        self.clippedSide = clippedSide 
         self.sample = sample
 
         ## Set supporting read id
@@ -105,7 +105,7 @@ class INS():
     def __init__(self, ref, beg, end, length, seq, readId, sample):
         self.type = 'INS' 
         self.ref = str(ref)
-        self.beg = int(beg)
+        self.beg = int(beg) # beg==end. 0-based leftmost coordinate of the insertion point 
         self.end = int(end)
         self.length = int(length)
         self.seq = seq
@@ -183,14 +183,3 @@ class CLIPPING_cluster(cluster):
     '''
     def __init__(self, ref, beg, end, events):
         cluster.__init__(self, ref, beg, end, events)
-
-## TERTIARY CLASSES ##
-# Classes composed primary and secondary classes
-
-class metaCluster():
-    '''
-    MetaCluster class. A metaCluster is composed by a set of clusters (of the same or different type)
-    and represents a single structural variation event
-    '''
-    #def __init__(self, ref, beg, end, events):
-    #    cluster.__init__(self, ref, beg, end, events)
