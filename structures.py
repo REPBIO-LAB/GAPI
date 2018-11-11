@@ -98,7 +98,7 @@ class binDb():
                     self.data[binSize][binIndex][eventType].sort()
         
 
-    def fetchEvents(self, rootIndex, rootSize, eventType):
+    def collectEvents(self, rootIndex, rootSize, eventType):
         '''
         Collect all the events in a root bin and in all the corresponding bins located at higher window sizes/levels of the hierarchy. E.g:
 
