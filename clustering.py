@@ -168,7 +168,7 @@ def clusterByRcplOverlap(binDb, minPercOverlap, minClusterSize, eventType):
 
             ### 1. Collect all the events in the current bin and 
             # in bins located at higher levels of the hierarchy
-            events = binDb.fetchEvents(index, windowSize, eventType)
+            events = binDb.collectEvents(index, windowSize, eventType)
 
             ### 2. Cluster events based on reciprocal overlap
             ## For each event A
