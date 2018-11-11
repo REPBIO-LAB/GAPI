@@ -32,6 +32,7 @@ parser.add_argument('--minINDELlen', default=50, dest='minINDELlen', type=int, h
 parser.add_argument('--minCLIPPINGlen', default=500, dest='minCLIPPINGlen', type=int, help='Minimum length of clipping region for each read.')
 parser.add_argument('--maxBkpDist', default=50, dest='maxBkpDist', type=int, help='Maximum distance bewteen two adjacent breakpoints of the same cluster (applies only for those SVs which only one breakpoint (i.e. INS, CLIPPING)).')
 parser.add_argument('--minRootClusterSize', default=2, dest='minRootClusterSize', type=int, help='Minimum number of reads of the first cluster found (before extending it).')
+parser.add_argument('--minPercOverlap', default=50, dest='minPercRcplOverlap', type=int, help='Minimum percentage of reciprocal overlap for DEL clustering.')
 parser.add_argument('--maxClusterDist', default=100, dest='maxClusterDist', type=int, help='Maximum distance bewteen different clusters.')
 
 args = parser.parse_args()
@@ -48,7 +49,9 @@ minINDELlen = args.minINDELlen
 minCLIPPINGlen = args.minCLIPPINGlen
 maxBkpDist = args.maxBkpDist
 minRootClusterSize = args.minRootClusterSize
+minPercRcplOverlap = args.minPercRcplOverlap
 maxClusterDist = args.maxClusterDist
+
 
 
 # If no reference is specified, get all that are present in the bam file.
@@ -93,6 +96,7 @@ confDict['minCLIPPINGlen'] = minCLIPPINGlen
 
 confDict['maxBkpDist'] = maxBkpDist
 confDict['minRootClusterSize'] = minRootClusterSize
+confDict['minPercRcplOverlap'] = minPercRcplOverlap
 confDict['maxClusterDist'] = maxClusterDist
 
 ## 2. Launch structural variation (SV) caller
