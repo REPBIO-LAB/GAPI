@@ -23,7 +23,7 @@ def createBinDb(data, binSizes):
     # For each type of event add the corresponding 
     # event instances to the data structure 
     for events, eventType in data:
-        binDbObj.addEvents2bins(events, eventType)
+        binDbObj.addEvents(events, eventType)
     
     return binDbObj
 
@@ -48,7 +48,7 @@ class binDb():
             self.data[binSize] = {}
 
     
-    def addEvents2bins(self, events, eventType):
+    def addEvents(self, events, eventType):
         '''
         Organize events into a hierarchy of genomic bins
 
@@ -97,6 +97,51 @@ class binDb():
                 if eventType in self.data[binSize][binIndex]:
                     self.data[binSize][binIndex][eventType].sort()
         
+
+    def fetchEvents(self, rootIndex, rootSize, eventType):
+        '''
+        Collect all the events in a root bin and in all the corresponding bins located at higher window sizes/levels of the hierarchy. E.g:
+
+        <-----------------1---------------->
+        <-------2--------><-------3-------->
+        <---4---><---5---><---6---><---7---> 
+        # BinIndex=4; Output: events in bins (4, 2, 1)
+        # BinIndex=7; Output: events in bins (7, 3, 1)
+        # BinIndex=2; Output: events in bins (2, 1)
+
+        Input:
+            1. rootIndex: root bin index
+            2. rootSize: window size/level where the root index is located 
+            3. eventType: type of events (DEL, INS, CLIPPING, ...)
+
+        Output:
+            1. events: list of events 
+        '''      
+        ### Initialize events list adding the events from the root bin
+        rootBin = self.data[rootSize][rootIndex][eventType]
+        events = rootBin.events
+
+        ### Select upper windows sizes/levels
+        upperSizes = [ binSize for binSize in self.binSizes if binSize > rootSize]
+
+        # For each upper window size
+        for upperSize in upperSizes:
+                
+            # Compute corresponding upper bin index
+            upperIndex = int(rootIndex * rootSize / upperSize)
+
+            # The upper bin contains events:
+            if (upperIndex in self.data[upperSize]):
+
+                # There are events of the type of interest on the bin 
+                if (eventType in self.data[upperSize][upperIndex]):
+
+                    ## Add upper bin´s events to the list
+                    upperBin = self.data[upperSize][upperIndex][eventType]
+                    events = events + upperBin.events
+
+        return events
+
     def nbEvents(self):
         '''
         Compute the number of events composing the hash structure
@@ -114,14 +159,6 @@ class binDb():
 
         return totalNbEvents, nbEventsBinSizes
 
-    '''
-    def binBoundaries(self, binIndex):
-        Compute the begin and end boundaries for a given bin index
-        beg = binIndex * self.binSize
-        end = ((binIndex + 1) * self.binSize) - 1
-
-    #    return beg, end
-    '''
 
 class eventsBin():
     '''
@@ -129,16 +166,13 @@ class eventsBin():
     '''
     def __init__(self, events):
         self.events = events
-        self.notProcessed = list(range(0,len(events), 1)) 
 
     def add(self, events):
         '''
         Contain a set of events of the same type in a genomic bin
         '''
         self.events = self.events + events
-        offset = len(self.notProcessed) 
-        self.notProcessed = self.notProcessed + list(range(offset,len(events) + offset, 1)) 
-
+        
     def nbEvents(self):
         '''
         Compute the number of events composing the bin
@@ -150,13 +184,3 @@ class eventsBin():
         Sort events in increasing coordinates order
         '''
         self.events.sort(key=lambda event: event.beg)
-
-    def processed(self):
-        '''
-        Return True if all the events in the bin have been processed or False, otherwise
-        '''
-        
-        if (len(self.notProcessed) == 0):
-            return True
-        else:
-            return False

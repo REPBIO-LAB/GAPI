@@ -1,41 +1,51 @@
 '''
-Module 'gRanges' - Contains functions to report log information
+Module 'gRanges' - Contains functions to do operations with genomic ranger or coordinates (i.e. overlaps...)
 '''
 
 ## DEPENDENCIES ##
-import pysam
 
 ## FUNCTIONS ##
 def overlap(begA, endA, begB, endB):
     '''
-    Check if two ranges overlap. 2 criteria for defining overlap: 
-    A) Begin of the range A within the range B         
-           *beg* <---------range_A---------->                         
-       <---------range_B----------> 
-                
-          *beg* <-------range_A----->
-      <-------------range_B------------------>
-    
-    B) Begin of the range B within the range A     
-          <---------range_A----------> 
-                  *beg* <---------range_B---------->
-            
-          <-------------range_A----------------->
-            *beg* <-------range_B------>
+    Check if two ranges overlap and return the number of overlapping bases
     '''    
-       
-    # a) Begin of the range A within the range B   
-    if ((begA >= begB) and (begA <= endB)):
-        overlap = True
-        
-    # b) Begin of the range B within the range A            
-    elif ((begB >= begA) and (begB <= endA)):
-        overlap = True
 
-    # c) Ranges do not overlapping
+    maxBeg = max([begA, begB])
+    minEnd = min([endA, endB])
+
+    # a) Overlapping ranges
+    if maxBeg <= minEnd:
+        overlapLen = minEnd - maxBeg 
+
+    # b) No overlap
     else:
-        overlap = False
+        overlapLen = 0
 
-    return overlap
+    return overlapLen
         
+def rcplOverlap(begA, endA, begB, endB, minPercOverlap):
+    '''
+    Check if two ranges overlap with a minimum percentage of reciprocal overlap. 
+    '''    
+    overlapLen = overlap(begA, endA, begB, endB)
+    lenA = (endA - begA)
+    lenB = (endB - begB)
+    percA = (overlapLen / lenA) * 100
+    percB = (overlapLen / lenB) * 100
 
+    # a) Both ranges overlap with a minimum X percentage of reciprocal overlap
+    if (percA >= minPercOverlap) and (percB >= minPercOverlap):
+        boolean = True
+
+    # b) No overlap
+    else:
+        boolean = False
+
+    return boolean
+
+
+
+
+
+
+    

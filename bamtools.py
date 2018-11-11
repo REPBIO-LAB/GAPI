@@ -164,7 +164,6 @@ def collectCLIPPING(alignmentObj, confDict, sample):
     ## Clipping >= X bp at the left
     #  Note: soft (Operation=4) or hard clipped (Operation=5)     
     if ((firstOperation == 4) or (firstOperation == 5)) and (firstOperationLen >= confDict['minCLIPPINGlen']):
-        
         clippingLeftObj = variants.CLIPPING(alignmentObj, 'left', sample)
         
     ## Clipping > X bp at the right
@@ -218,7 +217,6 @@ def collectINDELS(alignmentObj, confDict, sample):
             insertEnd = posQuery + length
             insertSeq = alignmentObj.query_sequence[insertBeg:insertEnd]
             insertLength = len(insertSeq)
-
             insObj = variants.INS(alignmentObj.reference_name, beg, end, insertLength, insertSeq, readId, sample)
             INS_events.append(insObj)   
 
@@ -227,7 +225,6 @@ def collectINDELS(alignmentObj, confDict, sample):
 
             beg = posRef
             end = posRef + length
-
             delObj = variants.DEL(alignmentObj.reference_name, beg, end, length, readId, sample)
             DEL_events.append(delObj)   
 

@@ -14,6 +14,7 @@ import bamtools
 import structures
 import clustering
 
+
 ## FUNCTIONS ##
 
 ## CLASSES ##
@@ -67,7 +68,6 @@ class SVcaller_nano():
         msg = threadId + ' launched'
         log.info(msg)
         time.sleep(random.uniform(0, 1))    
-        # print("THREAD: ", self.bam, self.normalBam, self.mode, threadId)
 
         ## For each window
         for window in windows:
@@ -116,7 +116,7 @@ class SVcaller_nano():
             binSizes = [100, 1000, 10000, 100000, 1000000]
             data = [(DEL_events, 'DEL')]
             DEL_bins = structures.createBinDb(data, binSizes)
-
+            
             ## 2.3 Left-clippings
             binSizes = [50]
             data = [(CLIPPING_left_events, 'LEFT-CLIPPING')]
@@ -128,25 +128,22 @@ class SVcaller_nano():
             right_CLIPPING_bins = structures.createBinDb(data, binSizes)
 
             ## 3. Group events into SV clusters ##     
-            ## 3.1 Cluster insertions         
+            ## 3.1 Cluster insertions       
             INS_clusters = clustering.clusterByDist1D(INS_bins, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'INS')
             step = 'CLUSTER-INS'
             msg = 'Number of INS clusters: ' +  str(INS_clusters.nbEvents()[0])  
             log.step(step, msg)
-    
-            '''
-            ## 2.2 Cluster deletions
-            # We should use a different clustering algorithm for deletions. Only rely on deletion begin makes no sense (POS)
-            # I think a better strategy would be to rely on reciprocal overlap. I.E. those deletions with at least 80% with reciprocal 
-            # overlap are clustered together. 
             
-            #binDb = clustering.clusterByOverlap(DEL_bins, self.confDict['minPercOverlap'], self.confDict['minRootClusterSize'], 'DEL')
-            '''
 
-            ## 2.3 Cluster CLIPPINGS  
+            ## 2.2 Cluster deletions            
+            DEL_clusters = clustering.clusterByRcplOverlap(DEL_bins, self.confDict['minPercRcplOverlap'], self.confDict['minRootClusterSize'], 'DEL')
+            step = 'CLUSTER-DEL'
+            msg = 'Number of DEL clusters: ' +  str(DEL_clusters.nbEvents()[0])  
+            log.step(step, msg)
+
+            ## 2.3 Cluster clippings  
             left_CLIPPING_clusters = clustering.clusterByDist1D(left_CLIPPING_bins, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'LEFT-CLIPPING')
             right_CLIPPING_clusters = clustering.clusterByDist1D(right_CLIPPING_bins, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'RIGHT-CLIPPING')
             step = 'CLUSTER-CLIPPING'
             msg = 'Number of CLIPPING clusters (left clipping, right clipping): ' +  "\t".join([str(left_CLIPPING_clusters.nbEvents()[0]), str(right_CLIPPING_clusters.nbEvents()[0])])    
             log.step(step, msg)
-            
