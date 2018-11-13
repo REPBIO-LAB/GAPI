@@ -11,6 +11,20 @@ import log
 import variants
 
 ## FUNCTIONS ##
+def getREFS(bam):
+    '''
+    Get all references present in the bam file.
+
+	Input:
+		1. bam: indexed BAM file
+	
+	Output:
+		1. refs: String containing all references from the bam file, separated by commas.
+    '''
+    bamFile = pysam.AlignmentFile(bam, 'rb')
+    refs  = ','.join(bamFile.references)
+    return refs
+
 def makeGenomicBins(bam, windowSize, targetRefs):
     '''
     Split the genome into a set of non overlapping windows of 'windowSize' bp.
@@ -256,17 +270,4 @@ def collectINDELS(alignmentObj, confDict, sample):
 
     return INS_events, DEL_events
 
-def getREFS(bam):
-    '''
-    Get all references present in the bam file.
 
-	Input:
-		1. bam: indexed BAM file
-	
-	Output:
-		1. refs: String containing all references from the bam file, separated by commas.
-    '''
-    bamFile = pysam.AlignmentFile(bam, 'rb')
-    refs  = ','.join(bamFile.references)
-
-    return refs

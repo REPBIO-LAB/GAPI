@@ -20,11 +20,11 @@ global debugBool ## debug logging mode. Boolean.
 ## Get user's input ##
 parser = argparse.ArgumentParser(description= "Identify retrotransposon and viral insertions from Nanopore/Pacbio whole genome sequencing data. Two running modes: 1) SINGLE: individual sample; 2) PAIRED: tumour and matched normal samples")
 parser.add_argument('bam', help='Input BAM file. Will correspond to the tumour sample in the PAIRED mode')
-parser.add_argument('--normal-bam', default="NA", dest='normalBam', help='Matched normal bam file')
-parser.add_argument('-t', '--threads', default=1, dest='threads', type=int, help='Number of threads. Default: 1' )
+parser.add_argument('--normalBam', default="NA", dest='normalBam', help='Matched normal bam file')
+parser.add_argument('-p', '--processes', default=1, dest='processes', type=int, help='Number of processes. Default: 1' )
 parser.add_argument('-o', '--outDir', default=os.getcwd(), dest='outDir', help='output directory. Default: current working directory.' )
 
-parser.add_argument('-wS', '--windowSize', default=1000000, dest='windowSize', type=int, help='Input bams will be analised in windows of this size. Default: 1000000' )
+parser.add_argument('-bS', '--binSize', default=1000000, dest='binSize', type=int, help='Input bams will be analised in bins of this size. Default: 1000000' )
 parser.add_argument('--refs', default="ALL", dest='refs', type=str, help='References to analyse from the bam file. Default: All references are analysed.')
 parser.add_argument('--SV', default="INS,DEL,CLIPPING", dest='SV', type=str, help='Structural variants to look for within reads. INS: insertion, DEL: deletion, CLIPPING: clip reads. Default: INS, DEL, CLIPPING')
 parser.add_argument('--minMAPQ', default=20, dest='minMAPQ', type=int, help='Minimum mapping quality requires for each read.')
@@ -38,10 +38,10 @@ parser.add_argument('--maxClusterDist', default=100, dest='maxClusterDist', type
 args = parser.parse_args()
 bam = args.bam
 normalBam = args.normalBam
-threads = args.threads
+processes = args.processes
 outDir = args.outDir
 scriptName = os.path.basename(sys.argv[0])
-windowSize = args.windowSize
+binSize = args.binSize
 refs = args.refs
 SV = args.SV
 minMAPQ = args.minMAPQ
@@ -51,7 +51,6 @@ maxBkpDist = args.maxBkpDist
 minRootClusterSize = args.minRootClusterSize
 minPercRcplOverlap = args.minPercRcplOverlap
 maxClusterDist = args.maxClusterDist
-
 
 
 # If no reference is specified, get all that are present in the bam file.
@@ -73,7 +72,7 @@ print("***** ", scriptName, " configuration *****")
 print("mode: ", mode)
 print("bam: ", bam)
 print("normalBam: ", normalBam)
-print("threads: ", threads)
+print("processes: ", processes)
 print("outDir: ", outDir)
 print()
 print("***** Executing ", scriptName, ".... *****")
@@ -85,8 +84,8 @@ print()
 ## 1. Create configuration dictionary
 confDict = {}
 
-confDict['threads'] = threads
-confDict['windowSize'] = windowSize
+confDict['processes'] = processes
+confDict['binSize'] = binSize
 confDict['targetRefs'] = targetRefs
 confDict['targetSV'] = targetSV
 
