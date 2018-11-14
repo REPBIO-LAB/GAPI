@@ -9,6 +9,7 @@ import pysam
 # Internal
 import log
 import variants
+import gRanges
 
 ## FUNCTIONS ##
 def getREFS(bam):
@@ -25,17 +26,17 @@ def getREFS(bam):
     refs  = ','.join(bamFile.references)
     return refs
 
-def makeGenomicBins(bam, windowSize, targetRefs):
+def makeGenomicBins(bam, binSize, targetRefs):
     '''
-    Split the genome into a set of non overlapping windows of 'windowSize' bp.
+    Split the genome into a set of non overlapping bins of 'binSize' bp.
 
     Input:
         1. bam: BAM file
-        2. windowSize: size of the windows
+        2. binSize: size of the bins
         3. targetRefs: list of target references. None if all the references are considered
 
     Output:
-        1. windows: List of non overlapping windows. Each list item corresponds to a tuple (ref, beg, end)
+        1. bins: List of non overlapping bins. Each list item corresponds to a tuple (ref, beg, end)
     '''
 
     ## Open BAM file for reading
@@ -49,39 +50,39 @@ def makeGenomicBins(bam, windowSize, targetRefs):
         targetRefs = [str(i) for i in targetRefs]
         refLengths  = {ref: refLengths [ref] for ref in targetRefs}
 
-    ## Split each reference into evenly sized windows
-    windows = []
+    ## Split each reference into evenly sized bins
+    bins = []
 
     # For each reference
     for ref, length in refLengths .items():
 
-        ## Define window boundaries
-        boundaries = [boundary for boundary in range(0, length, windowSize)]
+        ## Define bins boundaries
+        boundaries = [boundary for boundary in range(0, length, binSize)]
         boundaries = boundaries + [length]
 
-        ## Make windows
+        ## Make bins
         for idx, beg in enumerate(boundaries):
 
             ## Skip last element from the list
             if beg < boundaries[-1]:
                 end = boundaries[idx + 1]
-                window = (ref, beg, end)
-                windows.append(window)
+                bins = (ref, beg, end)
+                bins.append(bins)
 
     ## Close bam file
     bamFile.close()
 
-    return windows
+    return bins
 
 
-def collectSV(ref, beg, end, bam, confDict, sample):
+def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
     '''
     Collect structural variant (SV) candidates from a genomic region.
 
     Input:
         1. ref: target referenge
-        2. beg: target interval begin position
-        3. end: target interval end position
+        2. binBeg: target interval begin position
+        3. binEnd: target interval end position
         4. bam: indexed BAM file
         5. confDict:
             * targetSV       -> list with target SV (INS: insertion; DEL: deletion)
@@ -113,7 +114,7 @@ def collectSV(ref, beg, end, bam, confDict, sample):
     bamFile = pysam.AlignmentFile(bam, "rb")
 
     ## Extract alignments
-    iterator = bamFile.fetch(ref, beg, end)
+    iterator = bamFile.fetch(ref, binBeg, binEnd)
 
     # For each read alignment
     for alignmentObj in iterator:
@@ -131,20 +132,39 @@ def collectSV(ref, beg, end, bam, confDict, sample):
             ## 1. Collect CLIPPINGS
             if 'CLIPPING' in confDict['targetSV']:
 
-                clippingLeftObj, clippingRightObj = collectCLIPPING(alignmentObj, confDict, sample)
+                CLIPPING_left, CLIPPING_right = collectCLIPPING(alignmentObj, confDict, sample)
 
-                if clippingLeftObj != None:
-                    CLIPPING_left_events.append(clippingLeftObj)
+                ## Select CLIPPING left breakpoints within the target genomic bin
+                if CLIPPING_left != None:
+                    overlapLen = gRanges.overlap(CLIPPING_left.beg, CLIPPING_left.end, binBeg, binEnd)
 
-                if clippingRightObj != None:
-                    CLIPPING_right_events.append(clippingRightObj)
+                    if overlapLen > 0:
+                        CLIPPING_left_events.append(CLIPPING_left)
+
+                ## Select CLIPPING right breakpoints within the target genomic bin
+                if CLIPPING_right != None:
+                    overlapLen = gRanges.overlap(CLIPPING_right.beg, CLIPPING_right.end, binBeg, binEnd)
+
+                    if overlapLen > 0:
+                        CLIPPING_right_events.append(CLIPPING_right)
 
             ## 2. Collect INDELS
             if ('INS' in confDict['targetSV']) or ('DEL' in confDict['targetSV']):
                 INS_events_tmp, DEL_events_tmp = collectINDELS(alignmentObj, confDict, sample)
 
-                INS_events = INS_events + INS_events_tmp
-                DEL_events = DEL_events + DEL_events_tmp
+                ## Select INS events within the target genomic bin
+                for INS in INS_events_tmp:
+                    overlapLen = gRanges.overlap(INS.beg, INS.end, binBeg, binEnd)
+
+                    if overlapLen > 0:
+                        INS_events.append(INS)
+
+                ## Select DEL events within the target genomic bin
+                for DEL in DEL_events_tmp:
+                    overlapLen = gRanges.overlap(DEL.beg, DEL.end, binBeg, binEnd)
+                    
+                    if overlapLen > 0:
+                        DEL_events.append(DEL)
 
     # return sv candidates
     return INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events
@@ -225,7 +245,7 @@ def collectINDELS(alignmentObj, confDict, sample):
         ## a) INSERTION to the reference >= Xbp
         if ('INS' in confDict['targetSV']) and (operation == 1) and (length >= confDict['minINDELlen']):
 
-            beg = posRef
+            beg = posRef 
             end = posRef
             insertBeg = posQuery
             insertEnd = posQuery + length
@@ -237,7 +257,7 @@ def collectINDELS(alignmentObj, confDict, sample):
         ## b) DELETION to the reference >= Xbp
         if ('DEL' in confDict['targetSV']) and (operation == 2) and (length >= confDict['minINDELlen']):
 
-            beg = posRef
+            beg = posRef 
             end = posRef + length
             delObj = variants.DEL(alignmentObj.reference_name, beg, end, length, readId, sample)
             DEL_events.append(delObj)

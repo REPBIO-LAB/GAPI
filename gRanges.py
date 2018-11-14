@@ -7,17 +7,17 @@ Module 'gRanges' - Contains functions to do operations with genomic ranger or co
 ## FUNCTIONS ##
 def overlap(begA, endA, begB, endB):
     '''
-    Check if two ranges overlap and return the number of overlapping bases
+    Check if two ranges overlap and return the number of overlapping bases. 
+    Coordinate ranges are expected to be 1-based
     '''    
-
     maxBeg = max([begA, begB])
     minEnd = min([endA, endB])
 
-    # a) Overlapping ranges
+    # a) Overlap
     if maxBeg <= minEnd:
-        overlapLen = minEnd - maxBeg 
+        overlapLen = minEnd - maxBeg + 1
 
-    # b) No overlap
+    # d) No overlap
     else:
         overlapLen = 0
 
