@@ -66,8 +66,8 @@ def makeGenomicBins(bam, binSize, targetRefs):
             ## Skip last element from the list
             if beg < boundaries[-1]:
                 end = boundaries[idx + 1]
-                bins = (ref, beg, end)
-                bins.append(bins)
+                window = (ref, beg, end)
+                bins.append(window)
 
     ## Close bam file
     bamFile.close()
