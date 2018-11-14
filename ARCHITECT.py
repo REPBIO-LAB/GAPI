@@ -18,6 +18,8 @@ import bamtools
 ######################
 ## Get user's input ##
 ######################
+
+## 1. Define parser ##
 parser = argparse.ArgumentParser(description= "Call structural variants (SV) from Nanopore/Pacbio whole genome sequencing data. Two running modes: 1) SINGLE: individual sample; 2) PAIRED: tumour and matched normal sample")
 parser.add_argument('bam', help='Input bam file. Will correspond to the tumour sample in the PAIRED mode')
 
@@ -27,7 +29,8 @@ parser.add_argument('-p', '--processes', default=1, dest='processes', type=int, 
 parser.add_argument('-o', '--outDir', default=os.getcwd(), dest='outDir', help='Output directory. Default: current working directory')
 
 ## BAM processing
-parser.add_argument('-bS', '--binSize', default=1000000, dest='binSize', type=int, help='Input bams will be analised in bins of this size. Default: 1000000')
+parser.add_argument('--targetBins', default=None, dest='targetBins', type=int, help='Bed file containing target genomic bins for SV calling. Default: None')
+parser.add_argument('-bS', '--binSize', default=1000000, dest='binSize', type=int, help='Input bams will be analised in genomic bins of this size. Default: 1000000')
 parser.add_argument('--refs', default="ALL", dest='refs', type=str, help='Comma separated list of target references to call SV (i.e. 1,2,3,X). Default: All references included in the bam file')
 parser.add_argument('--SV', default="INS,DEL,CLIPPING", dest='SV', type=str, help='Comma separated list of SV event types to collect (INS, DEL and CLIPPING). Default: INS,DEL,CLIPPING')
 
@@ -40,15 +43,22 @@ parser.add_argument('--maxBkpDist', default=50, dest='maxBkpDist', type=int, hel
 parser.add_argument('--minPercOverlap', default=50, dest='minPercRcplOverlap', type=int, help='Minimum percentage of reciprocal overlap for DEL clustering. Default: 50')
 parser.add_argument('--maxClusterDist', default=100, dest='maxClusterDist', type=int, help='Maximum distance bewteen different clusters for metaclustering. Default: 100')
 
+## 2. Parse user´s input and initialize variants ##
 args = parser.parse_args()
+
+## General
 bam = args.bam
 normalBam = args.normalBam
 processes = args.processes
 outDir = args.outDir
-scriptName = os.path.basename(sys.argv[0])
+
+## BAM processing
+targetBins = args.targetBins
 binSize = args.binSize
 refs = args.refs
 SV = args.SV
+
+## Filtering thresholds
 minMAPQ = args.minMAPQ
 minINDELlen = args.minINDELlen
 minCLIPPINGlen = args.minCLIPPINGlen
@@ -71,16 +81,27 @@ mode = "SINGLE" if normalBam == "NA" else "PAIRED"
 ##############################################
 ## Display configuration to standard output ##
 ##############################################
+scriptName = os.path.basename(sys.argv[0])
+
 print()
-print("***** ", scriptName, " configuration *****")
-print("mode: ", mode)
-print("bam: ", bam)
-print("normalBam: ", normalBam)
-print("processes: ", processes)
-print("outDir: ", outDir)
-print()
-print("***** Executing ", scriptName, ".... *****")
-print()
+print('***** ', scriptName, ' configuration *****')
+print('** General **')
+print('mode: ', mode)
+print('bam: ', bam)
+print('normalBam: ', normalBam)
+print('processes: ', processes)
+print('outDir: ', outDir, "\n")
+
+print('** BAM processing **')
+print('targetBins: ', targetBins)
+print('[EVA will add remaining]', "\n")
+
+print('** Filtering thresholds **')
+print('minMAPQ: ', minMAPQ)
+print('[EVA will add remaining]', "\n")
+
+print('***** Executing ', scriptName, '.... *****', "\n")
+
 
 ##########
 ## CORE ## 
@@ -106,5 +127,5 @@ confDict['maxClusterDist'] = maxClusterDist
 callerObj = callers.SVcaller_nano(mode, bam, normalBam, confDict, outDir)
 callerObj.callSV()
 
-print("***** Finished! *****")
+print('***** Finished! *****')
 print()
