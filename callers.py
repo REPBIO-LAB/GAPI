@@ -9,9 +9,9 @@ import multiprocessing as mp
 # Internal
 import log
 import bamtools
+import formats
 import structures
 import clustering
-
 
 ## FUNCTIONS ##
 
@@ -30,16 +30,28 @@ class SVcaller_nano():
 
     def callSV(self):
         '''
-        Search for structural variants (SV) genome wide
+        Search for structural variants (SV) genome wide or in a set of target genomic regions
         '''
-        ## 1. Split the reference genome into a set of genomic bins
-        bins = bamtools.makeGenomicBins(self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
+        ### 1. Define genomic bins to search for SV ##
+        # a) Create bins the novo
+        if self.confDict['targetBins'] == None:
 
-        ## 2. Distribute genomic bins into processes. Call SV in each bin
+            ## Split the reference genome into a set of genomic bins
+            bins = bamtools.makeGenomicBins(self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
+
+        # b) Read bins from bed file
+        else:
+            bed = formats.bed()
+            bed.read(self.confDict['targetBins'])
+            bins = [ (line.ref, line.beg, line.end) for line in bed.lines]
+
+        ### 2. Call SV in each bin ##
+        # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
         pool.map(self.callSV_bin, bins)
         pool.close()
         pool.join()
+
 
     def callSV_bin(self, window):
         '''

@@ -29,7 +29,7 @@ parser.add_argument('-p', '--processes', default=1, dest='processes', type=int, 
 parser.add_argument('-o', '--outDir', default=os.getcwd(), dest='outDir', help='Output directory. Default: current working directory')
 
 ## BAM processing
-parser.add_argument('--targetBins', default=None, dest='targetBins', type=int, help='Bed file containing target genomic bins for SV calling. Default: None')
+parser.add_argument('--targetBins', default=None, dest='targetBins', type=str, help='Bed file containing target genomic bins for SV calling. Overrides --binSize and --refs. Default: None')
 parser.add_argument('-bS', '--binSize', default=1000000, dest='binSize', type=int, help='Input bams will be analised in genomic bins of this size. Default: 1000000')
 parser.add_argument('--refs', default="ALL", dest='refs', type=str, help='Comma separated list of target references to call SV (i.e. 1,2,3,X). Default: All references included in the bam file')
 parser.add_argument('--SV', default="INS,DEL,CLIPPING", dest='SV', type=str, help='Comma separated list of SV event types to collect (INS, DEL and CLIPPING). Default: INS,DEL,CLIPPING')
@@ -94,6 +94,8 @@ print('outDir: ', outDir, "\n")
 
 print('** BAM processing **')
 print('targetBins: ', targetBins)
+print('binSize: ', binSize)
+print('targetRefs: ', refs)
 print('[EVA will add remaining]', "\n")
 
 print('** Filtering thresholds **')
@@ -109,15 +111,19 @@ print('***** Executing ', scriptName, '.... *****', "\n")
 ## 1. Create configuration dictionary
 confDict = {}
 
+## General
 confDict['processes'] = processes
+
+## BAM processing
+confDict['targetBins'] = targetBins
 confDict['binSize'] = binSize
 confDict['targetRefs'] = targetRefs
 confDict['targetSV'] = targetSV
 
+## Filtering thresholds
 confDict['minMAPQ'] = minMAPQ
 confDict['minINDELlen'] = minINDELlen
 confDict['minCLIPPINGlen'] = minCLIPPINGlen
-
 confDict['maxBkpDist'] = maxBkpDist
 confDict['minRootClusterSize'] = minRootClusterSize
 confDict['minPercRcplOverlap'] = minPercRcplOverlap

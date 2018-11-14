@@ -9,7 +9,7 @@ import log
 ## CLASSES ##
 class fasta():
     '''
-    Class for dealing with files in FASTA format. Read and writes fastas
+    Class for dealing with files in FASTA format
     '''
 
     def __init__(self):
@@ -18,47 +18,83 @@ class fasta():
         '''
         self.fastaDict = {}
 
-    def read(self, fastaFile):
+    def read(self, filePath):
         '''
-        FASTA file reader. Read fasta file and store data into a dictionary with the following format:
+        FASTA file reader. Read and add data to a dictionary with the following format:
             - Key. Sequence identifier
             - Value. Sequence 
         '''
-        fastaDict = {}
+        fastaFile = open(filePath)
 
-        log.subHeader('FASTA reader')
-
-        fh = open(fastaFile)
         # ditch the boolean (x[0]) and just keep the header or sequence since
         # we know they alternate.
-        faiter = (x[1] for x in itertools.groupby(fh, lambda line: line[0] == '>'))
+        faiter = (x[1] for x in itertools.groupby(fastaFile, lambda line: line[0] == '>'))
+
         for header in faiter:
             # drop the >
             header = header.next()[1:].strip()
-
+            
             # drop the info
             header = header.split(' ')[0]
 
-            log.info('Reading ' + header + '...')
-
             # join all sequence lines to one.
             seq = ''.join(s.strip() for s in next(faiter))
-            fastaDict[header] = seq
+            self.fastaDict[header] = seq
 
-        self.fastaDict = fastaDict
-
-    def write(self, outFilePath):
+    def write(self, filePath):
         '''
         FASTA file writer. Write data stored in the dictionary into a FASTA file
         '''
-        outFile = open(outFilePath, 'w')
+        fastaFile = open(filePath, 'w')
 
         for header, seq in self.fastaDict.items():
             header = '>' + header
 
-            outFile.write("%s\n" % header)
-            outFile.write("%s\n" % seq)
+            fastaFile.write("%s\n" % header)
+            fastaFile.write("%s\n" % seq)
 
         # Close output fasta file
-        outFile.close()
+        fastaFile.close()
 
+
+class bed():
+    '''
+    Class for dealing with files in BED format. 
+    '''
+
+    def __init__(self):
+        '''
+        Initialize empty class instance
+        '''
+        self.lines = []
+
+    def read(self, filePath):
+        '''
+        BED file reader. Read and store data line objects into a list:
+        '''
+        bedFile = open(filePath)
+
+        # For line in the file
+        for line in bedFile:
+            
+            # Skip comments and blank lines
+            if line.startswith('#') or not line:
+                continue
+
+            ref, beg, end = line.split()
+            line = bedLine(ref, beg, end)
+            self.lines.append(line)
+
+
+class bedLine():
+    '''
+    BED line class 
+    '''
+
+    def __init__(self, ref, beg, end):
+        '''
+        Initialize bed line
+        '''
+        self.ref = str(ref)
+        self.beg = int(beg)
+        self.end = int(end)
