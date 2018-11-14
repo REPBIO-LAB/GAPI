@@ -12,9 +12,6 @@ import callers
 import log
 import bamtools
 
-# Global variables:
-global debugBool ## debug logging mode. Boolean.
-
 # Environmental variables:
 
 ## Get user's input ##
@@ -52,7 +49,6 @@ minRootClusterSize = args.minRootClusterSize
 minPercRcplOverlap = args.minPercRcplOverlap
 maxClusterDist = args.maxClusterDist
 
-
 # If no reference is specified, get all that are present in the bam file.
 if refs == "ALL":
 	refs = bamtools.getREFS(bam)
@@ -61,10 +57,8 @@ if refs == "ALL":
 targetSV = SV.split(',')
 targetRefs = refs.split(',')
 
-
 ## Determine running mode:
 mode = "SINGLE" if normalBam == "NA" else "PAIRED"
-
 
 ## Display configuration to standard output ##
 print()
