@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 #coding: utf-8
 
+####################
 ## Import modules ##
+####################
+
 # External
 import argparse
 import sys
@@ -12,25 +15,30 @@ import callers
 import log
 import bamtools
 
-# Environmental variables:
-
+######################
 ## Get user's input ##
-parser = argparse.ArgumentParser(description= "Identify retrotransposon and viral insertions from Nanopore/Pacbio whole genome sequencing data. Two running modes: 1) SINGLE: individual sample; 2) PAIRED: tumour and matched normal samples")
-parser.add_argument('bam', help='Input BAM file. Will correspond to the tumour sample in the PAIRED mode')
-parser.add_argument('--normalBam', default="NA", dest='normalBam', help='Matched normal bam file')
-parser.add_argument('-p', '--processes', default=1, dest='processes', type=int, help='Number of processes. Default: 1' )
-parser.add_argument('-o', '--outDir', default=os.getcwd(), dest='outDir', help='output directory. Default: current working directory.' )
+######################
+parser = argparse.ArgumentParser(description= "Call structural variants (SV) from Nanopore/Pacbio whole genome sequencing data. Two running modes: 1) SINGLE: individual sample; 2) PAIRED: tumour and matched normal sample")
+parser.add_argument('bam', help='Input bam file. Will correspond to the tumour sample in the PAIRED mode')
 
-parser.add_argument('-bS', '--binSize', default=1000000, dest='binSize', type=int, help='Input bams will be analised in bins of this size. Default: 1000000' )
-parser.add_argument('--refs', default="ALL", dest='refs', type=str, help='References to analyse from the bam file. Default: All references are analysed.')
-parser.add_argument('--SV', default="INS,DEL,CLIPPING", dest='SV', type=str, help='Structural variants to look for within reads. INS: insertion, DEL: deletion, CLIPPING: clip reads. Default: INS, DEL, CLIPPING')
-parser.add_argument('--minMAPQ', default=20, dest='minMAPQ', type=int, help='Minimum mapping quality requires for each read.')
-parser.add_argument('--minINDELlen', default=50, dest='minINDELlen', type=int, help='Minimum indel length.')
-parser.add_argument('--minCLIPPINGlen', default=500, dest='minCLIPPINGlen', type=int, help='Minimum length of clipping region for each read.')
-parser.add_argument('--maxBkpDist', default=50, dest='maxBkpDist', type=int, help='Maximum distance bewteen two adjacent breakpoints of the same cluster (applies only for those SVs which only one breakpoint (i.e. INS, CLIPPING)).')
-parser.add_argument('--minRootClusterSize', default=2, dest='minRootClusterSize', type=int, help='Minimum number of reads of the first cluster found (before extending it).')
-parser.add_argument('--minPercOverlap', default=50, dest='minPercRcplOverlap', type=int, help='Minimum percentage of reciprocal overlap for DEL clustering.')
-parser.add_argument('--maxClusterDist', default=100, dest='maxClusterDist', type=int, help='Maximum distance bewteen different clusters.')
+## General
+parser.add_argument('--normalBam', default="NA", dest='normalBam', help='Matched normal bam file. If provided ARCHITECT will run in PAIRED mode')
+parser.add_argument('-p', '--processes', default=1, dest='processes', type=int, help='Number of processes. Default: 1')
+parser.add_argument('-o', '--outDir', default=os.getcwd(), dest='outDir', help='Output directory. Default: current working directory')
+
+## BAM processing
+parser.add_argument('-bS', '--binSize', default=1000000, dest='binSize', type=int, help='Input bams will be analised in bins of this size. Default: 1000000')
+parser.add_argument('--refs', default="ALL", dest='refs', type=str, help='Comma separated list of target references to call SV (i.e. 1,2,3,X). Default: All references included in the bam file')
+parser.add_argument('--SV', default="INS,DEL,CLIPPING", dest='SV', type=str, help='Comma separated list of SV event types to collect (INS, DEL and CLIPPING). Default: INS,DEL,CLIPPING')
+
+## Filtering thresholds
+parser.add_argument('--minMAPQ', default=20, dest='minMAPQ', type=int, help='Minimum mapping quality required for each read. Default: 20')
+parser.add_argument('--minINDELlen', default=50, dest='minINDELlen', type=int, help='Minimum indel length. Default: 50')
+parser.add_argument('--minCLIPPINGlen', default=500, dest='minCLIPPINGlen', type=int, help='Minimum clipped sequence length for each read. Default: 500')
+parser.add_argument('--minRootClusterSize', default=2, dest='minRootClusterSize', type=int, help='Minimum number of reads composing a root cluster (before extension step). Default: 2')
+parser.add_argument('--maxBkpDist', default=50, dest='maxBkpDist', type=int, help='Maximum distance bewteen two adjacent breakpoints for INS and CLIPPING clustering. Default: 50')
+parser.add_argument('--minPercOverlap', default=50, dest='minPercRcplOverlap', type=int, help='Minimum percentage of reciprocal overlap for DEL clustering. Default: 50')
+parser.add_argument('--maxClusterDist', default=100, dest='maxClusterDist', type=int, help='Maximum distance bewteen different clusters for metaclustering. Default: 100')
 
 args = parser.parse_args()
 bam = args.bam
@@ -60,7 +68,9 @@ targetRefs = refs.split(',')
 ## Determine running mode:
 mode = "SINGLE" if normalBam == "NA" else "PAIRED"
 
+##############################################
 ## Display configuration to standard output ##
+##############################################
 print()
 print("***** ", scriptName, " configuration *****")
 print("mode: ", mode)
@@ -72,9 +82,9 @@ print()
 print("***** Executing ", scriptName, ".... *****")
 print()
 
-
-## Start ## 
-
+##########
+## CORE ## 
+##########
 ## 1. Create configuration dictionary
 confDict = {}
 
