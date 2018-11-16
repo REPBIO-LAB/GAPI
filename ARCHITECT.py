@@ -43,7 +43,7 @@ parser.add_argument('--maxBkpDist', default=50, dest='maxBkpDist', type=int, hel
 parser.add_argument('--minPercOverlap', default=50, dest='minPercRcplOverlap', type=int, help='Minimum percentage of reciprocal overlap for DEL clustering. Default: 50')
 parser.add_argument('--maxClusterDist', default=100, dest='maxClusterDist', type=int, help='Maximum distance bewteen different clusters for metaclustering. Default: 100')
 
-## 2. Parse user´s input and initialize variants ##
+## 2. Parse user´s input and initialize variables ##
 args = parser.parse_args()
 
 ## General

@@ -60,7 +60,8 @@ class SVcaller_nano():
     
         ref, beg, end = window
 
-        msg = "SV calling in bin: " + "_".join([str(ref), str(beg), str(end)]) 
+        binId = '_'.join([str(ref), str(beg), str(end)])
+        msg = 'SV calling in bin: ' + binId
         log.subHeader(msg)
 
         ## 1. Search for SV candidate events in the bam file/s ##
@@ -84,7 +85,7 @@ class SVcaller_nano():
             CLIPPING_right_events = CLIPPING_right_events_T + CLIPPING_right_events_N
 
         step = 'COLLECT'
-        msg = 'Number of SV events (INS, DEL, CLIPPING_left, CLIPPING_right): ' +  "\t".join([str(len(INS_events)), str(len(DEL_events)), str(len(CLIPPING_left_events)), str(len(CLIPPING_right_events))])    
+        msg = 'Number of SV events in bin (INS, DEL, CLIPPING_left, CLIPPING_right): ' +  "\t".join([binId, str(len(INS_events)), str(len(DEL_events)), str(len(CLIPPING_left_events)), str(len(CLIPPING_right_events))])    
         log.step(step, msg)
 
         ## 2. Organize all the SV events into genomic bins prior clustering ##
@@ -116,19 +117,26 @@ class SVcaller_nano():
         ## 3. Group events into SV clusters ##     
         ## 3.1 Cluster insertions       
         INS_clusters = clustering.clusterByDist1D(INS_bins, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'INS')
-        step = 'CLUSTER-INS'
-        msg = 'Number of INS clusters: ' +  str(INS_clusters.nbEvents()[0])  
-        log.step(step, msg)    
 
-        ## 2.2 Cluster deletions            
+        ## 3.2 Cluster deletions            
         DEL_clusters = clustering.clusterByRcplOverlap(DEL_bins, self.confDict['minPercRcplOverlap'], self.confDict['minRootClusterSize'], 'DEL')
-        step = 'CLUSTER-DEL'
-        msg = 'Number of DEL clusters: ' +  str(DEL_clusters.nbEvents()[0])  
-        log.step(step, msg)
 
-        ## 2.3 Cluster clippings  
+        ## 3.3 Cluster clippings  
         left_CLIPPING_clusters = clustering.clusterByDist1D(left_CLIPPING_bins, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'LEFT-CLIPPING')
         right_CLIPPING_clusters = clustering.clusterByDist1D(right_CLIPPING_bins, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'RIGHT-CLIPPING')
-        step = 'CLUSTER-CLIPPING'
-        msg = 'Number of CLIPPING clusters (left clipping, right clipping): ' +  "\t".join([str(left_CLIPPING_clusters.nbEvents()[0]), str(right_CLIPPING_clusters.nbEvents()[0])])    
+        
+        step = 'CLUSTERING'
+        msg = 'Number of clusters (INS, DEL, CLIPPING_left, CLIPPING_right): ' +  "\t".join([binId, str(INS_clusters.nbEvents()[0]), str(DEL_clusters.nbEvents()[0]), str(left_CLIPPING_clusters.nbEvents()[0]), str(right_CLIPPING_clusters.nbEvents()[0])])   
         log.step(step, msg)
+
+        ### Temporary ###
+
+        for cluster in INS_clusters.collect('INS-CLUSTER'):
+            mean, std, cv = cluster.meanLen()
+            print('INS-CLUSTER: ', binId, cluster.ref, cluster.beg, cluster.end, cluster.nbEvents(), mean, std, cv)
+
+        ## 4. Polish SV clusters ##     
+        for cluster in INS_clusters.collect('INS-CLUSTER'):
+            cluster.polish()
+
+            

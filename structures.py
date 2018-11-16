@@ -50,14 +50,11 @@ class binDb():
     
     def addEvents(self, events, eventType):
         '''
-        Organize events into a hierarchy of genomic bins
+        Add events into a hierarchy of genomic bins
 
         Input:
             1. events: list of objects. Every object must have 'beg' and 'end' attributes
             2. eventType: type of events (DEL, INS, CLIPPING, ...)
-
-        Output:
-            1. ....
         '''        
         ## 1. Allocate each event into a genomic bin 
         # For each event
@@ -97,10 +94,30 @@ class binDb():
                 if eventType in self.data[binSize][binIndex]:
                     self.data[binSize][binIndex][eventType].sort()
         
-
-    def collectEvents(self, rootIndex, rootSize, eventType):
+    def collect(self, eventType):
         '''
-        Collect all the events in a root bin and in all the corresponding bins located at higher window sizes/levels of the hierarchy. E.g:
+        Collect all the events from the provided event type that are stored in the bin structure
+        
+         Input:
+            1. eventType. Target event type
+
+         Output:
+            2. events. List of events
+        '''  
+        events = []
+
+        for binSize in self.binSizes:
+
+            for binIndex in self.data[binSize].keys():
+                
+                events = events + self.data[binSize][binIndex][eventType].events
+
+        return events
+
+    def traverse(self, rootIndex, rootSize, eventType):
+        '''
+        Traverse bin structure starting in a root bin and going through all the bins located at upper levels
+        in the hierarchy. Collect events from all the visited bins. E.g:
 
         <-----------------1---------------->
         <-------2--------><-------3-------->
@@ -149,7 +166,7 @@ class binDb():
         totalNbEvents = 0
         nbEventsBinSizes = {}
 
-        for binSize in self.data.keys():
+        for binSize in self.binSizes:
             nbEventsBinSizes[binSize] = 0
 
             for binIndex in self.data[binSize].keys():

@@ -4,7 +4,8 @@ Module 'variants' - Contains classes for dealing with genomic variation
 
 ## DEPENDENCIES ##
 # External
-import  sys
+import sys
+import numpy as np
 
 # Internal
 import log
@@ -234,6 +235,23 @@ class cluster():
         '''
         return len(self.events)
 
+    def meanLen(self):
+        '''
+        Compute the mean length for the events composing the cluster and the mean coefficient of variation
+        '''
+
+        ## Compute mean insertion length and standard deviation
+        lengths = np.asarray([event.length for event in self.events])
+        mean = np.mean(lengths)
+        std = np.std(lengths)
+
+        ## compute coefficient of variation (CV)
+        # CV = std / mean * 100
+        # std: standard deviation
+        # mean: mean
+        cv = std / mean * 100
+
+        return mean, std, cv
 
             
 class INS_cluster(cluster):
@@ -242,6 +260,34 @@ class INS_cluster(cluster):
     '''
     def __init__(self, ref, beg, end, events):
         cluster.__init__(self, ref, beg, end, events)
+
+    def polish(self):
+        '''
+        Polish INS cluster by removing INS events whose length that deviates from the average
+        '''
+        mean, std, cv = self.meanLen()
+
+        ## NOTE: only attemp to polish if CV > threshold. Stop polishing when no improvement or VC < Threshold
+        # Set cutoffs
+        cutOff = std * 1
+        lowerBound, upperBound = mean - cutOff, mean + cutOff
+
+        print('START-POLISH: ', self.nbEvents(), mean, std, cv, cutOff, lowerBound, upperBound)
+        
+        noOutliers = []
+
+        for event in self.events:
+
+            # a) Outlier 
+            if (event.length < lowerBound) or (event.length > upperBound):
+                print('OUTLIER: ', self.nbEvents(), mean, std, cv, cutOff, lowerBound, upperBound)
+            else:
+                noOutliers.append(event)
+            
+            i
+            
+
+
 
 class DEL_cluster(cluster):
     '''
