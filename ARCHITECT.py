@@ -96,11 +96,16 @@ print('** BAM processing **')
 print('targetBins: ', targetBins)
 print('binSize: ', binSize)
 print('targetRefs: ', refs)
-print('[EVA will add remaining]', "\n")
+print('targetSVs: ', SV, "\n")
 
 print('** Filtering thresholds **')
 print('minMAPQ: ', minMAPQ)
-print('[EVA will add remaining]', "\n")
+print('minINDELlength: ', minINDELlen)
+print('minCLIPPINGlength: ', minCLIPPINGlen)
+print('minRootClusterSize: ', minRootClusterSize)
+print('maxBkpDistance: ', maxBkpDist)
+print('minPercOverlap: ', minPercRcplOverlap)
+print('maxClusterDistance: ', maxClusterDist, "\n")
 
 print('***** Executing ', scriptName, '.... *****', "\n")
 
