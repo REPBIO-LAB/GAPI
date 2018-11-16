@@ -2,32 +2,40 @@ import callers
 import structures
 
 
-def writeOutput(mode, bam, normalBam, confDict, outDir):
+def writeOutput(clusters, outDir):
     '''
-    FASTA file writer. Write data stored in the dictionary into a FASTA file
+    Write output file
     '''
 
-    clusters = []
-
-    callerObj = callers.SVcaller_nano(mode, bam, normalBam, confDict, outDir)
-    INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters = callerObj.callSV()
-
-
+    # Open output file
     outfile = "architectTempOutput.txt"
     outfilepath = outDir + '/' + outfile
     output = open(outfilepath, 'w')
 
-    output.write("ref \t beg \t end \t clusterType \t nbTotalEvents \t nbTumourEvents \t nbNormalEvents \t medianLength \n")
+    # Write header
+    output.write("ref \t beg \t end \t clusterType \t nbTotalEvents \t nbTumourEvents \t nbNormalEvents \t mean \t standardDeviation \t variationConfficient \n")
 
-    clusters = [INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters]
+    # Write core
+    writeEventsFeatures(clusters, output)
+
+    # Close output file
+    output.close()
+
+def writeEventsFeatures(clusters, output):
+    '''
+    Write output core
+    '''
+
+    # List containing all event types
     eventTypes = ["INS-CLUSTER", "DEL-CLUSTER", "LEFT-CLIPPING-CLUSTER", "RIGHT-CLIPPING-CLUSTER"]
 
+    # For each list in cluster, pick each event and write its features
     for i in range (0,len(eventTypes)):
-        for TYPE_cluster in clusters[i]:
-            events = TYPE_cluster.collect(eventTypes[i])
-            for event in events:
-                print (event)
-                nbTotalEvents, nbTumourEvents, nbNormalEvents = event.nbEvents()
-                output.write(str(event.ref) + "\t" + str(event.beg) + "\t" + str(event.end) + "\t"  + eventTypes[i]  + "\t"  + str(nbTotalEvents) + "\t" + str(nbTumourEvents) + "\t" + str(nbNormalEvents) + "\n")
 
-    output.close()
+	    for TYPE_cluster in clusters[i]:
+		    events = TYPE_cluster.collect(eventTypes[i])
+
+		    for event in events:
+			    nbTotalEvents, nbTumourEvents, nbNormalEvents = event.nbEvents()
+			    mean, std, cv = event.meanLen()
+			    output.write(str(event.ref) + "\t" + str(event.beg) + "\t" + str(event.end) + "\t" + str(eventTypes[i])  + "\t"  + str(nbTotalEvents) + "\t" + str(nbTumourEvents) + "\t" + str(nbNormalEvents) + "\t" + str(mean) + "\t" + str(std)  + "\t" + str(cv)+ "\n")

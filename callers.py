@@ -12,6 +12,7 @@ import bamtools
 import formats
 import structures
 import clustering
+import output
 
 ## FUNCTIONS ##
 
@@ -52,7 +53,12 @@ class SVcaller_nano():
         pool.close()
         pool.join()
 
-        return INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters
+        # List that contains the lists of each cluster type
+        clusters = []
+        clusters = [INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters]
+
+        # Write output
+        output.writeOutput(clusters, self.outDir)
 
     def callSV_bin(self, window):
         '''

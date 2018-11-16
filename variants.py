@@ -255,6 +255,7 @@ class cluster():
         Compute the mean length for the events composing the cluster and the mean coefficient of variation
         '''
         lengths = []
+        # Make a list with lengths of all events of the same cluster. Skip in case they don't have length attribute
         for event in self.events:
             if hasattr(event, 'length'):
                 lengths = np.asarray([event.length for event in self.events])
