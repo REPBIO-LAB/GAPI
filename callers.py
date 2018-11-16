@@ -19,7 +19,7 @@ import clustering
 class SVcaller_nano():
     '''
     Structural variation (SV) caller from single molecule sequencing data
-    '''    
+    '''
     def __init__(self, mode, bam, normalBam, confDict, outDir):
 
         self.mode = mode
@@ -48,16 +48,17 @@ class SVcaller_nano():
         ### 2. Call SV in each bin ##
         # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
-        pool.map(self.callSV_bin, bins)
+        INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters = zip(*pool.map(self.callSV_bin, bins))
         pool.close()
         pool.join()
 
+        return INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters
 
     def callSV_bin(self, window):
         '''
         Search for structural variants (SV) in a genomic bin/window
         '''
-    
+
         ref, beg, end = window
 
         binId = '_'.join([str(ref), str(beg), str(end)])
@@ -85,7 +86,7 @@ class SVcaller_nano():
             CLIPPING_right_events = CLIPPING_right_events_T + CLIPPING_right_events_N
 
         step = 'COLLECT'
-        msg = 'Number of SV events in bin (INS, DEL, CLIPPING_left, CLIPPING_right): ' +  "\t".join([binId, str(len(INS_events)), str(len(DEL_events)), str(len(CLIPPING_left_events)), str(len(CLIPPING_right_events))])    
+        msg = 'Number of SV events in bin (INS, DEL, CLIPPING_left, CLIPPING_right): ' +  "\t".join([binId, str(len(INS_events)), str(len(DEL_events)), str(len(CLIPPING_left_events)), str(len(CLIPPING_right_events))])
         log.step(step, msg)
 
         ## 2. Organize all the SV events into genomic bins prior clustering ##
@@ -103,7 +104,7 @@ class SVcaller_nano():
         binSizes = [100, 1000, 10000, 100000, 1000000]
         data = [(DEL_events, 'DEL')]
         DEL_bins = structures.createBinDb(data, binSizes)
-            
+
         ## 2.3 Left-clippings
         binSizes = [50]
         data = [(CLIPPING_left_events, 'LEFT-CLIPPING')]
@@ -114,19 +115,19 @@ class SVcaller_nano():
         data = [(CLIPPING_right_events, 'RIGHT-CLIPPING')]
         right_CLIPPING_bins = structures.createBinDb(data, binSizes)
 
-        ## 3. Group events into SV clusters ##     
-        ## 3.1 Cluster insertions       
+        ## 3. Group events into SV clusters ##
+        ## 3.1 Cluster insertions
         INS_clusters = clustering.clusterByDist1D(INS_bins, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'INS')
 
-        ## 3.2 Cluster deletions            
+        ## 3.2 Cluster deletions
         DEL_clusters = clustering.clusterByRcplOverlap(DEL_bins, self.confDict['minPercRcplOverlap'], self.confDict['minRootClusterSize'], 'DEL')
 
-        ## 3.3 Cluster clippings  
+        ## 3.3 Cluster clippings
         left_CLIPPING_clusters = clustering.clusterByDist1D(left_CLIPPING_bins, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'LEFT-CLIPPING')
         right_CLIPPING_clusters = clustering.clusterByDist1D(right_CLIPPING_bins, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'RIGHT-CLIPPING')
-        
+
         step = 'CLUSTERING'
-        msg = 'Number of clusters (INS, DEL, CLIPPING_left, CLIPPING_right): ' +  "\t".join([binId, str(INS_clusters.nbEvents()[0]), str(DEL_clusters.nbEvents()[0]), str(left_CLIPPING_clusters.nbEvents()[0]), str(right_CLIPPING_clusters.nbEvents()[0])])   
+        msg = 'Number of clusters (INS, DEL, CLIPPING_left, CLIPPING_right): ' +  "\t".join([binId, str(INS_clusters.nbEvents()[0]), str(DEL_clusters.nbEvents()[0]), str(left_CLIPPING_clusters.nbEvents()[0]), str(right_CLIPPING_clusters.nbEvents()[0])])
         log.step(step, msg)
 
         ### Temporary ###
@@ -135,8 +136,8 @@ class SVcaller_nano():
             mean, std, cv = cluster.meanLen()
             print('INS-CLUSTER: ', binId, cluster.ref, cluster.beg, cluster.end, cluster.nbEvents(), mean, std, cv)
 
-        ## 4. Polish SV clusters ##     
+        ## 4. Polish SV clusters ##
         for cluster in INS_clusters.collect('INS-CLUSTER'):
             cluster.polish()
 
-            
+        return INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters

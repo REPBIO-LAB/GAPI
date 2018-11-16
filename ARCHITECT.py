@@ -14,6 +14,7 @@ import os
 import callers
 import log
 import bamtools
+import output
 
 ######################
 ## Get user's input ##
@@ -130,8 +131,10 @@ confDict['minPercRcplOverlap'] = minPercRcplOverlap
 confDict['maxClusterDist'] = maxClusterDist
 
 ## 2. Launch structural variation (SV) caller
-callerObj = callers.SVcaller_nano(mode, bam, normalBam, confDict, outDir)
-callerObj.callSV()
+#callerObj = callers.SVcaller_nano(mode, bam, normalBam, confDict, outDir)
+#callerObj.callSV()
+output.writeOutput(mode, bam, normalBam, confDict, outDir)
+
 
 print('***** Finished! *****')
 print()
