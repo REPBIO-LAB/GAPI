@@ -21,15 +21,15 @@ def createCluster(events, clusterType):
     Input:
         1. events: list of events that will compose the cluster
         2. clusterType: type of cluster (INS: insertion; DEL: deletion; CLIPPING: clipping)
- 
+
     Output:
         1. cluster: cluster object instance
     '''
     cluster = ''
-    
+
     ref = events[0].ref
     beg =  min([event.beg for event in events])
-    end = max([event.end for event in events]) 
+    end = max([event.end for event in events])
 
     ## a) Create INS cluster
     if (clusterType == 'INS'):
@@ -58,7 +58,7 @@ def mergeClusters(clusters, clusterType):
     Input:
         1. clusters: list of clusters that will be merged
         2. clusterType: type of cluster (INS: insertion; DEL: deletion; CLIPPING: clipping)
- 
+
     Output:
         1. cluster: merged cluster instance
     '''
@@ -82,21 +82,21 @@ class CLIPPING():
     '''
     Clipping class
     '''
-    number = 0 # Number of instances 
+    number = 0 # Number of instances
 
     def __init__(self, alignmentObj, clippedSide, sample):
         CLIPPING.number += 1 # Update instances counter
         self.id = CLIPPING.number
-        self.type = 'CLIPPING' 
+        self.type = 'CLIPPING'
         self.ref = str(alignmentObj.reference_name)
-        self.beg, self.end = (alignmentObj.reference_start, alignmentObj.reference_start) if clippedSide == 'left' else (alignmentObj.reference_end, alignmentObj.reference_end) 
-        self.clippedSide = clippedSide 
+        self.beg, self.end = (alignmentObj.reference_start, alignmentObj.reference_start) if clippedSide == 'left' else (alignmentObj.reference_end, alignmentObj.reference_end)
+        self.clippedSide = clippedSide
         self.sample = sample
         self.clusterId = None
 
         ## Set supporting read id
         mate = '/1' if alignmentObj.is_read1 else '/2'
-        self.readId = alignmentObj.query_name + mate  
+        self.readId = alignmentObj.query_name + mate
 
         ## call functions
         self.clippingType = ''
@@ -106,17 +106,17 @@ class CLIPPING():
         '''
         Determine if soft or hard clipping
 
-        Input: 
+        Input:
             1. alignmentObj: pysam read alignment object instance
             2. clippedSide: clipped side relative to the read (left or right)
 
         Output:
-            - Update 'clippingType' class attribute 
+            - Update 'clippingType' class attribute
         '''
         ### Extract operation
-        ## a) Clipping at the begin 
+        ## a) Clipping at the begin
         if clippedSide == 'left':
-            operation =  alignmentObj.cigartuples[0][0]  
+            operation =  alignmentObj.cigartuples[0][0]
 
         ## b) Clipping at the end
         else:
@@ -124,25 +124,25 @@ class CLIPPING():
 
         ### Define if soft or had clipping
         self.clippingType = 'soft' if (operation == 4) else 'hard'
-       
+
 
 class INS():
     '''
     Short insertion class. Insertion completely spanned by the read sequence
     '''
-    number = 0 # Number of instances 
+    number = 0 # Number of instances
 
     def __init__(self, ref, beg, end, length, seq, readId, sample):
         INS.number += 1 # Update instances counter
         self.id = INS.number
-        self.type = 'INS' 
+        self.type = 'INS'
         self.ref = str(ref)
-        self.beg = int(beg) # beg==end. 0-based leftmost coordinate of the insertion point 
+        self.beg = int(beg) # beg==end. 0-based leftmost coordinate of the insertion point
         self.end = int(end)
         self.length = int(length)
         self.seq = seq
-        self.readId = readId   
-        self.sample = sample 
+        self.readId = readId
+        self.sample = sample
         self.clusterId = None
 
 
@@ -150,30 +150,30 @@ class DEL():
     '''
     Short deletion class. Deletion completely spanned by the read sequence
     '''
-    number = 0 # Number of instances 
+    number = 0 # Number of instances
 
     def __init__(self, ref, beg, end, length, readId, sample):
         DEL.number += 1 # Update instances counter
         self.id = DEL.number
-        self.type = 'DEL' 
+        self.type = 'DEL'
         self.ref = str(ref)
         self.beg = int(beg)
         self.end = int(end)
         self.length = int(length)
-        self.readId = readId   
-        self.sample = sample 
+        self.readId = readId
+        self.sample = sample
         self.clusterId = None
-    
+
 
 ## SECONDARY CLASSES ##
 # Classes composed by primary classes
 class cluster():
     '''
-    Events cluster class. A cluster is composed by a set of events, all of them of the same type. 
-    Each event is supported by a single read. One cluster can completely represent a single structural 
+    Events cluster class. A cluster is composed by a set of events, all of them of the same type.
+    Each event is supported by a single read. One cluster can completely represent a single structural
     variation event or partially if multiple clusters are required (see 'metaCluster' class)
     '''
-    number = 0 # Number of instances 
+    number = 0 # Number of instances
 
     def __init__(self, ref, beg, end, events):
         '''
@@ -186,13 +186,13 @@ class cluster():
         self.beg = beg
         self.end = end
         self.events = self.setClusterId(events) # Asign the cluster id to the events
-    
+
     def add(self, newEvents, side):
         '''
-        Incorporate events into the cluster. 
+        Incorporate events into the cluster.
 
-        Input: 
-            1. newEvents: List of events. List have to be sorted in increasingly order if side specified. 
+        Input:
+            1. newEvents: List of events. List have to be sorted in increasingly order if side specified.
             2. side: add events to the 'left', to the 'right' of the cluster or add events and resort by begin position (if 'None')
         '''
         # Asign the cluster id to the events
@@ -200,14 +200,14 @@ class cluster():
 
         # a) Add to the left side of the cluster
         if side == 'left':
-            self.events = newEvents + self.events 
+            self.events = newEvents + self.events
             self.beg = self.events[0].beg # Update begin
 
         # b) Add to the right side of the cluster
         elif side == 'right':
-            self.events = self.events + newEvents 
+            self.events = self.events + newEvents
             self.end = self.events[-1].end # Update end
-        
+
         # c) Add events to the cluster and resort by begin position
         else:
             self.events = self.events + newEvents
@@ -219,41 +219,67 @@ class cluster():
         '''
         Set cluster identifier for a set of events
 
-        Input: 
+        Input:
             1. events: List of events.
         Output:
             1. events: List of events in the same sorting order with the cluster identifier asigned
         '''
         for event in events:
             event.clusterId = self.id
-        
+
         return events
-    
+
     def nbEvents(self):
         '''
         Return the number of events composing the cluster
         '''
-        return len(self.events)
+        nbTumourEvents = 0
+        nbNormalEvents = 0
+
+        for event in self.events:
+            if event.sample == "TUMOUR":
+                nbTumourEvents += 1
+            elif event.sample == "NORMAL":
+                nbNormalEvents += 1
+            else:
+                nbTumourEvents = "NA"
+                nbNormalEvents = "NA"
+                break
+
+        nbTotalEvents = len(self.events)
+
+        return nbTotalEvents, nbTumourEvents, nbNormalEvents
 
     def meanLen(self):
         '''
         Compute the mean length for the events composing the cluster and the mean coefficient of variation
         '''
+        lengths = []
+        # Make a list with lengths of all events of the same cluster. Skip in case they don't have length attribute
+        for event in self.events:
+            if hasattr(event, 'length'):
+                lengths = np.asarray([event.length for event in self.events])
+            else:
+                lengths = None
+                break
 
-        ## Compute mean insertion length and standard deviation
-        lengths = np.asarray([event.length for event in self.events])
-        mean = np.mean(lengths)
-        std = np.std(lengths)
-
-        ## compute coefficient of variation (CV)
-        # CV = std / mean * 100
-        # std: standard deviation
-        # mean: mean
-        cv = std / mean * 100
+        if lengths != None:
+            ## Compute mean insertion length and standard deviation
+            mean = np.mean(lengths)
+            std = np.std(lengths)
+            ## compute coefficient of variation (CV)
+            # CV = std / mean * 100
+            # std: standard deviation
+            # mean: mean
+            cv = std / mean * 100
+        else:
+            mean = "NA"
+            std = "NA"
+            cv = "NA"
 
         return mean, std, cv
 
-            
+
 class INS_cluster(cluster):
     '''
     Insertion (INS) cluster subclass
@@ -273,19 +299,17 @@ class INS_cluster(cluster):
         lowerBound, upperBound = mean - cutOff, mean + cutOff
 
         print('START-POLISH: ', self.nbEvents(), mean, std, cv, cutOff, lowerBound, upperBound)
-        
+
         noOutliers = []
 
         for event in self.events:
 
-            # a) Outlier 
+            # a) Outlier
             if (event.length < lowerBound) or (event.length > upperBound):
                 print('OUTLIER: ', self.nbEvents(), mean, std, cv, cutOff, lowerBound, upperBound)
             else:
                 noOutliers.append(event)
-            
-            i
-            
+
 
 
 
