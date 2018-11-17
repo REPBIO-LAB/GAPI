@@ -53,12 +53,16 @@ class SVcaller_nano():
         pool.close()
         pool.join()
 
-        # List that contains the lists of each cluster type
-        clusters = []
-        clusters = [INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters]
+        # Create dictionary containing clusters 
+        clusters = {}
+
+        clusters['INS-CLUSTER'] = INS_clusters
+        clusters['DEL-CLUSTER'] = DEL_clusters
+        clusters['LEFT-CLIPPING-CLUSTER'] = left_CLIPPING_clusters 
+        clusters['RIGHT-CLIPPING-CLUSTER']= right_CLIPPING_clusters
 
         # Write output
-        output.writeOutput(clusters, self.outDir)
+        output.writeClusters(clusters, self.outDir)
 
     def callSV_bin(self, window):
         '''
@@ -138,12 +142,12 @@ class SVcaller_nano():
 
         ### Temporary ###
 
-        for cluster in INS_clusters.collect('INS-CLUSTER'):
-            mean, std, cv = cluster.meanLen()
-            print('INS-CLUSTER: ', binId, cluster.ref, cluster.beg, cluster.end, cluster.nbEvents(), mean, std, cv)
+        #for cluster in INS_clusters.collect('INS-CLUSTER'):
+        #    mean, std, cv = cluster.meanLen()
+        #    print('INS-CLUSTER: ', binId, cluster.ref, cluster.beg, cluster.end, cluster.nbEvents(), mean, std, cv)
 
         ## 4. Polish SV clusters ##
-        for cluster in INS_clusters.collect('INS-CLUSTER'):
-            cluster.polish()
+        #for cluster in INS_clusters.collect('INS-CLUSTER'):
+        #    cluster.polish()
 
         return INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters

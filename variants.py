@@ -233,45 +233,55 @@ class cluster():
         '''
         Return the number of events composing the cluster
         '''
-        nbTumourEvents = 0
-        nbNormalEvents = 0
+        nbTumour = 0
+        nbNormal = 0
 
         for event in self.events:
+            # a) Event identified in the TUMOUR sample
             if event.sample == "TUMOUR":
-                nbTumourEvents += 1
+                nbTumour += 1
+            
+            # b) Event identified in the matched NORMAL sample
             elif event.sample == "NORMAL":
-                nbNormalEvents += 1
+                nbNormal += 1
+            
+            # c) SINGLE sample mode
             else:
-                nbTumourEvents = "NA"
-                nbNormalEvents = "NA"
+                nbTumour = "NA"
+                nbNormal = "NA"
                 break
 
-        nbTotalEvents = len(self.events)
+        nbTotal = len(self.events)
 
-        return nbTotalEvents, nbTumourEvents, nbNormalEvents
+        return nbTotal, nbTumour, nbNormal
 
     def meanLen(self):
         '''
         Compute the mean length for the events composing the cluster and the mean coefficient of variation
         '''
         lengths = []
-        # Make a list with lengths of all events of the same cluster. Skip in case they don't have length attribute
-        for event in self.events:
-            if hasattr(event, 'length'):
-                lengths = np.asarray([event.length for event in self.events])
-            else:
-                lengths = None
-                break
 
-        if lengths != None:
+        # Make a list with lengths of all events of the same cluster. 
+        for event in self.events:
+
+            # The event has the attribute length
+            if hasattr(event, 'length'):
+                lengths.append(event.length)
+
+        # a) Length values available
+        if lengths:
+
             ## Compute mean insertion length and standard deviation
             mean = np.mean(lengths)
             std = np.std(lengths)
+            
             ## compute coefficient of variation (CV)
             # CV = std / mean * 100
             # std: standard deviation
             # mean: mean
             cv = std / mean * 100
+
+        # b) Length not available
         else:
             mean = "NA"
             std = "NA"
@@ -286,31 +296,6 @@ class INS_cluster(cluster):
     '''
     def __init__(self, ref, beg, end, events):
         cluster.__init__(self, ref, beg, end, events)
-
-    def polish(self):
-        '''
-        Polish INS cluster by removing INS events whose length that deviates from the average
-        '''
-        mean, std, cv = self.meanLen()
-
-        ## NOTE: only attemp to polish if CV > threshold. Stop polishing when no improvement or VC < Threshold
-        # Set cutoffs
-        cutOff = std * 1
-        lowerBound, upperBound = mean - cutOff, mean + cutOff
-
-        print('START-POLISH: ', self.nbEvents(), mean, std, cv, cutOff, lowerBound, upperBound)
-
-        noOutliers = []
-
-        for event in self.events:
-
-            # a) Outlier
-            if (event.length < lowerBound) or (event.length > upperBound):
-                print('OUTLIER: ', self.nbEvents(), mean, std, cv, cutOff, lowerBound, upperBound)
-            else:
-                noOutliers.append(event)
-
-
 
 
 class DEL_cluster(cluster):
