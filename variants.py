@@ -309,7 +309,7 @@ class cluster():
 
     def polish(self):
         '''
-        Apply successive rounds of polishing to the cluster by removing events whose length that deviates from the average
+        Apply successive rounds of polishing to the cluster by removing events whose length deviates from the cluster average
         '''
 
         # Check if length attribute is available for each event

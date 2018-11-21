@@ -8,7 +8,7 @@ Module 'structures' - Contains functions and classes to organize data into more 
 import log
 
 ## FUNCTIONS ##
-def createBinDb(data, binSizes):
+def createBinDb(ref, beg, end, data, binSizes):
     '''
     Input:
         1. data: tuple list containing the list of events corresponding to each provided event type. E.g: 
@@ -18,7 +18,7 @@ def createBinDb(data, binSizes):
     Output:
         1. binDbObj: 'binDb' instance containing all the input events organized in genomic bins
     '''            
-    binDbObj = binDb(binSizes)
+    binDbObj = binDb(ref, beg, end, binSizes)
     
     # For each type of event add the corresponding 
     # event instances to the data structure 
@@ -33,13 +33,16 @@ class binDb():
     '''
     Database to organize a set of events into a hierarchy of genomic bins
     '''
-    def __init__(self, binSizes):
+    def __init__(self, ref, beg, end, binSizes):
         '''
         Organize events into a hierarchy of genomic bins
 
         Input:
             1. binSizes: list of bin sizes 
         '''
+        self.ref = ref
+        self.beg = int(beg)  
+        self.end = int(end)
         self.binSizes = sorted(binSizes)
         self.data = {}
         

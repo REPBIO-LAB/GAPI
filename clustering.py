@@ -14,7 +14,7 @@ import gRanges
 import structures
 
 ## FUNCTIONS ##
-def clusterByDist1D(binDb, maxDist, minClusterSize, eventType):
+def clusterByDist1D(eventsBins, maxDist, minClusterSize, eventType):
     '''
     Cluster events (CLIPPING, INS...) by begin positions. 
 
@@ -23,29 +23,29 @@ def clusterByDist1D(binDb, maxDist, minClusterSize, eventType):
     - maxDist > bin side -> iterative approach
 
     Input:
-        1. binDb: Data structure containing a set of events organized in genomic bins
+        1. eventsBins: Data structure containing a set of events organized in genomic bins
         2. maxDist: maximum distance between two positions to include them into the same cluster
         3. minClusterSize: minimum number of events required to build a root cluster in a window
         4. eventType: type of events to cluster (INS: insertion; DEL: deletion; CLIPPING: clipping)
 
     Output:
     ''' 
-    binSize = binDb.binSizes[0]
+    binSize = eventsBins.binSizes[0]
     
     ## 1. Create clusters ##
     # a) Fast clustering algorithm
     if (binSize <= maxDist):
-        clusters = clusterByDist1D_fast(binDb.data[binSize], maxDist, minClusterSize, eventType)
+        clusters = clusterByDist1D_fast(eventsBins.data[binSize], maxDist, minClusterSize, eventType)
 
     # b) Iterative clustering algorithm (not implemented yet)
     else:
         print('ITERATIVE ALGORITHM. NOT IMPLEMENTED YET...')
-        # clusterByDist1D_iterative(binDb.data[binSize], maxDist, minClusterSize, eventType)
+        # clusterByDist1D_iterative(eventsBins.data[binSize], maxDist, minClusterSize, eventType)
     
     ## 2. Organize clusters into bins ##    
     binSizes = [100, 1000, 10000, 100000, 1000000]
     data = [(clusters, eventType + '-CLUSTER')]
-    clustersBins = structures.createBinDb(data, binSizes)
+    clustersBins = structures.createBinDb(eventsBins.ref, eventsBins.beg, eventsBins.end, data, binSizes)
 
     return clustersBins
 
@@ -153,7 +153,7 @@ def clusterByDist1D_fast(binHash, maxDist, minClusterSize, eventType):
     return clusters
 
 
-def clusterByRcplOverlap(binDb, minPercOverlap, minClusterSize, eventType):
+def clusterByRcplOverlap(eventsBins, minPercOverlap, minClusterSize, eventType):
     '''
     '''
 
@@ -161,14 +161,14 @@ def clusterByRcplOverlap(binDb, minPercOverlap, minClusterSize, eventType):
     clusters = {}
 
     # For each window size/level
-    for windowSize in binDb.binSizes:
+    for windowSize in eventsBins.binSizes:
 
         # For each bin in the current window size
-        for index in binDb.data[windowSize]:
+        for index in eventsBins.data[windowSize]:
 
             ### 1. Collect all the events in the current bin and 
             # in bins located at higher levels of the hierarchy
-            events = binDb.traverse(index, windowSize, eventType)
+            events = eventsBins.traverse(index, windowSize, eventType)
 
             ### 2. Cluster events based on reciprocal overlap
             ## For each event A
@@ -262,7 +262,7 @@ def clusterByRcplOverlap(binDb, minPercOverlap, minClusterSize, eventType):
     binSizes = [100, 1000, 10000, 100000, 1000000]
 
     data = [(list(clusters.values()), eventType + '-CLUSTER')]
-    clustersBins = structures.createBinDb(data, binSizes)
+    clustersBins = structures.createBinDb(eventsBins.ref, eventsBins.beg, eventsBins.end, data, binSizes)
 
     return clustersBins
 

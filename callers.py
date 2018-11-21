@@ -108,23 +108,23 @@ class SVcaller_nano():
         ## 2.1 Insertions
         binSizes = [50]
         data = [(INS_events, 'INS')]
-        INS_bins = structures.createBinDb(data, binSizes)
+        INS_bins = structures.createBinDb(ref, beg, end, data, binSizes)
 
         ## 2.2 Deletions
         # missing events: 22_24000000_25000000, 22_23000000_2400000. I guess due to size longer than maximum bin size (1Mb)
         binSizes = [100, 1000, 10000, 100000, 1000000]
         data = [(DEL_events, 'DEL')]
-        DEL_bins = structures.createBinDb(data, binSizes)
+        DEL_bins = structures.createBinDb(ref, beg, end, data, binSizes)
 
         ## 2.3 Left-clippings
         binSizes = [50]
         data = [(CLIPPING_left_events, 'LEFT-CLIPPING')]
-        left_CLIPPING_bins = structures.createBinDb(data, binSizes)
+        left_CLIPPING_bins = structures.createBinDb(ref, beg, end, data, binSizes)
 
         ## 2.4 Right-clippings
         binSizes = [50]
         data = [(CLIPPING_right_events, 'RIGHT-CLIPPING')]
-        right_CLIPPING_bins = structures.createBinDb(data, binSizes)
+        right_CLIPPING_bins = structures.createBinDb(ref, beg, end, data, binSizes)
 
         ## 3. Group events into SV clusters ##
         ## 3.1 Cluster insertions

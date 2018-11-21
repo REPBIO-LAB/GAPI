@@ -12,7 +12,7 @@ def writeClusters(clusters, outDir):
     outFile = open(outFilePath, 'w')
 
     ## Write header ##
-    row = "#ref \t beg \t end \t clusterType \t nbTotal \t nbTumour \t nbNormal \t nbOutliers \t mean \t std \t cv \n"
+    row = "#ref \t beg \t end \t clusterType \t binId \t nbTotal \t nbTumour \t nbNormal \t nbOutliers \t mean \t std \t cv \n"
     outFile.write(row)
 
     ## Write clusters ##
@@ -22,6 +22,8 @@ def writeClusters(clusters, outDir):
         # For each binDb
         for binDb in clusters[clusterType]:
             
+            binId = binDb.ref + ':' + str(binDb.beg) + '-' + str(binDb.end) 
+
             # For each cluster in the binDb
             for cluster in binDb.collect(clusterType):
 
@@ -30,7 +32,7 @@ def writeClusters(clusters, outDir):
                 mean, std, cv = cluster.meanLen()
 
                 # Write into output file
-                row = "\t".join([cluster.ref, str(cluster.beg), str(cluster.end), clusterType, str(nbTotal), str(nbTumour), str(nbNormal), str(cluster.nbOutliers), str(mean), str(std), str(cv), "\n"])
+                row = "\t".join([cluster.ref, str(cluster.beg), str(cluster.end), clusterType, binId, str(nbTotal), str(nbTumour), str(nbNormal), str(cluster.nbOutliers), str(mean), str(std), str(cv), "\n"])
                 outFile.write(row)
 
     ## Close output file ##
