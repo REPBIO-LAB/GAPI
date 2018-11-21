@@ -81,7 +81,7 @@ class bed():
             if line.startswith('#') or not line:
                 continue
 
-            ref, beg, end = line.split()
+            ref, beg, end = line.split()[:3]
             line = bedLine(ref, beg, end)
             self.lines.append(line)
 
