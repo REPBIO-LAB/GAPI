@@ -40,7 +40,7 @@ parser.add_argument('--minINDELlen', default=50, dest='minINDELlen', type=int, h
 parser.add_argument('--minCLIPPINGlen', default=500, dest='minCLIPPINGlen', type=int, help='Minimum clipped sequence length for each read. Default: 500')
 parser.add_argument('--minRootClusterSize', default=2, dest='minRootClusterSize', type=int, help='Minimum number of reads composing a root cluster (before extension step). Default: 2')
 parser.add_argument('--maxBkpDist', default=50, dest='maxBkpDist', type=int, help='Maximum distance bewteen two adjacent breakpoints for INS and CLIPPING clustering. Default: 50')
-parser.add_argument('--minPercOverlap', default=50, dest='minPercRcplOverlap', type=int, help='Minimum percentage of reciprocal overlap for DEL clustering. Default: 50')
+parser.add_argument('--minPercOverlap', default=70, dest='minPercRcplOverlap', type=int, help='Minimum percentage of reciprocal overlap for DEL clustering. Default: 50')
 parser.add_argument('--maxClusterDist', default=100, dest='maxClusterDist', type=int, help='Maximum distance bewteen different clusters for metaclustering. Default: 100')
 
 ## 2. Parse user´s input and initialize variables ##
@@ -82,9 +82,11 @@ mode = "SINGLE" if normalBam == "NA" else "PAIRED"
 ## Display configuration to standard output ##
 ##############################################
 scriptName = os.path.basename(sys.argv[0])
+scriptName = os.path.splitext(scriptName)[0]
+version='0.0.2'
 
 print()
-print('***** ', scriptName, ' configuration *****')
+print('***** ', scriptName, version, 'configuration *****')
 print('** General **')
 print('mode: ', mode)
 print('bam: ', bam)

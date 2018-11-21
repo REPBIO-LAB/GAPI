@@ -14,13 +14,13 @@ import log
 ## FUNCTIONS ##
 ###############
 
-def createCluster(events, clusterType):
+def createCluster(events, eventsType):
     '''
     Function to create a cluster object instance
 
     Input:
         1. events: list of events that will compose the cluster
-        2. clusterType: type of cluster (INS: insertion; DEL: deletion; CLIPPING: clipping)
+        2. eventsType: type of events to cluster (INS: insertion; DEL: deletion; CLIPPING: clipping)
 
     Output:
         1. cluster: cluster object instance
@@ -32,15 +32,15 @@ def createCluster(events, clusterType):
     end = max([event.end for event in events])
 
     ## a) Create INS cluster
-    if (clusterType == 'INS'):
+    if (eventsType == 'INS'):
         cluster = INS_cluster(ref, beg, end, events)
 
     ## b) Create DEL cluster
-    elif (clusterType == 'DEL'):
+    elif (eventsType == 'DEL'):
         cluster = DEL_cluster(ref, beg, end, events)
 
     ## c) Create CLIPPING cluster
-    elif (clusterType == 'CLIPPING') or (clusterType == 'LEFT-CLIPPING') or (clusterType == 'RIGHT-CLIPPING'):
+    elif (eventsType == 'CLIPPING') or (eventsType == 'LEFT-CLIPPING') or (eventsType == 'RIGHT-CLIPPING'):
         cluster = CLIPPING_cluster(ref, beg, end, events)
 
     ## d) Unexpected cluster type
@@ -50,6 +50,20 @@ def createCluster(events, clusterType):
 
     return cluster
 
+def polishClusters(clusters, clusterType):
+    '''
+    Function to polish a set of cluster objects. It does not produce any output just modify cluster objects through the polishing procedure
+
+    Input:
+        1. clusters: bin database containing a set of cluster objects
+        2. clusterType: type of cluster (INS-CLUSTER: insertion; DEL-CLUSTER: deletion; LEFT-CLIPPING-CLUSTER: left clipping; RIGHT-CLIPPING-CLUSTER: right clipping)
+    '''
+    ## For each cluster
+    for cluster in clusters.collect(clusterType):
+        
+        ## Polish
+        cluster.polish()
+        
 
 def mergeClusters(clusters, clusterType):
     '''
@@ -187,6 +201,9 @@ class cluster():
         self.end = end
         self.events = self.setClusterId(events) # Asign the cluster id to the events
 
+        # Cluster metrics
+        self.nbOutliers = 0
+
     def add(self, newEvents, side):
         '''
         Incorporate events into the cluster.
@@ -288,6 +305,66 @@ class cluster():
             cv = "NA"
 
         return mean, std, cv
+
+
+    def polish(self):
+        '''
+        Apply successive rounds of polishing to the cluster by removing events whose length that deviates from the average
+        '''
+
+        # Check if length attribute is available for each event
+        lengthsBool = [hasattr(event, 'length') for event in self.events]
+
+        # A) Attemp polishing if length attribute available for all the events 
+        if False not in lengthsBool:
+
+            ## 1. Compute length metrics for the initial cluster 
+            initialNbEvents = self.nbEvents()[0]
+            mean, std, cv = self.meanLen()
+
+            ## 2. Apply successive rounds of polishing while cv > threshold 
+            while cv > 15: 
+             
+                ## 2.1 Set length cutoffs 
+                cutOff = std * 1 
+                lowerBound, upperBound = mean - cutOff, mean + cutOff
+
+                ## 2.2 Generate list of events composing the polished cluster
+                eventsAfterPolish = []
+
+                # Evaluate for each event if it´s an ourlier or not
+                for event in self.events:
+
+                    # a) No outlier. Event length within boundaries -> include event into polished cluster   
+                    if (event.length >= lowerBound) and (event.length <= upperBound):
+                        eventsAfterPolish.append(event)
+
+                    # b) Outlier. Event lenght outside boundaries
+
+                ## 2.3 Recompute length metrics for polished cluster
+                ## Prior polishing
+                cvPrior = cv
+                eventsPrior = self.events
+
+                ## After polishing round
+                self.events = eventsAfterPolish
+                mean, std, cv = self.meanLen()
+
+                ## 2.4 Stop polishing and use previous cluster state if current polishing round does not reduce the cv
+                if cv >= cvPrior:
+                    self.events = eventsPrior # Use previous cluster state
+                    break
+
+            ## 3. Compute the number of outliers
+            finalNbEvents = self.nbEvents()[0]
+            self.nbOutliers = initialNbEvents - finalNbEvents
+
+            ## 4. Recompute cluster begin and end after polishing
+            self.beg = self.events[0].beg
+            self.end = self.events[-1].end
+
+        # B) Don´t attemp polishing if length attribute not available for some of the events 
+        
 
 
 class INS_cluster(cluster):

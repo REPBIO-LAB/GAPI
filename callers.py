@@ -12,6 +12,7 @@ import bamtools
 import formats
 import structures
 import clustering
+import variants
 import output
 
 ## FUNCTIONS ##
@@ -140,14 +141,15 @@ class SVcaller_nano():
         msg = 'Number of clusters (INS, DEL, CLIPPING_left, CLIPPING_right): ' +  "\t".join([binId, str(INS_clusters.nbEvents()[0]), str(DEL_clusters.nbEvents()[0]), str(left_CLIPPING_clusters.nbEvents()[0]), str(right_CLIPPING_clusters.nbEvents()[0])])
         log.step(step, msg)
 
-        ### Temporary ###
-
-        #for cluster in INS_clusters.collect('INS-CLUSTER'):
-        #    mean, std, cv = cluster.meanLen()
-        #    print('INS-CLUSTER: ', binId, cluster.ref, cluster.beg, cluster.end, cluster.nbEvents(), mean, std, cv)
-
         ## 4. Polish SV clusters ##
-        #for cluster in INS_clusters.collect('INS-CLUSTER'):
-        #    cluster.polish()
+        step = 'POLISH'
+        msg = 'Polish SV clusters'
+        log.step(step, msg)
+
+        ## 4.1 Polish insertions
+        variants.polishClusters(INS_clusters, 'INS-CLUSTER')
+
+        ## 4.2 Polish deletions
+        variants.polishClusters(DEL_clusters, 'DEL-CLUSTER')
 
         return INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters
