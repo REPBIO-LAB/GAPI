@@ -63,7 +63,6 @@ def polishClusters(clusters, clusterType):
         
         ## Polish
         cluster.polish()
-        
 
 def mergeClusters(clusters, clusterType):
     '''
@@ -203,6 +202,7 @@ class cluster():
 
         # Cluster metrics
         self.nbOutliers = 0
+        self.filters = {} # Contains name of those filters that the cluster didn't pass
 
     def add(self, newEvents, side):
         '''
@@ -364,8 +364,6 @@ class cluster():
             self.end = self.events[-1].end
 
         # B) Don´t attemp polishing if length attribute not available for some of the events 
-        
-
 
 class INS_cluster(cluster):
     '''

@@ -13,6 +13,7 @@ import formats
 import structures
 import clustering
 import variants
+import filters
 import output
 
 ## FUNCTIONS ##
@@ -151,5 +152,22 @@ class SVcaller_nano():
 
         ## 4.2 Polish deletions
         variants.polishClusters(DEL_clusters, 'DEL-CLUSTER')
+
+        ## 5. Filter SV clusters ##
+        step = 'FILTER'
+        msg = 'Filter SV clusters'
+        log.step(step, msg)
+
+        ## 5.1 Filter insertions
+        filters.filterClusters(INS_clusters, 'INS-CLUSTER', self.confDict)
+
+        ## 5.2 Filter deletions
+        filters.filterClusters(DEL_clusters, 'DEL-CLUSTER', self.confDict)
+
+        ## 5.3 Filter left-clippings
+        filters.filterClusters(left_CLIPPING_clusters, 'LEFT-CLIPPING-CLUSTER', self.confDict)
+
+        ## 5.4 Filter left-clippings
+        filters.filterClusters(right_CLIPPING_clusters, 'RIGHT-CLIPPING-CLUSTER', self.confDict)
 
         return INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters
