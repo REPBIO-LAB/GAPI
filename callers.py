@@ -167,7 +167,7 @@ class SVcaller_nano():
         ## 5.3 Filter left-clippings
         filters.filterClusters(left_CLIPPING_clusters, 'LEFT-CLIPPING-CLUSTER', self.confDict)
 
-        ## 5.4 Filter left-clippings
+        ## 5.4 Filter right-clippings
         filters.filterClusters(right_CLIPPING_clusters, 'RIGHT-CLIPPING-CLUSTER', self.confDict)
 
         return INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters
