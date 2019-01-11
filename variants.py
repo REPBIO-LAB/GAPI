@@ -105,12 +105,9 @@ class CLIPPING():
         self.ref = str(alignmentObj.reference_name)
         self.beg, self.end = (alignmentObj.reference_start, alignmentObj.reference_start) if clippedSide == 'left' else (alignmentObj.reference_end, alignmentObj.reference_end)
         self.clippedSide = clippedSide
+        self.readId = alignmentObj.query_name
         self.sample = sample
         self.clusterId = None
-
-        ## Set supporting read id
-        mate = '/1' if alignmentObj.is_read1 else '/2'
-        self.readId = alignmentObj.query_name + mate
 
         ## call functions
         self.clippingType = ''

@@ -3,8 +3,6 @@ Module 'sequences' - Contains classes and functions for the manipulation of sequ
 '''
 
 ## DEPENDENCIES ##
-import pysam
-
 
 ## FUNCTIONS ##
 def rev_complement(seq):

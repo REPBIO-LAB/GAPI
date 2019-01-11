@@ -10,6 +10,8 @@ import pysam
 import log
 import variants
 import gRanges
+import formats
+import sequences
 
 ## FUNCTIONS ##
 def getREFS(bam):
@@ -25,6 +27,50 @@ def getREFS(bam):
     bamFile = pysam.AlignmentFile(bam, 'rb')
     refs  = ','.join(bamFile.references)
     return refs
+
+def phred2ASCII(phred):
+    '''
+    Convert Phred quality scores into ASCII (Sanger format used in FASTQ)
+
+	Input:
+		1. phred: List containing per base standard Phred quality scores (from 0 to 93) as provided by pysam.AlignmentFile.query_qualities attribute.
+	
+	Output:
+		1. ASCII: List containing per base phred quality scores encoded by ASCII characters 33 to 126 
+    '''
+    ASCII = [chr(x + 33) for x in phred]
+
+    return ASCII
+
+def BAM2FASTQ_line(alignmentObj):
+    '''
+    Transform a BAM alignment into a FASTQ_line object. 
+
+	Input:
+		1. alignmentObj: pysam.AlignedSegment object.
+	
+	Output:
+		1. FASTQ_line: formats.FASTQ_line object
+    '''
+    ## 1. Convert Phred quality scores to ASCII 
+    ASCII = phred2ASCII(alignmentObj.query_qualities)
+    ASCII = "".join(ASCII)
+
+    ## 2. Obtain raw read and quality strings (Prior alignment)
+    # a) Read mapped in reverse -> Make complementary reverse of the sequence and the reverse of the quality 
+    if alignmentObj.is_reverse:
+        seq = sequences.rev_complement(alignmentObj.query_sequence)
+        qual = ASCII[::-1]
+                
+    # b) Read mapped in forward
+    else:
+        seq = alignmentObj.query_sequence
+        qual = ASCII
+
+    ## 3. Create FASTQ_line object
+    FASTQ_line = formats.FASTQ_line(alignmentObj.query_name, seq, '', qual)
+    return FASTQ_line
+
 
 def makeGenomicBins(bam, binSize, targetRefs):
     '''
@@ -97,25 +143,26 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
         2. DEL_events: list of DEL objects
         3. CLIPPING_left_events: list of CLIPPING objects on the left
         4. CLIPPING_left_events: list of CLIPPING objects on the right
-        5. [TO DO] readDict: dictionary containing the read alignments supporting the SV events. Format:
-                key   -> read identifier
-                value -> list of alignments for this read
+        5. FASTQ: FASTQ object containing the reads supporting the SV events
 
-    * include secondary alignment filter???
+        Note: * include secondary alignment filter???
     '''
-
+    
     ## Initialize lists with SV
     INS_events = []
     DEL_events = []
     CLIPPING_left_events = []
     CLIPPING_right_events = []
 
+    ## Initialize FASTQ object
+    FASTQ = formats.FASTQ()
+
     ## Open BAM file for reading
     bamFile = pysam.AlignmentFile(bam, "rb")
 
     ## Extract alignments
     iterator = bamFile.fetch(ref, binBeg, binEnd)
-
+    
     # For each read alignment
     for alignmentObj in iterator:
 
@@ -129,6 +176,8 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
 
         if (alignmentObj.is_unmapped == False) and (alignmentObj.is_duplicate == False) and (alignmentObj.query_sequence != None) and (MAPQ >= confDict['minMAPQ']):
 
+            informative = False
+
             ## 1. Collect CLIPPINGS
             if 'CLIPPING' in confDict['targetSV']:
 
@@ -139,6 +188,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
                     overlapLen = gRanges.overlap(CLIPPING_left.beg, CLIPPING_left.end, binBeg, binEnd)
 
                     if overlapLen > 0:
+                        informative = True
                         CLIPPING_left_events.append(CLIPPING_left)
 
                 ## Select CLIPPING right breakpoints within the target genomic bin
@@ -146,6 +196,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
                     overlapLen = gRanges.overlap(CLIPPING_right.beg, CLIPPING_right.end, binBeg, binEnd)
 
                     if overlapLen > 0:
+                        informative = True
                         CLIPPING_right_events.append(CLIPPING_right)
 
             ## 2. Collect INDELS
@@ -157,6 +208,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
                     overlapLen = gRanges.overlap(INS.beg, INS.end, binBeg, binEnd)
 
                     if overlapLen > 0:
+                        informative = True
                         INS_events.append(INS)
 
                 ## Select DEL events within the target genomic bin
@@ -164,10 +216,21 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
                     overlapLen = gRanges.overlap(DEL.beg, DEL.end, binBeg, binEnd)
                     
                     if overlapLen > 0:
+                        informative = True
                         DEL_events.append(DEL)
 
+            ## 3. Add read to the FASTQ object if supports a SV event (DEL, INS or CLIPPING)
+            if informative:
+ 
+                ## Transform the BAM alignment into a FASTQ_line object.
+                FASTQ_line = BAM2FASTQ_line(alignmentObj)
+
+                ## Add FASTQ_line to the FASTQ object
+                FASTQ.add(FASTQ_line)
+
     # return sv candidates
-    return INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events
+    return INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events, FASTQ
+
 
 def collectCLIPPING(alignmentObj, confDict, sample):
     '''
@@ -182,9 +245,6 @@ def collectCLIPPING(alignmentObj, confDict, sample):
     Output:
         1. clippingLeftObj: CLIPPING object for left clipping (None if no clipping found)
         2. clippingRightObj: CLIPPING object for right clipping (None if no clipping found)
-        3. [TO DO] readDict: dictionary containing the read alignments supporting the SV events. Format:
-                key   -> read identifier
-                value -> list of alignments for this read
 
     Note: include filter to discard reads clipped at both their begin and end (useful with illumina data)
     '''
@@ -221,16 +281,9 @@ def collectINDELS(alignmentObj, confDict, sample):
     Output:
         1. INS_events: list of INS objects
         2. DEL_events: list of DEL objects
-        3. [TO DO] readDict: dictionary containing the read alignments supporting the SV events. Format:
-                key   -> read identifier
-                value -> list of alignments for this read
     '''
     INS_events = []
     DEL_events = []
-
-    ## Set read id
-    mate = '/1' if alignmentObj.is_read1 else '/2'
-    readId = alignmentObj.query_name + mate
 
     ## Initialize positions at query and ref
     posQuery = 0
@@ -251,7 +304,7 @@ def collectINDELS(alignmentObj, confDict, sample):
             insertEnd = posQuery + length
             insertSeq = alignmentObj.query_sequence[insertBeg:insertEnd]
             insertLength = len(insertSeq)
-            insObj = variants.INS(alignmentObj.reference_name, beg, end, insertLength, insertSeq, readId, sample)
+            insObj = variants.INS(alignmentObj.reference_name, beg, end, insertLength, insertSeq, alignmentObj.query_name, sample)
             INS_events.append(insObj)
 
         ## b) DELETION to the reference >= Xbp
@@ -259,7 +312,7 @@ def collectINDELS(alignmentObj, confDict, sample):
 
             beg = posRef 
             end = posRef + length
-            delObj = variants.DEL(alignmentObj.reference_name, beg, end, length, readId, sample)
+            delObj = variants.DEL(alignmentObj.reference_name, beg, end, length, alignmentObj.query_name, sample)
             DEL_events.append(delObj)
 
         #### Update position over reference and read sequence

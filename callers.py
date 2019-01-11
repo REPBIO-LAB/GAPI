@@ -43,9 +43,9 @@ class SVcaller_nano():
 
         # b) Read bins from bed file
         else:
-            bed = formats.bed()
-            bed.read(self.confDict['targetBins'])
-            bins = [ (line.ref, line.beg, line.end) for line in bed.lines]
+            BED = formats.BED()
+            BED.read(self.confDict['targetBins'])
+            bins = [ (line.ref, line.beg, line.end) for line in BED.lines]
 
         ### 2. Call SV in each bin ##
         # Genomic bins will be distributed into X processes
@@ -85,16 +85,24 @@ class SVcaller_nano():
         else:
 
             ## Search for SV events in the tumour
-            INS_events_T, DEL_events_T, CLIPPING_left_events_T, CLIPPING_right_events_T = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, 'TUMOUR')
+            INS_events_T, DEL_events_T, CLIPPING_left_events_T, CLIPPING_right_events_T, FASTQ_T = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, 'TUMOUR')
 
             ## Search for SV events in the normal
-            INS_events_N, DEL_events_N, CLIPPING_left_events_N, CLIPPING_right_events_N = bamtools.collectSV(ref, beg, end, self.normalBam, self.confDict, 'NORMAL')
+            INS_events_N, DEL_events_N, CLIPPING_left_events_N, CLIPPING_right_events_N, FASTQ_N = bamtools.collectSV(ref, beg, end, self.normalBam, self.confDict, 'NORMAL')
 
             ## Join tumour and normal lists
             INS_events = INS_events_T + INS_events_N
             DEL_events = DEL_events_T + DEL_events_N
             CLIPPING_left_events = CLIPPING_left_events_T + CLIPPING_left_events_N
             CLIPPING_right_events = CLIPPING_right_events_T + CLIPPING_right_events_N
+
+            ## Join tumour and normal FASTQ     
+            FASTQ = formats.FASTQ()
+            FASTQ.fastqDict = {**FASTQ_T.fastqDict, **FASTQ_N.fastqDict} 
+            
+            ## Clear FASTQ after merging
+            del FASTQ_T 
+            del FASTQ_N            
 
         step = 'COLLECT'
         msg = 'Number of SV events in bin (INS, DEL, CLIPPING_left, CLIPPING_right): ' +  "\t".join([binId, str(len(INS_events)), str(len(DEL_events)), str(len(CLIPPING_left_events)), str(len(CLIPPING_right_events))])

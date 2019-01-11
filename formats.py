@@ -7,7 +7,7 @@ import log
 
 
 ## CLASSES ##
-class fasta():
+class FASTA():
     '''
     Class for dealing with files in FASTA format
     '''
@@ -57,7 +57,39 @@ class fasta():
         fastaFile.close()
 
 
-class bed():
+class FASTQ():
+    '''
+    Class for dealing with files in FASTQ format
+    '''
+
+    def __init__(self):
+        '''
+        Initialize empty class instance
+        '''
+        self.fastqDict = {}
+
+    def add(self, fastqLine):
+        '''
+        Add sequence to the fastq object
+        '''
+        self.fastqDict[fastqLine.seqId] = fastqLine
+        
+
+class FASTQ_line():
+    '''
+    FASTQ line class 
+    '''
+
+    def __init__(self, seqId, seq, description, qual):
+        '''
+        Initialize fastq line
+        '''
+        self.seqId = seqId
+        self.seq = seq
+        self.description = description
+        self.qual = qual
+
+class BED():
     '''
     Class for dealing with files in BED format. 
     '''
@@ -82,11 +114,10 @@ class bed():
                 continue
 
             ref, beg, end = line.split()[:3]
-            line = bedLine(ref, beg, end)
+            line = BED_line(ref, beg, end)
             self.lines.append(line)
 
-
-class bedLine():
+class BED_line():
     '''
     BED line class 
     '''
