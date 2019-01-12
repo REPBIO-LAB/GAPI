@@ -13,6 +13,7 @@ import formats
 import structures
 import clustering
 import variants
+import filters
 import output
 
 ## FUNCTIONS ##
@@ -160,15 +161,32 @@ class SVcaller_nano():
         ## 4.2 Polish deletions
         variants.polishClusters(DEL_clusters, 'DEL-CLUSTER')
 
-        ## 5. Make consensus sequence for SV clusters ##
+        ## 5. Filter SV clusters ##
+        step = 'FILTER'
+        msg = 'Filter SV clusters'
+        log.step(step, msg)
+
+        ## 5.1 Filter insertions
+        filters.filterClusters(INS_clusters, 'INS-CLUSTER', self.confDict)
+
+        ## 5.2 Filter deletions
+        filters.filterClusters(DEL_clusters, 'DEL-CLUSTER', self.confDict)
+
+        ## 5.3 Filter left-clippings
+        filters.filterClusters(left_CLIPPING_clusters, 'LEFT-CLIPPING-CLUSTER', self.confDict)
+
+        ## 5.4 Filter right-clippings
+        filters.filterClusters(right_CLIPPING_clusters, 'RIGHT-CLIPPING-CLUSTER', self.confDict)
+
+        ## 6. Make consensus sequence for SV clusters ##
         step = 'CONSENSUS'
         msg = ' Make consensus sequence for SV clusters '
         log.step(step, msg)
 
-        ## 5.1 Consensus for insertions
+        ## 6.1 Consensus for insertions
         variants.consensusClusters(INS_clusters, 'INS-CLUSTER', FASTQ, self.outDir)
 
-        ## 5.2 Consensus for deletions
+        ## 6.2 Consensus for deletions
         variants.consensusClusters(DEL_clusters, 'DEL-CLUSTER', FASTQ, self.outDir)
 
         return INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters

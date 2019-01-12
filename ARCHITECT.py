@@ -42,6 +42,13 @@ parser.add_argument('--minRootClusterSize', default=2, dest='minRootClusterSize'
 parser.add_argument('--maxBkpDist', default=50, dest='maxBkpDist', type=int, help='Maximum distance bewteen two adjacent breakpoints for INS and CLIPPING clustering. Default: 50')
 parser.add_argument('--minPercOverlap', default=70, dest='minPercRcplOverlap', type=int, help='Minimum percentage of reciprocal overlap for DEL clustering. Default: 50')
 parser.add_argument('--maxClusterDist', default=100, dest='maxClusterDist', type=int, help='Maximum distance bewteen different clusters for metaclustering. Default: 100')
+parser.add_argument('--clusterFilters', default="NBREADS,CV,OUTLIERS", dest='clusterFilters', type=str, help='Comma separated list of cluster filters to apply (minimum number of reads, minimum Coefficient of Variation and minimum percentage of outliers). Default: NBREADS,CV,OUTLIERS')
+parser.add_argument('--minClusterSize', default=2, dest='minClusterSize', type=int, help='Minimum number of reads composing a cluster (after extension step). Default: 2')
+parser.add_argument('--maxClusterCV', default=15, dest='maxClusterCV', type=int, help='Maximum Coefficient of Variation of a cluster. Default: 15')
+parser.add_argument('--maxOutliers', default=0.5, dest='maxOutliers', type=int, help='Maximum percentage of events supporting a cluster that have been removed during the polish step. Default: 0.5')
+
+
+
 
 ## 2. Parse user´s input and initialize variables ##
 args = parser.parse_args()
@@ -66,6 +73,10 @@ maxBkpDist = args.maxBkpDist
 minRootClusterSize = args.minRootClusterSize
 minPercRcplOverlap = args.minPercRcplOverlap
 maxClusterDist = args.maxClusterDist
+clusterFilters = args.clusterFilters
+minClusterSize = args.minClusterSize
+maxClusterCV = args.maxClusterCV
+maxOutliers = args.maxOutliers
 
 # If no reference is specified, get all that are present in the bam file.
 if refs == "ALL":
@@ -107,7 +118,13 @@ print('minCLIPPINGlength: ', minCLIPPINGlen)
 print('minRootClusterSize: ', minRootClusterSize)
 print('maxBkpDistance: ', maxBkpDist)
 print('minPercOverlap: ', minPercRcplOverlap)
-print('maxClusterDistance: ', maxClusterDist, "\n")
+print('maxClusterDistance: ', maxClusterDist)
+print('clusterFilters: ', clusterFilters)
+print('maxClusterDistance: ', minClusterSize)
+print('maxClusterCV: ', maxClusterCV)
+print('maxOutliers: ', maxOutliers, "\n")
+
+
 
 print('***** Executing ', scriptName, '.... *****', "\n")
 
@@ -135,6 +152,10 @@ confDict['maxBkpDist'] = maxBkpDist
 confDict['minRootClusterSize'] = minRootClusterSize
 confDict['minPercRcplOverlap'] = minPercRcplOverlap
 confDict['maxClusterDist'] = maxClusterDist
+confDict['clusterFilters'] = clusterFilters
+confDict['minClusterSize'] = minClusterSize
+confDict['maxClusterCV'] = maxClusterCV
+confDict['maxOutliers'] = maxOutliers
 
 ## 2. Launch structural variation (SV) caller
 callerObj = callers.SVcaller_nano(mode, bam, normalBam, confDict, outDir)
