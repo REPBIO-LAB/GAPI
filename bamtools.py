@@ -42,15 +42,15 @@ def phred2ASCII(phred):
 
     return ASCII
 
-def BAM2FASTQ_line(alignmentObj):
+def BAM2FASTQ_entry(alignmentObj):
     '''
-    Transform a BAM alignment into a FASTQ_line object. 
+    Transform a BAM alignment into a FASTQ_entry object. 
 
 	Input:
 		1. alignmentObj: pysam.AlignedSegment object.
 	
 	Output:
-		1. FASTQ_line: formats.FASTQ_line object
+		1. FASTQ_entry: formats.FASTQ_entry object
     '''
     ## 1. Convert Phred quality scores to ASCII 
     ASCII = phred2ASCII(alignmentObj.query_qualities)
@@ -67,9 +67,9 @@ def BAM2FASTQ_line(alignmentObj):
         seq = alignmentObj.query_sequence
         qual = ASCII
 
-    ## 3. Create FASTQ_line object
-    FASTQ_line = formats.FASTQ_line(alignmentObj.query_name, seq, '', qual)
-    return FASTQ_line
+    ## 3. Create FASTQ_entry object
+    FASTQ_entry = formats.FASTQ_entry(alignmentObj.query_name, seq, '', qual)
+    return FASTQ_entry
 
 
 def makeGenomicBins(bam, binSize, targetRefs):
@@ -222,11 +222,11 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             ## 3. Add read to the FASTQ object if supports a SV event (DEL, INS or CLIPPING)
             if informative:
  
-                ## Transform the BAM alignment into a FASTQ_line object.
-                FASTQ_line = BAM2FASTQ_line(alignmentObj)
+                ## Transform the BAM alignment into a FASTQ_entry object.
+                FASTQ_entry = BAM2FASTQ_entry(alignmentObj)
 
-                ## Add FASTQ_line to the FASTQ object
-                FASTQ.add(FASTQ_line)
+                ## Add FASTQ_entry to the FASTQ object
+                FASTQ.add(FASTQ_entry)
 
     # return sv candidates
     return INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events, FASTQ

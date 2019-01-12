@@ -9,6 +9,10 @@ import numpy as np
 
 # Internal
 import log
+import formats
+import unix
+import consensus
+
 
 ###############
 ## FUNCTIONS ##
@@ -64,6 +68,23 @@ def polishClusters(clusters, clusterType):
         ## Polish
         cluster.polish()
         
+def consensusClusters(clusters, clusterType, FASTQ, outDir):
+    '''
+    Function to create a high quality consensus sequence from all the cluster supporting reads. It does not produce any output just add the consensus sequences to the cluster object
+
+    Input:
+        1. clusters: bin database containing a set of cluster objects
+        2. clusterType: type of cluster (INS-CLUSTER: insertion; DEL-CLUSTER: deletion; LEFT-CLIPPING-CLUSTER: left clipping; RIGHT-CLIPPING-CLUSTER: right clipping)
+    '''
+
+    rootDir = outDir + '/Consensus/'
+    unix.mkdir(rootDir)
+
+    ## For each cluster
+    for cluster in clusters.collect(clusterType):
+        
+        ## Create consensus
+        cluster.consensus(FASTQ, rootDir)
 
 def mergeClusters(clusters, clusterType):
     '''
@@ -200,6 +221,9 @@ class cluster():
 
         # Cluster metrics
         self.nbOutliers = 0
+        
+        # Consensus cluster sequence
+        self.consensusSeq = 'NA'
 
     def add(self, newEvents, side):
         '''
@@ -228,6 +252,14 @@ class cluster():
             self.events.sort(key=lambda x: x.beg, reverse=True) # Resort
             self.beg = self.events[0].beg # Update begin
             self.end = max([event.end for event in self.events]) # Update end
+
+    def supportingReads(self):
+        '''
+        Return list of cluster supporting reads
+        '''
+        readIds = [event.readId for event in self.events]
+
+        return readIds
 
     def setClusterId(self, events):
         '''
@@ -362,7 +394,30 @@ class cluster():
 
         # B) Don´t attemp polishing if length attribute not available for some of the events 
         
+    def consensus(self, FASTQ, rootDir):
+        '''
+        ....
 
+        Input:
+            1. FASTQ: 
+            2. rootDir:
+        '''
+        ## 1. Create FASTQ object containing cluster supporting reads
+        FASTQ_cluster = formats.FASTQ()
+        readIds = self.supportingReads()
+
+        # Collect from the FASTQ containing all the reads only those supporting the SV cluster 
+        for readId in readIds:
+            FASTQ_entry = FASTQ.fastqDict[readId]
+            FASTQ_cluster.add(FASTQ_entry)
+
+        ## 2. Create output directory
+        outDir = rootDir + '/' + str(self.id)
+        unix.mkdir(outDir)
+
+        ## 3. Generate consensus sequence for the cluster
+        self.consensusSeq = consensus.racon(FASTQ_cluster, outDir)
+        print('CONSENSUS: ', self.consensusSeq)    
 
 class INS_cluster(cluster):
     '''

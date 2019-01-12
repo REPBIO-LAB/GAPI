@@ -3,7 +3,14 @@ Module 'formats' - Contains classes for dealing with file formats such as fasta,
 '''
 
 ## DEPENDENCIES ##
+# External
+import itertools
+
+# Internal
 import log
+
+
+
 
 
 ## CLASSES ##
@@ -32,7 +39,7 @@ class FASTA():
 
         for header in faiter:
             # drop the >
-            header = header.next()[1:].strip()
+            header = header.__next__()[1:].strip()
             
             # drop the info
             header = header.split(' ')[0]
@@ -68,6 +75,28 @@ class FASTQ():
         '''
         self.fastqDict = {}
 
+    def write(self, filePath):
+        '''
+        FASTQ file writer. Write data stored in the dictionary into a FASTA file
+        '''
+        # Open fastq file
+        fastqFile = open(filePath, 'w')
+
+        # Write FASTQ lines
+        for FASTQ_entry in self.fastqDict.values(): 
+
+            seqId = '@' + FASTQ_entry.seqId
+            description = '+' + FASTQ_entry.description
+
+            fastqFile.write("%s\n" % seqId)
+            fastqFile.write("%s\n" % FASTQ_entry.seq)
+            fastqFile.write("%s\n" % description)
+            fastqFile.write("%s\n" % FASTQ_entry.qual)
+
+        # Close output fasta file
+        fastqFile.close()
+
+
     def add(self, fastqLine):
         '''
         Add sequence to the fastq object
@@ -75,9 +104,9 @@ class FASTQ():
         self.fastqDict[fastqLine.seqId] = fastqLine
         
 
-class FASTQ_line():
+class FASTQ_entry():
     '''
-    FASTQ line class 
+    FASTQ entry class 
     '''
 
     def __init__(self, seqId, seq, description, qual):

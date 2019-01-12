@@ -160,4 +160,15 @@ class SVcaller_nano():
         ## 4.2 Polish deletions
         variants.polishClusters(DEL_clusters, 'DEL-CLUSTER')
 
+        ## 5. Make consensus sequence for SV clusters ##
+        step = 'CONSENSUS'
+        msg = ' Make consensus sequence for SV clusters '
+        log.step(step, msg)
+
+        ## 5.1 Consensus for insertions
+        variants.consensusClusters(INS_clusters, 'INS-CLUSTER', FASTQ, self.outDir)
+
+        ## 5.2 Consensus for deletions
+        variants.consensusClusters(DEL_clusters, 'DEL-CLUSTER', FASTQ, self.outDir)
+
         return INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters
