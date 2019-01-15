@@ -112,8 +112,6 @@ def consensusClusters(clusters, clusterType, FASTQ, reference, confDict, rootDir
         
         ## Create consensus
         cluster.consensus(FASTQ, reference, confDict, outDir)
-        print("CONSENSUS-CLUSTER: ", clusterType, cluster.ref, cluster.beg, cluster.end, cluster.length, cluster.insertedSeq)
-
 
 #############
 ## CLASSES ##
@@ -230,11 +228,11 @@ class cluster():
 
         # Cluster metrics
         self.nbOutliers = 0
-        self.length = None
 
-        # Consensus sequence
-        self.consensusSeq = None
-        self.insertedSeq = None
+        # Consensus sequences
+        self.consensus_FASTA = None
+        self.consensusIns = None
+        self.consensusLen = None
 
     def add(self, newEvents, side):
         '''
@@ -431,12 +429,17 @@ class cluster():
         unix.mkdir(outDir)
 
         ## 3. Generate consensus sequence for the cluster
-        self.consensusFASTA = consensus.racon(FASTQ_cluster, outDir)
+        self.consensus_FASTA = consensus.racon(FASTQ_cluster, outDir)
+
+        ## Exit function if consensus sequence could not be generated
+        if self.consensus_FASTA == None:
+            return
 
         ## 4. Realign consensus sequence into the SV event genomic region
         ## 4.1 Write consensus sequence into fasta file
         consensusFile = outDir + '/consensus.fasta'
-        self.consensusFASTA.write(consensusFile)
+        self.consensus_FASTA.write(consensusFile)
+
 
         ## 4.2 Define SV event surrounding region
         offset = 500
@@ -461,8 +464,8 @@ class cluster():
                 INS = INS_events[0]
                 self.beg = INS.beg + targetBeg # Map alignments into chromosomal coordinates
                 self.end = INS.end + targetBeg
-                self.length = INS.length
-                self.insertedSeq = INS.seq
+                self.consensusLen = INS.length
+                self.consensusIns = INS.seq
 
             # b) Multiple possible events. Select most likely (TO DO) 
             elif len(INS_events) > 1:
@@ -478,7 +481,7 @@ class cluster():
                 DEL = DEL_events[0]
                 self.beg = DEL.beg + targetBeg # Map alignments into chromosomal coordinates
                 self.end = DEL.end + targetBeg
-                self.length = self.end - self.beg 
+                self.consensusLen = self.end - self.beg 
 
             # b) Multiple possible events. Select most likely (TO DO)
             elif len(DEL_events) > 1:

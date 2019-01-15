@@ -28,7 +28,7 @@ def racon(FASTQ_all, outDir):
         2. outDir: Output directory
 
     Output:
-        1. FASTA: FASTA object containing consensus sequence
+        1. FASTA: FASTA object containing consensus sequence or None if no consensus sequence was generated 
     '''
 
     ## 0. Create logs directory:
@@ -59,41 +59,25 @@ def racon(FASTQ_all, outDir):
     FASTQ2_file = outDir + '/reads2polish.fastq'
     FASTQ2.write(FASTQ2_file)
 
-    ## 3. Align reads against read to be corrected
+    ## 3. Align reads against the read to be corrected
     PAF = outDir + '/alignments.paf'
     err = open(logDir + '/minimap2.err', 'w') 
     command = 'minimap2 -x ava-ont ' + FASTQ1_file + ' ' + FASTQ2_file + ' > ' + PAF
     status = subprocess.call(command, stderr=err, shell=True)
 
-    if status != 0:
-        step = 'MINIMAP2'
-        msg = 'minimap2 alignment failed' 
-        log.step(step, msg)
-
     ## 4. Read polishing with racon
     POLISHED = outDir + '/polished.fasta'
     err = open(logDir + '/racon.err', 'w') 
-    command = 'racon -u ' + FASTQ2_file + ' ' + PAF + ' ' + FASTQ1_file + ' > ' + POLISHED
+    command = 'racon ' + FASTQ2_file + ' ' + PAF + ' ' + FASTQ1_file + ' > ' + POLISHED
     status = subprocess.call(command, stderr=err, shell=True)
-
-    if status != 0:
-        step = 'RACON'
-        msg = 'racon failed' 
-        log.step(step, msg)
 
     ## 5. Read polished sequence 
     FASTA = formats.FASTA()
     FASTA.read(POLISHED)
 
-    ## 6. Use uncorrected read selected as template if no polished sequence was generated
+    ## 6. Set FASTA as None if no consensus sequence was generated
     if not FASTA.fastaDict:
-        step = 'RACON'
-        msg = 'No polished sequence was generated. Use uncorrected template read as consensus' 
-        log.step(step, msg)
-
-        seqId = list(FASTQ1.fastqDict)[0]
-        seq = FASTQ1.fastqDict[seqId].seq
-        FASTA.fastaDict[seqId] = seq
+        FASTA = None
 
     ## 7. Do cleanup 
     #unix.rm(FASTQ1_file)

@@ -12,7 +12,7 @@ def writeClusters(clusters, outDir):
     outFile = open(outFilePath, 'w')
 
     ## Write header ##
-    row = "#ref \t beg \t end \t clusterType \t binId \t nbTotal \t nbTumour \t nbNormal \t nbOutliers \t consensusLen \t meanLen \t std \t cv \t failedFilters \t consensusINS \n"
+    row = "#ref \t beg \t end \t clusterType \t binId \t nbTotal \t nbTumour \t nbNormal \t nbOutliers \t consensusLen \t meanLen \t std \t cv \t failedFilters \t consensusIns \n"
     outFile.write(row)
 
     ## Write clusters ##
@@ -36,7 +36,7 @@ def writeClusters(clusters, outDir):
                     failedFilters="."
 
                 # Write into output file
-                row = "\t".join([cluster.ref, str(cluster.beg), str(cluster.end), clusterType, binId, str(nbTotal), str(nbTumour), str(nbNormal), str(cluster.nbOutliers), str(cluster.length), str(mean), str(std), str(cv), str(",".join(failedFilters)), str(cluster.insertedSeq), "\n"])
+                row = "\t".join([cluster.ref, str(cluster.beg), str(cluster.end), clusterType, binId, str(nbTotal), str(nbTumour), str(nbNormal), str(cluster.nbOutliers), str(cluster.consensusLen), str(mean), str(std), str(cv), str(",".join(failedFilters)), str(cluster.consensusIns), "\n"])
                 outFile.write(row)
 
          
