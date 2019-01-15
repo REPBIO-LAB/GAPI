@@ -15,11 +15,20 @@ import unix
 
 def racon(FASTQ_all, outDir):
     '''
-    ...
+    Build a consensus sequence from a set of long-reads (Nanopore or Pacbio). 
+
+    The algorithm selects an arbitrary long-read sequence as template and uses the remaining sequences to correct the template
+    with racon. 
+    
+    If long-read correction fails return the selected uncorrected long-read sequence as consensus. This should be infrequent if 
+    enough number of reads provided
 
     Input:
-        1. FASTQ_all: ....
+        1. FASTQ_all: FASTQ object containing all the reads to be used to build a consensus 
         2. outDir: Output directory
+
+    Output:
+        1. FASTA: FASTA object containing consensus sequence
     '''
 
     ## 0. Create logs directory:
@@ -27,8 +36,8 @@ def racon(FASTQ_all, outDir):
     unix.mkdir(logDir)
 
     ## 1. Divide the FASTQ in two: 
-    # 1) FASTQ1 containing one read to be polished
-    # 2) FASTQ2 containing the remaining reads to polish the read in FASTQ1 
+    # 1) FASTQ1 containing template read to be polished
+    # 2) FASTQ2 containing the remaining reads to polish the template 
     FASTQ1 = formats.FASTQ()
     FASTQ2 = formats.FASTQ()
 
@@ -44,7 +53,7 @@ def racon(FASTQ_all, outDir):
             FASTQ2.add(FASTQ_entry)
 
     ## 2. Write FASTQ files 
-    FASTQ1_file = outDir + '/targetRead.fastq'
+    FASTQ1_file = outDir + '/template.fastq'
     FASTQ1.write(FASTQ1_file)
 
     FASTQ2_file = outDir + '/reads2polish.fastq'
@@ -64,7 +73,7 @@ def racon(FASTQ_all, outDir):
     ## 4. Read polishing with racon
     POLISHED = outDir + '/polished.fasta'
     err = open(logDir + '/racon.err', 'w') 
-    command = 'racon ' + FASTQ2_file + ' ' + PAF + ' ' + FASTQ1_file + ' > ' + POLISHED
+    command = 'racon -u ' + FASTQ2_file + ' ' + PAF + ' ' + FASTQ1_file + ' > ' + POLISHED
     status = subprocess.call(command, stderr=err, shell=True)
 
     if status != 0:
@@ -72,9 +81,25 @@ def racon(FASTQ_all, outDir):
         msg = 'racon failed' 
         log.step(step, msg)
 
-    ## 5. Read polished sequence and return
+    ## 5. Read polished sequence 
     FASTA = formats.FASTA()
     FASTA.read(POLISHED)
+
+    ## 6. Use uncorrected read selected as template if no polished sequence was generated
+    if not FASTA.fastaDict:
+        step = 'RACON'
+        msg = 'No polished sequence was generated. Use uncorrected template read as consensus' 
+        log.step(step, msg)
+
+        seqId = list(FASTQ1.fastqDict)[0]
+        seq = FASTQ1.fastqDict[seqId].seq
+        FASTA.fastaDict[seqId] = seq
+
+    ## 7. Do cleanup 
+    #unix.rm(FASTQ1_file)
+    #unix.rm(FASTQ2_file)
+    #unix.rm(PAF)
+    #unix.rm(POLISHED)
 
     return FASTA
     

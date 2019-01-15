@@ -5,9 +5,11 @@ Module 'bamtools' - Contains functions for extracting data from bam files
 ## DEPENDENCIES ##
 # External
 import pysam
+import subprocess
 
 # Internal
 import log
+import unix
 import variants
 import gRanges
 import formats
@@ -27,6 +29,57 @@ def getREFS(bam):
     bamFile = pysam.AlignmentFile(bam, 'rb')
     refs  = ','.join(bamFile.references)
     return refs
+
+def SAM2BAM(SAM, outDir):
+    '''
+    Convert SAM file into sorted BAM and make BAM index
+
+	Input:
+		1. SAM: File containing alignments in SAM format
+
+	Output:
+		1. BAM_sorted: Sorted and indexed BAM file. BAM index located in the same directory with the extension '.bai'
+    '''
+    ## 0. Create logs directory ##
+    logDir = outDir + '/Logs'
+    unix.mkdir(logDir)
+
+    ## 1. Convert SAM into BAM ##
+    BAM = outDir + '/alignments.bam'
+    err = open(logDir + '/SAM2BAM.err', 'w') 
+    command = 'samtools view -Sb ' + SAM + ' > ' + BAM
+    status = subprocess.call(command, stderr=err, shell=True)
+
+    if status != 0:
+        step = 'SAM2BAM'
+        msg = 'SAM to BAM conversion failed' 
+        log.step(step, msg)
+
+    ## 2. Sort bam ##
+    BAM_sorted = outDir + '/alignments.sorted.bam'
+    err = open(logDir + '/sort.err', 'w') 
+    command = 'samtools sort ' + BAM + ' > ' + BAM_sorted
+    status = subprocess.call(command, stderr=err, shell=True)
+
+    if status != 0:
+        step = 'SORT'
+        msg = 'BAM sorting failed' 
+        log.step(step, msg)    
+
+    ## 3. Index bam ##
+    BAM_index = outDir + '/alignments.sorted.bam.bai'
+    err = open(logDir + '/index.err', 'w') 
+    command = 'samtools index ' + BAM_sorted + ' > ' + BAM_index
+    status = subprocess.call(command, stderr=err, shell=True)
+
+    if status != 0:
+        step = 'INDEX'
+        msg = 'BAM indexing failed' 
+        log.step(step, msg)
+
+    ## 4. Cleanup ##
+
+    return BAM_sorted
 
 def phred2ASCII(phred):
     '''
@@ -53,19 +106,26 @@ def BAM2FASTQ_entry(alignmentObj):
 		1. FASTQ_entry: formats.FASTQ_entry object
     '''
     ## 1. Convert Phred quality scores to ASCII 
-    ASCII = phred2ASCII(alignmentObj.query_qualities)
-    ASCII = "".join(ASCII)
+    if not alignmentObj.query_qualities == None:
+        ASCII = phred2ASCII(alignmentObj.query_qualities)
+        ASCII = "".join(ASCII)
+    else:
+        qual = None
 
     ## 2. Obtain raw read and quality strings (Prior alignment)
     # a) Read mapped in reverse -> Make complementary reverse of the sequence and the reverse of the quality 
     if alignmentObj.is_reverse:
         seq = sequences.rev_complement(alignmentObj.query_sequence)
-        qual = ASCII[::-1]
+
+        if not alignmentObj.query_qualities == None:
+            qual = ASCII[::-1]
                 
     # b) Read mapped in forward
     else:
         seq = alignmentObj.query_sequence
-        qual = ASCII
+
+        if not alignmentObj.query_qualities == None:
+            qual = ASCII
 
     ## 3. Create FASTQ_entry object
     FASTQ_entry = formats.FASTQ_entry(alignmentObj.query_name, seq, '', qual)
@@ -227,6 +287,9 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
 
                 ## Add FASTQ_entry to the FASTQ object
                 FASTQ.add(FASTQ_entry)
+
+    ## Close 
+    bamFile.close()
 
     # return sv candidates
     return INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events, FASTQ

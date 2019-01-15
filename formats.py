@@ -10,10 +10,29 @@ import itertools
 import log
 
 
+## FUNCTIONS ##
+def chromLengths_FASTA(index):
+    '''
+    Read FASTA index and build a dictionary containing chromosome lengths
 
+    Input:
+        1. index: FASTA file index generated with samtools faidx
+    Output:
+        1. chromLen: Dictionary containing the length for each chromosome 
+    '''
 
+    chromLengths = {}
 
-## CLASSES ##
+    with open(index) as indexFile:
+        for line in indexFile:
+            line = line.rstrip().split("\t")
+            ref = line[0]
+            length = line[1]
+            chromLengths[ref] = int(length)
+
+    return chromLengths
+
+## CLASSES ##
 class FASTA():
     '''
     Class for dealing with files in FASTA format

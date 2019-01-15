@@ -22,9 +22,11 @@ import bamtools
 ## 1. Define parser ##
 parser = argparse.ArgumentParser(description= "Call structural variants (SV) from Nanopore/Pacbio whole genome sequencing data. Two running modes: 1) SINGLE: individual sample; 2) PAIRED: tumour and matched normal sample")
 parser.add_argument('bam', help='Input bam file. Will correspond to the tumour sample in the PAIRED mode')
+parser.add_argument('reference', help='Reference genome in fasta format. An index of the reference generated with samtools faidx must be located in the same directory')
 
+### Optional arguments
 ## General
-parser.add_argument('--normalBam', default="NA", dest='normalBam', help='Matched normal bam file. If provided ARCHITECT will run in PAIRED mode')
+parser.add_argument('--normalBam', default=None, dest='normalBam', help='Matched normal bam file. If provided ARCHITECT will run in PAIRED mode')
 parser.add_argument('-p', '--processes', default=1, dest='processes', type=int, help='Number of processes. Default: 1')
 parser.add_argument('-o', '--outDir', default=os.getcwd(), dest='outDir', help='Output directory. Default: current working directory')
 
@@ -47,15 +49,13 @@ parser.add_argument('--minClusterSize', default=2, dest='minClusterSize', type=i
 parser.add_argument('--maxClusterCV', default=15, dest='maxClusterCV', type=int, help='Maximum Coefficient of Variation of a cluster. Default: 15')
 parser.add_argument('--maxOutliers', default=0.5, dest='maxOutliers', type=int, help='Maximum percentage of events supporting a cluster that have been removed during the polish step. Default: 0.5')
 
-
-
-
 ## 2. Parse user´s input and initialize variables ##
 args = parser.parse_args()
 
 ## General
 bam = args.bam
 normalBam = args.normalBam
+reference = args.reference
 processes = args.processes
 outDir = args.outDir
 
@@ -87,14 +87,14 @@ targetSV = SV.split(',')
 targetRefs = refs.split(',')
 
 ## Determine running mode:
-mode = "SINGLE" if normalBam == "NA" else "PAIRED"
+mode = "SINGLE" if normalBam == None else "PAIRED"
 
 ##############################################
 ## Display configuration to standard output ##
 ##############################################
 scriptName = os.path.basename(sys.argv[0])
 scriptName = os.path.splitext(scriptName)[0]
-version='0.0.2'
+version='0.0.4'
 
 print()
 print('***** ', scriptName, version, 'configuration *****')
@@ -102,6 +102,7 @@ print('** General **')
 print('mode: ', mode)
 print('bam: ', bam)
 print('normalBam: ', normalBam)
+print('reference: ', reference)
 print('processes: ', processes)
 print('outDir: ', outDir, "\n")
 
@@ -124,10 +125,7 @@ print('maxClusterDistance: ', minClusterSize)
 print('maxClusterCV: ', maxClusterCV)
 print('maxOutliers: ', maxOutliers, "\n")
 
-
-
 print('***** Executing ', scriptName, '.... *****', "\n")
-
 
 ##########
 ## CORE ## 
@@ -158,7 +156,7 @@ confDict['maxClusterCV'] = maxClusterCV
 confDict['maxOutliers'] = maxOutliers
 
 ## 2. Launch structural variation (SV) caller
-callerObj = callers.SVcaller_nano(mode, bam, normalBam, confDict, outDir)
+callerObj = callers.SVcaller_nano(mode, bam, normalBam, reference, confDict, outDir)
 callerObj.callSV()
 
 print('***** Finished! *****')

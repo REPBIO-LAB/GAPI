@@ -6,13 +6,15 @@ Module 'variants' - Contains classes for dealing with genomic variation
 # External
 import sys
 import numpy as np
+import collections 
 
 # Internal
 import log
 import formats
 import unix
 import consensus
-
+import alignment
+import bamtools 
 
 ###############
 ## FUNCTIONS ##
@@ -37,15 +39,15 @@ def createCluster(events, eventsType):
 
     ## a) Create INS cluster
     if (eventsType == 'INS'):
-        cluster = INS_cluster(ref, beg, end, events)
+        cluster = INS_cluster(ref, beg, end, events, eventsType)
 
     ## b) Create DEL cluster
     elif (eventsType == 'DEL'):
-        cluster = DEL_cluster(ref, beg, end, events)
+        cluster = DEL_cluster(ref, beg, end, events, eventsType)
 
     ## c) Create CLIPPING cluster
     elif (eventsType == 'CLIPPING') or (eventsType == 'LEFT-CLIPPING') or (eventsType == 'RIGHT-CLIPPING'):
-        cluster = CLIPPING_cluster(ref, beg, end, events)
+        cluster = CLIPPING_cluster(ref, beg, end, events, eventsType)
 
     ## d) Unexpected cluster type
     else:
@@ -53,38 +55,6 @@ def createCluster(events, eventsType):
         sys.exit(1)
 
     return cluster
-
-def polishClusters(clusters, clusterType):
-    '''
-    Function to polish a set of cluster objects. It does not produce any output just modify cluster objects through the polishing procedure
-
-    Input:
-        1. clusters: bin database containing a set of cluster objects
-        2. clusterType: type of cluster (INS-CLUSTER: insertion; DEL-CLUSTER: deletion; LEFT-CLIPPING-CLUSTER: left clipping; RIGHT-CLIPPING-CLUSTER: right clipping)
-    '''
-    ## For each cluster
-    for cluster in clusters.collect(clusterType):
-        
-        ## Polish
-        cluster.polish()
-        
-def consensusClusters(clusters, clusterType, FASTQ, outDir):
-    '''
-    Function to create a high quality consensus sequence from all the cluster supporting reads. It does not produce any output just add the consensus sequences to the cluster object
-
-    Input:
-        1. clusters: bin database containing a set of cluster objects
-        2. clusterType: type of cluster (INS-CLUSTER: insertion; DEL-CLUSTER: deletion; LEFT-CLIPPING-CLUSTER: left clipping; RIGHT-CLIPPING-CLUSTER: right clipping)
-    '''
-
-    rootDir = outDir + '/Consensus/'
-    unix.mkdir(rootDir)
-
-    ## For each cluster
-    for cluster in clusters.collect(clusterType):
-        
-        ## Create consensus
-        cluster.consensus(FASTQ, rootDir)
 
 def mergeClusters(clusters, clusterType):
     '''
@@ -105,6 +75,44 @@ def mergeClusters(clusters, clusterType):
 
     return mergedCluster
 
+def polishClusters(clusters, clusterType):
+    '''
+    Function to polish a set of cluster objects. It does not produce any output just modify cluster objects through the polishing procedure
+
+    Input:
+        1. clusters: bin database containing a set of cluster objects
+        2. clusterType: type of cluster (INS-CLUSTER: insertion; DEL-CLUSTER: deletion; LEFT-CLIPPING-CLUSTER: left clipping; RIGHT-CLIPPING-CLUSTER: right clipping)
+    '''
+    ## For each cluster
+    for cluster in clusters.collect(clusterType):
+        
+        ## Polish
+        cluster.polish()
+        
+def consensusClusters(clusters, clusterType, FASTQ, reference, confDict, rootDir):
+    '''
+    Function to create a consensus sequence for each cluster. 
+
+    ... complete ...
+
+    Input:
+        1. clusters: bin database containing a set of cluster objects
+        2. clusterType: type of cluster (INS-CLUSTER: insertion; DEL-CLUSTER: deletion; LEFT-CLIPPING-CLUSTER: left clipping; RIGHT-CLIPPING-CLUSTER: right clipping)
+        3. FASTQ: FASTQ object containing all the reads to supporting SV clusters
+        4. reference: path to reference genome in fasta format
+        5. confDict: ...
+        6: rootDir: root directory to write files and directories
+    '''
+
+    outDir = rootDir + '/Consensus/'
+    unix.mkdir(outDir)
+
+    ## 1. Create consensus sequence for each cluster
+    for cluster in clusters.collect(clusterType):
+        
+        ## Create consensus
+        cluster.consensus(FASTQ, reference, confDict, outDir)
+        print("CONSENSUS-CLUSTER: ", clusterType, cluster.ref, cluster.beg, cluster.end, cluster.length, cluster.insertedSeq)
 
 
 #############
@@ -207,7 +215,7 @@ class cluster():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, events):
+    def __init__(self, ref, beg, end, events, clusterType):
         '''
         '''
         cluster.number += 1 # Update instances counter
@@ -218,12 +226,15 @@ class cluster():
         self.beg = beg
         self.end = end
         self.events = self.setClusterId(events) # Asign the cluster id to the events
+        self.clusterType = clusterType
 
         # Cluster metrics
         self.nbOutliers = 0
-        
-        # Consensus cluster sequence
-        self.consensusSeq = 'NA'
+        self.length = None
+
+        # Consensus sequence
+        self.consensusSeq = None
+        self.insertedSeq = None
 
     def add(self, newEvents, side):
         '''
@@ -293,8 +304,8 @@ class cluster():
             
             # c) SINGLE sample mode
             else:
-                nbTumour = "NA"
-                nbNormal = "NA"
+                nbTumour = None
+                nbNormal = None
                 break
 
         nbTotal = len(self.events)
@@ -329,12 +340,11 @@ class cluster():
 
         # b) Length not available
         else:
-            mean = "NA"
-            std = "NA"
-            cv = "NA"
+            mean = None
+            std = None
+            cv = None
 
         return mean, std, cv
-
 
     def polish(self):
         '''
@@ -394,13 +404,18 @@ class cluster():
 
         # B) Don´t attemp polishing if length attribute not available for some of the events 
         
-    def consensus(self, FASTQ, rootDir):
+    def consensus(self, FASTQ, reference, confDict, rootDir): 
         '''
-        ....
+        Use all the cluster supporting reads to (1) generate a consensus sequence for the cluster and (2) perform local realignment of the consensus 
+        to obtain more accurate SV breakpoints and inserted sequence (only for INS)
 
+        Update cluster with all this information
+        
         Input:
-            1. FASTQ: 
-            2. rootDir:
+            1. FASTQ: FASTQ object containing all the SV supporting reads  
+            2. reference: path to the reference genome in fasta format. An index of the reference generated with samtools faidx must be located in the same directory
+            3. confDict: configuration dictionary 
+            4. rootDir: root directory where writing the output and log files
         '''
         ## 1. Create FASTQ object containing cluster supporting reads
         FASTQ_cluster = formats.FASTQ()
@@ -416,27 +431,85 @@ class cluster():
         unix.mkdir(outDir)
 
         ## 3. Generate consensus sequence for the cluster
-        self.consensusSeq = consensus.racon(FASTQ_cluster, outDir)
-        print('CONSENSUS: ', self.consensusSeq)    
+        self.consensusFASTA = consensus.racon(FASTQ_cluster, outDir)
+
+        ## 4. Realign consensus sequence into the SV event genomic region
+        ## 4.1 Write consensus sequence into fasta file
+        consensusFile = outDir + '/consensus.fasta'
+        self.consensusFASTA.write(consensusFile)
+
+        ## 4.2 Define SV event surrounding region
+        offset = 500
+        targetBeg = self.beg - offset
+        targetEnd = self.end + offset
+        targetLen = targetEnd - targetBeg
+        targetInterval = self.ref + ':' + str(targetBeg) + '-' + str(targetEnd)
+
+        ## 4.3 Do realignment
+        BAM = alignment.targeted_alignment_minimap2(consensusFile, targetInterval, reference, outDir)
+
+        ## 5. Extract consensus SV event from consensus sequence alignment
+        confDict["targetSV"] = self.clusterType
+        INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events, FASTQ = bamtools.collectSV(targetInterval, 0, targetLen, BAM, confDict, None)
+               
+        ## 6. Redefine cluster properties based on consensus SV event  
+        # A) Insertion cluster
+        if self.clusterType == 'INS':
+            
+            # a) Single event 
+            if len(INS_events) == 1:
+                INS = INS_events[0]
+                self.beg = INS.beg + targetBeg # Map alignments into chromosomal coordinates
+                self.end = INS.end + targetBeg
+                self.length = INS.length
+                self.insertedSeq = INS.seq
+
+            # b) Multiple possible events. Select most likely (TO DO) 
+            elif len(INS_events) > 1:
+                print("WARNING. Multiple possible INS events")
+
+            # c) No identified events
+             
+        # B) Deletion cluster
+        elif self.clusterType == 'DEL':
+
+            # a) Single event 
+            if len(DEL_events) == 1:
+                DEL = DEL_events[0]
+                self.beg = DEL.beg + targetBeg # Map alignments into chromosomal coordinates
+                self.end = DEL.end + targetBeg
+                self.length = self.end - self.beg 
+
+            # b) Multiple possible events. Select most likely (TO DO)
+            elif len(DEL_events) > 1:
+                print("WARNING. Multiple possible DEL events")
+
+            # c) No identified events
+
+        # C) Clipped cluster 
+
+
 
 class INS_cluster(cluster):
     '''
     Insertion (INS) cluster subclass
     '''
-    def __init__(self, ref, beg, end, events):
-        cluster.__init__(self, ref, beg, end, events)
+    def __init__(self, ref, beg, end, events, clusterType):
 
+        cluster.__init__(self, ref, beg, end, events, clusterType)
 
 class DEL_cluster(cluster):
     '''
     Deletion (DEL) cluster subclass
     '''
-    def __init__(self, ref, beg, end, events):
-        cluster.__init__(self, ref, beg, end, events)
+    def __init__(self, ref, beg, end, events, clusterType):
+
+        cluster.__init__(self, ref, beg, end, events, clusterType)
 
 class CLIPPING_cluster(cluster):
     '''
     Clipping cluster subclass
     '''
-    def __init__(self, ref, beg, end, events):
-        cluster.__init__(self, ref, beg, end, events)
+    def __init__(self, ref, beg, end, events, clusterType):
+
+        cluster.__init__(self, ref, beg, end, events, clusterType)

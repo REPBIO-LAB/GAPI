@@ -8,6 +8,7 @@ import multiprocessing as mp
 
 # Internal
 import log
+import unix
 import bamtools
 import formats
 import structures
@@ -23,11 +24,12 @@ class SVcaller_nano():
     '''
     Structural variation (SV) caller from single molecule sequencing data
     '''
-    def __init__(self, mode, bam, normalBam, confDict, outDir):
+    def __init__(self, mode, bam, normalBam, reference, confDict, outDir):
 
         self.mode = mode
         self.bam = bam
         self.normalBam = normalBam
+        self.reference = reference
         self.confDict = confDict
         self.outDir = outDir
 
@@ -62,7 +64,7 @@ class SVcaller_nano():
         clusters['DEL-CLUSTER'] = DEL_clusters
         clusters['LEFT-CLIPPING-CLUSTER'] = left_CLIPPING_clusters 
         clusters['RIGHT-CLIPPING-CLUSTER']= right_CLIPPING_clusters
-
+        
         # Write output
         output.writeClusters(clusters, self.outDir)
 
@@ -71,16 +73,19 @@ class SVcaller_nano():
         Search for structural variants (SV) in a genomic bin/window
         '''
 
+        ## 0. Set bin id and create bin directory
         ref, beg, end = window
-
         binId = '_'.join([str(ref), str(beg), str(end)])
         msg = 'SV calling in bin: ' + binId
         log.subHeader(msg)
 
+        binDir = self.outDir + '/' + binId
+        unix.mkdir(binDir)
+
         ## 1. Search for SV candidate events in the bam file/s ##
         # a) Single sample mode
         if self.mode == "SINGLE":
-            INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, None)
+            INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events, FASTQ = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, None)
 
         # b) Paired sample mode (tumour & matched normal)
         else:
@@ -180,13 +185,13 @@ class SVcaller_nano():
 
         ## 6. Make consensus sequence for SV clusters ##
         step = 'CONSENSUS'
-        msg = ' Make consensus sequence for SV clusters '
+        msg = 'Make consensus sequence for SV clusters '
         log.step(step, msg)
 
         ## 6.1 Consensus for insertions
-        variants.consensusClusters(INS_clusters, 'INS-CLUSTER', FASTQ, self.outDir)
+        variants.consensusClusters(INS_clusters, 'INS-CLUSTER', FASTQ, self.reference, self.confDict, binDir)
 
         ## 6.2 Consensus for deletions
-        variants.consensusClusters(DEL_clusters, 'DEL-CLUSTER', FASTQ, self.outDir)
+        variants.consensusClusters(DEL_clusters, 'DEL-CLUSTER', FASTQ, self.reference, self.confDict, binDir)
 
         return INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters

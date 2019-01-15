@@ -12,7 +12,7 @@ def writeClusters(clusters, outDir):
     outFile = open(outFilePath, 'w')
 
     ## Write header ##
-    row = "#ref \t beg \t end \t clusterType \t binId \t nbTotal \t nbTumour \t nbNormal \t nbOutliers \t mean \t std \t cv \t failedFilters \n"
+    row = "#ref \t beg \t end \t clusterType \t binId \t nbTotal \t nbTumour \t nbNormal \t nbOutliers \t consensusLen \t meanLen \t std \t cv \t failedFilters \t consensusINS \n"
     outFile.write(row)
 
     ## Write clusters ##
@@ -36,8 +36,11 @@ def writeClusters(clusters, outDir):
                     failedFilters="."
 
                 # Write into output file
-                row = "\t".join([cluster.ref, str(cluster.beg), str(cluster.end), clusterType, binId, str(nbTotal), str(nbTumour), str(nbNormal), str(cluster.nbOutliers), str(mean), str(std), str(cv), str(",".join(failedFilters)), "\n"])
+                row = "\t".join([cluster.ref, str(cluster.beg), str(cluster.end), clusterType, binId, str(nbTotal), str(nbTumour), str(nbNormal), str(cluster.nbOutliers), str(cluster.length), str(mean), str(std), str(cv), str(",".join(failedFilters)), str(cluster.insertedSeq), "\n"])
                 outFile.write(row)
+
+         
+        
 
     ## Close output file ##
     outFile.close()
