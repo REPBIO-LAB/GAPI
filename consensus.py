@@ -36,7 +36,7 @@ def racon(FASTQ_all, outDir):
     unix.mkdir(logDir)
 
     ## 1. Divide the FASTQ in two: 
-    # 1) FASTQ1 containing template read to be polished
+    # 1) FASTQ1 containing template read to be polished (template arbitrarily selected)
     # 2) FASTQ2 containing the remaining reads to polish the template 
     FASTQ1 = formats.FASTQ()
     FASTQ2 = formats.FASTQ()
@@ -59,13 +59,13 @@ def racon(FASTQ_all, outDir):
     FASTQ2_file = outDir + '/reads2polish.fastq'
     FASTQ2.write(FASTQ2_file)
 
-    ## 3. Align reads against the read to be corrected
+    ## 3. Align reads against the template 
     PAF = outDir + '/alignments.paf'
     err = open(logDir + '/minimap2.err', 'w') 
     command = 'minimap2 -x map-ont ' + FASTQ1_file + ' ' + FASTQ2_file + ' > ' + PAF
     status = subprocess.call(command, stderr=err, shell=True)
 
-    ## 4. Read polishing with racon
+    ## 4. Template polishing with racon
     POLISHED = outDir + '/polished.fasta'
     err = open(logDir + '/racon.err', 'w') 
     command = 'racon ' + FASTQ2_file + ' ' + PAF + ' ' + FASTQ1_file + ' > ' + POLISHED
@@ -78,12 +78,6 @@ def racon(FASTQ_all, outDir):
     ## 6. Set FASTA as None if no consensus sequence was generated
     if not FASTA.fastaDict:
         FASTA = None
-
-    ## 7. Do cleanup 
-    #unix.rm(FASTQ1_file)
-    #unix.rm(FASTQ2_file)
-    #unix.rm(PAF)
-    #unix.rm(POLISHED)
 
     return FASTA
     

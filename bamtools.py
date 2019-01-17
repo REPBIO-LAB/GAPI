@@ -40,11 +40,11 @@ def SAM2BAM(SAM, outDir):
 	Output:
 		1. BAM_sorted: Sorted and indexed BAM file. BAM index located in the same directory with the extension '.bai'
     '''
-    ## 0. Create logs directory ##
+    ## 0. Create logs directory 
     logDir = outDir + '/Logs'
     unix.mkdir(logDir)
 
-    ## 1. Convert SAM into BAM ##
+    ## 1. Convert SAM into BAM 
     BAM = outDir + '/alignments.bam'
     err = open(logDir + '/SAM2BAM.err', 'w') 
     command = 'samtools view -Sb ' + SAM + ' > ' + BAM
@@ -55,7 +55,7 @@ def SAM2BAM(SAM, outDir):
         msg = 'SAM to BAM conversion failed' 
         log.step(step, msg)
 
-    ## 2. Sort bam ##
+    ## 2. Sort bam 
     BAM_sorted = outDir + '/alignments.sorted.bam'
     err = open(logDir + '/sort.err', 'w') 
     command = 'samtools sort ' + BAM + ' > ' + BAM_sorted
@@ -66,7 +66,7 @@ def SAM2BAM(SAM, outDir):
         msg = 'BAM sorting failed' 
         log.step(step, msg)    
 
-    ## 3. Index bam ##
+    ## 3. Index bam 
     BAM_index = outDir + '/alignments.sorted.bam.bai'
     err = open(logDir + '/index.err', 'w') 
     command = 'samtools index ' + BAM_sorted + ' > ' + BAM_index
@@ -76,8 +76,6 @@ def SAM2BAM(SAM, outDir):
         step = 'INDEX'
         msg = 'BAM indexing failed' 
         log.step(step, msg)
-
-    ## 4. Cleanup ##
 
     return BAM_sorted
 

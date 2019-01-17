@@ -50,16 +50,15 @@ class SVcaller_nano():
             BED.read(self.confDict['targetBins'])
             bins = [ (line.ref, line.beg, line.end) for line in BED.lines]
 
-        ### 2. Call SV in each bin ##
+        ### 2. Search for SV clusters in each bin ##
         # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
-        INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters = zip(*pool.map(self.callSV_bin, bins))
+        INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters = zip(*pool.map(self.SV_clusters_bin, bins))
         pool.close()
         pool.join()
 
         # Create dictionary containing clusters 
         clusters = {}
-
         clusters['INS-CLUSTER'] = INS_clusters
         clusters['DEL-CLUSTER'] = DEL_clusters
         clusters['LEFT-CLIPPING-CLUSTER'] = left_CLIPPING_clusters 
@@ -68,9 +67,9 @@ class SVcaller_nano():
         # Write output
         output.writeClusters(clusters, self.outDir)
 
-    def callSV_bin(self, window):
+    def SV_clusters_bin(self, window):
         '''
-        Search for structural variants (SV) in a genomic bin/window
+        Search for structural variant (SV) clusters in a genomic bin/window
         '''
 
         ## 0. Set bin id and create bin directory
@@ -193,5 +192,8 @@ class SVcaller_nano():
 
         ## 6.2 Consensus for deletions
         variants.consensusClusters(DEL_clusters, 'DEL-CLUSTER', FASTQ, self.reference, self.confDict, binDir)
+
+        ## Do Cleanup once bin was processed
+        unix.rm([binDir])
 
         return INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters

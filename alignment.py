@@ -58,7 +58,4 @@ def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir):
     ## 3. Convert SAM to sorted BAM
     BAM = bamtools.SAM2BAM(SAM, outDir)
 
-    ## 4. Do cleanup 
-    # TO DO
-
     return BAM    

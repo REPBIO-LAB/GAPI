@@ -93,14 +93,12 @@ def consensusClusters(clusters, clusterType, FASTQ, reference, confDict, rootDir
     '''
     Function to create a consensus sequence for each cluster. 
 
-    ... complete ...
-
     Input:
         1. clusters: bin database containing a set of cluster objects
         2. clusterType: type of cluster (INS-CLUSTER: insertion; DEL-CLUSTER: deletion; LEFT-CLIPPING-CLUSTER: left clipping; RIGHT-CLIPPING-CLUSTER: right clipping)
         3. FASTQ: FASTQ object containing all the reads to supporting SV clusters
         4. reference: path to reference genome in fasta format
-        5. confDict: ...
+        5. confDict: configuration dictionary (Complete...)
         6: rootDir: root directory to write files and directories
     '''
 
@@ -146,7 +144,7 @@ class CLIPPING():
 
         Input:
             1. alignmentObj: pysam read alignment object instance
-            2. clippedSide: clipped side relative to the read (left or right)
+            2. clippedSide: Clipped side relative to the read (left or right)
 
         Output:
             - Update 'clippingType' class attribute
@@ -240,7 +238,7 @@ class cluster():
 
         Input:
             1. newEvents: List of events. List have to be sorted in increasingly order if side specified.
-            2. side: add events to the 'left', to the 'right' of the cluster or add events and resort by begin position (if 'None')
+            2. side: Add events to the 'left', to the 'right' of the cluster or add events and resort by begin position (if 'None')
         '''
         # Asign the cluster id to the events
         newEvents = self.setClusterId(newEvents)
@@ -402,7 +400,7 @@ class cluster():
 
         # B) Don´t attemp polishing if length attribute not available for some of the events 
         
-    def consensus(self, FASTQ, reference, confDict, rootDir): 
+    def consensus(self, FASTQ, reference, confDict, outDir): 
         '''
         Use all the cluster supporting reads to (1) generate a consensus sequence for the cluster and (2) perform local realignment of the consensus 
         to obtain more accurate SV breakpoints and inserted sequence (only for INS)
@@ -411,9 +409,9 @@ class cluster():
         
         Input:
             1. FASTQ: FASTQ object containing all the SV supporting reads  
-            2. reference: path to the reference genome in fasta format. An index of the reference generated with samtools faidx must be located in the same directory
-            3. confDict: configuration dictionary 
-            4. rootDir: root directory where writing the output and log files
+            2. reference: Path to the reference genome in fasta format. An index of the reference generated with samtools faidx must be located in the same directory
+            3. confDict: Configuration dictionary 
+            4. outDir: Output directory
         '''
         ## 1. Create FASTQ object containing cluster supporting reads
         FASTQ_cluster = formats.FASTQ()
@@ -424,37 +422,33 @@ class cluster():
             FASTQ_entry = FASTQ.fastqDict[readId]
             FASTQ_cluster.add(FASTQ_entry)
 
-        ## 2. Create output directory
-        outDir = rootDir + '/' + str(self.id)
-        unix.mkdir(outDir)
-
-        ## 3. Generate consensus sequence for the cluster
+        ## 2. Generate consensus sequence for the cluster
         self.consensus_FASTA = consensus.racon(FASTQ_cluster, outDir)
 
-        ## Exit if consensus sequence could not be generated
+        # Exit if consensus sequence could not be generated
         if self.consensus_FASTA == None:
             return
 
-        ## 4. Realign consensus sequence into the SV event genomic region
-        ## 4.1 Write consensus sequence into fasta file
+        ## 3. Realign consensus sequence into the SV event genomic region
+        ## 3.1 Write consensus sequence into fasta file
         consensusFile = outDir + '/consensus.fasta'
         self.consensus_FASTA.write(consensusFile)
 
-        ## 4.2 Define SV event surrounding region
+        ## 3.2 Define SV event surrounding region
         offset = 500
         targetBeg = self.beg - offset
         targetEnd = self.end + offset
         targetLen = targetEnd - targetBeg
         targetInterval = self.ref + ':' + str(targetBeg) + '-' + str(targetEnd)
 
-        ## 4.3 Do realignment
+        ## 3.3 Do realignment
         BAM = alignment.targeted_alignment_minimap2(consensusFile, targetInterval, reference, outDir)
 
-        ## 5. Extract consensus SV event from consensus sequence alignment
+        ## 4. Extract consensus SV event from consensus sequence realignment
         confDict["targetSV"] = self.clusterType
         INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events, FASTQ = bamtools.collectSV(targetInterval, 0, targetLen, BAM, confDict, None)
                
-        ## 6. Redefine cluster properties based on consensus SV event  
+        ## 5. Redefine cluster properties based on consensus SV event  
         # A) Insertion cluster
         if self.clusterType == 'INS':
             

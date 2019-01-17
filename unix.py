@@ -5,11 +5,10 @@ Module 'unix' - Contains wrappers to unix commands
 ## DEPENDENCIES ##
 # External
 import os
-import sys
+import subprocess
 
 # Internal
 import log
-import unix
 
 ## FUNCTIONS ##
 
@@ -35,24 +34,26 @@ def mkdir(path):
             msg = "Creation of the directory %s failed" % path
             log.step(step, msg)
 
-def rm(path):
-    '''
-    Delete file
 
-    Note: improve function to be able to delete lists of files and directories
+def rm(paths):
+    '''
+    Delete set of files/directories. Directories are deleted recursively
 
     Input:
-        1. path: path to file to be deleted
+        1. files: list containing file/directory paths to be deleted
     '''
 
-    exist = os.path.isfile(path)
+    for path in paths:
 
-    # Only attempt to delete file if it does exists
-    if exist: 
-        try:  
-            os.remove(path)
+        exist = os.path.exists(path)
 
-        except OSError:  
-            step = 'ERROR'
-            msg = "Deletion of the file %s failed" % path
-            log.step(step, msg)
+        # Only attempt to delete file if it does exists
+        if exist: 
+            try:  
+                command = ['rm', '-r', path]
+                subprocess.call(command)
+
+            except OSError:  
+                step = 'ERROR'
+                msg = "Deletion of the file %s failed" % filePath
+                log.step(step, msg)
