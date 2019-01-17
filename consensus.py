@@ -62,7 +62,7 @@ def racon(FASTQ_all, outDir):
     ## 3. Align reads against the read to be corrected
     PAF = outDir + '/alignments.paf'
     err = open(logDir + '/minimap2.err', 'w') 
-    command = 'minimap2 -x ava-ont ' + FASTQ1_file + ' ' + FASTQ2_file + ' > ' + PAF
+    command = 'minimap2 -x map-ont ' + FASTQ1_file + ' ' + FASTQ2_file + ' > ' + PAF
     status = subprocess.call(command, stderr=err, shell=True)
 
     ## 4. Read polishing with racon

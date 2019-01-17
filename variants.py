@@ -431,7 +431,7 @@ class cluster():
         ## 3. Generate consensus sequence for the cluster
         self.consensus_FASTA = consensus.racon(FASTQ_cluster, outDir)
 
-        ## Exit function if consensus sequence could not be generated
+        ## Exit if consensus sequence could not be generated
         if self.consensus_FASTA == None:
             return
 
@@ -439,7 +439,6 @@ class cluster():
         ## 4.1 Write consensus sequence into fasta file
         consensusFile = outDir + '/consensus.fasta'
         self.consensus_FASTA.write(consensusFile)
-
 
         ## 4.2 Define SV event surrounding region
         offset = 500
