@@ -445,7 +445,6 @@ class cluster():
         BAM = alignment.targeted_alignment_minimap2(consensusFile, targetInterval, reference, outDir)
 
         ## 4. Extract consensus SV event from consensus sequence realignment
-        confDict["targetSV"] = self.clusterType
         INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events, FASTQ = bamtools.collectSV(targetInterval, 0, targetLen, BAM, confDict, None)
                
         ## 5. Redefine cluster properties based on consensus SV event  

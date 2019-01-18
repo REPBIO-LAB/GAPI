@@ -233,7 +233,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
         MAPQ = int(alignmentObj.mapping_quality)
 
         if (alignmentObj.is_unmapped == False) and (alignmentObj.is_duplicate == False) and (alignmentObj.query_sequence != None) and (MAPQ >= confDict['minMAPQ']):
-
+                                
             informative = False
 
             ## 1. Collect CLIPPINGS
@@ -260,7 +260,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             ## 2. Collect INDELS
             if ('INS' in confDict['targetSV']) or ('DEL' in confDict['targetSV']):
                 INS_events_tmp, DEL_events_tmp = collectINDELS(alignmentObj, confDict, sample)
-
+                
                 ## Select INS events within the target genomic bin
                 for INS in INS_events_tmp:
                     overlapLen = gRanges.overlap(INS.beg, INS.end, binBeg, binEnd)
