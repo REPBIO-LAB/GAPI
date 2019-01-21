@@ -229,8 +229,8 @@ class cluster():
 
         # Consensus sequences
         self.consensus_FASTA = None
-        self.consensusIns = None
         self.consensusLen = None
+        self.consensusIns = None
 
     def add(self, newEvents, side):
         '''
@@ -400,7 +400,7 @@ class cluster():
 
         # B) Don´t attemp polishing if length attribute not available for some of the events 
         
-    def consensus(self, FASTQ, reference, confDict, outDir): 
+    def consensus(self, FASTQ, reference, confDict, rootDir): 
         '''
         Use all the cluster supporting reads to (1) generate a consensus sequence for the cluster and (2) perform local realignment of the consensus 
         to obtain more accurate SV breakpoints and inserted sequence (only for INS)
@@ -411,8 +411,12 @@ class cluster():
             1. FASTQ: FASTQ object containing all the SV supporting reads  
             2. reference: Path to the reference genome in fasta format. An index of the reference generated with samtools faidx must be located in the same directory
             3. confDict: Configuration dictionary 
-            4. outDir: Output directory
+            4. rootDir: Root directory where temporary folders and files will be created
         '''
+        ## 0. Create output directory
+        outDir = rootDir + '/' + str(self.id)
+        unix.mkdir(outDir)
+
         ## 1. Create FASTQ object containing cluster supporting reads
         FASTQ_cluster = formats.FASTQ()
         readIds = self.supportingReads()
@@ -483,7 +487,8 @@ class cluster():
 
         # C) Clipped cluster 
 
-
+        ## Do Cleanup 
+        unix.rm([outDir])
 
 class INS_cluster(cluster):
     '''

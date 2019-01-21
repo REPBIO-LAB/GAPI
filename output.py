@@ -16,7 +16,7 @@ def writeClusters(clusters, outDir):
     outFile.write(row)
 
     ## Write clusters ##
-    # For each cluster type
+    # For each cluster type (NOTE: modify at one point since the row ordering is different in each execution)
     for clusterType in clusters.keys():
 
         # For each binDb
