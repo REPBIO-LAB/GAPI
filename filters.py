@@ -25,12 +25,15 @@ def filterClusters(clusters, clusterType, confDict):
         ## a) Filter INS cluster
         if (clusterType == 'INS-CLUSTER'):
             cluster.filters = filterINS(cluster,filters2Apply,confDict)
+
         ## b) Filter DEL cluster
         elif (clusterType == 'DEL-CLUSTER'):
             cluster.filters = filterDEL(cluster,filters2Apply,confDict)
+
         ## c) Filter CLIPPING cluster
         elif (clusterType == 'LEFT-CLIPPING-CLUSTER') or (clusterType == 'RIGHT-CLIPPING-CLUSTER'):
             cluster.filters = filterCLIPPING(cluster,filters2Apply,confDict)
+
         ## d) Unexpected cluster type
         else:
             log.info('Error at \'filterClusters\'. Unexpected cluster type')
@@ -53,9 +56,11 @@ def filterINS(cluster,filters2Apply,confDict):
     ## 1. FILTER 1: Minimum number of reads per cluster
     if "NBREADS" in filters2Apply: # check if the filter is selected
         filterInsResults["NBREADS"] = minNbEventsFilter(cluster,confDict)
+
     ## 2. FILTER 2: Maximum Coefficient of Variance per cluster
     if "CV" in filters2Apply: # check if the filter is selected
         filterInsResults["CV"] = maxCvFilter(cluster,confDict)
+
     ## 3. FILTER 3: Maximum number of removed outliers per cluster
     if "OUTLIERS" in filters2Apply: # check if the filter is selected
         filterInsResults["OUTLIERS"] = maxPercOutliers(cluster,confDict)
@@ -79,9 +84,11 @@ def filterDEL(cluster,filters2Apply,confDict):
     ## 1. FILTER 1: Minimum number of reads per cluster
     if "NBREADS" in filters2Apply: # check if the filter is selected
         filterDelResults["NBREADS"] = minNbEventsFilter(cluster,confDict)
+
     ## 2. FILTER 2: Maximum Coefficient of Variance per cluster
     if "CV" in filters2Apply: # check if the filter is selected
         filterDelResults["CV"] = maxCvFilter(cluster,confDict)
+
     ## 3. FILTER 3: Maximum number of removed outliers per cluster
     if "OUTLIERS" in filters2Apply: # check if the filter is selected
         filterDelResults["OUTLIERS"] = maxPercOutliers(cluster,confDict)
@@ -178,6 +185,7 @@ def maxPercOutliers(cluster,confDict):
 
     if percOutliers <= maxOutliers:
         outliersFilter = True
+        
     else:
         outliersFilter = False
 

@@ -8,12 +8,10 @@ import subprocess
 
 # Internal
 import log
-import formats
 import unix
 import bamtools 
 
 ## FUNCTIONS ##
-
 def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir):
     '''
     Align a set of sequences into a reference genome target region. 

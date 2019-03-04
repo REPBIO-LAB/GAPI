@@ -5,7 +5,6 @@ Module 'clustering' - Contains functions for clustering sets of objects based on
 ## DEPENDENCIES ##
 # External
 import time
-import itertools
 
 # Internal
 import log
@@ -178,7 +177,7 @@ def clusterByRcplOverlap(eventsBins, minPercOverlap, minClusterSize, eventType):
                 if eventA.id in eventsInClusters:
                     continue
 
-                ## 2.2. Generate 2 lists of clusters and events overlapping A: 
+                ## 2.2. Generate 2 lists containing clusters and events overlapping A: 
                 # - clustersOverlapA: list of clusters overlapping event A
                 # - eventsOverlapA: list of events NOT INCLUDED IN A CLUSTER overlapping event A
                 clustersOverlapA = [] 
