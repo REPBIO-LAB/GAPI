@@ -27,7 +27,7 @@ parser.add_argument('dbDir', help='Directory containing reference databases (con
 
 ### Optional arguments
 ## General
-parser.add_argument('--normalBam', default=None, dest='normalBam', help='Matched normal bam file. If provided ARCHITECT will run in PAIRED mode')
+parser.add_argument('--normalBam', default=None, dest='normalBam', help='Matched normal bam file. If provided MEIGA will run in PAIRED mode')
 parser.add_argument('-p', '--processes', default=1, dest='processes', type=int, help='Number of processes. Default: 1')
 parser.add_argument('-o', '--outDir', default=os.getcwd(), dest='outDir', help='Output directory. Default: current working directory')
 
