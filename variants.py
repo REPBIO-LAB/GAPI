@@ -15,6 +15,8 @@ import unix
 import consensus
 import alignment
 import bamtools 
+import repeats
+import retrotransposons
 
 ###############
 ## FUNCTIONS ##
@@ -110,6 +112,28 @@ def consensusClusters(clusters, clusterType, FASTQ, reference, confDict, rootDir
         
         ## Create consensus
         cluster.consensus(FASTQ, reference, confDict, outDir)
+
+
+def insTypeClusters(clusters, dbDir, confDict, rootDir):
+    '''
+    ... 
+
+    Input:
+        1. clusters: bin database containing a set of cluster objects
+        2. dbDir: Directory containing reference databases
+        3. confDict: type of cluster (INS-CLUSTER: insertion; DEL-CLUSTER: deletion; LEFT-CLIPPING-CLUSTER: left clipping; RIGHT-CLIPPING-CLUSTER: right clipping)
+        4: rootDir: root directory to write files and directories
+    '''
+    outDir = rootDir + '/InsType/'
+    unix.mkdir(outDir)
+
+    ## 1. Determine insertion type for each cluster
+    for cluster in clusters.collect('INS-CLUSTER'):
+        print('CLUSTER: ', cluster.id)
+        ## Determine insertion type
+        cluster.determine_insType(dbDir, confDict, outDir)
+
+
 
 #############
 ## CLASSES ##
@@ -224,13 +248,23 @@ class cluster():
         self.events = self.setClusterId(events) # Asign the cluster id to the events
         self.clusterType = clusterType
 
-        # Cluster metrics
+        # Cluster filtering
+        self.filters = None
         self.nbOutliers = 0
 
         # Consensus sequences
         self.consensus_FASTA = None
         self.consensusLen = None
         self.consensusIns = None
+
+        # Cluster features
+        self.status = None
+        self.insType = None
+        self.family = None 
+        self.srcId = None
+        self.percResolved = None
+        self.strand = None
+        self.hits = None
 
     def add(self, newEvents, side):
         '''
@@ -399,7 +433,7 @@ class cluster():
             self.end = self.events[-1].end
 
         # B) Don´t attemp polishing if length attribute not available for some of the events 
-        
+
     def consensus(self, FASTQ, reference, confDict, rootDir): 
         '''
         Use all the cluster supporting reads to (1) generate a consensus sequence for the cluster and (2) perform local realignment of the consensus 
@@ -489,6 +523,60 @@ class cluster():
 
         ## Do Cleanup 
         unix.rm([outDir])
+
+    def determine_insType(self, dbDir, confDict, rootDir): 
+        '''
+        Determine the type of insertion (retrotransposon, simple repeat, virus, ...) and collect insertion information.
+
+        Input: 
+            1. dbDir: Directory containing reference databases
+            2. confDict: Configuration dictionary 
+            3. rootDir: Root directory where temporary folders and files will be created
+        '''
+
+        ## 0. Create output directory ##
+        outDir = rootDir + '/' + str(self.id)
+        unix.mkdir(outDir)
+
+        ## 1. Define target INS sequence ##
+        # a) Consensus INS available
+        if self.consensusIns != None:
+            seq = self.consensusIns
+
+        # b) Consensus not available -> set arbitrary INS sequence from one read as consensus
+        else:
+            self.consensusIns = self.events[0].seq
+            seq = self.consensusIns
+        
+        ## 2. Write target seq into file ##
+        FASTA = formats.FASTA()
+        FASTA.fastaDict[str(self.id)] = seq
+
+        FASTA_file = outDir + '/insert.fa'
+        FASTA.write(FASTA_file)
+
+        ## 3. Is an insertion of a simple/tandem repeat? ##
+        minPercSimple = 70
+        self.insType, self.status, self.percResolved = repeats.is_simple_repeat(FASTA_file, minPercSimple, outDir)
+
+        ## Stop if insertion classified as simple repeat
+        if self.status == 'resolved':
+            return
+
+        ## 4. Is a retrotransposition insertion? ##
+        index = dbDir + '/retrotransposonDb.mmi'
+        self.insType, self.family, self.srcId, self.status, self.percResolved, self.strand, self.hits = retrotransposons.is_retrotransposition(FASTA_file, index, outDir)
+        
+        ## Stop if insertion classified as retrotransposon
+        if (self.status == 'resolved') or (self.status == 'partially_resolved'):
+            return
+       
+        ## 5. Is a virus? ##
+        #viruses.is_virus(FASTA_file, index, outDir)
+
+        ## 6. Is a chromosomal insertion? (mitochondrial, templated...) ##
+        #¿¿¿rearrangements???.is_chromosomal_dna(FASTA_file, index, outDir)
+
 
 class INS_cluster(cluster):
     '''

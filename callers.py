@@ -24,12 +24,13 @@ class SVcaller_nano():
     '''
     Structural variation (SV) caller from single molecule sequencing data
     '''
-    def __init__(self, mode, bam, normalBam, reference, confDict, outDir):
+    def __init__(self, mode, bam, normalBam, reference, dbDir, confDict, outDir):
 
         self.mode = mode
         self.bam = bam
         self.normalBam = normalBam
         self.reference = reference
+        self.dbDir = dbDir
         self.confDict = confDict
         self.outDir = outDir
 
@@ -193,7 +194,14 @@ class SVcaller_nano():
         ## 6.2 Consensus for deletions
         variants.consensusClusters(DEL_clusters, 'DEL-CLUSTER', FASTQ, self.reference, self.confDict, binDir)
 
+        ## 7. Determine what has been inserted (insertion type) ##
+        step = 'INS-TYPE'
+        msg = 'Determine what has been inserted (insertion type)'
+        log.step(step, msg)
+
+        variants.insTypeClusters(INS_clusters, self.dbDir, self.confDict, binDir)
+
         ## Do Cleanup once bin was processed
-        unix.rm([binDir])
+        #unix.rm([binDir])
 
         return INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters
