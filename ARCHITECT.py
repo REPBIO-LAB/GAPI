@@ -23,6 +23,7 @@ import bamtools
 parser = argparse.ArgumentParser(description= "Call structural variants (SV) from Nanopore/Pacbio whole genome sequencing data. Two running modes: 1) SINGLE: individual sample; 2) PAIRED: tumour and matched normal sample")
 parser.add_argument('bam', help='Input bam file. Will correspond to the tumour sample in the PAIRED mode')
 parser.add_argument('reference', help='Reference genome in fasta format. An index of the reference generated with samtools faidx must be located in the same directory')
+parser.add_argument('dbDir', help='Directory containing reference databases (consensus sequences, source elements...)')
 
 ### Optional arguments
 ## General
@@ -56,6 +57,7 @@ args = parser.parse_args()
 bam = args.bam
 normalBam = args.normalBam
 reference = args.reference
+dbDir = args.dbDir
 processes = args.processes
 outDir = args.outDir
 
@@ -94,7 +96,7 @@ mode = "SINGLE" if normalBam == None else "PAIRED"
 ##############################################
 scriptName = os.path.basename(sys.argv[0])
 scriptName = os.path.splitext(scriptName)[0]
-version='0.0.4'
+version='0.0.5'
 
 print()
 print('***** ', scriptName, version, 'configuration *****')
@@ -103,6 +105,7 @@ print('mode: ', mode)
 print('bam: ', bam)
 print('normalBam: ', normalBam)
 print('reference: ', reference)
+print('databases: ', dbDir)
 print('processes: ', processes)
 print('outDir: ', outDir, "\n")
 
@@ -156,7 +159,7 @@ confDict['maxClusterCV'] = maxClusterCV
 confDict['maxOutliers'] = maxOutliers
 
 ## 2. Launch structural variation (SV) caller
-callerObj = callers.SVcaller_nano(mode, bam, normalBam, reference, confDict, outDir)
+callerObj = callers.SVcaller_nano(mode, bam, normalBam, reference, dbDir, confDict, outDir)
 callerObj.callSV()
 
 print('***** Finished! *****')
