@@ -202,6 +202,6 @@ class SVcaller_nano():
         variants.insTypeClusters(INS_clusters, self.dbDir, self.confDict, binDir)
 
         ## Do Cleanup once bin was processed
-        #unix.rm([binDir])
+        unix.rm([binDir])
 
         return INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters

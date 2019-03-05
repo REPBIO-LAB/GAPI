@@ -129,7 +129,6 @@ def insTypeClusters(clusters, dbDir, confDict, rootDir):
 
     ## 1. Determine insertion type for each cluster
     for cluster in clusters.collect('INS-CLUSTER'):
-        print('CLUSTER: ', cluster.id)
         ## Determine insertion type
         cluster.determine_insType(dbDir, confDict, outDir)
 
