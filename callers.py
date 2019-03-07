@@ -102,13 +102,16 @@ class SVcaller_nano():
             CLIPPING_left_events = CLIPPING_left_events_T + CLIPPING_left_events_N
             CLIPPING_right_events = CLIPPING_right_events_T + CLIPPING_right_events_N
 
-            ## Join tumour and normal FASTQ     
+            # Cleanup
+            del INS_events_T, DEL_events_T, CLIPPING_left_events_T, CLIPPING_right_events_T  
+            del INS_events_N, DEL_events_N, CLIPPING_left_events_N, CLIPPING_right_events_N
+
+            ## Merge tumour and normal FASTQ     
             FASTQ = formats.FASTQ()
             FASTQ.fastqDict = {**FASTQ_T.fastqDict, **FASTQ_N.fastqDict} 
             
-            ## Clear FASTQ after merging
-            del FASTQ_T 
-            del FASTQ_N            
+            # Cleanup
+            del FASTQ_T, FASTQ_N  
 
         step = 'COLLECT'
         msg = 'Number of SV events in bin (INS, DEL, CLIPPING_left, CLIPPING_right): ' +  "\t".join([binId, str(len(INS_events)), str(len(DEL_events)), str(len(CLIPPING_left_events)), str(len(CLIPPING_right_events))])
@@ -124,28 +127,45 @@ class SVcaller_nano():
         data = [(INS_events, 'INS')]
         INS_bins = structures.createBinDb(ref, beg, end, data, binSizes)
 
+        # Cleanup
+        del INS_events, data  
+
         ## 2.2 Deletions
-        # missing events: 22_24000000_25000000, 22_23000000_2400000. I guess due to size longer than maximum bin size (1Mb)
         binSizes = [100, 1000, 10000, 100000, 1000000]
         data = [(DEL_events, 'DEL')]
         DEL_bins = structures.createBinDb(ref, beg, end, data, binSizes)
+
+        # Cleanup
+        del DEL_events, data  
 
         ## 2.3 Left-clippings
         binSizes = [50]
         data = [(CLIPPING_left_events, 'LEFT-CLIPPING')]
         left_CLIPPING_bins = structures.createBinDb(ref, beg, end, data, binSizes)
 
+        # Cleanup
+        del CLIPPING_left_events, data  
+
         ## 2.4 Right-clippings
         binSizes = [50]
         data = [(CLIPPING_right_events, 'RIGHT-CLIPPING')]
         right_CLIPPING_bins = structures.createBinDb(ref, beg, end, data, binSizes)
 
+        # Cleanup
+        del CLIPPING_right_events, data  
+
         ## 3. Group events into SV clusters ##
         ## 3.1 Cluster insertions
         INS_clusters = clustering.clusterByDist1D(INS_bins, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'INS')
 
+        # Cleanup
+        del INS_bins
+
         ## 3.2 Cluster deletions
         DEL_clusters = clustering.clusterByRcplOverlap(DEL_bins, self.confDict['minPercRcplOverlap'], self.confDict['minRootClusterSize'], 'DEL')
+
+        # Cleanup
+        del DEL_bins
 
         ## 3.3 Cluster clippings
         left_CLIPPING_clusters = clustering.clusterByDist1D(left_CLIPPING_bins, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'LEFT-CLIPPING')
@@ -154,6 +174,9 @@ class SVcaller_nano():
         step = 'CLUSTERING'
         msg = 'Number of clusters (INS, DEL, CLIPPING_left, CLIPPING_right): ' +  "\t".join([binId, str(INS_clusters.nbEvents()[0]), str(DEL_clusters.nbEvents()[0]), str(left_CLIPPING_clusters.nbEvents()[0]), str(right_CLIPPING_clusters.nbEvents()[0])])
         log.step(step, msg)
+
+        # Cleanup
+        del left_CLIPPING_bins, right_CLIPPING_bins
 
         ## 4. Polish SV clusters ##
         step = 'POLISH'
@@ -202,6 +225,6 @@ class SVcaller_nano():
         variants.insTypeClusters(INS_clusters, self.dbDir, self.confDict, binDir)
 
         ## Do Cleanup once bin was processed
-        unix.rm([binDir])
+        #unix.rm([binDir])
 
         return INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters
