@@ -35,18 +35,18 @@ parser.add_argument('-o', '--outDir', default=os.getcwd(), dest='outDir', help='
 parser.add_argument('--targetBins', default=None, dest='targetBins', type=str, help='Bed file containing target genomic bins for SV calling. Overrides --binSize and --refs. Default: None')
 parser.add_argument('-bS', '--binSize', default=1000000, dest='binSize', type=int, help='Input bams will be analised in genomic bins of this size. Default: 1000000')
 parser.add_argument('--refs', default="ALL", dest='refs', type=str, help='Comma separated list of target references to call SV (i.e. 1,2,3,X). Default: All references included in the bam file')
-parser.add_argument('--SV', default="INS,DEL,CLIPPING", dest='SV', type=str, help='Comma separated list of SV event types to collect (INS, DEL and CLIPPING). Default: INS,DEL,CLIPPING')
+parser.add_argument('--SV', default="INS,CLIPPING", dest='SV', type=str, help='Comma separated list of SV event types to collect (INS, DEL and CLIPPING). Default: INS,CLIPPING')
 
 ## Filtering thresholds
 parser.add_argument('--minMAPQ', default=20, dest='minMAPQ', type=int, help='Minimum mapping quality required for each read. Default: 20')
 parser.add_argument('--minINDELlen', default=50, dest='minINDELlen', type=int, help='Minimum indel length. Default: 50')
 parser.add_argument('--minCLIPPINGlen', default=500, dest='minCLIPPINGlen', type=int, help='Minimum clipped sequence length for each read. Default: 500')
-parser.add_argument('--minRootClusterSize', default=2, dest='minRootClusterSize', type=int, help='Minimum number of reads composing a root cluster (before extension step). Default: 2')
+parser.add_argument('--minRootClusterSize', default=2, dest='minRootClusterSize', type=int, help='Minimum number of reads composing a root cluster. Default: 2')
 parser.add_argument('--maxBkpDist', default=50, dest='maxBkpDist', type=int, help='Maximum distance bewteen two adjacent breakpoints for INS and CLIPPING clustering. Default: 50')
 parser.add_argument('--minPercOverlap', default=70, dest='minPercRcplOverlap', type=int, help='Minimum percentage of reciprocal overlap for DEL clustering. Default: 50')
-parser.add_argument('--maxClusterDist', default=100, dest='maxClusterDist', type=int, help='Maximum distance bewteen different clusters for metaclustering. Default: 100')
-parser.add_argument('--clusterFilters', default="NBREADS,CV,OUTLIERS", dest='clusterFilters', type=str, help='Comma separated list of cluster filters to apply (minimum number of reads, minimum Coefficient of Variation and minimum percentage of outliers). Default: NBREADS,CV,OUTLIERS')
-parser.add_argument('--minClusterSize', default=2, dest='minClusterSize', type=int, help='Minimum number of reads composing a cluster (after extension step). Default: 2')
+parser.add_argument('--clusterFilters', default="MIN-NBREADS,MAX-NBREADS,CV,OUTLIERS", dest='clusterFilters', type=str, help='Comma separated list of cluster filters to apply (minimum number of reads, max number of reads, minimum Coefficient of Variation and minimum percentage of outliers). Default: MIN-NBREADS,MAX-NBREADS,CV,OUTLIERS')
+parser.add_argument('--minClusterSize', default=2, dest='minClusterSize', type=int, help='Minimum number of reads composing a cluster. Default: 2')
+parser.add_argument('--maxClusterSize', default=500, dest='maxClusterSize', type=int, help='Maximum number of reads composing a cluster. Default: 500')
 parser.add_argument('--maxClusterCV', default=15, dest='maxClusterCV', type=int, help='Maximum Coefficient of Variation of a cluster. Default: 15')
 parser.add_argument('--maxOutliers', default=0.5, dest='maxOutliers', type=int, help='Maximum percentage of events supporting a cluster that have been removed during the polish step. Default: 0.5')
 
@@ -71,12 +71,12 @@ SV = args.SV
 minMAPQ = args.minMAPQ
 minINDELlen = args.minINDELlen
 minCLIPPINGlen = args.minCLIPPINGlen
-maxBkpDist = args.maxBkpDist
 minRootClusterSize = args.minRootClusterSize
+maxBkpDist = args.maxBkpDist
 minPercRcplOverlap = args.minPercRcplOverlap
-maxClusterDist = args.maxClusterDist
 clusterFilters = args.clusterFilters
 minClusterSize = args.minClusterSize
+maxClusterSize = args.maxClusterSize
 maxClusterCV = args.maxClusterCV
 maxOutliers = args.maxOutliers
 
@@ -96,7 +96,7 @@ mode = "SINGLE" if normalBam == None else "PAIRED"
 ##############################################
 scriptName = os.path.basename(sys.argv[0])
 scriptName = os.path.splitext(scriptName)[0]
-version='0.0.5'
+version='0.0.6'
 
 print()
 print('***** ', scriptName, version, 'configuration *****')
@@ -122,13 +122,14 @@ print('minCLIPPINGlength: ', minCLIPPINGlen)
 print('minRootClusterSize: ', minRootClusterSize)
 print('maxBkpDistance: ', maxBkpDist)
 print('minPercOverlap: ', minPercRcplOverlap)
-print('maxClusterDistance: ', maxClusterDist)
 print('clusterFilters: ', clusterFilters)
-print('maxClusterDistance: ', minClusterSize)
+print('minClusterSize: ', minClusterSize)
+print('maxClusterSize: ', maxClusterSize)
 print('maxClusterCV: ', maxClusterCV)
 print('maxOutliers: ', maxOutliers, "\n")
 
 print('***** Executing ', scriptName, '.... *****', "\n")
+
 
 ##########
 ## CORE ## 
@@ -152,9 +153,9 @@ confDict['minCLIPPINGlen'] = minCLIPPINGlen
 confDict['maxBkpDist'] = maxBkpDist
 confDict['minRootClusterSize'] = minRootClusterSize
 confDict['minPercRcplOverlap'] = minPercRcplOverlap
-confDict['maxClusterDist'] = maxClusterDist
 confDict['clusterFilters'] = clusterFilters
 confDict['minClusterSize'] = minClusterSize
+confDict['maxClusterSize'] = maxClusterSize
 confDict['maxClusterCV'] = maxClusterCV
 confDict['maxOutliers'] = maxOutliers
 
