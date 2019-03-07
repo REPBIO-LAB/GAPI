@@ -109,7 +109,6 @@ def consensusClusters(clusters, clusterType, FASTQ, reference, confDict, rootDir
 
     ## 1. Create consensus sequence for each cluster
     for cluster in clusters.collect(clusterType):        
-        print('CLUSTER-ID: ', cluster.id, cluster.ref, cluster.beg, cluster.end, cluster.filters, cluster.nbEvents())
 
         ## Attempt to create a consensus if: 
         # a) No filter has been applied to the clusters OR
@@ -117,13 +116,10 @@ def consensusClusters(clusters, clusterType, FASTQ, reference, confDict, rootDir
         # c) MAX-NBREADS filter has been applied and the cluster passes the filter 
         # Done to skip consensus generation for clusters with an abnormally high number of supporting reads. They are artefacts and takes a very long time to process them
         if (cluster.filters == None) or ('MAX-NBREADS' not in cluster.filters) or (cluster.filters['MAX-NBREADS']):
-            print('CREATE CONSENSUS')
             
             ## Create consensus
             cluster.consensus(FASTQ, reference, confDict, outDir)
 
-        else:
-            print('SKIP CONSENSUS GENERATION')
 
 def insTypeClusters(clusters, dbDir, confDict, rootDir):
     '''
@@ -140,7 +136,7 @@ def insTypeClusters(clusters, dbDir, confDict, rootDir):
 
     ## 1. Determine insertion type for each cluster
     for cluster in clusters.collect('INS-CLUSTER'):
-        
+
         ## Determine insertion type
         cluster.determine_insType(dbDir, confDict, outDir)
 
@@ -533,7 +529,7 @@ class cluster():
         # C) Clipped cluster 
 
         ## Do Cleanup 
-        #unix.rm([outDir])
+        unix.rm([outDir])
 
     def determine_insType(self, dbDir, confDict, rootDir): 
         '''
