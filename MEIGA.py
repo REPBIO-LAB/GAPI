@@ -42,7 +42,7 @@ parser.add_argument('--minMAPQ', default=20, dest='minMAPQ', type=int, help='Min
 parser.add_argument('--minINDELlen', default=50, dest='minINDELlen', type=int, help='Minimum indel length. Default: 50')
 parser.add_argument('--minCLIPPINGlen', default=500, dest='minCLIPPINGlen', type=int, help='Minimum clipped sequence length for each read. Default: 500')
 parser.add_argument('--minRootClusterSize', default=2, dest='minRootClusterSize', type=int, help='Minimum number of reads composing a root cluster. Default: 2')
-parser.add_argument('--maxBkpDist', default=50, dest='maxBkpDist', type=int, help='Maximum distance bewteen two adjacent breakpoints for INS and CLIPPING clustering. Default: 50')
+parser.add_argument('--maxBkpDist', default=100, dest='maxBkpDist', type=int, help='Maximum distance bewteen two adjacent breakpoints for INS and CLIPPING clustering. Default: 100')
 parser.add_argument('--minPercOverlap', default=70, dest='minPercRcplOverlap', type=int, help='Minimum percentage of reciprocal overlap for DEL clustering. Default: 50')
 parser.add_argument('--clusterFilters', default="MIN-NBREADS,MAX-NBREADS,CV,OUTLIERS", dest='clusterFilters', type=str, help='Comma separated list of cluster filters to apply (minimum number of reads, max number of reads, minimum Coefficient of Variation and minimum percentage of outliers). Default: MIN-NBREADS,MAX-NBREADS,CV,OUTLIERS')
 parser.add_argument('--minClusterSize', default=2, dest='minClusterSize', type=int, help='Minimum number of reads composing a cluster. Default: 2')

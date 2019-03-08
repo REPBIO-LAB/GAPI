@@ -123,7 +123,7 @@ class SVcaller_nano():
         log.step(step, msg)
 
         ## 2.1 Insertions
-        binSizes = [50]
+        binSizes = [self.confDict['maxBkpDist']] # use maxBkpDist as binsize
         data = [(INS_events, 'INS')]
         INS_bins = structures.createBinDb(ref, beg, end, data, binSizes)
 
@@ -139,7 +139,7 @@ class SVcaller_nano():
         del DEL_events, data  
 
         ## 2.3 Left-clippings
-        binSizes = [50]
+        binSizes = [self.confDict['maxBkpDist']] # use maxBkpDist as binsize
         data = [(CLIPPING_left_events, 'LEFT-CLIPPING')]
         left_CLIPPING_bins = structures.createBinDb(ref, beg, end, data, binSizes)
 
@@ -147,7 +147,7 @@ class SVcaller_nano():
         del CLIPPING_left_events, data  
 
         ## 2.4 Right-clippings
-        binSizes = [50]
+        binSizes = [self.confDict['maxBkpDist']] # use maxBkpDist as binsize
         data = [(CLIPPING_right_events, 'RIGHT-CLIPPING')]
         right_CLIPPING_bins = structures.createBinDb(ref, beg, end, data, binSizes)
 
