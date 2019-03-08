@@ -259,10 +259,11 @@ class cluster():
         self.filters = None
         self.nbOutliers = 0
 
-        # Consensus sequences
+        # Inserted seq
         self.consensus_FASTA = None
         self.consensusLen = None
-        self.consensusIns = None
+        self.isConsensus = None
+        self.insertSeq = None
 
         # Cluster features
         self.status = None
@@ -472,7 +473,11 @@ class cluster():
 
         # Exit if consensus sequence could not be generated
         if self.consensus_FASTA == None:
+            print('CONSENSUS_NOT_GENERATED')
             return
+        else:
+            print('CONSENSUS_GENERATED')
+
 
         ## 3. Realign consensus sequence into the SV event genomic region
         ## 3.1 Write consensus sequence into fasta file
@@ -499,10 +504,11 @@ class cluster():
             # a) Single event 
             if len(INS_events) == 1:
                 INS = INS_events[0]
+                self.isConsensus = True
                 self.beg = INS.beg + targetBeg # Map alignments into chromosomal coordinates
                 self.end = INS.end + targetBeg
                 self.consensusLen = INS.length
-                self.consensusIns = INS.seq
+                self.insertSeq = INS.seq
 
             # b) Multiple possible events. Select most likely (TO DO) 
             elif len(INS_events) > 1:
@@ -529,7 +535,7 @@ class cluster():
         # C) Clipped cluster 
 
         ## Do Cleanup 
-        unix.rm([outDir])
+        #unix.rm([outDir])
 
     def determine_insType(self, dbDir, confDict, rootDir): 
         '''
@@ -546,14 +552,17 @@ class cluster():
         unix.mkdir(outDir)
 
         ## 1. Define target INS sequence ##
-        # a) Consensus INS available
-        if self.consensusIns != None:
-            seq = self.consensusIns
+        # a) INS seq already available
+        if self.insertSeq != None:
+            print('CONSENSUS_AVAILABLE')
+            seq = self.insertSeq
 
-        # b) Consensus not available -> set arbitrary INS sequence from one read as consensus
+        # b) INS seq not available -> pick arbitrary INS sequence from one read 
         else:
-            self.consensusIns = self.events[0].seq
-            seq = self.consensusIns
+            print('CONSENSUS_NOT_AVAILABLE')
+            self.isConsensus = False
+            self.insertSeq = self.events[0].seq
+            seq = self.insertSeq
         
         ## 2. Write target seq into file ##
         FASTA = formats.FASTA()
