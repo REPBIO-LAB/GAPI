@@ -22,6 +22,7 @@ import bamtools
 ## 1. Define parser ##
 parser = argparse.ArgumentParser(description= "Call structural variants (SV) from Nanopore/Pacbio whole genome sequencing data. Two running modes: 1) SINGLE: individual sample; 2) PAIRED: tumour and matched normal sample")
 parser.add_argument('bam', help='Input bam file. Will correspond to the tumour sample in the PAIRED mode')
+parser.add_argument('technology', help='Sequencing technology used to generate the data (NANOPORE or PACBIO)')
 parser.add_argument('reference', help='Reference genome in fasta format. An index of the reference generated with samtools faidx must be located in the same directory')
 parser.add_argument('dbDir', help='Directory containing reference databases (consensus sequences, source elements...)')
 
@@ -54,6 +55,7 @@ parser.add_argument('--maxOutliers', default=0.5, dest='maxOutliers', type=int, 
 args = parser.parse_args()
 
 ## General
+technology = args.technology
 bam = args.bam
 normalBam = args.normalBam
 reference = args.reference
@@ -91,17 +93,23 @@ targetRefs = refs.split(',')
 ## Determine running mode:
 mode = "SINGLE" if normalBam == None else "PAIRED"
 
+## If unknown technology provided raise an error and exit (TO DO)
+if technology not in ['NANOPORE', 'PACBIO']:
+	log.info('Abort execution as ' + technology + ' technology not supported')
+	sys.exit(1)
+
 ##############################################
 ## Display configuration to standard output ##
 ##############################################
 scriptName = os.path.basename(sys.argv[0])
 scriptName = os.path.splitext(scriptName)[0]
-version='0.0.6'
+version='0.0.7'
 
 print()
 print('***** ', scriptName, version, 'configuration *****')
 print('** General **')
 print('mode: ', mode)
+print('technology: ', technology)
 print('bam: ', bam)
 print('normalBam: ', normalBam)
 print('reference: ', reference)
@@ -139,6 +147,7 @@ confDict = {}
 
 ## General
 confDict['processes'] = processes
+confDict['technology'] = technology
 
 ## BAM processing
 confDict['targetBins'] = targetBins

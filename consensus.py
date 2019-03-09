@@ -13,9 +13,9 @@ import unix
 
 ## FUNCTIONS ##
 
-def racon(FASTQ_all, outDir):
+def racon(FASTQ_all, technology, outDir):
     '''
-    Build a consensus sequence from a set of long-reads (Nanopore or Pacbio). 
+    Build a consensus sequence from a set of long-reads (NANOPORE or PACBIO). 
 
     The algorithm selects an arbitrary long-read sequence as template and uses the remaining sequences to correct the template
     with racon. 
@@ -25,7 +25,8 @@ def racon(FASTQ_all, outDir):
 
     Input:
         1. FASTQ_all: FASTQ object containing all the reads to be used to build a consensus 
-        2. outDir: Output directory
+        2. technology: long-read sequencing technology (PACBIO or NANOPORE)
+        3. outDir: Output directory
 
     Output:
         1. FASTA: FASTA object containing consensus sequence or None if no consensus sequence was generated 
@@ -60,9 +61,21 @@ def racon(FASTQ_all, outDir):
     FASTQ2.write(FASTQ2_file)
 
     ## 3. Align reads against the template 
+    ## Set preset according to the technology
+    if technology == 'PACBIO':
+        preset = 'map-pb'
+
+    elif technology == 'NANOPORE':
+        preset = 'map-ont'
+    
+    else:
+        log.info('ERROR: ' + technology + ' technology not supported')
+        sys.exit(1)
+
+    ## Do alignment 
     PAF = outDir + '/alignments.paf'
     err = open(logDir + '/minimap2.err', 'w') 
-    command = 'minimap2 -x map-ont ' + FASTQ1_file + ' ' + FASTQ2_file + ' > ' + PAF
+    command = 'minimap2 -x ' + preset + ' ' + FASTQ1_file + ' ' + FASTQ2_file + ' > ' + PAF
     status = subprocess.call(command, stderr=err, shell=True)
 
     ## 4. Template polishing with racon

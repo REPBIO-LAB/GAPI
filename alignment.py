@@ -45,7 +45,8 @@ def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir):
     ## 2. Align the sequences into the target region 
     SAM = outDir + '/alignments.sam'
     err = open(logDir + '/align.err', 'w') 
-    command = 'minimap2 -ax map-ont ' + target + ' ' + FASTA + ' > ' + SAM
+    command = 'minimap2 -a -k15 -w10 ' + target + ' ' + FASTA + ' > ' + SAM
+
     status = subprocess.call(command, stderr=err, shell=True)
 
     if status != 0:
