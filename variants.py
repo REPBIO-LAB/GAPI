@@ -121,13 +121,13 @@ def consensusClusters(clusters, clusterType, FASTQ, reference, confDict, rootDir
             cluster.consensus(FASTQ, reference, confDict, outDir)
 
 
-def insTypeClusters(clusters, dbDir, confDict, rootDir):
+def insTypeClusters(clusters, index, confDict, rootDir):
     '''
-    ... 
+    Function to determine what has been inserted for each cluster. 
 
     Input:
         1. clusters: bin database containing a set of cluster objects
-        2. dbDir: Directory containing reference databases
+        2. index: Minimap2 index for fasta file containing retrotransposon related sequences 
         3. confDict: type of cluster (INS-CLUSTER: insertion; DEL-CLUSTER: deletion; LEFT-CLIPPING-CLUSTER: left clipping; RIGHT-CLIPPING-CLUSTER: right clipping)
         4: rootDir: root directory to write files and directories
     '''
@@ -138,7 +138,7 @@ def insTypeClusters(clusters, dbDir, confDict, rootDir):
     for cluster in clusters.collect('INS-CLUSTER'):
 
         ## Determine insertion type
-        cluster.determine_insType(dbDir, confDict, outDir)
+        cluster.determine_insType(index, confDict, outDir)
 
 
 
@@ -533,12 +533,12 @@ class cluster():
         ## Do Cleanup 
         unix.rm([outDir])
 
-    def determine_insType(self, dbDir, confDict, rootDir): 
+    def determine_insType(self, index, confDict, rootDir): 
         '''
         Determine the type of insertion (retrotransposon, simple repeat, virus, ...) and collect insertion information.
 
         Input: 
-            1. dbDir: Directory containing reference databases
+            1. index: Minimap2 index for fasta file containing retrotransposon related sequences 
             2. confDict: Configuration dictionary 
             3. rootDir: Root directory where temporary folders and files will be created
         '''
@@ -574,7 +574,6 @@ class cluster():
             return
 
         ## 4. Is a retrotransposition insertion? ##
-        index = dbDir + '/retrotransposonDb.mmi'
         self.insType, self.family, self.srcId, self.status, self.percResolved, self.strand, self.hits = retrotransposons.is_retrotransposition(FASTA_file, index, outDir)
         
         ## Stop if insertion classified as retrotransposon
@@ -582,10 +581,10 @@ class cluster():
             return
        
         ## 5. Is a virus? ##
-        #viruses.is_virus(FASTA_file, index, outDir)
+        #viruses.is_virus()
 
         ## 6. Is a chromosomal insertion? (mitochondrial, templated...) ##
-        #¿¿¿rearrangements???.is_chromosomal_dna(FASTA_file, index, outDir)
+        #¿¿¿rearrangements???.is_chromosomal_dna()
 
 
 class INS_cluster(cluster):

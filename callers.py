@@ -9,6 +9,7 @@ import multiprocessing as mp
 # Internal
 import log
 import unix
+import databases
 import bamtools
 import formats
 import structures
@@ -24,21 +25,29 @@ class SVcaller_nano():
     '''
     Structural variation (SV) caller from single molecule sequencing data
     '''
-    def __init__(self, mode, bam, normalBam, reference, dbDir, confDict, outDir):
+    def __init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir):
 
         self.mode = mode
         self.bam = bam
         self.normalBam = normalBam
         self.reference = reference
-        self.dbDir = dbDir
+        self.refDir = refDir
         self.confDict = confDict
         self.outDir = outDir
+        self.retrotransposonDb = None
+        self.retrotransposonDbIndex = None
 
     def callSV(self):
         '''
         Search for structural variants (SV) genome wide or in a set of target genomic regions
         '''
-        ### 1. Define genomic bins to search for SV ##
+        ### 1. Create and index reference databases prior SV calling ##
+        dbDir = self.outDir + '/databases'
+        unix.mkdir(dbDir)
+
+        self.retrotransposonDb, self.retrotransposonDbIndex = databases.buildRetrotransposonDb(self.refDir, self.confDict['transductionSearch'], dbDir)
+
+        ### 2. Define genomic bins to search for SV ##
         # a) Create bins the novo
         if self.confDict['targetBins'] == None:
 
@@ -51,7 +60,7 @@ class SVcaller_nano():
             BED.read(self.confDict['targetBins'])
             bins = [ (line.ref, line.beg, line.end) for line in BED.lines]
 
-        ### 2. Search for SV clusters in each bin ##
+        ### 3. Search for SV clusters in each bin ##
         # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
         INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters = zip(*pool.map(self.SV_clusters_bin, bins))
@@ -67,6 +76,9 @@ class SVcaller_nano():
         
         # Write output
         output.writeClusters(clusters, self.outDir)
+
+        # Do Cleanup 
+        unix.rm([dbDir])
 
     def SV_clusters_bin(self, window):
         '''
@@ -222,7 +234,7 @@ class SVcaller_nano():
         msg = 'Determine what has been inserted (insertion type)'
         log.step(step, msg)
 
-        variants.insTypeClusters(INS_clusters, self.dbDir, self.confDict, binDir)
+        variants.insTypeClusters(INS_clusters, self.retrotransposonDbIndex, self.confDict, binDir)
 
         ## Do Cleanup once bin was processed
         unix.rm([binDir])

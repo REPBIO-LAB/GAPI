@@ -25,7 +25,7 @@ def racon(FASTQ_all, technology, outDir):
 
     Input:
         1. FASTQ_all: FASTQ object containing all the reads to be used to build a consensus 
-        2. technology: long-read sequencing technology (PACBIO or NANOPORE)
+        2. technology: Long-read sequencing technology (PACBIO or NANOPORE)
         3. outDir: Output directory
 
     Output:
@@ -78,11 +78,21 @@ def racon(FASTQ_all, technology, outDir):
     command = 'minimap2 -x ' + preset + ' ' + FASTQ1_file + ' ' + FASTQ2_file + ' > ' + PAF
     status = subprocess.call(command, stderr=err, shell=True)
 
+    if status != 0:
+        step = 'CONSENSUS'
+        msg = 'Alignment of sequences against template failed' 
+        log.step(step, msg)
+
     ## 4. Template polishing with racon
     POLISHED = outDir + '/polished.fasta'
     err = open(logDir + '/racon.err', 'w') 
     command = 'racon ' + FASTQ2_file + ' ' + PAF + ' ' + FASTQ1_file + ' > ' + POLISHED
     status = subprocess.call(command, stderr=err, shell=True)
+
+    if status != 0:
+        step = 'CONSENSUS'
+        msg = 'Template polishing failed' 
+        log.step(step, msg)
 
     ## 5. Read polished sequence 
     FASTA = formats.FASTA()

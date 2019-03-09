@@ -24,11 +24,12 @@ parser = argparse.ArgumentParser(description= "Call structural variants (SV) fro
 parser.add_argument('bam', help='Input bam file. Will correspond to the tumour sample in the PAIRED mode')
 parser.add_argument('technology', help='Sequencing technology used to generate the data (NANOPORE or PACBIO)')
 parser.add_argument('reference', help='Reference genome in fasta format. An index of the reference generated with samtools faidx must be located in the same directory')
-parser.add_argument('dbDir', help='Directory containing reference databases (consensus sequences, source elements...)')
+parser.add_argument('refDir', help='Directory containing reference databases (consensus sequences, source elements...)')
 
 ### Optional arguments
 ## General
 parser.add_argument('--normalBam', default=None, dest='normalBam', help='Matched normal bam file. If provided MEIGA will run in PAIRED mode')
+parser.add_argument('--transduction-search', action="store_true", default=False, dest='transductionSearch', help='Enable transduction search. If not enabled only solo events will be identified')
 parser.add_argument('-p', '--processes', default=1, dest='processes', type=int, help='Number of processes. Default: 1')
 parser.add_argument('-o', '--outDir', default=os.getcwd(), dest='outDir', help='Output directory. Default: current working directory')
 
@@ -59,7 +60,8 @@ technology = args.technology
 bam = args.bam
 normalBam = args.normalBam
 reference = args.reference
-dbDir = args.dbDir
+refDir = args.refDir
+transductionSearch = args.transductionSearch
 processes = args.processes
 outDir = args.outDir
 
@@ -93,7 +95,7 @@ targetRefs = refs.split(',')
 ## Determine running mode:
 mode = "SINGLE" if normalBam == None else "PAIRED"
 
-## If unknown technology provided raise an error and exit (TO DO)
+## If unknown technology provided raise an error and exit 
 if technology not in ['NANOPORE', 'PACBIO']:
 	log.info('Abort execution as ' + technology + ' technology not supported')
 	sys.exit(1)
@@ -113,8 +115,9 @@ print('technology: ', technology)
 print('bam: ', bam)
 print('normalBam: ', normalBam)
 print('reference: ', reference)
-print('databases: ', dbDir)
+print('databases: ', refDir)
 print('processes: ', processes)
+print('transduction-search: ', transductionSearch)
 print('outDir: ', outDir, "\n")
 
 print('** BAM processing **')
@@ -138,7 +141,6 @@ print('maxOutliers: ', maxOutliers, "\n")
 
 print('***** Executing ', scriptName, '.... *****', "\n")
 
-
 ##########
 ## CORE ## 
 ##########
@@ -148,6 +150,7 @@ confDict = {}
 ## General
 confDict['processes'] = processes
 confDict['technology'] = technology
+confDict['transductionSearch'] = transductionSearch
 
 ## BAM processing
 confDict['targetBins'] = targetBins
@@ -169,7 +172,7 @@ confDict['maxClusterCV'] = maxClusterCV
 confDict['maxOutliers'] = maxOutliers
 
 ## 2. Launch structural variation (SV) caller
-callerObj = callers.SVcaller_nano(mode, bam, normalBam, reference, dbDir, confDict, outDir)
+callerObj = callers.SVcaller_nano(mode, bam, normalBam, reference, refDir, confDict, outDir)
 callerObj.callSV()
 
 print('***** Finished! *****')
