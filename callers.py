@@ -97,16 +97,16 @@ class SVcaller_nano():
         ## 1. Search for SV candidate events in the bam file/s ##
         # a) Single sample mode
         if self.mode == "SINGLE":
-            INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events, FASTQ = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, None)
+            INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events, supportingReads = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, None)
 
         # b) Paired sample mode (tumour & matched normal)
         else:
 
             ## Search for SV events in the tumour
-            INS_events_T, DEL_events_T, CLIPPING_left_events_T, CLIPPING_right_events_T, FASTQ_T = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, 'TUMOUR')
+            INS_events_T, DEL_events_T, CLIPPING_left_events_T, CLIPPING_right_events_T, supportingReads_T = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, 'TUMOUR')
 
             ## Search for SV events in the normal
-            INS_events_N, DEL_events_N, CLIPPING_left_events_N, CLIPPING_right_events_N, FASTQ_N = bamtools.collectSV(ref, beg, end, self.normalBam, self.confDict, 'NORMAL')
+            INS_events_N, DEL_events_N, CLIPPING_left_events_N, CLIPPING_right_events_N, supportingReads_N = bamtools.collectSV(ref, beg, end, self.normalBam, self.confDict, 'NORMAL')
 
             ## Join tumour and normal lists
             INS_events = INS_events_T + INS_events_N
@@ -118,12 +118,19 @@ class SVcaller_nano():
             del INS_events_T, DEL_events_T, CLIPPING_left_events_T, CLIPPING_right_events_T  
             del INS_events_N, DEL_events_N, CLIPPING_left_events_N, CLIPPING_right_events_N
 
-            ## Merge tumour and normal FASTQ     
-            FASTQ = formats.FASTQ()
-            FASTQ.fastqDict = {**FASTQ_T.fastqDict, **FASTQ_N.fastqDict} 
+            ## Merge tumour and normal FASTQ/FASTA              
+            # a) Quality available  
+            if self.confDict['quality']:
+                supportingReads = formats.FASTQ()
+
+            # b) Quality not available
+            else:
+                supportingReads = formats.FASTA()
+        
+            supportingReads.seqDict = {**supportingReads_T.seqDict, **supportingReads_N.seqDict} 
             
             # Cleanup
-            del FASTQ_T, FASTQ_N  
+            del supportingReads_T, supportingReads_N  
 
         step = 'COLLECT'
         msg = 'Number of SV events in bin (INS, DEL, CLIPPING_left, CLIPPING_right): ' +  "\t".join([binId, str(len(INS_events)), str(len(DEL_events)), str(len(CLIPPING_left_events)), str(len(CLIPPING_right_events))])
@@ -224,10 +231,10 @@ class SVcaller_nano():
         log.step(step, msg)
 
         ## 6.1 Consensus for insertions
-        variants.consensusClusters(INS_clusters, 'INS-CLUSTER', FASTQ, self.reference, self.confDict, binDir)
+        variants.consensusClusters(INS_clusters, 'INS-CLUSTER', supportingReads, self.reference, self.confDict, binDir)
 
         ## 6.2 Consensus for deletions
-        variants.consensusClusters(DEL_clusters, 'DEL-CLUSTER', FASTQ, self.reference, self.confDict, binDir)
+        variants.consensusClusters(DEL_clusters, 'DEL-CLUSTER', supportingReads, self.reference, self.confDict, binDir)
 
         ## 7. Determine what has been inserted (insertion type) ##
         step = 'INS-TYPE'

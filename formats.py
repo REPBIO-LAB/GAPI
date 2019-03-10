@@ -43,7 +43,7 @@ class FASTA():
         '''
         Initialize empty class instance
         '''
-        self.fastaDict = {}
+        self.seqDict = {}
 
     def read(self, filePath):
         '''
@@ -66,7 +66,7 @@ class FASTA():
 
             # join all sequence lines to one.
             seq = ''.join(s.strip() for s in next(faiter))
-            self.fastaDict[header] = seq
+            self.seqDict[header] = seq
 
     def write(self, filePath):
         '''
@@ -74,7 +74,7 @@ class FASTA():
         '''
         fastaFile = open(filePath, 'w')
 
-        for header, seq in self.fastaDict.items():
+        for header, seq in self.seqDict.items():
             header = '>' + header
 
             fastaFile.write("%s\n" % header)
@@ -93,7 +93,7 @@ class FASTQ():
         '''
         Initialize empty class instance
         '''
-        self.fastqDict = {}
+        self.seqDict = {}
 
     def write(self, filePath):
         '''
@@ -103,7 +103,7 @@ class FASTQ():
         fastqFile = open(filePath, 'w')
 
         # Write FASTQ lines
-        for FASTQ_entry in self.fastqDict.values(): 
+        for FASTQ_entry in self.seqDict.values(): 
 
             seqId = '@' + FASTQ_entry.seqId
             description = '+' + FASTQ_entry.description
@@ -121,7 +121,7 @@ class FASTQ():
         '''
         Add sequence to the fastq object
         '''
-        self.fastqDict[fastqLine.seqId] = fastqLine
+        self.seqDict[fastqLine.seqId] = fastqLine
         
 
 class FASTQ_entry():

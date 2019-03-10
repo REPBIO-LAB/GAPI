@@ -193,6 +193,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             * minMAPQ        -> minimum mapping quality
             * minCLIPPINGlen -> minimum clipping lenght
             * minINDELlen    -> minimum INS and DEL lenght
+            * quality        -> True (sequence qualities available) or False (not available). 
 
         6. sample: type of sample (TUMOUR, NORMAL or None)
 
@@ -201,7 +202,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
         2. DEL_events: list of DEL objects
         3. CLIPPING_left_events: list of CLIPPING objects on the left
         4. CLIPPING_left_events: list of CLIPPING objects on the right
-        5. FASTQ: FASTQ object containing the reads supporting the SV events
+        5. supportingReads: FASTQ (if qualities available) or FASTA (if qualities NOT available) object containing the reads supporting the SV events
 
         Note: * include secondary alignment filter???
     '''
@@ -212,8 +213,14 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
     CLIPPING_left_events = []
     CLIPPING_right_events = []
 
-    ## Initialize FASTQ object
-    FASTQ = formats.FASTQ()
+    ## Initialize FASTA/FASTQ object containing supporting reads    
+    # a) Quality available  
+    if confDict['quality']:
+        supportingReads = formats.FASTQ()
+
+    # b) Quality not available
+    else:
+        supportingReads = formats.FASTA()
 
     ## Open BAM file for reading
     bamFile = pysam.AlignmentFile(bam, "rb")
@@ -280,17 +287,35 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             ## 3. Add read to the FASTQ object if supports a SV event (DEL, INS or CLIPPING)
             if informative:
  
-                ## Transform the BAM alignment into a FASTQ_entry object.
-                FASTQ_entry = BAM2FASTQ_entry(alignmentObj)
+                # a) Quality available -> Add supporting read to FASTQ
+                if confDict['quality']:
 
-                ## Add FASTQ_entry to the FASTQ object
-                FASTQ.add(FASTQ_entry)
+                    ## Transform the BAM alignment into a FASTQ_entry object.
+                    entry = BAM2FASTQ_entry(alignmentObj)
+
+                    ## Add entry to FASTQ
+                    supportingReads.add(entry)
+
+                # b) Quality not available -> Add supporting read to FASTA
+                else:
+
+                    ## Obtain raw read and quality strings (Prior alignment)
+                    # a) Read mapped in reverse 
+                    if alignmentObj.is_reverse:
+                        seq = sequences.rev_complement(alignmentObj.query_sequence)
+
+                    # b) Read mapped in forward
+                    else:
+                        seq = alignmentObj.query_sequence
+
+                    ## Add sequence to FASTA
+                    supportingReads.seqDict[alignmentObj.query_name] = seq
 
     ## Close 
     bamFile.close()
 
     # return sv candidates
-    return INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events, FASTQ
+    return INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events, supportingReads
 
 
 def collectCLIPPING(alignmentObj, confDict, sample):

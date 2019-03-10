@@ -34,6 +34,7 @@ parser.add_argument('-p', '--processes', default=1, dest='processes', type=int, 
 parser.add_argument('-o', '--outDir', default=os.getcwd(), dest='outDir', help='Output directory. Default: current working directory')
 
 ## BAM processing
+parser.add_argument('--no-quality', action="store_false", default=True, dest='quality', help='Quality values not available for the sequencing reads in the input bam files')
 parser.add_argument('--targetBins', default=None, dest='targetBins', type=str, help='Bed file containing target genomic bins for SV calling. Overrides --binSize and --refs. Default: None')
 parser.add_argument('-bS', '--binSize', default=1000000, dest='binSize', type=int, help='Input bams will be analised in genomic bins of this size. Default: 1000000')
 parser.add_argument('--refs', default="ALL", dest='refs', type=str, help='Comma separated list of target references to call SV (i.e. 1,2,3,X). Default: All references included in the bam file')
@@ -66,6 +67,7 @@ processes = args.processes
 outDir = args.outDir
 
 ## BAM processing
+quality = args.quality
 targetBins = args.targetBins
 binSize = args.binSize
 refs = args.refs
@@ -121,6 +123,7 @@ print('transduction-search: ', transductionSearch)
 print('outDir: ', outDir, "\n")
 
 print('** BAM processing **')
+print('quality: ', quality)
 print('targetBins: ', targetBins)
 print('binSize: ', binSize)
 print('targetRefs: ', refs)
@@ -153,6 +156,7 @@ confDict['technology'] = technology
 confDict['transductionSearch'] = transductionSearch
 
 ## BAM processing
+confDict['quality'] = quality
 confDict['targetBins'] = targetBins
 confDict['binSize'] = binSize
 confDict['targetRefs'] = targetRefs
