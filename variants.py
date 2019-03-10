@@ -91,14 +91,14 @@ def polishClusters(clusters, clusterType):
         ## Polish
         cluster.polish()
         
-def consensusClusters(clusters, clusterType, FASTQ, reference, confDict, rootDir):
+def consensusClusters(clusters, clusterType, supportingReads, reference, confDict, rootDir):
     '''
     Function to create a consensus sequence for each cluster. 
 
     Input:
         1. clusters: bin database containing a set of cluster objects
         2. clusterType: type of cluster (INS-CLUSTER: insertion; DEL-CLUSTER: deletion; LEFT-CLIPPING-CLUSTER: left clipping; RIGHT-CLIPPING-CLUSTER: right clipping)
-        3. FASTQ: FASTQ object containing all the reads to supporting SV clusters
+        3. supportingReads: FASTQ (if qualities available) or FASTA (if qualities NOT available) object containing the reads supporting the SV cluster
         4. reference: path to reference genome in fasta format
         5. confDict: configuration dictionary (Complete...)
         6: rootDir: root directory to write files and directories
@@ -118,7 +118,7 @@ def consensusClusters(clusters, clusterType, FASTQ, reference, confDict, rootDir
         if (cluster.filters == None) or ('MAX-NBREADS' not in cluster.filters) or (cluster.filters['MAX-NBREADS']):
             
             ## Create consensus
-            cluster.consensus(FASTQ, reference, confDict, outDir)
+            cluster.consensus(supportingReads, reference, confDict, outDir)
 
 
 def insTypeClusters(clusters, index, confDict, rootDir):
@@ -302,9 +302,9 @@ class cluster():
             self.beg = self.events[0].beg # Update begin
             self.end = max([event.end for event in self.events]) # Update end
 
-    def supportingReads(self):
+    def supportingReadIds(self):
         '''
-        Return list of cluster supporting reads
+        Return list of ids for cluster supporting reads
         '''
         readIds = [event.readId for event in self.events]
 
@@ -442,7 +442,7 @@ class cluster():
 
         # B) Don´t attemp polishing if length attribute not available for some of the events 
 
-    def consensus(self, FASTQ, reference, confDict, rootDir): 
+    def consensus(self, supportingReads, reference, confDict, rootDir): 
         '''
         Use all the cluster supporting reads to (1) generate a consensus sequence for the cluster and (2) perform local realignment of the consensus 
         to obtain more accurate SV breakpoints and inserted sequence (only for INS)
@@ -450,7 +450,7 @@ class cluster():
         Update cluster with all this information
         
         Input:
-            1. FASTQ: FASTQ object containing all the SV supporting reads  
+            1. supportingReads: FASTQ (if qualities available) or FASTA (if qualities NOT available) object containing the reads supporting the SV cluster
             2. reference: Path to the reference genome in fasta format. An index of the reference generated with samtools faidx must be located in the same directory
             3. confDict: Configuration dictionary 
             4. rootDir: Root directory where temporary folders and files will be created
@@ -459,17 +459,29 @@ class cluster():
         outDir = rootDir + '/' + str(self.id)
         unix.mkdir(outDir)
 
-        ## 1. Create FASTQ object containing cluster supporting reads
-        FASTQ_cluster = formats.FASTQ()
-        readIds = self.supportingReads()
+        ## 1. Create FASTQ/FASTA object containing cluster supporting reads
+        readIds = self.supportingReadIds()
 
-        # Collect from the FASTQ containing all the reads only those supporting the SV cluster 
-        for readId in readIds:
-            FASTQ_entry = FASTQ.fastqDict[readId]
-            FASTQ_cluster.add(FASTQ_entry)
+        # a) Quality available  
+        if confDict['quality']:
+            clusterSupportingReads = formats.FASTQ()
+
+            # Collect from the FASTQ containing all the reads only those supporting the SV cluster 
+            for readId in readIds:
+                entry = supportingReads.seqDict[readId]
+                clusterSupportingReads.add(entry)
+
+        # b) Quality not available
+        else:
+            clusterSupportingReads = formats.FASTA()
+
+            # Collect from the FASTA containing all the reads only those supporting the SV cluster 
+            for readId in readIds:
+                seq = supportingReads.seqDict[readId]
+                clusterSupportingReads.seqDict[readId] = seq
 
         ## 2. Generate consensus sequence for the cluster
-        self.consensus_FASTA = consensus.racon(FASTQ_cluster, confDict['technology'], outDir)
+        self.consensus_FASTA = consensus.racon(clusterSupportingReads, confDict['technology'], confDict['quality'], outDir)
 
         # Exit if consensus sequence could not be generated
         if self.consensus_FASTA == None:
@@ -491,7 +503,7 @@ class cluster():
         BAM = alignment.targeted_alignment_minimap2(consensusFile, targetInterval, reference, outDir)
 
         ## 4. Extract consensus SV event from consensus sequence realignment
-        INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events, FASTQ = bamtools.collectSV(targetInterval, 0, targetLen, BAM, confDict, None)
+        INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events, supportingReads = bamtools.collectSV(targetInterval, 0, targetLen, BAM, confDict, None)
                
         ## 5. Redefine cluster properties based on consensus SV event  
         # A) Insertion cluster
@@ -560,7 +572,7 @@ class cluster():
         
         ## 2. Write target seq into file ##
         FASTA = formats.FASTA()
-        FASTA.fastaDict[str(self.id)] = seq
+        FASTA.seqDict[str(self.id)] = seq
 
         FASTA_file = outDir + '/insert.fa'
         FASTA.write(FASTA_file)

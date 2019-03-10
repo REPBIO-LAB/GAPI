@@ -62,7 +62,7 @@ def is_simple_repeat(FASTA_file, minPercSimple, outDir):
     ## First compute input sequence length
     FASTA = formats.FASTA()
     FASTA.read(FASTA_file)
-    sequence = list(FASTA.fastaDict.values())[0]
+    sequence = list(FASTA.seqDict.values())[0]
     seqLen = len(sequence)
 
     ## Then the percentage

@@ -65,7 +65,7 @@ def is_retrotransposition(FASTA_file, index, outDir):
     ## Retrieve inserted seq
     FASTA = formats.FASTA()
     FASTA.read(FASTA_file)
-    sequence = list(FASTA.fastaDict.values())[0]
+    sequence = list(FASTA.seqDict.values())[0]
 
     ## Search for polyA at 3' insert end
     search4polyA(sequence, chain, strand)
