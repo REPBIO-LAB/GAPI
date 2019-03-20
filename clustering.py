@@ -8,7 +8,7 @@ import time
 
 # Internal
 import log
-import variants
+import clusters
 import gRanges
 import structures
 
@@ -34,7 +34,7 @@ def clusterByDist1D(eventsBins, maxDist, minClusterSize, eventType):
     ## 1. Create clusters ##
     # a) Fast clustering algorithm
     if (binSize <= maxDist):
-        clusters = clusterByDist1D_fast(eventsBins.data[binSize], maxDist, minClusterSize, eventType)
+        clustersList = clusterByDist1D_fast(eventsBins.data[binSize], maxDist, minClusterSize, eventType)
 
     # b) Iterative clustering algorithm (not implemented yet)
     else:
@@ -43,7 +43,7 @@ def clusterByDist1D(eventsBins, maxDist, minClusterSize, eventType):
     
     ## 2. Organize clusters into bins ##    
     binSizes = [100, 1000, 10000, 100000, 1000000]
-    data = [(clusters, eventType + '-CLUSTER')]
+    data = [(clustersList, eventType + '-CLUSTER')]
     clustersBins = structures.createBinDb(eventsBins.ref, eventsBins.beg, eventsBins.end, data, binSizes)
 
     return clustersBins
@@ -52,7 +52,7 @@ def clusterByDist1D(eventsBins, maxDist, minClusterSize, eventType):
 def clusterByDist1D_fast(binHash, maxDist, minClusterSize, eventType):
     '''
     '''
-    clusters = []
+    clustersList = []
     binsInClusters = []
 
     # For each bin 
@@ -74,8 +74,8 @@ def clusterByDist1D_fast(binHash, maxDist, minClusterSize, eventType):
                 continue
 
             ### 1. Create root cluster containing events on the bin
-            cluster = variants.createCluster(binObj.events, eventType)
-            clusters.append(cluster)
+            cluster = clusters.createCluster(binObj.events, eventType)
+            clustersList.append(cluster)
             binsInClusters.append(binIndex) # now bin incorporated into cluster
 
             ### 2. Root cluster extension
@@ -149,15 +149,14 @@ def clusterByDist1D_fast(binHash, maxDist, minClusterSize, eventType):
                 else:
                     break 
 
-    return clusters
+    return clustersList
 
 
 def clusterByRcplOverlap(eventsBins, minPercOverlap, minClusterSize, eventType):
     '''
     '''
-
     eventsInClusters = []
-    clusters = {}
+    clustersDict = {}
 
     # For each window size/level
     for windowSize in eventsBins.binSizes:
@@ -215,7 +214,7 @@ def clusterByRcplOverlap(eventsBins, minPercOverlap, minClusterSize, eventType):
 
                     # Add events to the cluster
                     clusterId = clustersOverlapA[0]
-                    clusters[clusterId].add(events2Cluster, None)
+                    clustersDict[clusterId].add(events2Cluster, None)
 
                 # B) Multiple clusters overlap A -> Merge clusters and add A and its overlapping events into the merged cluster
                 elif len(clustersOverlapA) > 1:
@@ -225,20 +224,20 @@ def clusterByRcplOverlap(eventsBins, minPercOverlap, minClusterSize, eventType):
                     eventsInClusters += [ event.id for event in events2Cluster]
 
                     ## Make list of clusters overlapping A
-                    clusters2merge = [ clusters[clusterId] for clusterId in clustersOverlapA ]
+                    clusters2merge = [ clustersDict[clusterId] for clusterId in clustersOverlapA ]
 
                     ## Create merged cluster
-                    mergedCluster = variants.mergeClusters(clusters2merge, eventType)
+                    mergedCluster = clusters.mergeClusters(clusters2merge, eventType)
 
                     ## Add events to the merged cluster
                     mergedCluster.add(events2Cluster, None)
 
                     ## Add merged cluster to the clusters dictionary
-                    clusters[mergedCluster.id] = mergedCluster
+                    clustersDict[mergedCluster.id] = mergedCluster
 
                     ## Remove events composing the merged cluster from the clusters dictionary
                     for cluster in clusters2merge:
-                        clusters.pop(cluster.id, None)
+                        clustersDict.pop(cluster.id, None)
                     
                 # C) No cluster overlaps A -> attempt to create a new cluster composed by A and its overlapping events
                 else:
@@ -252,16 +251,15 @@ def clusterByRcplOverlap(eventsBins, minPercOverlap, minClusterSize, eventType):
                         eventsInClusters += [ event.id for event in events2Cluster]
 
                         # Create cluster                        
-                        cluster = variants.createCluster(events2Cluster, eventType)
-                        clusters[cluster.id] = cluster
+                        cluster = clusters.createCluster(events2Cluster, eventType)
+                        clustersDict[cluster.id] = cluster
 
                     # Cluster not composed by enough number of events
     
     ## 2. Organize clusters into bins ##    
     binSizes = [100, 1000, 10000, 100000, 1000000]
 
-    data = [(list(clusters.values()), eventType + '-CLUSTER')]
+    data = [(list(clustersDict.values()), eventType + '-CLUSTER')]
     clustersBins = structures.createBinDb(eventsBins.ref, eventsBins.beg, eventsBins.end, data, binSizes)
 
     return clustersBins
-

@@ -10,7 +10,7 @@ import subprocess
 # Internal
 import log
 import unix
-import variants
+import events
 import gRanges
 import formats
 import sequences
@@ -181,7 +181,7 @@ def makeGenomicBins(bam, binSize, targetRefs):
 
 def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
     '''
-    Collect structural variant (SV) candidates from a genomic region.
+    Collect structural variant (SV) events from a genomic region.
 
     Input:
         1. ref: target referenge
@@ -344,11 +344,11 @@ def collectCLIPPING(alignmentObj, confDict, sample):
     ## Clipping >= X bp at the left
     #  Note: soft (Operation=4) or hard clipped (Operation=5)     
     if ((firstOperation == 4) or (firstOperation == 5)) and (firstOperationLen >= confDict['minCLIPPINGlen']):
-        clippingLeftObj = variants.CLIPPING(alignmentObj, 'left', sample)
+        clippingLeftObj = events.CLIPPING(alignmentObj, 'left', sample)
 
     ## Clipping > X bp at the right
     if ((lastOperation == 4) or (lastOperation == 5)) and (lastOperationLen >= confDict['minCLIPPINGlen']):
-        clippingRightObj = variants.CLIPPING(alignmentObj, 'right', sample)
+        clippingRightObj = events.CLIPPING(alignmentObj, 'right', sample)
 
     return clippingLeftObj, clippingRightObj
 
@@ -390,7 +390,7 @@ def collectINDELS(alignmentObj, confDict, sample):
             insertEnd = posQuery + length
             insertSeq = alignmentObj.query_sequence[insertBeg:insertEnd]
             insertLength = len(insertSeq)
-            insObj = variants.INS(alignmentObj.reference_name, beg, end, insertLength, insertSeq, alignmentObj.query_name, sample)
+            insObj = events.INS(alignmentObj.reference_name, beg, end, insertLength, insertSeq, alignmentObj.query_name, sample)
             INS_events.append(insObj)
 
         ## b) DELETION to the reference >= Xbp
@@ -398,7 +398,7 @@ def collectINDELS(alignmentObj, confDict, sample):
 
             beg = posRef 
             end = posRef + length
-            delObj = variants.DEL(alignmentObj.reference_name, beg, end, length, alignmentObj.query_name, sample)
+            delObj = events.DEL(alignmentObj.reference_name, beg, end, length, alignmentObj.query_name, sample)
             DEL_events.append(delObj)
 
         #### Update position over reference and read sequence

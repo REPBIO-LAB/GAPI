@@ -14,7 +14,7 @@ import bamtools
 import formats
 import structures
 import clustering
-import variants
+import clusters
 import filters
 import output
 
@@ -203,10 +203,10 @@ class SVcaller_nano():
         log.step(step, msg)
 
         ## 4.1 Polish insertions
-        variants.polishClusters(INS_clusters, 'INS-CLUSTER')
+        clusters.polishClusters(INS_clusters, 'INS-CLUSTER')
 
         ## 4.2 Polish deletions
-        variants.polishClusters(DEL_clusters, 'DEL-CLUSTER')
+        clusters.polishClusters(DEL_clusters, 'DEL-CLUSTER')
 
         ## 5. Filter SV clusters ##
         step = 'FILTER'
@@ -231,17 +231,17 @@ class SVcaller_nano():
         log.step(step, msg)
 
         ## 6.1 Consensus for insertions
-        variants.consensusClusters(INS_clusters, 'INS-CLUSTER', supportingReads, self.reference, self.confDict, binDir)
+        clusters.consensusClusters(INS_clusters, 'INS-CLUSTER', supportingReads, self.reference, self.confDict, binDir)
 
         ## 6.2 Consensus for deletions
-        variants.consensusClusters(DEL_clusters, 'DEL-CLUSTER', supportingReads, self.reference, self.confDict, binDir)
+        clusters.consensusClusters(DEL_clusters, 'DEL-CLUSTER', supportingReads, self.reference, self.confDict, binDir)
 
         ## 7. Determine what has been inserted (insertion type) ##
         step = 'INS-TYPE'
         msg = 'Determine what has been inserted (insertion type)'
         log.step(step, msg)
 
-        variants.insTypeClusters(INS_clusters, self.retrotransposonDbIndex, self.confDict, binDir)
+        clusters.insTypeClusters(INS_clusters, self.retrotransposonDbIndex, self.confDict, binDir)
 
         ## Do Cleanup once bin was processed
         unix.rm([binDir])
