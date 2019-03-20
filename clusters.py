@@ -98,7 +98,7 @@ def consensusClusters(clusters, clusterType, supportingReads, reference, confDic
     Input:
         1. clusters: bin database containing a set of cluster objects
         2. clusterType: type of cluster (INS-CLUSTER: insertion; DEL-CLUSTER: deletion; LEFT-CLIPPING-CLUSTER: left clipping; RIGHT-CLIPPING-CLUSTER: right clipping)
-        3. supportingReads: FASTQ (if qualities available) or FASTA (if qualities NOT available) object containing the reads supporting the SV cluster
+        3. supportingReads: FASTQ (if qualities available) or FASTA (if qualities NOT available) object containing all the reads supporting SV clusters 
         4. reference: path to reference genome in fasta format
         5. confDict: configuration dictionary (Complete...)
         6: rootDir: root directory to write files and directories
@@ -120,7 +120,6 @@ def consensusClusters(clusters, clusterType, supportingReads, reference, confDic
             ## Create consensus
             cluster.create_consensus(supportingReads, reference, confDict, outDir)
 
-
 def insTypeClusters(clusters, index, confDict, rootDir):
     '''
     Function to determine what has been inserted for each cluster. 
@@ -139,7 +138,6 @@ def insTypeClusters(clusters, index, confDict, rootDir):
 
         ## Determine insertion type
         cluster.determine_insertion_type(index, confDict, outDir)
-
 
 
 #############
@@ -402,7 +400,6 @@ class INS_cluster(cluster):
         self.beg = self.events[0].beg
         self.end = self.events[-1].end
 
-
     def create_consensus(self, supportingReads, reference, confDict, rootDir): 
         '''
         Use all the cluster supporting reads to (1) generate a consensus sequence for the cluster and (2) perform local realignment of the consensus 
@@ -411,7 +408,7 @@ class INS_cluster(cluster):
         Update cluster with all this information
         
         Input:
-            1. supportingReads: FASTQ (if qualities available) or FASTA (if qualities NOT available) object containing the reads supporting the SV cluster
+            1. supportingReads: FASTQ (if qualities available) or FASTA (if qualities NOT available) object containing all the reads supporting SV clusters 
             2. reference: Path to the reference genome in fasta format. An index of the reference generated with samtools faidx must be located in the same directory
             3. confDict: Configuration dictionary 
             4. rootDir: Root directory where temporary folders and files will be created
@@ -420,26 +417,8 @@ class INS_cluster(cluster):
         outDir = rootDir + '/' + str(self.id)
         unix.mkdir(outDir)
 
-        ## 1. Create FASTQ/FASTA object containing cluster supporting reads
-        readIds = self.supportingReadIds()
-
-        # a) Quality available  
-        if confDict['quality']:
-            clusterSupportingReads = formats.FASTQ()
-
-            # Collect from the FASTQ containing all the reads only those supporting the SV cluster 
-            for readId in readIds:
-                entry = supportingReads.seqDict[readId]
-                clusterSupportingReads.add(entry)
-
-        # b) Quality not available
-        else:
-            clusterSupportingReads = formats.FASTA()
-
-            # Collect from the FASTA containing all the reads only those supporting the SV cluster 
-            for readId in readIds:
-                seq = supportingReads.seqDict[readId]
-                clusterSupportingReads.seqDict[readId] = seq
+        ## 1. Collect cluster supporting reads from the FASTA/FASTQ containing all the reads supporting SV clusters
+        clusterSupportingReads = self.collect_supportingReads(supportingReads, confDict['quality'])
 
         ## 2. Generate consensus sequence for the cluster
         self.consensus_FASTA = consensus.racon(clusterSupportingReads, confDict['technology'], confDict['quality'], outDir)
@@ -554,7 +533,7 @@ class DEL_cluster(cluster):
         Update cluster with all this information
         
         Input:
-            1. supportingReads: FASTQ (if qualities available) or FASTA (if qualities NOT available) object containing the reads supporting the SV cluster
+            1. supportingReads: FASTQ (if qualities available) or FASTA (if qualities NOT available) object containing all the reads supporting SV clusters 
             2. reference: Path to the reference genome in fasta format. An index of the reference generated with samtools faidx must be located in the same directory
             3. confDict: Configuration dictionary 
             4. rootDir: Root directory where temporary folders and files will be created
@@ -563,26 +542,8 @@ class DEL_cluster(cluster):
         outDir = rootDir + '/' + str(self.id)
         unix.mkdir(outDir)
 
-        ## 1. Create FASTQ/FASTA object containing cluster supporting reads
-        readIds = self.supportingReadIds()
-
-        # a) Quality available  
-        if confDict['quality']:
-            clusterSupportingReads = formats.FASTQ()
-
-            # Collect from the FASTQ containing all the reads only those supporting the SV cluster 
-            for readId in readIds:
-                entry = supportingReads.seqDict[readId]
-                clusterSupportingReads.add(entry)
-
-        # b) Quality not available
-        else:
-            clusterSupportingReads = formats.FASTA()
-
-            # Collect from the FASTA containing all the reads only those supporting the SV cluster 
-            for readId in readIds:
-                seq = supportingReads.seqDict[readId]
-                clusterSupportingReads.seqDict[readId] = seq
+        ## 1. Collect cluster supporting reads from the FASTA/FASTQ containing all the reads supporting SV clusters
+        clusterSupportingReads = self.collect_supportingReads(supportingReads, confDict['quality'])
 
         ## 2. Generate consensus sequence for the cluster
         self.consensus_FASTA = consensus.racon(clusterSupportingReads, confDict['technology'], confDict['quality'], outDir)
