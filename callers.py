@@ -181,7 +181,8 @@ class SVcaller_nano():
         del INS_bins
 
         ## 3.2 Cluster deletions
-        DEL_clusters = clustering.clusterByRcplOverlap(DEL_bins, self.confDict['minPercRcplOverlap'], self.confDict['minRootClusterSize'], 'DEL')
+        buffer = 0
+        DEL_clusters = clustering.clusterByRcplOverlap(DEL_bins, self.confDict['minPercRcplOverlap'], self.confDict['minRootClusterSize'], 'DEL', buffer)
 
         # Cleanup
         del DEL_bins

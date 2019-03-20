@@ -152,7 +152,7 @@ def clusterByDist1D_fast(binHash, maxDist, minClusterSize, eventType):
     return clustersList
 
 
-def clusterByRcplOverlap(eventsBins, minPercOverlap, minClusterSize, eventType):
+def clusterByRcplOverlap(eventsBins, minPercOverlap, minClusterSize, eventType, buffer):
     '''
     '''
     eventsInClusters = []
@@ -189,7 +189,13 @@ def clusterByRcplOverlap(eventsBins, minPercOverlap, minClusterSize, eventType):
                     if (eventB.clusterId in clustersOverlapA):
                         continue
                     
-                    overlap = gRanges.rcplOverlap(eventA.beg, eventA.end, eventB.beg, eventB.end, minPercOverlap)
+                    ## Add buffer to ranges
+                    begA = eventA.beg - buffer
+                    endA = eventA.end + buffer
+                    begB = eventB.beg - buffer
+                    endB = eventB.end + buffer
+                    
+                    overlap = gRanges.rcplOverlap(begA, endA, begB, endB, minPercOverlap)
 
                     # A) Event B overlap A. 
                     if overlap:
