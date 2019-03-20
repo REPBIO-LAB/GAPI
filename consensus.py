@@ -113,7 +113,6 @@ def racon(reads, technology, quality, outDir):
     POLISHED = outDir + '/polished.fasta'
     err = open(logDir + '/racon.err', 'w') 
     command = 'racon ' + reads2polish_file + ' ' + PAF + ' ' + template_file + ' > ' + POLISHED
-    print('COMMAND: ', command)
     status = subprocess.call(command, stderr=err, shell=True)
 
     if status != 0:
