@@ -205,9 +205,6 @@ class SVcaller_nano():
         ## 4.1 Polish insertions
         clusters.polishClusters(INS_clusters, 'INS-CLUSTER')
 
-        ## 4.2 Polish deletions
-        clusters.polishClusters(DEL_clusters, 'DEL-CLUSTER')
-
         ## 5. Filter SV clusters ##
         step = 'FILTER'
         msg = 'Filter SV clusters'

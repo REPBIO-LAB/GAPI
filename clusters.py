@@ -138,7 +138,7 @@ def insTypeClusters(clusters, index, confDict, rootDir):
     for cluster in clusters.collect('INS-CLUSTER'):
 
         ## Determine insertion type
-        cluster.determine_insType(index, confDict, outDir)
+        cluster.determine_insertion_type(index, confDict, outDir)
 
 
 
@@ -296,64 +296,6 @@ class cluster():
 
         return mean, std, cv
 
-    def polish(self):
-        '''
-        Apply successive rounds of polishing to the cluster by removing events whose length deviates from the cluster average
-        '''
-
-        # Check if length attribute is available for each event
-        lengthsBool = [hasattr(event, 'length') for event in self.events]
-
-        # A) Attemp polishing if length attribute available for all the events 
-        if False not in lengthsBool:
-
-            ## 1. Compute length metrics for the initial cluster 
-            initialNbEvents = self.nbEvents()[0]
-            mean, std, cv = self.meanLen()
-
-            ## 2. Apply successive rounds of polishing while cv > threshold 
-            while cv > 15: 
-             
-                ## 2.1 Set length cutoffs 
-                cutOff = std * 1 
-                lowerBound, upperBound = mean - cutOff, mean + cutOff
-
-                ## 2.2 Generate list of events composing the polished cluster
-                eventsAfterPolish = []
-
-                # Evaluate for each event if it´s an ourlier or not
-                for event in self.events:
-
-                    # a) No outlier. Event length within boundaries -> include event into polished cluster   
-                    if (event.length >= lowerBound) and (event.length <= upperBound):
-                        eventsAfterPolish.append(event)
-
-                    # b) Outlier. Event lenght outside boundaries
-
-                ## 2.3 Recompute length metrics for polished cluster
-                ## Prior polishing
-                cvPrior = cv
-                eventsPrior = self.events
-
-                ## After polishing round
-                self.events = eventsAfterPolish
-                mean, std, cv = self.meanLen()
-
-                ## 2.4 Stop polishing and use previous cluster state if current polishing round does not reduce the cv
-                if cv >= cvPrior:
-                    self.events = eventsPrior # Use previous cluster state
-                    break
-
-            ## 3. Compute the number of outliers
-            finalNbEvents = self.nbEvents()[0]
-            self.nbOutliers = initialNbEvents - finalNbEvents
-
-            ## 4. Recompute cluster begin and end after polishing
-            self.beg = self.events[0].beg
-            self.end = self.events[-1].end
-
-        # B) Don´t attemp polishing if length attribute not available for some of the events 
-
     def consensus(self, supportingReads, reference, confDict, rootDir): 
         '''
         Use all the cluster supporting reads to (1) generate a consensus sequence for the cluster and (2) perform local realignment of the consensus 
@@ -457,7 +399,69 @@ class cluster():
         ## Do Cleanup 
         unix.rm([outDir])
 
-    def determine_insType(self, index, confDict, rootDir): 
+
+class INS_cluster(cluster):
+    '''
+    Insertion (INS) cluster subclass
+    '''
+    def __init__(self, ref, beg, end, events, clusterType):
+
+        cluster.__init__(self, ref, beg, end, events, clusterType)
+
+    def polish(self):
+        '''
+        Apply successive rounds of polishing to the INS cluster by removing events whose length deviates from the cluster average
+        '''
+
+        # Check if length attribute is available for each event
+        lengthsBool = [hasattr(event, 'length') for event in self.events]
+
+        ## 1. Compute length metrics for the initial cluster 
+        initialNbEvents = self.nbEvents()[0]
+        mean, std, cv = self.meanLen()
+
+        ## 2. Apply successive rounds of polishing while cv > threshold 
+        while cv > 15: 
+             
+            ## 2.1 Set length cutoffs 
+            cutOff = std * 1 
+            lowerBound, upperBound = mean - cutOff, mean + cutOff
+
+            ## 2.2 Generate list of events composing the polished cluster
+            eventsAfterPolish = []
+
+            # Evaluate for each event if it´s an ourlier or not
+            for event in self.events:
+
+                # a) No outlier. Event length within boundaries -> include event into polished cluster   
+                if (event.length >= lowerBound) and (event.length <= upperBound):
+                    eventsAfterPolish.append(event)
+
+                # b) Outlier. Event lenght outside boundaries
+
+            ## 2.3 Recompute length metrics for polished cluster
+            ## Prior polishing
+            cvPrior = cv
+            eventsPrior = self.events
+
+            ## After polishing round
+            self.events = eventsAfterPolish
+            mean, std, cv = self.meanLen()
+
+            ## 2.4 Stop polishing and use previous cluster state if current polishing round does not reduce the cv
+            if cv >= cvPrior:
+                self.events = eventsPrior # Use previous cluster state
+                break
+
+        ## 3. Compute the number of outliers
+        finalNbEvents = self.nbEvents()[0]
+        self.nbOutliers = initialNbEvents - finalNbEvents
+
+        ## 4. Recompute cluster begin and end after polishing
+        self.beg = self.events[0].beg
+        self.end = self.events[-1].end
+
+    def determine_insertion_type(self, index, confDict, rootDir): 
         '''
         Determine the type of insertion (retrotransposon, simple repeat, virus, ...) and collect insertion information.
 
@@ -509,15 +513,6 @@ class cluster():
 
         ## 6. Is a chromosomal insertion? (mitochondrial, templated...) ##
         #¿¿¿rearrangements???.is_chromosomal_dna()
-
-
-class INS_cluster(cluster):
-    '''
-    Insertion (INS) cluster subclass
-    '''
-    def __init__(self, ref, beg, end, events, clusterType):
-
-        cluster.__init__(self, ref, beg, end, events, clusterType)
 
 class DEL_cluster(cluster):
     '''
