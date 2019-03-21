@@ -12,6 +12,33 @@ import unix
 import bamtools 
 
 ## FUNCTIONS ##
+
+def minimap2_presets(technology):
+    '''
+    Set minimap2 preset according to the sequencing technology
+
+    Input:
+        1. technology: Sequencing technology (NANOPORE, PACBIO or ILLUMINA)
+        
+    Output:
+        1. preset: proper preset  
+    '''
+
+    if technology == 'PACBIO':
+        preset = 'map-pb'
+        
+    elif technology == 'NANOPORE':
+        preset = 'map-ont'
+
+    elif technology == 'ILLUMINA':
+        preset = 'sr'
+
+    else:
+        log.info('ERROR: ' + technology + ' technology not supported')
+        sys.exit(1)
+
+    return preset
+
 def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir):
     '''
     Align a set of sequences into a reference genome target region. 

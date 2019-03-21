@@ -10,22 +10,20 @@ import subprocess
 import log
 import formats
 import unix
+import alignment
 
 ## FUNCTIONS ##
 
 def racon(reads, technology, quality, outDir):
     '''
-    Build a consensus sequence from a set of long-reads (NANOPORE or PACBIO). 
+    Build a consensus sequence from a set of sequencing reads  
 
-    The algorithm selects an arbitrary long-read sequence as template and uses the remaining sequences to correct the template
+    The algorithm selects an arbitrary read sequence as template and uses the remaining sequences to correct the template
     with racon. 
     
-    If long-read correction fails return the selected uncorrected long-read sequence as consensus. This should be infrequent if 
-    enough number of reads provided
-
     Input:
         1. reads: FASTQ (if qualities available) or FASTA (if qualities NOT available) object containing all the reads to be used to build a consensus 
-        2. technology: Long-read sequencing technology (PACBIO or NANOPORE)
+        2. technology: Sequencing technology (NANOPORE, PACBIO or ILLUMINA)
         3. quality: True (sequence qualities available) or False (not available).
         4. outDir: Output directory
 
@@ -88,15 +86,7 @@ def racon(reads, technology, quality, outDir):
 
     ## 3. Align reads against the template 
     ## Set preset according to the technology
-    if technology == 'PACBIO':
-        preset = 'map-pb'
-
-    elif technology == 'NANOPORE':
-        preset = 'map-ont'
-    
-    else:
-        log.info('ERROR: ' + technology + ' technology not supported')
-        sys.exit(1)
+    preset = alignment.minimap2_presets(technology)
 
     ## Do alignment 
     PAF = outDir + '/alignments.paf'
