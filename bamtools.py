@@ -129,6 +129,36 @@ def BAM2FASTQ_entry(alignmentObj):
     FASTQ_entry = formats.FASTQ_entry(alignmentObj.query_name, seq, '', qual)
     return FASTQ_entry
 
+def binning(targetBins, bam, binSize, targetRefs):
+    '''
+    Split the genome into a set of genomic bins. Two possible binning approaches:
+    1) Use predefined bins if bed file provided (targetBins)
+    2) Non overlapping bins of a given size (binSize) for a set of target references (targetRefs). Reference length extracted from the input 'bam' file
+
+    Input:
+        1. targetBins: Bed file containing predefined bins OR None (in this case bins will be created de novo)
+        2. bam: BAM file used to know the length of the target references 
+        3. binSize: Binning size
+        3. targetRefs: Comma separated list of target references
+
+    Output:
+        1. bins: List of bins. Each list item corresponds to a tuple (ref, beg, end)
+    '''
+
+    # A) Create bins de novo
+    if targetBins == None:
+
+        ## Split the reference genome into a set of genomic bins
+        bins = makeGenomicBins(bam, binSize, targetRefs)
+
+    # B) Read bins from bed file
+    else:
+        BED = formats.BED()
+        BED.read(targetBins)
+        bins = [ (line.ref, line.beg, line.end) for line in BED.lines]
+    
+    return bins
+
 
 def makeGenomicBins(bam, binSize, targetRefs):
     '''
