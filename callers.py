@@ -101,38 +101,7 @@ class SV_caller_long(SV_caller):
 
         # b) Paired sample mode (tumour & matched normal)
         else:
-
-            ## COMMENT: MOVE CHUNK OF CODE INTO FUNCTION IN BAMTOOLS MODULE
-            ## Search for SV events in the tumour
-            INS_events_T, DEL_events_T, CLIPPING_left_events_T, CLIPPING_right_events_T, supportingReads_T = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, 'TUMOUR')
-
-            ## Search for SV events in the normal
-            INS_events_N, DEL_events_N, CLIPPING_left_events_N, CLIPPING_right_events_N, supportingReads_N = bamtools.collectSV(ref, beg, end, self.normalBam, self.confDict, 'NORMAL')
-
-            ## Join tumour and normal lists
-            INS_events = INS_events_T + INS_events_N
-            DEL_events = DEL_events_T + DEL_events_N
-            CLIPPING_left_events = CLIPPING_left_events_T + CLIPPING_left_events_N
-            CLIPPING_right_events = CLIPPING_right_events_T + CLIPPING_right_events_N
-
-            # Cleanup
-            del INS_events_T, DEL_events_T, CLIPPING_left_events_T, CLIPPING_right_events_T  
-            del INS_events_N, DEL_events_N, CLIPPING_left_events_N, CLIPPING_right_events_N
-
-            ## Merge tumour and normal FASTQ/FASTA              
-            # a) Quality available  
-            if self.confDict['quality']:
-                supportingReads = formats.FASTQ()
-
-            # b) Quality not available
-            else:
-                supportingReads = formats.FASTA()
-        
-            supportingReads.seqDict = {**supportingReads_T.seqDict, **supportingReads_N.seqDict} 
-            
-            # Cleanup
-            del supportingReads_T, supportingReads_N  
-            # --------
+            INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events, supportingReads = bamtools.collectSV_paired(ref, beg, end, self.bam, self.normalBam, self.confDict)
 
         step = 'COLLECT'
         msg = 'Number of SV events in bin (INS, DEL, CLIPPING_left, CLIPPING_right): ' +  "\t".join([binId, str(len(INS_events)), str(len(DEL_events)), str(len(CLIPPING_left_events)), str(len(CLIPPING_right_events))])

@@ -209,17 +209,74 @@ def makeGenomicBins(bam, binSize, targetRefs):
     return bins
 
 
-def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
+def collectSV_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict):
     '''
-    Collect structural variant (SV) events from a genomic region.
+    Collect structural variant (SV) events in a genomic bin from tumour and matched normal bam files
 
     Input:
         1. ref: target referenge
-        2. binBeg: target interval begin position
-        3. binEnd: target interval end position
+        2. binBeg: bin begin
+        3. binEnd: bin end
+        4. tumourBam: indexed tumour BAM file
+        5. normalBam: indexed normal BAM file
+        6. confDict:
+            * targetSV       -> list with target SV (INS: insertion; DEL: deletion; CLIPPING: left and right clippings)
+            * minMAPQ        -> minimum mapping quality
+            * minCLIPPINGlen -> minimum clipping lenght
+            * minINDELlen    -> minimum INS and DEL lenght
+            * quality        -> True (sequence qualities available) or False (not available). 
+
+    Output:
+        1. INS_events: list of INS objects
+        2. DEL_events: list of DEL objects
+        3. CLIPPING_left_events: list of CLIPPING objects on the left
+        4. CLIPPING_right_events: list of CLIPPING objects on the right
+        5. supportingReads: FASTQ (if qualities available) or FASTA (if qualities NOT available) object containing the reads supporting the SV events
+    '''
+    ## Search for SV events in the tumour
+    INS_events_T, DEL_events_T, CLIPPING_left_events_T, CLIPPING_right_events_T, supportingReads_T = collectSV(ref, binBeg, binEnd, tumourBam, confDict, 'TUMOUR')
+
+    ## Search for SV events in the normal
+    INS_events_N, DEL_events_N, CLIPPING_left_events_N, CLIPPING_right_events_N, supportingReads_N = collectSV(ref, binBeg, binEnd, normalBam, confDict, 'NORMAL')
+
+    ## Join tumour and normal lists
+    INS_events = INS_events_T + INS_events_N
+    DEL_events = DEL_events_T + DEL_events_N
+    CLIPPING_left_events = CLIPPING_left_events_T + CLIPPING_left_events_N
+    CLIPPING_right_events = CLIPPING_right_events_T + CLIPPING_right_events_N
+
+    # Cleanup
+    del INS_events_T, DEL_events_T, CLIPPING_left_events_T, CLIPPING_right_events_T  
+    del INS_events_N, DEL_events_N, CLIPPING_left_events_N, CLIPPING_right_events_N
+
+    ## Merge tumour and normal FASTQ/FASTA              
+    # a) Quality available  
+    if confDict['quality']:
+        supportingReads = formats.FASTQ()
+
+    # b) Quality not available
+    else:
+        supportingReads = formats.FASTA()
+        
+    supportingReads.seqDict = {**supportingReads_T.seqDict, **supportingReads_N.seqDict} 
+            
+    # Cleanup
+    del supportingReads_T, supportingReads_N  
+
+    return INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events, supportingReads
+
+
+def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
+    '''
+    Collect structural variant (SV) events in a genomic bin from a bam file
+
+    Input:
+        1. ref: target referenge
+        2. binBeg: bin begin
+        3. binEnd: bin end
         4. bam: indexed BAM file
         5. confDict:
-            * targetSV       -> list with target SV (INS: insertion; DEL: deletion)
+            * targetSV       -> list with target SV (INS: insertion; DEL: deletion; CLIPPING: left and right clippings)
             * minMAPQ        -> minimum mapping quality
             * minCLIPPINGlen -> minimum clipping lenght
             * minINDELlen    -> minimum INS and DEL lenght
