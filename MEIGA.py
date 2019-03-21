@@ -20,9 +20,9 @@ import bamtools
 ######################
 
 ## 1. Define parser ##
-parser = argparse.ArgumentParser(description= "Call structural variants (SV) from Nanopore/Pacbio whole genome sequencing data. Two running modes: 1) SINGLE: individual sample; 2) PAIRED: tumour and matched normal sample")
+parser = argparse.ArgumentParser(description= "Call mobile element insertions (MEI) and viral integrations from second and third generation sequencing data. Two running modes: 1) SINGLE: individual sample; 2) PAIRED: tumour and matched normal sample")
 parser.add_argument('bam', help='Input bam file. Will correspond to the tumour sample in the PAIRED mode')
-parser.add_argument('technology', help='Sequencing technology used to generate the data (NANOPORE or PACBIO)')
+parser.add_argument('technology', help='Sequencing technology used to generate the data (NANOPORE, PACBIO or ILLUMINA)')
 parser.add_argument('reference', help='Reference genome in fasta format. An index of the reference generated with samtools faidx must be located in the same directory')
 parser.add_argument('refDir', help='Directory containing reference databases (consensus sequences, source elements...)')
 
@@ -98,8 +98,8 @@ targetRefs = refs.split(',')
 mode = "SINGLE" if normalBam == None else "PAIRED"
 
 ## If unknown technology provided raise an error and exit 
-if technology not in ['NANOPORE', 'PACBIO']:
-	log.info('Abort execution as ' + technology + ' technology not supported')
+if technology not in ['NANOPORE', 'PACBIO', 'ILLUMINA']:
+	log.info('[ERROR] Abort execution as ' + technology + ' technology not supported')
 	sys.exit(1)
 
 ##############################################
@@ -147,7 +147,9 @@ print('***** Executing ', scriptName, '.... *****', "\n")
 ##########
 ## CORE ## 
 ##########
+
 ## 1. Create configuration dictionary
+#######################################
 confDict = {}
 
 ## General
@@ -175,9 +177,21 @@ confDict['maxClusterSize'] = maxClusterSize
 confDict['maxClusterCV'] = maxClusterCV
 confDict['maxOutliers'] = maxOutliers
 
-## 2. Launch structural variation (SV) caller
-callerObj = callers.SVcaller_nano(mode, bam, normalBam, reference, refDir, confDict, outDir)
-callerObj.callSV()
+## 2. Execute structural variation caller
+###########################################
+
+### Create caller
+# A) Pacbio or Nanopore long reads 
+if confDict['technology'] in ['NANOPORE', 'PACBIO']:
+	caller = callers.SV_caller_long(mode, bam, normalBam, reference, refDir, confDict, outDir)
+
+# B) Illumina short reads
+else:
+	caller = callers.SV_caller_short(mode, bam, normalBam, reference, refDir, confDict, outDir)
+
+### Do calling
+caller.call()
+
 
 print('***** Finished! *****')
 print()

@@ -21,9 +21,9 @@ import output
 ## FUNCTIONS ##
 
 ## CLASSES ##
-class SVcaller_nano():
+class SV_caller():
     '''
-    Structural variation (SV) caller from single molecule sequencing data
+    Structural variation (SV) caller 
     '''
     def __init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir):
 
@@ -37,7 +37,16 @@ class SVcaller_nano():
         self.retrotransposonDb = None
         self.retrotransposonDbIndex = None
 
-    def callSV(self):
+
+class SV_caller_long(SV_caller):
+    '''
+    Structural variation (SV) caller for long read sequencing data
+    '''
+    def __init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir):
+
+        SV_caller.__init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir)
+
+    def call(self):
         '''
         Search for structural variants (SV) genome wide or in a set of target genomic regions
         '''
@@ -48,39 +57,30 @@ class SVcaller_nano():
         self.retrotransposonDb, self.retrotransposonDbIndex = databases.buildRetrotransposonDb(self.refDir, self.confDict['transductionSearch'], dbDir)
 
         ### 2. Define genomic bins to search for SV ##
-        # a) Create bins the novo
-        if self.confDict['targetBins'] == None:
-
-            ## Split the reference genome into a set of genomic bins
-            bins = bamtools.makeGenomicBins(self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
-
-        # b) Read bins from bed file
-        else:
-            BED = formats.BED()
-            BED.read(self.confDict['targetBins'])
-            bins = [ (line.ref, line.beg, line.end) for line in BED.lines]
+        bins = bamtools.binning(self.confDict['targetBins'], self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
 
         ### 3. Search for SV clusters in each bin ##
         # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
-        INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters = zip(*pool.map(self.SV_clusters_bin, bins))
+        INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters = zip(*pool.map(self.make_clusters_bin, bins))
         pool.close()
         pool.join()
 
+        ### 4. Report clusters into output file
         # Create dictionary containing clusters 
         clusters = {}
         clusters['INS-CLUSTER'] = INS_clusters
         clusters['DEL-CLUSTER'] = DEL_clusters
         clusters['LEFT-CLIPPING-CLUSTER'] = left_CLIPPING_clusters 
         clusters['RIGHT-CLIPPING-CLUSTER']= right_CLIPPING_clusters
-        
-        # Write output
+    
+        # Write clusters
         output.writeClusters(clusters, self.outDir)
 
-        # Do Cleanup 
+        ### 5. Do cleanup
         unix.rm([dbDir])
 
-    def SV_clusters_bin(self, window):
+    def make_clusters_bin(self, window):
         '''
         Search for structural variant (SV) clusters in a genomic bin/window
         '''
@@ -102,6 +102,7 @@ class SVcaller_nano():
         # b) Paired sample mode (tumour & matched normal)
         else:
 
+            ## COMMENT: MOVE CHUNK OF CODE INTO FUNCTION IN BAMTOOLS MODULE
             ## Search for SV events in the tumour
             INS_events_T, DEL_events_T, CLIPPING_left_events_T, CLIPPING_right_events_T, supportingReads_T = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, 'TUMOUR')
 
@@ -131,6 +132,7 @@ class SVcaller_nano():
             
             # Cleanup
             del supportingReads_T, supportingReads_N  
+            # --------
 
         step = 'COLLECT'
         msg = 'Number of SV events in bin (INS, DEL, CLIPPING_left, CLIPPING_right): ' +  "\t".join([binId, str(len(INS_events)), str(len(DEL_events)), str(len(CLIPPING_left_events)), str(len(CLIPPING_right_events))])
@@ -141,6 +143,7 @@ class SVcaller_nano():
         msg = 'Organize all the SV events into genomic bins prior clustering'
         log.step(step, msg)
 
+        ## COMMENT: MOVE CHUNK OF CODE INTO FUNCTION IN STRUCTURES MODULE
         ## 2.1 Insertions
         binSizes = [self.confDict['maxBkpDist']] # use maxBkpDist as binsize
         data = [(INS_events, 'INS')]
@@ -172,8 +175,11 @@ class SVcaller_nano():
 
         # Cleanup
         del CLIPPING_right_events, data  
+        # --------
 
         ## 3. Group events into SV clusters ##
+
+        ## COMMENT: MOVE CHUNK OF CODE INTO FUNCTION IN CLUSTERING MODULE
         ## 3.1 Cluster insertions
         INS_clusters = clustering.clusterByDist1D(INS_bins, self.confDict['maxBkpDist'], self.confDict['minRootClusterSize'], 'INS')
 
@@ -197,6 +203,7 @@ class SVcaller_nano():
 
         # Cleanup
         del left_CLIPPING_bins, right_CLIPPING_bins
+        # --------
 
         ## 4. Polish SV clusters ##
         step = 'POLISH'
@@ -211,6 +218,7 @@ class SVcaller_nano():
         msg = 'Filter SV clusters'
         log.step(step, msg)
 
+        ## COMMENT: MOVE CHUNK OF CODE INTO FUNCTION IN FILTERS MODULE
         ## 5.1 Filter insertions
         filters.filterClusters(INS_clusters, 'INS-CLUSTER', self.confDict)
 
@@ -222,17 +230,20 @@ class SVcaller_nano():
 
         ## 5.4 Filter right-clippings
         filters.filterClusters(right_CLIPPING_clusters, 'RIGHT-CLIPPING-CLUSTER', self.confDict)
+        # --------
 
         ## 6. Make consensus sequence for SV clusters ##
         step = 'CONSENSUS'
         msg = 'Make consensus sequence for SV clusters '
         log.step(step, msg)
 
+        ## COMMENT: MOVE CHUNK OF CODE INTO FUNCTION IN CLUSTERS MODULE
         ## 6.1 Consensus for insertions
         clusters.consensusClusters(INS_clusters, 'INS-CLUSTER', supportingReads, self.reference, self.confDict, binDir)
 
         ## 6.2 Consensus for deletions
         clusters.consensusClusters(DEL_clusters, 'DEL-CLUSTER', supportingReads, self.reference, self.confDict, binDir)
+        # --------
 
         ## 7. Determine what has been inserted (insertion type) ##
         step = 'INS-TYPE'
@@ -245,3 +256,25 @@ class SVcaller_nano():
         unix.rm([binDir])
 
         return INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters
+
+
+
+class SV_caller_short(SV_caller):
+    '''
+    Structural variation (SV) caller for Illumina short read sequencing data
+    '''
+    def __init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir):
+
+        SV_caller.__init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir)
+
+    def call(self):
+        '''
+        Search for structural variants (SV) genome wide or in a set of target genomic regions
+        '''
+        pass
+
+    def make_clusters_bin(self, window):
+        '''
+        Search for structural variant (SV) clusters in a genomic bin/window
+        '''
+        pass
