@@ -227,27 +227,24 @@ def collectSV_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict):
             * quality        -> True (sequence qualities available) or False (not available). 
 
     Output:
-        1. INS_events: list of INS objects
-        2. DEL_events: list of DEL objects
-        3. CLIPPING_left_events: list of CLIPPING objects on the left
-        4. CLIPPING_right_events: list of CLIPPING objects on the right
-        5. supportingReads: FASTQ (if qualities available) or FASTA (if qualities NOT available) object containing the reads supporting the SV events
+        1. eventsDict: dictionary containing list of SV events grouped according to the SV type:
+            * INS -> list of INS objects
+            * DEL -> list of DEL objects
+            * LEFT-CLIPPING -> list of left CLIPPING objects
+            * RIGHT-CLIPPING -> list of right CLIPPING objects
+        2. supportingReads: FASTQ (if qualities available) or FASTA (if qualities NOT available) object containing the reads supporting the SV events
     '''
     ## Search for SV events in the tumour
-    INS_events_T, DEL_events_T, CLIPPING_left_events_T, CLIPPING_right_events_T, supportingReads_T = collectSV(ref, binBeg, binEnd, tumourBam, confDict, 'TUMOUR')
+    eventsDict_T, supportingReads_T = collectSV(ref, binBeg, binEnd, tumourBam, confDict, 'TUMOUR')
 
     ## Search for SV events in the normal
-    INS_events_N, DEL_events_N, CLIPPING_left_events_N, CLIPPING_right_events_N, supportingReads_N = collectSV(ref, binBeg, binEnd, normalBam, confDict, 'NORMAL')
+    eventsDict_N, supportingReads_N = collectSV(ref, binBeg, binEnd, normalBam, confDict, 'NORMAL')
 
     ## Join tumour and normal lists
-    INS_events = INS_events_T + INS_events_N
-    DEL_events = DEL_events_T + DEL_events_N
-    CLIPPING_left_events = CLIPPING_left_events_T + CLIPPING_left_events_N
-    CLIPPING_right_events = CLIPPING_right_events_T + CLIPPING_right_events_N
+    eventsDict = {}
 
-    # Cleanup
-    del INS_events_T, DEL_events_T, CLIPPING_left_events_T, CLIPPING_right_events_T  
-    del INS_events_N, DEL_events_N, CLIPPING_left_events_N, CLIPPING_right_events_N
+    for SV_type in eventsDict_T:        
+        eventsDict[SV_type] = eventsDict_T[SV_type] + eventsDict_N[SV_type]
 
     ## Merge tumour and normal FASTQ/FASTA              
     # a) Quality available  
@@ -260,10 +257,7 @@ def collectSV_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict):
         
     supportingReads.seqDict = {**supportingReads_T.seqDict, **supportingReads_N.seqDict} 
             
-    # Cleanup
-    del supportingReads_T, supportingReads_N  
-
-    return INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events, supportingReads
+    return eventsDict, supportingReads
 
 
 def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
@@ -285,20 +279,28 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
         6. sample: type of sample (TUMOUR, NORMAL or None)
 
     Output:
-        1. INS_events: list of INS objects
-        2. DEL_events: list of DEL objects
-        3. CLIPPING_left_events: list of CLIPPING objects on the left
-        4. CLIPPING_left_events: list of CLIPPING objects on the right
-        5. supportingReads: FASTQ (if qualities available) or FASTA (if qualities NOT available) object containing the reads supporting the SV events
-
+        1. eventsDict: dictionary containing list of SV events grouped according to the SV type:
+            * INS -> list of INS objects
+            * DEL -> list of DEL objects
+            * LEFT-CLIPPING -> list of left CLIPPING objects
+            * RIGHT-CLIPPING -> list of right CLIPPING objects
+        2. supportingReads: FASTQ (if qualities available) or FASTA (if qualities NOT available) object containing the reads supporting the SV events
         Note: * include secondary alignment filter???
     '''
     
-    ## Initialize lists with SV
-    INS_events = []
-    DEL_events = []
-    CLIPPING_left_events = []
-    CLIPPING_right_events = []
+    ## Initialize dictionary to store SV events
+    eventsDict = {}
+
+    for SV_type in confDict['targetSV']:
+
+        # a) Dividide clipping events into left and right clippings
+        if (SV_type == 'CLIPPING'):
+            eventsDict['LEFT-CLIPPING'] = []
+            eventsDict['RIGHT-CLIPPING'] = []
+
+        # b) Other types of events
+        else:
+            eventsDict[SV_type] = []
 
     ## Initialize FASTA/FASTQ object containing supporting reads    
     # a) Quality available  
@@ -333,43 +335,47 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             ## 1. Collect CLIPPINGS
             if 'CLIPPING' in confDict['targetSV']:
 
-                CLIPPING_left, CLIPPING_right = collectCLIPPING(alignmentObj, confDict, sample)
+                left_CLIPPING, right_CLIPPING = collectCLIPPING(alignmentObj, confDict, sample)
 
-                ## Select CLIPPING left breakpoints within the target genomic bin
-                if CLIPPING_left != None:
-                    overlapLen = gRanges.overlap(CLIPPING_left.beg, CLIPPING_left.end, binBeg, binEnd)
-
-                    if overlapLen > 0:
-                        informative = True
-                        CLIPPING_left_events.append(CLIPPING_left)
-
-                ## Select CLIPPING right breakpoints within the target genomic bin
-                if CLIPPING_right != None:
-                    overlapLen = gRanges.overlap(CLIPPING_right.beg, CLIPPING_right.end, binBeg, binEnd)
+                ## Select left CLIPPING breakpoints within the target genomic bin
+                ## COMMENT: REMOVE REDUNDANCY AT ONE POINT BY MOVING CODE INTO A FUNCTION OF EVENTS MODULE!!!!!
+                if left_CLIPPING != None:
+                    overlapLen = gRanges.overlap(left_CLIPPING.beg, left_CLIPPING.end, binBeg, binEnd)
 
                     if overlapLen > 0:
                         informative = True
-                        CLIPPING_right_events.append(CLIPPING_right)
+                        eventsDict['LEFT-CLIPPING'].append(left_CLIPPING)
+
+                ## Select right CLIPPING breakpoints within the target genomic bin
+                ## COMMENT: REMOVE REDUNDANCY AT ONE POINT BY MOVING CODE INTO A FUNCTION OF EVENTS MODULE!!!!!
+                if right_CLIPPING != None:
+                    overlapLen = gRanges.overlap(right_CLIPPING.beg, right_CLIPPING.end, binBeg, binEnd)
+
+                    if overlapLen > 0:
+                        informative = True
+                        eventsDict['RIGHT-CLIPPING'].append(right_CLIPPING)
 
             ## 2. Collect INDELS
             if ('INS' in confDict['targetSV']) or ('DEL' in confDict['targetSV']):
                 INS_events_tmp, DEL_events_tmp = collectINDELS(alignmentObj, confDict, sample)
                 
                 ## Select INS events within the target genomic bin
+                ## COMMENT: REMOVE REDUNDANCY AT ONE POINT BY MOVING CODE INTO A FUNCTION OF EVENTS MODULE!!!!!
                 for INS in INS_events_tmp:
                     overlapLen = gRanges.overlap(INS.beg, INS.end, binBeg, binEnd)
 
                     if overlapLen > 0:
                         informative = True
-                        INS_events.append(INS)
+                        eventsDict['INS'].append(INS)
 
                 ## Select DEL events within the target genomic bin
+                ## COMMENT: REMOVE REDUNDANCY AT ONE POINT BY MOVING CODE INTO A FUNCTION OF EVENTS MODULE!!!!!
                 for DEL in DEL_events_tmp:
                     overlapLen = gRanges.overlap(DEL.beg, DEL.end, binBeg, binEnd)
                     
                     if overlapLen > 0:
                         informative = True
-                        DEL_events.append(DEL)
+                        eventsDict['DEL'].append(DEL)
 
             ## 3. Add read to the FASTQ object if supports a SV event (DEL, INS or CLIPPING)
             if informative:
@@ -402,7 +408,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
     bamFile.close()
 
     # return sv candidates
-    return INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events, supportingReads
+    return eventsDict, supportingReads
 
 
 def collectCLIPPING(alignmentObj, confDict, sample):
@@ -416,13 +422,13 @@ def collectCLIPPING(alignmentObj, confDict, sample):
         3. sample: type of sample (TUMOUR, NORMAL or None). Move to confDict
 
     Output:
-        1. clippingLeftObj: CLIPPING object for left clipping (None if no clipping found)
-        2. clippingRightObj: CLIPPING object for right clipping (None if no clipping found)
+        1. left_CLIPPING: left CLIPPING object (None if no clipping found)
+        2. right_CLIPPING: right CLIPPING object (None if no clipping found)
 
     Note: include filter to discard reads clipped at both their begin and end (useful with illumina data)
     '''
     # Initialize as None
-    clippingLeftObj, clippingRightObj = [None, None]
+    left_CLIPPING, right_CLIPPING = [None, None]
 
     # Select first and last operation from cigar to search for clipping
     firstOperation, firstOperationLen = alignmentObj.cigartuples[0]
@@ -431,13 +437,13 @@ def collectCLIPPING(alignmentObj, confDict, sample):
     ## Clipping >= X bp at the left
     #  Note: soft (Operation=4) or hard clipped (Operation=5)     
     if ((firstOperation == 4) or (firstOperation == 5)) and (firstOperationLen >= confDict['minCLIPPINGlen']):
-        clippingLeftObj = events.CLIPPING(alignmentObj, 'left', sample)
+        left_CLIPPING = events.CLIPPING(alignmentObj, 'left', sample)
 
     ## Clipping > X bp at the right
     if ((lastOperation == 4) or (lastOperation == 5)) and (lastOperationLen >= confDict['minCLIPPINGlen']):
-        clippingRightObj = events.CLIPPING(alignmentObj, 'right', sample)
+        right_CLIPPING = events.CLIPPING(alignmentObj, 'right', sample)
 
-    return clippingLeftObj, clippingRightObj
+    return left_CLIPPING, right_CLIPPING
 
 
 def collectINDELS(alignmentObj, confDict, sample):
