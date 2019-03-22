@@ -8,28 +8,38 @@ Module 'structures' - Contains functions and classes to organize data into more 
 import log
 
 ## FUNCTIONS ##
-def createBinDb(ref, beg, end, data, binSizes):
+def create_bin_databases(ref, beg, end, eventsDict, binSizes):
     '''
+
+
     Input:
-        1. data: tuple list containing the list of events corresponding to each provided event type. E.g: 
-                 [ tuple1(event_list, event_type), ..., tupleN(event_list, event_type)]
-        2. binSizes: list of bin sizes 
+        1. ref: reference/chromosome
+        2. beg: bin begin coordinate
+        3. end: bin end coordinate
+        4. eventsDict: dictionary containing:
+            * KEY_1 -> list of objects
+            * KEY_2 -> list of objects
+    
+        5. binSizes: list of bin sizes that will be used to create a bin database 
 
     Output:
-        1. binDbObj: 'binDb' instance containing all the input events organized in genomic bins
-    '''            
-    binDbObj = binDb(ref, beg, end, binSizes)
-    
-    # For each type of event add the corresponding 
-    # event instances to the data structure 
-    for events, eventType in data:
-        binDbObj.addEvents(events, eventType)
-    
-    return binDbObj
+        1. binDb: 'bin_database' instance containing all the input events organized in genomic bins
+    '''          
+
+    # Initiate bin database
+    binDb = bin_database(ref, beg, end, binSizes)
+
+    # For each type of input event
+    for eventType, events in eventsDict.items():
+
+        # Add all the events from the given event type to the bin database
+        binDb.addEvents(events, eventType)
+
+    return binDb
 
 
 ## CLASSES ##
-class binDb():
+class bin_database():
     '''
     Database to organize a set of events into a hierarchy of genomic bins
     '''
@@ -50,7 +60,6 @@ class binDb():
         for binSize in self.binSizes:
             self.data[binSize] = {}
 
-    
     def addEvents(self, events, eventType):
         '''
         Add events into a hierarchy of genomic bins
@@ -76,11 +85,11 @@ class binDb():
                     # a) First event into that bin -> Initialize dict and bin  
                     if binIndexBeg not in self.data[binSize]:
                         self.data[binSize][binIndexBeg] = {}
-                        self.data[binSize][binIndexBeg][eventType] = eventsBin([event])                
+                        self.data[binSize][binIndexBeg][eventType] = events_bin([event])                
 
                     # b) First event of that type in this bin -> Initialize bin
                     elif eventType not in self.data[binSize][binIndexBeg]:
-                        self.data[binSize][binIndexBeg][eventType] = eventsBin([event]) 
+                        self.data[binSize][binIndexBeg][eventType] = events_bin([event]) 
 
                     # c) There are already events of this type in this bin -> Add event to the bin
                     else:
@@ -180,7 +189,7 @@ class binDb():
         return totalNbEvents, nbEventsBinSizes
 
 
-class eventsBin():
+class events_bin():
     '''
     Contain a set of events of the same type in a genomic bin
     '''
