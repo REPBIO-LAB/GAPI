@@ -14,74 +14,6 @@ import gRanges
 import structures
 
 ## FUNCTIONS ##
-def create_metaclusters(eventsBinDb, confDict):
-    '''
-    
-    Input:
-        1. eventsBinDb: Data structure containing a set of events organized in genomic bins
-        2. confDict: 
-            * targetSV            -> list with types of SV events included in the bin database provided as input 
-            * maxEventDist          -> Maximum distance bewteen two adjacent breakpoints for INS and CLIPPING clustering
-            * minClusterSize  -> minimum number of reads composing a root cluster
-
-    Output:
-        1. metaclustersBinDb: bin database structure containing metaclusters
-    ''' 
-    ## 1. Abort metaclustering if smallest bin longer than maxEventDist ##
-    binSize = eventsBinDb.binSizes[0]
-    
-    if (binSize > confDict['maxEventDist']):
-        step = 'ERROR'
-        msg = 'Smallest bin can not be longer than maxEventDist'
-        log.step(step, msg)
-        sys.exit()
-
-    allMetaclusters = []
-    clusterType = 'META'
-
-    ## 2. Do metaclustering ##
-    ## 1) Create INS + CLIPPING metaclusters
-    if all(event_type in confDict['targetSV'] for event_type in ['INS', 'CLIPPING']):
-        eventTypes = ['INS', 'LEFT-CLIPPING', 'RIGHT-CLIPPING']
-        metaclusters = distance_clustering(eventsBinDb, binSize, eventTypes, clusterType, confDict['maxEventDist'], confDict['minClusterSize'])         
-        allMetaclusters = allMetaclusters + metaclusters
-
-    else:
-
-        ## 2) Create INS metaclusters
-        if 'INS' in confDict['targetSV']:
-            eventTypes = ['INS']
-            metaclusters = distance_clustering(eventsBinDb, binSize, eventTypes, clusterType, confDict['maxEventDist'], confDict['minClusterSize'])         
-            allMetaclusters = allMetaclusters + metaclusters
-
-        ## 3) Create CLIPPING metaclusters
-        if 'CLIPPING' in confDict['targetSV']:
-            eventTypes = ['LEFT-CLIPPING', 'RIGHT-CLIPPING']
-            metaclusters = distance_clustering(eventsBinDb, binSize, eventTypes, clusterType, confDict['maxEventDist'], confDict['minClusterSize'])         
-            allMetaclusters = allMetaclusters + metaclusters
-
-    ## 4) Create DEL metaclusters 
-    if 'DEL' in confDict['targetSV']:
-        eventTypes = ['DEL']
-        # TO DO  
-        # metaclusters = reciprocal_clustering()   
-        # allMetaclusters = allMetaclusters + metaclusters
-
-    ## 5) Create DISCORDANT metaclusters
-    if 'DISCORDANT' in confDict['targetSV']:
-        eventTypes = ['DISCORDANT']
-        # TO DO  
-        # metaclusters = reciprocal_clustering()
-        # allMetaclusters = allMetaclusters + metaclusters
-
-    ## 3. Organize metaclusters into bins ##    
-    binSizes = [100, 1000, 10000, 100000, 1000000]
-    metaclustersDict = {}
-    metaclustersDict['METACLUSTERS'] = allMetaclusters 
-
-    metaclustersBinDb = structures.create_bin_database(eventsBinDb.ref, eventsBinDb.beg, eventsBinDb.end, metaclustersDict, binSizes)
-    return metaclustersBinDb
-
 def distance_clustering(binDb, binSize, eventTypes, clusterType, maxDist, minClusterSize):
     '''
 
@@ -108,7 +40,7 @@ def distance_clustering(binDb, binSize, eventTypes, clusterType, maxDist, minClu
             continue
 
         ### 2. Initiate root cluster ##
-        cluster = clusters.createCluster(events, clusterType)
+        cluster = clusters.create_cluster(events, clusterType)
         binsInClusters.append(binIndex) # now bin incorporated into cluster
 
         ### 3. Root cluster extension
@@ -269,7 +201,7 @@ def reciprocal_clustering(eventsBinDb, minPercOverlap, minClusterSize, eventType
                         eventsInClusters += [ event.id for event in events2Cluster]
 
                         # Create cluster                        
-                        cluster = clusters.createCluster(events2Cluster, eventType)
+                        cluster = clusters.create_cluster(events2Cluster, eventType)
                         clustersDict[cluster.id] = cluster
 
                     # Cluster not composed by enough number of events

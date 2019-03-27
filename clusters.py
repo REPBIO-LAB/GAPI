@@ -12,6 +12,8 @@ import collections
 import log
 import formats
 import unix
+import clustering
+import structures
 import consensus
 import alignment
 import bamtools 
@@ -22,7 +24,7 @@ import retrotransposons
 ## FUNCTIONS ##
 ###############
 
-def createCluster(events, clusterType):
+def create_cluster(events, clusterType):
     '''
     Function to create a cluster object instance
 
@@ -57,12 +59,12 @@ def createCluster(events, clusterType):
 
     ## f) Unexpected cluster type
     else:
-        log.info('Error at \'createCluster\'. Unexpected cluster type')
+        log.info('Error at \'create_cluster\'. Unexpected cluster type')
         sys.exit(1)
 
     return cluster
 
-def mergeClusters(clusters, clusterType):
+def merge_clusters(clusters, clusterType):
     '''
     Merge a set of clusters into a single cluster instance
 
@@ -77,71 +79,77 @@ def mergeClusters(clusters, clusterType):
     for cluster in clusters:
         events = events + cluster.events
 
-    mergedCluster = createCluster(events, clusterType)
+    mergedCluster = create_cluster(events, clusterType)
 
     return mergedCluster
 
-def polishClusters(clusters, clusterType):
+def create_metaclusters(eventsBinDb, confDict):
     '''
-    Function to polish a set of cluster objects. It does not produce any output just modify cluster objects through the polishing procedure
-
+    
     Input:
-        1. clusters: bin database containing a set of cluster objects
-        2. clusterType: type of cluster (INS-CLUSTER: insertion; DEL-CLUSTER: deletion; LEFT-CLIPPING-CLUSTER: left clipping; RIGHT-CLIPPING-CLUSTER: right clipping)
-    '''
-    ## For each cluster
-    for cluster in clusters.collect(clusterType):
-        
-        ## Polish
-        cluster.polish()
-        
-def consensusClusters(clusters, clusterType, supportingReads, reference, confDict, rootDir):
-    '''
-    Function to create a consensus sequence for each cluster. 
+        1. eventsBinDb: Data structure containing a set of events organized in genomic bins
+        2. confDict: 
+            * targetSV            -> list with types of SV events included in the bin database provided as input 
+            * maxEventDist          -> Maximum distance bewteen two adjacent breakpoints for INS and CLIPPING clustering
+            * minClusterSize  -> minimum number of reads composing a root cluster
 
-    Input:
-        1. clusters: bin database containing a set of cluster objects
-        2. clusterType: type of cluster (INS-CLUSTER: insertion; DEL-CLUSTER: deletion; LEFT-CLIPPING-CLUSTER: left clipping; RIGHT-CLIPPING-CLUSTER: right clipping)
-        3. supportingReads: FASTQ (if qualities available) or FASTA (if qualities NOT available) object containing all the reads supporting SV clusters 
-        4. reference: path to reference genome in fasta format
-        5. confDict: configuration dictionary (Complete...)
-        6: rootDir: root directory to write files and directories
-    '''
+    Output:
+        1. metaclustersBinDb: bin database structure containing metaclusters
+    ''' 
+    ## 1. Abort metaclustering if smallest bin longer than maxEventDist ##
+    binSize = eventsBinDb.binSizes[0]
+    
+    if (binSize > confDict['maxEventDist']):
+        step = 'ERROR'
+        msg = 'Smallest bin can not be longer than maxEventDist'
+        log.step(step, msg)
+        sys.exit()
 
-    outDir = rootDir + '/Consensus/'
-    unix.mkdir(outDir)
+    allMetaclusters = []
+    clusterType = 'META'
 
-    ## 1. Create consensus sequence for each cluster
-    for cluster in clusters.collect(clusterType):        
+    ## 2. Do metaclustering ##
+    ## 1) Create INS + CLIPPING metaclusters
+    if all(event_type in confDict['targetSV'] for event_type in ['INS', 'CLIPPING']):
+        eventTypes = ['INS', 'LEFT-CLIPPING', 'RIGHT-CLIPPING']
+        metaclusters = clustering.distance_clustering(eventsBinDb, binSize, eventTypes, clusterType, confDict['maxEventDist'], confDict['minClusterSize'])         
+        allMetaclusters = allMetaclusters + metaclusters
 
-        ## Attempt to create a consensus if: 
-        # a) No filter has been applied to the clusters OR
-        # b) MAX-NBREADS filter has not been applied to the clusters OR
-        # c) MAX-NBREADS filter has been applied and the cluster passes the filter 
-        # Done to skip consensus generation for clusters with an abnormally high number of supporting reads. They are artefacts and takes a very long time to process them
-        if (cluster.filters == None) or ('MAX-NBREADS' not in cluster.filters) or (cluster.filters['MAX-NBREADS']):
-            
-            ## Create consensus
-            cluster.create_consensus(supportingReads, reference, confDict, outDir)
+    else:
 
-def insTypeClusters(clusters, index, confDict, rootDir):
-    '''
-    Function to determine what has been inserted for each cluster. 
+        ## 2) Create INS metaclusters
+        if 'INS' in confDict['targetSV']:
+            eventTypes = ['INS']
+            metaclusters = clustering.distance_clustering(eventsBinDb, binSize, eventTypes, clusterType, confDict['maxEventDist'], confDict['minClusterSize'])         
+            allMetaclusters = allMetaclusters + metaclusters
 
-    Input:
-        1. clusters: bin database containing a set of cluster objects
-        2. index: Minimap2 index for fasta file containing retrotransposon related sequences 
-        3. confDict: type of cluster (INS-CLUSTER: insertion; DEL-CLUSTER: deletion; LEFT-CLIPPING-CLUSTER: left clipping; RIGHT-CLIPPING-CLUSTER: right clipping)
-        4: rootDir: root directory to write files and directories
-    '''
-    outDir = rootDir + '/InsType/'
-    unix.mkdir(outDir)
+        ## 3) Create CLIPPING metaclusters
+        if 'CLIPPING' in confDict['targetSV']:
+            eventTypes = ['LEFT-CLIPPING', 'RIGHT-CLIPPING']
+            metaclusters = clustering.distance_clustering(eventsBinDb, binSize, eventTypes, clusterType, confDict['maxEventDist'], confDict['minClusterSize'])         
+            allMetaclusters = allMetaclusters + metaclusters
 
-    ## 1. Determine insertion type for each cluster
-    for cluster in clusters.collect('INS-CLUSTER'):
+    ## 4) Create DEL metaclusters 
+    if 'DEL' in confDict['targetSV']:
+        eventTypes = ['DEL']
+        # TO DO  
+        # metaclusters = clustering.reciprocal_clustering()   
+        # allMetaclusters = allMetaclusters + metaclusters
 
-        ## Determine insertion type
-        cluster.determine_insertion_type(index, confDict, outDir)
+    ## 5) Create DISCORDANT metaclusters
+    if 'DISCORDANT' in confDict['targetSV']:
+        eventTypes = ['DISCORDANT']
+        # TO DO  
+        # metaclusters = clustering.reciprocal_clustering()
+        # allMetaclusters = allMetaclusters + metaclusters
+
+    ## 3. Organize metaclusters into bins ##    
+    binSizes = [100, 1000, 10000, 100000, 1000000]
+    metaclustersDict = {}
+    metaclustersDict['METACLUSTERS'] = allMetaclusters 
+
+    metaclustersBinDb = structures.create_bin_database(eventsBinDb.ref, eventsBinDb.beg, eventsBinDb.end, metaclustersDict, binSizes)
+    return metaclustersBinDb
 
 
 #############
