@@ -8,9 +8,8 @@ Module 'structures' - Contains functions and classes to organize data into more 
 import log
 
 ## FUNCTIONS ##
-def create_bin_databases(ref, beg, end, eventsDict, binSizes):
+def create_bin_database(ref, beg, end, eventsDict, binSizes):
     '''
-
 
     Input:
         1. ref: reference/chromosome
@@ -36,7 +35,6 @@ def create_bin_databases(ref, beg, end, eventsDict, binSizes):
         binDb.addEvents(events, eventType)
 
     return binDb
-
 
 ## CLASSES ##
 class bin_database():
@@ -106,25 +104,71 @@ class bin_database():
                 if eventType in self.data[binSize][binIndex]:
                     self.data[binSize][binIndex][eventType].sort()
         
-    def collect(self, eventType):
+    def collect(self, eventTypes):
         '''
-        Collect all the events from the provided event type that are stored in the bin structure
+        Collect all the events of target event types that are stored 
+        in the bin database structure
         
          Input:
-            1. eventType. Target event type
+            1. eventTypes: list containing target event types
 
          Output:
             2. events. List of events
         '''  
         events = []
 
+        # For each bin size
         for binSize in self.binSizes:
 
+            # For each bin
             for binIndex in self.data[binSize].keys():
                 
-                events = events + self.data[binSize][binIndex][eventType].events
+                # For each target event type
+                for eventType in eventTypes:
+
+                    # There are events of the target event type in the bin 
+                    if eventType in self.data[binSize][binIndex]:
+
+                        # Add events to the list
+                        events = events + self.data[binSize][binIndex][eventType].events
+
+        ## Sort events by begin coordinate
+        events.sort(key=lambda event: event.beg)
 
         return events
+
+    def collect_bin(self, binSize, binIndex, eventTypes):
+        '''
+        Collect all the events of target event types that are stored 
+        in a particular bin 
+
+         Input:
+            1. binSize: bin size corresponding to the target bin index
+            2. binIndex: target bin index
+            3. eventTypes: list containing target event types
+
+         Output:
+            2. events. List of events
+        '''  
+        events = []
+
+        ## Check if bin database contains target bin
+        if (binSize in self.data) and (binIndex in self.data[binSize]):
+    
+            # For each target event type
+            for eventType in eventTypes:
+
+                # There are events of the target event type in the bin 
+                if eventType in self.data[binSize][binIndex]:
+
+                    # Add events to the list
+                    events = events + self.data[binSize][binIndex][eventType].events
+
+        ## Sort events by begin coordinate
+        events.sort(key=lambda event: event.beg)
+
+        return events
+
 
     def traverse(self, rootIndex, rootSize, eventType):
         '''
@@ -173,7 +217,7 @@ class bin_database():
 
     def nbEvents(self):
         '''
-        Compute the number of events composing the hash structure
+        Compute the number of events composing the bin dictionary structure
         '''
         totalNbEvents = 0
         nbEventsBinSizes = {}
@@ -198,7 +242,10 @@ class events_bin():
 
     def add(self, events):
         '''
-        Contain a set of events of the same type in a genomic bin
+        Add input events to the bin´s list of events
+
+        Input:
+            1. events: List of events to add to the bin 
         '''
         self.events = self.events + events
         
