@@ -5,6 +5,7 @@ Module 'clustering' - Contains functions for clustering sets of objects based on
 ## DEPENDENCIES ##
 # External
 import time
+import sys
 
 # Internal
 import log
@@ -13,160 +14,171 @@ import gRanges
 import structures
 
 ## FUNCTIONS ##
-def clusterByDist1D(eventsBins, maxDist, minClusterSize, eventType):
+def create_metaclusters(eventsBinDb, confDict):
     '''
-    Cluster events (CLIPPING, INS...) by begin positions. 
-
-    Two algorithms:
-    - maxDist <= bin side -> fast approach
-    - maxDist > bin side -> iterative approach
-
+    
     Input:
-        1. eventsBins: Data structure containing a set of events organized in genomic bins
-        2. maxDist: maximum distance between two positions to include them into the same cluster
-        3. minClusterSize: minimum number of events required to build a root cluster in a window
-        4. eventType: type of events to cluster (INS: insertion; DEL: deletion; CLIPPING: clipping)
+        1. eventsBinDb: Data structure containing a set of events organized in genomic bins
+        2. confDict: 
+            * targetSV            -> list with types of SV events included in the bin database provided as input 
+            * maxEventDist          -> Maximum distance bewteen two adjacent breakpoints for INS and CLIPPING clustering
+            * minClusterSize  -> minimum number of reads composing a root cluster
 
     Output:
+        1. metaclustersBinDb: bin database structure containing metaclusters
     ''' 
-    binSize = eventsBins.binSizes[0]
+    ## 1. Abort metaclustering if smallest bin longer than maxEventDist ##
+    binSize = eventsBinDb.binSizes[0]
     
-    ## 1. Create clusters ##
-    # a) Fast clustering algorithm
-    if (binSize <= maxDist):
-        clustersList = clusterByDist1D_fast(eventsBins.data[binSize], maxDist, minClusterSize, eventType)
+    if (binSize > confDict['maxEventDist']):
+        step = 'ERROR'
+        msg = 'Smallest bin can not be longer than maxEventDist'
+        log.step(step, msg)
+        sys.exit()
 
-    # b) Iterative clustering algorithm (not implemented yet)
+    allMetaclusters = []
+    clusterType = 'META'
+
+    ## 2. Do metaclustering ##
+    ## 1) Create INS + CLIPPING metaclusters
+    if all(event_type in confDict['targetSV'] for event_type in ['INS', 'CLIPPING']):
+        eventTypes = ['INS', 'LEFT-CLIPPING', 'RIGHT-CLIPPING']
+        metaclusters = distance_clustering(eventsBinDb, binSize, eventTypes, clusterType, confDict['maxEventDist'], confDict['minClusterSize'])         
+        allMetaclusters = allMetaclusters + metaclusters
+
     else:
-        print('ITERATIVE ALGORITHM. NOT IMPLEMENTED YET...')
-        # clusterByDist1D_iterative(eventsBins.data[binSize], maxDist, minClusterSize, eventType)
-    
-    ## 2. Organize clusters into bins ##    
+
+        ## 2) Create INS metaclusters
+        if 'INS' in confDict['targetSV']:
+            eventTypes = ['INS']
+            metaclusters = distance_clustering(eventsBinDb, binSize, eventTypes, clusterType, confDict['maxEventDist'], confDict['minClusterSize'])         
+            allMetaclusters = allMetaclusters + metaclusters
+
+        ## 3) Create CLIPPING metaclusters
+        if 'CLIPPING' in confDict['targetSV']:
+            eventTypes = ['LEFT-CLIPPING', 'RIGHT-CLIPPING']
+            metaclusters = distance_clustering(eventsBinDb, binSize, eventTypes, clusterType, confDict['maxEventDist'], confDict['minClusterSize'])         
+            allMetaclusters = allMetaclusters + metaclusters
+
+    ## 4) Create DEL metaclusters 
+    if 'DEL' in confDict['targetSV']:
+        eventTypes = ['DEL']
+        # TO DO  
+        # metaclusters = reciprocal_clustering()   
+        # allMetaclusters = allMetaclusters + metaclusters
+
+    ## 5) Create DISCORDANT metaclusters
+    if 'DISCORDANT' in confDict['targetSV']:
+        eventTypes = ['DISCORDANT']
+        # TO DO  
+        # metaclusters = reciprocal_clustering()
+        # allMetaclusters = allMetaclusters + metaclusters
+
+    ## 3. Organize metaclusters into bins ##    
     binSizes = [100, 1000, 10000, 100000, 1000000]
-    data = [(clustersList, eventType + '-CLUSTER')]
-    clustersBins = structures.createBinDb(eventsBins.ref, eventsBins.beg, eventsBins.end, data, binSizes)
+    metaclustersDict = {}
+    metaclustersDict['METACLUSTERS'] = allMetaclusters 
 
-    return clustersBins
+    metaclustersBinDb = structures.create_bin_database(eventsBinDb.ref, eventsBinDb.beg, eventsBinDb.end, metaclustersDict, binSizes)
+    return metaclustersBinDb
 
-
-def clusterByDist1D_fast(binHash, maxDist, minClusterSize, eventType):
+def distance_clustering(binDb, binSize, eventTypes, clusterType, maxDist, minClusterSize):
     '''
+
     '''
     clustersList = []
     binsInClusters = []
 
+    ## Make list with all the available bins
+    binIds = list(binDb.data[binSize].keys())
+    binIds.sort() # Sort bins in increasing order
+
     # For each bin 
-    for binIndex in binHash:
+    for binIndex in binIds:
 
-        # There are elements of the target cluster type in the bin
-        if eventType in binHash[binIndex]:
+        ## Skip bin if already incorporated into a cluster 
+        if binIndex in binsInClusters:
+            continue
 
-            ### Number of events in the bin
-            binObj = binHash[binIndex][eventType]
+        ## 1. Collect all the events of target event types from current bin ##
+        events = binDb.collect_bin(binSize, binIndex, eventTypes)
 
-            ### Skip bins fulfilling one of these conditions:
-            # a) Bin already incorporated into a cluster 
-            if binIndex in binsInClusters:
-                continue
+        ## Skip bin if no target event was found
+        if not events:
+            continue
+
+        ### 2. Initiate root cluster ##
+        cluster = clusters.createCluster(events, clusterType)
+        binsInClusters.append(binIndex) # now bin incorporated into cluster
+
+        ### 3. Root cluster extension
+        ## Go forward from current bin (*).  
+        #                ---1---> ---2--->
+        # |---------|----*----|--------|---------
+        # Go one bin forward in each iteration. Extend the cluster 
+        # if first event in next bin within 
+        # maximum cluster distance or end iteration, otherwise 
+        forwardIndex = binIndex + 1
+
+        while True:
+
+            ## Collect events in the next bin 
+            events = binDb.collect_bin(binSize, forwardIndex, eventTypes)
+
+            # A) There are events in the bin 
+            if events:       
+
+                # Compute the distance between the left most event position in the new bin
+                # and the cluster end 
+                firstEvent = events[0]
+                dist = firstEvent.beg - cluster.end 
+
+                # a) First event within maximum distance 
+                if dist <= maxDist:
+
+                    # Add events within bin to the cluster 
+                    cluster.add(events)
+                    binsInClusters.append(forwardIndex) # now bin incorporated into cluster
+                    forwardIndex += 1        
+
+                # b) Event outside -> Stop extension
+                else:
+                    totalNbEvents = cluster.nbEvents()[0]
+
+                    # Filter out cluster if not composed by enough number of events
+                    if totalNbEvents >= minClusterSize:
+                        clustersList.append(cluster)
+
+                    break
+
+            # B) No events in the bin -> Stop extension
+            else:
+
+                totalNbEvents = cluster.nbEvents()[0]
+                    
+                # Filter out cluster if not composed by enough number of events
+                if totalNbEvents >= minClusterSize:
+                    clustersList.append(cluster)
+
+                break 
     
-            # b) Bin without enough number of events to build a root cluster
-            elif (binObj.nbEvents() < minClusterSize):
-                continue
-
-            ### 1. Create root cluster containing events on the bin
-            cluster = clusters.createCluster(binObj.events, eventType)
-            clustersList.append(cluster)
-            binsInClusters.append(binIndex) # now bin incorporated into cluster
-
-            ### 2. Root cluster extension
-            ## 2.1 Go backward from current bin (*).  
-            #       <---2--- <---1---
-            # |---------|--------|----*----|---------
-            # Go one bin backward in each iteration. Extend the cluster 
-            # if last event in previous bin within 
-            # maximum cluster distance or end iteration, otherwise 
-            backwardIndex = binIndex - 1
-
-            while True:
-        
-                # A) There are events in the bin 
-                if (backwardIndex in binHash) and (eventType in binHash[backwardIndex]):
-                
-                    # Compute the distance between the right most event
-                    # in the new bin and the cluster begin 
-                    newBinObj = binHash[backwardIndex][eventType]
-                    lastEvent = newBinObj.events[-1]
-                    dist = cluster.beg - lastEvent.end
-
-                    # a) Last event within maximum distance 
-                    if dist <= maxDist:
-
-                        # Add events within bin to the cluster 
-                        cluster.add(newBinObj.events, 'left')
-                        binsInClusters.append(backwardIndex) # now bin incorporated into cluster
-                        backwardIndex -= 1
-
-                    # b) Event outside 
-                    else:
-                        break
-
-                # B) No events in the bin. Stop iterating
-                else:
-                    break 
-
-            ## 2.2 Go forward from current bin (*).  
-            #                ---1---> ---2--->
-            # |---------|----*----|--------|---------
-            # Go one bin forward in each iteration. Extend the cluster 
-            # if first event in next bin within 
-            # maximum cluster distance or end iteration, otherwise 
-            forwardIndex = binIndex + 1
-
-            while True:
-        
-                # A) There are events in the bin 
-                if (forwardIndex in binHash) and (eventType in binHash[forwardIndex]):
-
-                    # Compute the distance between the left most position in the new bin
-                    # and the cluster end 
-                    newBinObj = binHash[forwardIndex][eventType]
-                    firstEvent = newBinObj.events[0]
-                    dist = firstEvent.beg - cluster.end 
-
-                    # a) Last event within maximum distance 
-                    if dist <= maxDist:
-
-                        # Add events within bin to the cluster 
-                        cluster.add(newBinObj.events, 'right')
-                        binsInClusters.append(forwardIndex) # now bin incorporated into the cluster
-                        forwardIndex += 1        
-
-                    # b) Events outside 
-                    else:
-                        break
-
-                # B) No events in the bin. Stop iterating
-                else:
-                    break 
-
     return clustersList
 
-
-def clusterByRcplOverlap(eventsBins, minPercOverlap, minClusterSize, eventType, buffer):
+def reciprocal_clustering(eventsBinDb, minPercOverlap, minClusterSize, eventType, buffer):
     '''
     '''
     eventsInClusters = []
     clustersDict = {}
 
     # For each window size/level
-    for windowSize in eventsBins.binSizes:
+    for windowSize in eventsBinDb.binSizes:
 
         # For each bin in the current window size
-        for index in eventsBins.data[windowSize]:
+        for index in eventsBinDb.data[windowSize]:
 
             ### 1. Collect all the events in the current bin and 
             # in bins located at higher levels of the hierarchy
-            events = eventsBins.traverse(index, windowSize, eventType)
+            events = eventsBinDb.traverse(index, windowSize, eventType)
 
             ### 2. Cluster events based on reciprocal overlap
             ## For each event A
@@ -262,10 +274,6 @@ def clusterByRcplOverlap(eventsBins, minPercOverlap, minClusterSize, eventType, 
 
                     # Cluster not composed by enough number of events
     
-    ## 2. Organize clusters into bins ##    
-    binSizes = [100, 1000, 10000, 100000, 1000000]
+    clustersList = list(clustersDict.values())
 
-    data = [(list(clustersDict.values()), eventType + '-CLUSTER')]
-    clustersBins = structures.createBinDb(eventsBins.ref, eventsBins.beg, eventsBins.end, data, binSizes)
-
-    return clustersBins
+    return clustersList
