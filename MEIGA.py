@@ -44,8 +44,7 @@ parser.add_argument('--SV', default="INS,CLIPPING", dest='SV', type=str, help='C
 parser.add_argument('--minMAPQ', default=20, dest='minMAPQ', type=int, help='Minimum mapping quality required for each read. Default: 20')
 parser.add_argument('--minINDELlen', default=50, dest='minINDELlen', type=int, help='Minimum indel length. Default: 50')
 parser.add_argument('--minCLIPPINGlen', default=500, dest='minCLIPPINGlen', type=int, help='Minimum clipped sequence length for each read. Default: 500')
-parser.add_argument('--minRootClusterSize', default=2, dest='minRootClusterSize', type=int, help='Minimum number of reads composing a root cluster. Default: 2')
-parser.add_argument('--maxBkpDist', default=100, dest='maxBkpDist', type=int, help='Maximum distance bewteen two adjacent breakpoints for INS and CLIPPING clustering. Default: 100')
+parser.add_argument('--maxEventDist', default=100, dest='maxEventDist', type=int, help='Maximum distance bewteen two adjacent breakpoints for INS and CLIPPING clustering (Between 0-999). Default: 100')
 parser.add_argument('--minPercOverlap', default=70, dest='minPercRcplOverlap', type=int, help='Minimum percentage of reciprocal overlap for DEL clustering. Default: 50')
 parser.add_argument('--clusterFilters', default="MIN-NBREADS,MAX-NBREADS,CV,OUTLIERS", dest='clusterFilters', type=str, help='Comma separated list of cluster filters to apply (minimum number of reads, max number of reads, minimum Coefficient of Variation and minimum percentage of outliers). Default: MIN-NBREADS,MAX-NBREADS,CV,OUTLIERS')
 parser.add_argument('--minClusterSize', default=2, dest='minClusterSize', type=int, help='Minimum number of reads composing a cluster. Default: 2')
@@ -77,11 +76,10 @@ SV = args.SV
 minMAPQ = args.minMAPQ
 minINDELlen = args.minINDELlen
 minCLIPPINGlen = args.minCLIPPINGlen
-minRootClusterSize = args.minRootClusterSize
-maxBkpDist = args.maxBkpDist
+minClusterSize = args.minClusterSize
+maxEventDist = args.maxEventDist
 minPercRcplOverlap = args.minPercRcplOverlap
 clusterFilters = args.clusterFilters
-minClusterSize = args.minClusterSize
 maxClusterSize = args.maxClusterSize
 maxClusterCV = args.maxClusterCV
 maxOutliers = args.maxOutliers
@@ -133,8 +131,7 @@ print('** Filtering thresholds **')
 print('minMAPQ: ', minMAPQ)
 print('minINDELlength: ', minINDELlen)
 print('minCLIPPINGlength: ', minCLIPPINGlen)
-print('minRootClusterSize: ', minRootClusterSize)
-print('maxBkpDistance: ', maxBkpDist)
+print('maxEventDistance: ', maxEventDist)
 print('minPercOverlap: ', minPercRcplOverlap)
 print('clusterFilters: ', clusterFilters)
 print('minClusterSize: ', minClusterSize)
@@ -168,8 +165,7 @@ confDict['targetSV'] = targetSV
 confDict['minMAPQ'] = minMAPQ
 confDict['minINDELlen'] = minINDELlen
 confDict['minCLIPPINGlen'] = minCLIPPINGlen
-confDict['maxBkpDist'] = maxBkpDist
-confDict['minRootClusterSize'] = minRootClusterSize
+confDict['maxEventDist'] = maxEventDist
 confDict['minPercRcplOverlap'] = minPercRcplOverlap
 confDict['clusterFilters'] = clusterFilters
 confDict['minClusterSize'] = minClusterSize
