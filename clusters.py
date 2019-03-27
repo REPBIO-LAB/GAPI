@@ -197,7 +197,7 @@ class cluster():
 
     def coordinates(self):
         '''
-        Define cluster ref, beg and end coordinates. 
+        Compute cluster ref, beg and end coordinates. 
         
         Begin and end will correspond to the left and rightmost positions, respectively
         '''
