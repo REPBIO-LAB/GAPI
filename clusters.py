@@ -22,36 +22,40 @@ import retrotransposons
 ## FUNCTIONS ##
 ###############
 
-def createCluster(events, eventsType):
+def createCluster(events, clusterType):
     '''
     Function to create a cluster object instance
 
     Input:
         1. events: list of events that will compose the cluster
-        2. eventsType: type of events to cluster (INS: insertion; DEL: deletion; CLIPPING: clipping)
+        2. clusterType: type of cluster (META: metacluster; INS: insertion; DEL: deletion; CLIPPING: clipping; DISCORDANT: discordant paired-end)
 
     Output:
         1. cluster: cluster object instance
     '''
     cluster = ''
 
-    ref = events[0].ref
-    beg =  min([event.beg for event in events])
-    end = max([event.end for event in events])
+    ## a) Create META cluster
+    if (clusterType == 'META'):
+        cluster = META_cluster(events, clusterType)
 
-    ## a) Create INS cluster
-    if (eventsType == 'INS'):
-        cluster = INS_cluster(ref, beg, end, events, eventsType)
+    ## b) Create INS cluster
+    elif (clusterType == 'INS'):
+        cluster = INS_cluster(events, clusterType)
 
-    ## b) Create DEL cluster
-    elif (eventsType == 'DEL'):
-        cluster = DEL_cluster(ref, beg, end, events, eventsType)
+    ## c) Create DEL cluster
+    elif (clusterType == 'DEL'):
+        cluster = DEL_cluster(events, clusterType)
 
-    ## c) Create CLIPPING cluster
-    elif (eventsType == 'CLIPPING') or (eventsType == 'LEFT-CLIPPING') or (eventsType == 'RIGHT-CLIPPING'):
-        cluster = CLIPPING_cluster(ref, beg, end, events, eventsType)
+    ## d) Create CLIPPING cluster
+    elif (clusterType == 'CLIPPING') or (clusterType == 'LEFT-CLIPPING') or (clusterType == 'RIGHT-CLIPPING'):
+        cluster = CLIPPING_cluster(events, clusterType)
 
-    ## d) Unexpected cluster type
+    ## e) Create DISCORDANT cluster
+    #elif (clusterType == 'DISCORDANT'):
+    #    cluster = DISCORDANT_cluster(events, clusterType)
+
+    ## f) Unexpected cluster type
     else:
         log.info('Error at \'createCluster\'. Unexpected cluster type')
         sys.exit(1)
@@ -146,24 +150,24 @@ def insTypeClusters(clusters, index, confDict, rootDir):
 
 class cluster():
     '''
-    Events cluster class. A cluster is composed by a set of events, all of them of the same type.
+    Events cluster class. A cluster is composed by a set of events.
     Each event is supported by a single read. One cluster can completely represent a single structural
-    variation event or partially if multiple clusters are required (see 'metaCluster' class)
+    variation event or partially if multiple clusters are required (see 'metaCluster' sub class)
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, events, clusterType):
+    def __init__(self, events, clusterType):
         '''
         '''
         cluster.number += 1 # Update instances counter
         self.id = cluster.number
 
-        # Define cluster chromosome, begin and end position
-        self.ref = ref
-        self.beg = beg
-        self.end = end
-        self.events = self.setClusterId(events) # Asign the cluster id to the events
+        # Define list of events composing the cluster and cluster type
+        self.events = events
         self.clusterType = clusterType
+
+        # Set cluster's reference, begin and end position
+        self.ref, self.beg, self.end = self.coordinates() 
 
         # Cluster filtering
         self.filters = None
@@ -185,34 +189,42 @@ class cluster():
         self.strand = None
         self.hits = None
 
-    def add(self, newEvents, side):
+    def sort(self):
         '''
-        Incorporate events into the cluster.
+        Sort events in increasing coordinates order
+        '''
+        self.events.sort(key=lambda event: event.beg)
+
+    def coordinates(self):
+        '''
+        Define cluster ref, beg and end coordinates. 
+        
+        Begin and end will correspond to the left and rightmost positions, respectively
+        '''
+        # Sort events from lower to upper beg coordinates
+        self.sort()  
+
+        # Define cluster coordinates 
+        ref = self.events[0].ref
+        beg = self.events[0].beg
+        end = max([event.end for event in self.events])
+        
+        return ref, beg, end
+
+    def add(self, events):
+        '''
+        Incorporate events into the cluster and redefine cluster beg and end
+        positions accordingly
 
         Input:
-            1. newEvents: List of events. List have to be sorted in increasingly order if side specified.
-            2. side: Add events to the 'left', to the 'right' of the cluster or add events and resort by begin position (if 'None')
+            1. events: List of events to be added to the cluster
         '''
-        # Asign the cluster id to the events
-        newEvents = self.setClusterId(newEvents)
+        # Add events to the cluster  
+        self.events = self.events + events
 
-        # a) Add to the left side of the cluster
-        if side == 'left':
-            self.events = newEvents + self.events
-            self.beg = self.events[0].beg # Update begin
-
-        # b) Add to the right side of the cluster
-        elif side == 'right':
-            self.events = self.events + newEvents
-            self.end = self.events[-1].end # Update end
-
-        # c) Add events to the cluster and resort by begin position
-        else:
-            self.events = self.events + newEvents
-            self.events.sort(key=lambda x: x.beg, reverse=True) # Resort
-            self.beg = self.events[0].beg # Update begin
-            self.end = max([event.end for event in self.events]) # Update end
-
+        # Resort and redefine cluster begin and end coordinates
+        self.ref, self.beg, self.end = self.coordinates() 
+            
     def supportingReadIds(self):
         '''
         Return list of ids for cluster supporting reads
@@ -252,20 +264,6 @@ class cluster():
                 clusterSupportingReads.seqDict[readId] = seq
 
         return clusterSupportingReads
-
-    def setClusterId(self, events):
-        '''
-        Set cluster identifier for a set of events
-
-        Input:
-            1. events: List of events.
-        Output:
-            1. events: List of events in the same sorting order with the cluster identifier asigned
-        '''
-        for event in events:
-            event.clusterId = self.id
-
-        return events
 
     def nbEvents(self):
         '''
@@ -328,13 +326,21 @@ class cluster():
         return mean, std, cv
 
 
+class META_cluster(cluster):
+    '''
+    Meta cluster subclass
+    '''
+    def __init__(self, events, clusterType):
+
+        cluster.__init__(self, events, clusterType)
+
 class INS_cluster(cluster):
     '''
     Insertion (INS) cluster subclass
     '''
-    def __init__(self, ref, beg, end, events, clusterType):
+    def __init__(self, events, clusterType):
 
-        cluster.__init__(self, ref, beg, end, events, clusterType)
+        cluster.__init__(self, events, clusterType)
 
         # Insertion features
         self.status = None
@@ -521,9 +527,9 @@ class DEL_cluster(cluster):
     '''
     Deletion (DEL) cluster subclass
     '''
-    def __init__(self, ref, beg, end, events, clusterType):
+    def __init__(self, events, clusterType):
 
-        cluster.__init__(self, ref, beg, end, events, clusterType)
+        cluster.__init__(self, events, clusterType)
 
     def create_consensus(self, supportingReads, reference, confDict, rootDir): 
         '''
@@ -591,6 +597,6 @@ class CLIPPING_cluster(cluster):
     '''
     Clipping cluster subclass
     '''
-    def __init__(self, ref, beg, end, events, clusterType):
+    def __init__(self, events, clusterType):
 
-        cluster.__init__(self, ref, beg, end, events, clusterType)
+        cluster.__init__(self, events, clusterType)
