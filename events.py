@@ -11,6 +11,30 @@ Module 'events' - Contains classes for dealing with structural variation events 
 ## FUNCTIONS ##
 ###############
 
+def separate(events):
+    '''
+    Separate events according to their type into a dictionary containing multiple lists
+    '''
+    eventTypes = {}
+
+    for event in events:
+
+        ## Divide clippings into left and right 
+        if event.type == 'CLIPPING':
+            eventType = 'LEFT-CLIPPING' if event.clippedSide == 'left' else 'RIGHT-CLIPPING'
+
+        else:
+            eventType = event.type
+
+        # Initialize event type list    
+        if eventType not in eventTypes:
+            eventTypes[eventType] = []
+
+        # Add event to list
+        eventTypes[eventType].append(event)
+
+    return eventTypes
+
 #############
 ## CLASSES ##
 #############
