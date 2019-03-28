@@ -13,6 +13,7 @@ import log
 import formats
 import unix
 import clustering
+import events
 import structures
 import consensus
 import alignment
@@ -39,23 +40,23 @@ def create_cluster(events, clusterType):
 
     ## a) Create META cluster
     if (clusterType == 'META'):
-        cluster = META_cluster(events, clusterType)
+        cluster = META_cluster(events)
 
     ## b) Create INS cluster
     elif (clusterType == 'INS'):
-        cluster = INS_cluster(events, clusterType)
+        cluster = INS_cluster(events)
 
     ## c) Create DEL cluster
     elif (clusterType == 'DEL'):
-        cluster = DEL_cluster(events, clusterType)
+        cluster = DEL_cluster(events)
 
     ## d) Create CLIPPING cluster
     elif (clusterType == 'CLIPPING') or (clusterType == 'LEFT-CLIPPING') or (clusterType == 'RIGHT-CLIPPING'):
-        cluster = CLIPPING_cluster(events, clusterType)
+        cluster = CLIPPING_cluster(events)
 
     ## e) Create DISCORDANT cluster
     #elif (clusterType == 'DISCORDANT'):
-    #    cluster = DISCORDANT_cluster(events, clusterType)
+    #    cluster = DISCORDANT_cluster(events)
 
     ## f) Unexpected cluster type
     else:
@@ -109,7 +110,7 @@ def create_metaclusters(eventsBinDb, confDict):
     clusterType = 'META'
 
     ## 2. Do metaclustering ##
-    ## 1) Create INS + CLIPPING metaclusters
+    # 2.1) Create INS + CLIPPING metaclusters
     if all(event_type in confDict['targetSV'] for event_type in ['INS', 'CLIPPING']):
         eventTypes = ['INS', 'LEFT-CLIPPING', 'RIGHT-CLIPPING']
         metaclusters = clustering.distance_clustering(eventsBinDb, binSize, eventTypes, clusterType, confDict['maxEventDist'], confDict['minClusterSize'])         
@@ -117,31 +118,35 @@ def create_metaclusters(eventsBinDb, confDict):
 
     else:
 
-        ## 2) Create INS metaclusters
+        # 2.2) Create INS metaclusters
         if 'INS' in confDict['targetSV']:
             eventTypes = ['INS']
             metaclusters = clustering.distance_clustering(eventsBinDb, binSize, eventTypes, clusterType, confDict['maxEventDist'], confDict['minClusterSize'])         
             allMetaclusters = allMetaclusters + metaclusters
 
-        ## 3) Create CLIPPING metaclusters
+        # 2.3) Create CLIPPING metaclusters
         if 'CLIPPING' in confDict['targetSV']:
             eventTypes = ['LEFT-CLIPPING', 'RIGHT-CLIPPING']
             metaclusters = clustering.distance_clustering(eventsBinDb, binSize, eventTypes, clusterType, confDict['maxEventDist'], confDict['minClusterSize'])         
             allMetaclusters = allMetaclusters + metaclusters
 
-    ## 4) Create DEL metaclusters 
+    # 2.4) Create DEL metaclusters 
     if 'DEL' in confDict['targetSV']:
         eventTypes = ['DEL']
         # TO DO  
         # metaclusters = clustering.reciprocal_clustering()   
         # allMetaclusters = allMetaclusters + metaclusters
 
-    ## 5) Create DISCORDANT metaclusters
+    # 2.5) Create DISCORDANT metaclusters
     if 'DISCORDANT' in confDict['targetSV']:
         eventTypes = ['DISCORDANT']
         # TO DO  
         # metaclusters = clustering.reciprocal_clustering()
         # allMetaclusters = allMetaclusters + metaclusters
+
+    for metacluster in allMetaclusters:
+        print('METACLUSTER: ', metacluster, len(metacluster.events), [(clusterType, len(subcluster.events)) for clusterType, subcluster in metacluster.subclusters.items()])
+
 
     ## 3. Organize metaclusters into bins ##    
     binSizes = [100, 1000, 10000, 100000, 1000000]
@@ -180,22 +185,6 @@ class cluster():
         # Cluster filtering
         self.filters = None
         self.nbOutliers = 0
-
-        # TEMPORARY (REMOVE ONCE OUTPUT VCF IS IMPLEMENTED!!!!!)
-        # Inserted seq
-        self.consensus_FASTA = None
-        self.consensusLen = None
-        self.isConsensus = None
-        self.insertSeq = None
-
-        # Cluster features
-        self.status = None
-        self.insType = None
-        self.family = None 
-        self.srcId = None
-        self.percResolved = None
-        self.strand = None
-        self.hits = None
 
     def sort(self):
         '''
@@ -334,21 +323,13 @@ class cluster():
         return mean, std, cv
 
 
-class META_cluster(cluster):
-    '''
-    Meta cluster subclass
-    '''
-    def __init__(self, events, clusterType):
-
-        cluster.__init__(self, events, clusterType)
-
 class INS_cluster(cluster):
     '''
     Insertion (INS) cluster subclass
     '''
-    def __init__(self, events, clusterType):
+    def __init__(self, events):
 
-        cluster.__init__(self, events, clusterType)
+        cluster.__init__(self, events, 'INS')
 
         # Insertion features
         self.status = None
@@ -535,9 +516,9 @@ class DEL_cluster(cluster):
     '''
     Deletion (DEL) cluster subclass
     '''
-    def __init__(self, events, clusterType):
+    def __init__(self, events):
 
-        cluster.__init__(self, events, clusterType)
+        cluster.__init__(self, events, 'DEL')
 
     def create_consensus(self, supportingReads, reference, confDict, rootDir): 
         '''
@@ -605,6 +586,132 @@ class CLIPPING_cluster(cluster):
     '''
     Clipping cluster subclass
     '''
-    def __init__(self, events, clusterType):
+    def __init__(self, events):
 
-        cluster.__init__(self, events, clusterType)
+        cluster.__init__(self, events, 'CLIPPING')
+
+
+class META_cluster():
+    '''
+    Meta cluster class
+    '''
+    number = 0 # Number of instances
+
+    def __init__(self, events):
+        '''
+        '''
+        META_cluster.number += 1 # Update instances counter
+        self.id = META_cluster.number
+
+        # Define list of events composing the cluster 
+        self.events = events
+
+        # Set cluster's reference, begin and end position
+        self.ref, self.beg, self.end = self.coordinates() 
+
+        # Cluster filtering
+        self.filters = None
+
+        # Organize events into subclusters
+        self.subclusters = self.create_subclusters()
+    
+    def sort(self):
+        '''
+        Sort events in increasing coordinates order
+        '''
+        self.events.sort(key=lambda event: event.beg)
+
+    def coordinates(self):
+        '''
+        Compute cluster ref, beg and end coordinates. 
+        
+        Begin and end will correspond to the left and rightmost positions, respectively
+        '''
+        # Sort events from lower to upper beg coordinates
+        self.sort()  
+
+        # Define cluster coordinates 
+        ref = self.events[0].ref
+        beg = self.events[0].beg
+        end = max([event.end for event in self.events])
+        
+        return ref, beg, end
+
+    def create_subclusters(self):
+        '''
+        '''
+        ## 1. Separate events according to their type into multiple lists ##
+        eventTypes = events.separate(self.events)
+
+        ## 2. Create subclusters ##
+        subclusters = {}
+
+        for eventType, eventList in eventTypes.items():
+
+            ## Create subcluster
+            subcluster = create_cluster(eventList, eventType) 
+
+            ## Add subcluster to the dict
+            subclusters[eventType] = subcluster 
+
+        return subclusters
+
+    def add(self, eventsList):
+        '''
+
+        Input:
+            1. events: List of events to be added to the metacluster
+        '''
+        ## 1. Add events to the cluster ##
+        previous = self.events
+        self.events = self.events + eventsList
+
+        ## 2. Resort and redefine cluster begin and end coordinates ##
+        self.ref, self.beg, self.end = self.coordinates()
+
+        ## 3. Separate events according to their type into multiple lists ##
+        eventTypes = events.separate(eventsList)
+
+        ## 4. Add events to the subclusters ##
+        for eventType, eventList in eventTypes.items():
+            
+            # a) Create subcluster if not pre-existing one
+            if eventType not in self.subclusters:
+         
+                ## Create subcluster
+                subcluster = create_cluster(eventList, eventType) 
+            
+                ## Add subcluster to the dict
+                self.subclusters[eventType] = subcluster 
+
+            # b) Add events to pre-existing subcluster
+            else:
+                self.subclusters[eventType].add(eventList)
+                
+    def nbEvents(self):
+        '''
+        Return the number of events composing the metacluster. 
+        
+        Extend to return a as well a dictionary containing the number of events composing each subcluster
+        '''
+        nbTumour = 0
+        nbNormal = 0
+
+        for event in self.events:
+            # a) Event identified in the TUMOUR sample
+            if event.sample == "TUMOUR":
+                nbTumour += 1
+            
+            # b) Event identified in the matched NORMAL sample
+            elif event.sample == "NORMAL":
+                nbNormal += 1
+            
+            # c) SINGLE sample mode
+            else:
+                nbTumour = None
+                nbNormal = None
+                break
+
+        nbTotal = len(self.events)
+
+        return nbTotal, nbTumour, nbNormal
