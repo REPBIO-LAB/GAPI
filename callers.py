@@ -112,7 +112,7 @@ class SV_caller_long(SV_caller):
 
         ## 2. Organize all the SV events into genomic bins prior clustering ##
         step = 'BINNING'
-        msg = 'Organize all the SV events into genomic bins prior clustering'
+        msg = 'Organize all the SV events into genomic bins prior metaclustering'
         log.step(step, msg)
 
         ## Define bin database sizes 
@@ -125,7 +125,7 @@ class SV_caller_long(SV_caller):
         metaclustersBinDb = clusters.create_metaclusters(eventsBinDb, self.confDict)
         
         step = 'META-CLUSTERING'
-        msg = 'Number of meta-clusters: ' + str(metaclustersBinDb.nbEvents()[0])
+        msg = 'Number of created metaclusters: ' + str(metaclustersBinDb.nbEvents()[0])
         log.step(step, msg)
     
 class SV_caller_short(SV_caller):
