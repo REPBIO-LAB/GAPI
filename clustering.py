@@ -84,8 +84,7 @@ def distance_clustering(binDb, binSize, eventTypes, clusterType, maxDist, minClu
                     break
 
             # B) No events in the bin -> Stop extension
-            else:
-
+            else:                
                 totalNbEvents = cluster.nbEvents()[0]
                     
                 # Filter out cluster if not composed by enough number of events
