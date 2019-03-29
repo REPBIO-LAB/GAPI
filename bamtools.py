@@ -232,13 +232,12 @@ def collectSV_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict):
             * DEL -> list of DEL objects
             * LEFT-CLIPPING -> list of left CLIPPING objects
             * RIGHT-CLIPPING -> list of right CLIPPING objects
-        2. supportingReads: FASTQ (if qualities available) or FASTA (if qualities NOT available) object containing the reads supporting the SV events
     '''
     ## Search for SV events in the tumour
-    eventsDict_T, supportingReads_T = collectSV(ref, binBeg, binEnd, tumourBam, confDict, 'TUMOUR')
+    eventsDict_T = collectSV(ref, binBeg, binEnd, tumourBam, confDict, 'TUMOUR')
 
     ## Search for SV events in the normal
-    eventsDict_N, supportingReads_N = collectSV(ref, binBeg, binEnd, normalBam, confDict, 'NORMAL')
+    eventsDict_N = collectSV(ref, binBeg, binEnd, normalBam, confDict, 'NORMAL')
 
     ## Join tumour and normal lists
     eventsDict = {}
@@ -246,18 +245,7 @@ def collectSV_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict):
     for SV_type in eventsDict_T:        
         eventsDict[SV_type] = eventsDict_T[SV_type] + eventsDict_N[SV_type]
 
-    ## Merge tumour and normal FASTQ/FASTA              
-    # a) Quality available  
-    if confDict['quality']:
-        supportingReads = formats.FASTQ()
-
-    # b) Quality not available
-    else:
-        supportingReads = formats.FASTA()
-        
-    supportingReads.seqDict = {**supportingReads_T.seqDict, **supportingReads_N.seqDict} 
-            
-    return eventsDict, supportingReads
+    return eventsDict
 
 
 def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
@@ -274,7 +262,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             * minMAPQ        -> minimum mapping quality
             * minCLIPPINGlen -> minimum clipping lenght
             * minINDELlen    -> minimum INS and DEL lenght
-            * quality        -> True (sequence qualities available) or False (not available). 
+            * readOverhang   -> number of flanking base pairs around the SV event to be collected from the supporting read sequence
 
         6. sample: type of sample (TUMOUR, NORMAL or None)
 
@@ -284,7 +272,6 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             * DEL -> list of DEL objects
             * LEFT-CLIPPING -> list of left CLIPPING objects
             * RIGHT-CLIPPING -> list of right CLIPPING objects
-        2. supportingReads: FASTQ (if qualities available) or FASTA (if qualities NOT available) object containing the reads supporting the SV events
         Note: * include secondary alignment filter???
     '''
     
@@ -301,15 +288,6 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
         # b) Other types of events
         else:
             eventsDict[SV_type] = []
-
-    ## Initialize FASTA/FASTQ object containing supporting reads    
-    # a) Quality available  
-    if confDict['quality']:
-        supportingReads = formats.FASTQ()
-
-    # b) Quality not available
-    else:
-        supportingReads = formats.FASTA()
 
     ## Open BAM file for reading
     bamFile = pysam.AlignmentFile(bam, "rb")
@@ -330,12 +308,10 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
 
         if (alignmentObj.is_unmapped == False) and (alignmentObj.is_duplicate == False) and (alignmentObj.query_sequence != None) and (MAPQ >= confDict['minMAPQ']):
                                 
-            informative = False
-
             ## 1. Collect CLIPPINGS
             if 'CLIPPING' in confDict['targetSV']:
 
-                left_CLIPPING, right_CLIPPING = collectCLIPPING(alignmentObj, confDict, sample)
+                left_CLIPPING, right_CLIPPING = collectCLIPPING(alignmentObj, confDict['minCLIPPINGlen'], sample)
 
                 ## Select left CLIPPING breakpoints within the target genomic bin
                 ## COMMENT: REMOVE REDUNDANCY AT ONE POINT BY MOVING CODE INTO A FUNCTION OF EVENTS MODULE!!!!!
@@ -343,7 +319,6 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
                     overlapLen = gRanges.overlap(left_CLIPPING.beg, left_CLIPPING.end, binBeg, binEnd)
 
                     if overlapLen > 0:
-                        informative = True
                         eventsDict['LEFT-CLIPPING'].append(left_CLIPPING)
 
                 ## Select right CLIPPING breakpoints within the target genomic bin
@@ -352,12 +327,12 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
                     overlapLen = gRanges.overlap(right_CLIPPING.beg, right_CLIPPING.end, binBeg, binEnd)
 
                     if overlapLen > 0:
-                        informative = True
                         eventsDict['RIGHT-CLIPPING'].append(right_CLIPPING)
 
             ## 2. Collect INDELS
             if ('INS' in confDict['targetSV']) or ('DEL' in confDict['targetSV']):
-                INS_events_tmp, DEL_events_tmp = collectINDELS(alignmentObj, confDict, sample)
+
+                INS_events_tmp, DEL_events_tmp = collectINDELS(alignmentObj, confDict['targetSV'], confDict['minINDELlen'], confDict['readOverhang'], sample)
                 
                 ## Select INS events within the target genomic bin
                 ## COMMENT: REMOVE REDUNDANCY AT ONE POINT BY MOVING CODE INTO A FUNCTION OF EVENTS MODULE!!!!!
@@ -365,7 +340,6 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
                     overlapLen = gRanges.overlap(INS.beg, INS.end, binBeg, binEnd)
 
                     if overlapLen > 0:
-                        informative = True
                         eventsDict['INS'].append(INS)
 
                 ## Select DEL events within the target genomic bin
@@ -374,52 +348,22 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
                     overlapLen = gRanges.overlap(DEL.beg, DEL.end, binBeg, binEnd)
                     
                     if overlapLen > 0:
-                        informative = True
                         eventsDict['DEL'].append(DEL)
-
-            ## 3. Add read to the FASTQ object if supports a SV event (DEL, INS or CLIPPING)
-            if informative:
- 
-                # a) Quality available -> Add supporting read to FASTQ
-                if confDict['quality']:
-
-                    ## Transform the BAM alignment into a FASTQ_entry object.
-                    entry = BAM2FASTQ_entry(alignmentObj)
-
-                    ## Add entry to FASTQ
-                    supportingReads.add(entry)
-
-                # b) Quality not available -> Add supporting read to FASTA
-                else:
-
-                    ## Obtain raw read and quality strings (Prior alignment)
-                    # a) Read mapped in reverse 
-                    if alignmentObj.is_reverse:
-                        seq = sequences.rev_complement(alignmentObj.query_sequence)
-
-                    # b) Read mapped in forward
-                    else:
-                        seq = alignmentObj.query_sequence
-
-                    ## Add sequence to FASTA
-                    supportingReads.seqDict[alignmentObj.query_name] = seq
 
     ## Close 
     bamFile.close()
 
     # return sv candidates
-    return eventsDict, supportingReads
+    return eventsDict
 
-
-def collectCLIPPING(alignmentObj, confDict, sample):
+def collectCLIPPING(alignmentObj, minCLIPPINGlen, sample):
     '''
     For a read alignment check if the read is clipped on each side and return the corresponding clipping objects
 
     Input:
         1. alignmentObj: pysam read alignment object
-        2. confDict: configuration dictionary containing the following mandatory key value pairs:
-            * minCLIPPINGlen -> minimum clipping lenght
-        3. sample: type of sample (TUMOUR, NORMAL or None). Move to confDict
+        2. minCLIPPINGlen: minimum clipping lenght
+        3. sample: type of sample (TUMOUR, NORMAL or None). 
 
     Output:
         1. left_CLIPPING: left CLIPPING object (None if no clipping found)
@@ -436,26 +380,26 @@ def collectCLIPPING(alignmentObj, confDict, sample):
 
     ## Clipping >= X bp at the left
     #  Note: soft (Operation=4) or hard clipped (Operation=5)     
-    if ((firstOperation == 4) or (firstOperation == 5)) and (firstOperationLen >= confDict['minCLIPPINGlen']):
+    if ((firstOperation == 4) or (firstOperation == 5)) and (firstOperationLen >= minCLIPPINGlen):
         left_CLIPPING = events.CLIPPING(alignmentObj, 'left', sample)
 
     ## Clipping > X bp at the right
-    if ((lastOperation == 4) or (lastOperation == 5)) and (lastOperationLen >= confDict['minCLIPPINGlen']):
+    if ((lastOperation == 4) or (lastOperation == 5)) and (lastOperationLen >= minCLIPPINGlen):
         right_CLIPPING = events.CLIPPING(alignmentObj, 'right', sample)
 
     return left_CLIPPING, right_CLIPPING
 
 
-def collectINDELS(alignmentObj, confDict, sample):
+def collectINDELS(alignmentObj, targetSV, minINDELlen, readOverhang, sample):
     '''
     Collect insertions and deletions longer than a threshold that are completely spanned within an input read alignment
 
     Input:
         1. alignmentObj: pysam read alignment object instance
-        2. confDict: configuration dictionary containing the following mandatory key value pairs:
-            * targetSV    -> list with target SV (INS: insertion; DEL: deletion)
-            * minINDELlen -> minimum INS and DEL lenght
-        3. sample: type of sample (TUMOUR, NORMAL or None). Move to confDict
+        2. targetSV: list with target SV (INS: insertion; DEL: deletion)
+        3. minINDELlen: minimum INS and DEL lenght
+        4. readOverhang: number of flanking base pairs around the SV event to be collected from the supporting read sequence
+        5. sample: type of sample (TUMOUR, NORMAL or None). 
 
     Output:
         1. INS_events: list of INS objects
@@ -475,7 +419,7 @@ def collectINDELS(alignmentObj, confDict, sample):
         length = int(cigarTuple[1])
 
         ## a) INSERTION to the reference >= Xbp
-        if ('INS' in confDict['targetSV']) and (operation == 1) and (length >= confDict['minINDELlen']):
+        if ('INS' in targetSV) and (operation == 1) and (length >= minINDELlen):
 
             beg = posRef 
             end = posRef
@@ -487,7 +431,7 @@ def collectINDELS(alignmentObj, confDict, sample):
             INS_events.append(insObj)
 
         ## b) DELETION to the reference >= Xbp
-        if ('DEL' in confDict['targetSV']) and (operation == 2) and (length >= confDict['minINDELlen']):
+        if ('DEL' in targetSV) and (operation == 2) and (length >= minINDELlen):
 
             beg = posRef 
             end = posRef + length

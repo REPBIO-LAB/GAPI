@@ -96,11 +96,11 @@ class SV_caller_long(SV_caller):
         ## 1. Search for SV candidate events in the bam file/s ##
         # a) Single sample mode
         if self.mode == "SINGLE":
-            eventsDict, supportingReads = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, None)
+            eventsDict = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, None)
 
         # b) Paired sample mode (tumour & matched normal)
         else:
-            eventsDict, supportingReads = bamtools.collectSV_paired(ref, beg, end, self.bam, self.normalBam, self.confDict)
+            eventsDict = bamtools.collectSV_paired(ref, beg, end, self.bam, self.normalBam, self.confDict)
 
         step = 'COLLECT'
         SV_types = sorted(eventsDict.keys())
@@ -127,7 +127,8 @@ class SV_caller_long(SV_caller):
         step = 'META-CLUSTERING'
         msg = 'Number of created metaclusters: ' + str(metaclustersBinDb.nbEvents()[0])
         log.step(step, msg)
-    
+
+        
 class SV_caller_short(SV_caller):
     '''
     Structural variation (SV) caller for Illumina short read sequencing data
