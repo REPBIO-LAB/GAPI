@@ -15,19 +15,21 @@ def overlap(begA, endA, begB, endB):
 
     # a) Overlap
     if maxBeg <= minEnd:
+        boolean = True
         overlapLen = minEnd - maxBeg + 1
 
     # d) No overlap
     else:
+        boolean = False
         overlapLen = 0
 
-    return overlapLen
+    return boolean, overlapLen
         
 def rcplOverlap(begA, endA, begB, endB, minPercOverlap):
     '''
     Check if two ranges overlap with a minimum percentage of reciprocal overlap. 
     '''    
-    overlapLen = overlap(begA, endA, begB, endB)
+    overlapLen = overlap(begA, endA, begB, endB)[1]
     lenA = (endA - begA)
     lenB = (endB - begB)
     percA = (overlapLen / lenA) * 100
@@ -69,11 +71,10 @@ def complementary(begA, endA, begB, endB, maxDist, maxPercOverlap):
     newEndB = endB + maxDist
 
     ## 2. Assess if redefined intervals do overlap
-    nbBases = overlap(newBegA, newEndA, newBegB, newEndB)
+    boolean = overlap(newBegA, newEndA, newBegB, newEndB)[0]
     
     # A) No overlap
-    if nbBases == 0:
-        boolean = False
+    if not boolean:
         orientation = None
     
     # B) Overlap 
@@ -83,12 +84,13 @@ def complementary(begA, endA, begB, endB, maxDist, maxPercOverlap):
         # --------A---------
         #              <---> Overlapping region
         #              -------B-------
-        nbBases = overlap(begA, endA, begB, endB)   # Compute real degree of overlap
+        overlapLen = overlap(begA, endA, begB, endB)[1]   # Compute real degree of overlap
 
+        # For each interval, compute its % overlapping the other interval
         lenA = (endA - begA)
         lenB = (endB - begB)
-        percA = (nbBases / lenA) * 100
-        percB = (nbBases / lenB) * 100
+        percA = (overlapLen / lenA) * 100
+        percB = (overlapLen / lenB) * 100
 
         # a) One of the intervals overlaps the other by more than the maximum allowed % cutoff 
         if (percA > maxPercOverlap) or (percB > maxPercOverlap):
