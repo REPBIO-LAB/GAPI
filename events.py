@@ -45,20 +45,22 @@ class CLIPPING():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, alignmentObj, clippedSide, sample):
+    def __init__(self, ref, beg, end, clippedSide, readPos, alignmentObj, sample):
+        '''
+        '''
         CLIPPING.number += 1 # Update instances counter
         self.id = CLIPPING.number
         self.type = 'CLIPPING'
-        self.ref = str(alignmentObj.reference_name)
-        self.beg, self.end = (alignmentObj.reference_start, alignmentObj.reference_start) if clippedSide == 'left' else (alignmentObj.reference_end, alignmentObj.reference_end)
+        self.ref = str(ref)
+        self.beg = int(beg) # beg==end. 0-based CLIPPING breakpoint
+        self.end = int(end)
         self.clippedSide = clippedSide
-        self.readId = alignmentObj.query_name
+        self.readPos = int(readPos)
+        self.alignmentObj = alignmentObj
         self.sample = sample
-        self.clusterId = None
 
-        ## call functions
-        self.clippingType = ''
-        self.determine_clippingType(alignmentObj, clippedSide)
+        ## Determine if soft or hard clipping
+        self.clippingType = self.determine_clippingType(alignmentObj, clippedSide)
 
     def determine_clippingType(self, alignmentObj, clippedSide):
         '''
@@ -69,7 +71,7 @@ class CLIPPING():
             2. clippedSide: Clipped side relative to the read (left or right)
 
         Output:
-            - Update 'clippingType' class attribute
+            1. clippingType: soft or hard clipping
         '''
         ### Extract operation
         ## a) Clipping at the begin
@@ -81,8 +83,9 @@ class CLIPPING():
             operation = alignmentObj.cigartuples[-1][0]
 
         ### Define if soft or had clipping
-        self.clippingType = 'soft' if (operation == 4) else 'hard'
+        clippingType = 'soft' if (operation == 4) else 'hard'
 
+        return clippingType
 
 class INS():
     '''
@@ -90,19 +93,20 @@ class INS():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, length, seq, readId, sample):
+    def __init__(self, ref, beg, end, length, readPos, alignmentObj, sample):
+        '''
+        '''
+
         INS.number += 1 # Update instances counter
         self.id = INS.number
         self.type = 'INS'
         self.ref = str(ref)
-        self.beg = int(beg) # beg==end. 0-based leftmost coordinate of the insertion point
+        self.beg = int(beg) # beg==end. 0-based INS breakpoint
         self.end = int(end)
         self.length = int(length)
-        self.seq = seq
-        self.readId = readId
+        self.readPos = int(readPos)
+        self.alignmentObj = alignmentObj
         self.sample = sample
-        self.clusterId = None
-
 
 class DEL():
     '''
@@ -110,7 +114,9 @@ class DEL():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, length, readId, sample):
+    def __init__(self, ref, beg, end, length, readPos, alignmentObj, sample):
+        '''
+        '''
         DEL.number += 1 # Update instances counter
         self.id = DEL.number
         self.type = 'DEL'
@@ -118,8 +124,7 @@ class DEL():
         self.beg = int(beg)
         self.end = int(end)
         self.length = int(length)
-        self.readId = readId
+        self.readPos = int(readPos)
+        self.alignmentObj = alignmentObj
         self.sample = sample
-        self.clusterId = None
-
 
