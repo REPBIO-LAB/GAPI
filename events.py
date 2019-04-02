@@ -45,7 +45,7 @@ class CLIPPING():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, clippedSide, readPos, alignmentObj, sample):
+    def __init__(self, ref, beg, end, clippedSide, clippingType, readPos, readSeq, sample):
         '''
         '''
         CLIPPING.number += 1 # Update instances counter
@@ -55,39 +55,14 @@ class CLIPPING():
         self.beg = int(beg) # beg==end. 0-based CLIPPING breakpoint
         self.end = int(end)
         self.clippedSide = clippedSide
+        self.clippingType = clippingType
         self.readPos = int(readPos)
-        self.alignmentObj = alignmentObj
+        self.readSeq = readSeq
         self.sample = sample
 
         ## Determine if soft or hard clipping
-        self.clippingType = self.determine_clippingType(alignmentObj, clippedSide)
 
-    def determine_clippingType(self, alignmentObj, clippedSide):
-        '''
-        Determine if soft or hard clipping
-
-        Input:
-            1. alignmentObj: pysam read alignment object instance
-            2. clippedSide: Clipped side relative to the read (left or right)
-
-        Output:
-            1. clippingType: soft or hard clipping
-        '''
-        ### Extract operation
-        ## a) Clipping at the begin
-        if clippedSide == 'left':
-            operation =  alignmentObj.cigartuples[0][0]
-
-        ## b) Clipping at the end
-        else:
-            operation = alignmentObj.cigartuples[-1][0]
-
-        ### Define if soft or had clipping
-        clippingType = 'soft' if (operation == 4) else 'hard'
-
-        return clippingType
-
-    def pick_read_seq(self, overhang):
+    def pick_flanking_seq(self, overhang):
         '''
         Pick sequence flanking the clipping breakpoint from CLIPPING supporting read
 
@@ -103,14 +78,14 @@ class CLIPPING():
         #                   ------------------<-overhang-> *endPos
         if self.clippedSide == 'left':
             endPos = self.readPos + overhang
-            seq = self.alignmentObj.query_sequence[:endPos]
+            seq = self.readSeq[:endPos]
 
         # b) Rigth clipping (###################*readPos*.........) 
         #                   begPos* <-overhang->------------------ 
         else:
             begPos = self.readPos - overhang
             begPos = begPos if begPos >= 0 else 0 # set lower bound to 0
-            seq = self.alignmentObj.query_sequence[begPos:]
+            seq = self.readSeq[begPos:]
 
         return seq
 
@@ -120,7 +95,7 @@ class INS():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, length, readPos, alignmentObj, sample):
+    def __init__(self, ref, beg, end, length, readPos, readSeq, sample):
         '''
         '''
 
@@ -132,10 +107,10 @@ class INS():
         self.end = int(end)
         self.length = int(length)
         self.readPos = int(readPos)
-        self.alignmentObj = alignmentObj
+        self.readSeq = readSeq
         self.sample = sample
 
-    def pick_read_seq(self, overhang):
+    def pick_flanking_seq(self, overhang):
         '''
         Pick inserted sequence + insertion flanking sequence from INS supporting read
 
@@ -149,7 +124,7 @@ class INS():
         begPos = self.readPos - overhang
         begPos = begPos if begPos >= 0 else 0 # set lower bound to 0
         endPos = self.readPos + self.length + overhang
-        seq = self.alignmentObj.query_sequence[begPos:endPos]
+        seq = self.readSeq[begPos:endPos]
 
         return seq
 
@@ -159,7 +134,7 @@ class DEL():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, length, readPos, alignmentObj, sample):
+    def __init__(self, ref, beg, end, length, readPos, readSeq, sample):
         '''
         '''
         DEL.number += 1 # Update instances counter
@@ -170,10 +145,10 @@ class DEL():
         self.end = int(end)
         self.length = int(length)
         self.readPos = int(readPos)
-        self.alignmentObj = alignmentObj
+        self.readSeq = readSeq
         self.sample = sample
 
-    def pick_read_seq(self, overhang):
+    def pick_flanking_seq(self, overhang):
         '''
         Pick sequence flanking the deletion breakpoints from DEL supporting read
 
@@ -187,6 +162,6 @@ class DEL():
         begPos = self.readPos - overhang
         begPos = begPos if begPos >= 0 else 0 # set lower bound to 0
         endPos = self.readPos + overhang
-        seq = self.alignmentObj.query_sequence[begPos:endPos]
+        seq = self.readSeq[begPos:endPos]
 
         return seq

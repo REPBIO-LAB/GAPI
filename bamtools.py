@@ -132,6 +132,30 @@ def BAM2FASTQ_entry(alignmentObj):
     FASTQ_entry = formats.FASTQ_entry(alignmentObj.query_name, seq, '', qual)
     return FASTQ_entry
 
+def determine_clippingType(alignmentObj, clippedSide):
+    '''
+    Determine if soft or hard clipping
+
+    Input:
+        1. alignmentObj: pysam read alignment object instance
+        2. clippedSide: Clipped side relative to the read (left or right)
+
+    Output:
+        1. clippingType: soft or hard clipping
+    '''
+    ### Extract operation
+    ## a) Clipping at the begin
+    if clippedSide == 'left':
+        operation =  alignmentObj.cigartuples[0][0]
+
+    ## b) Clipping at the end
+    else:
+        operation = alignmentObj.cigartuples[-1][0]
+
+    ### Determine if soft or hard clipping
+    clippingType = 'soft' if (operation == 4) else 'hard'
+
+    return clippingType
 
 def binning(targetBins, bam, binSize, targetRefs):
     '''
@@ -370,7 +394,7 @@ def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, sample):
         # a) No interval specified OR 
         # b) Clipping within target interval 
         if (targetInterval == None) or (gRanges.overlap(alignmentObj.reference_start, alignmentObj.reference_start, targetInterval[0], targetInterval[1])[0]):
-            left_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_start, 'left', alignmentObj.query_alignment_start, alignmentObj, sample)
+            left_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_start, 'left', determine_clippingType(alignmentObj, 'left'), alignmentObj.query_alignment_start, alignmentObj.query_sequence, sample)
 
     ## Clipping > X bp at the RIGHT
     if ((lastOperation == 4) or (lastOperation == 5)) and (lastOperationLen >= minCLIPPINGlen):
@@ -379,7 +403,7 @@ def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, sample):
         # a) No interval specified OR 
         # b) Clipping within target interval 
         if (targetInterval == None) or (gRanges.overlap(alignmentObj.reference_end, alignmentObj.reference_end, targetInterval[0], targetInterval[1])[0]):
-            right_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_end, alignmentObj.reference_end, 'right', alignmentObj.query_alignment_end, alignmentObj, sample)
+            right_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_end, alignmentObj.reference_end, 'right', determine_clippingType(alignmentObj, 'right'), alignmentObj.query_alignment_end, alignmentObj.query_sequence, sample)
 
     return left_CLIPPING, right_CLIPPING
 
@@ -419,7 +443,7 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, sample):
             # a) No interval specified OR 
             # b) Insertion within target interval 
             if (targetInterval == None) or (gRanges.overlap(posRef, posRef, targetInterval[0], targetInterval[1])[0]):
-                INS = events.INS(alignmentObj.reference_name, posRef, posRef, length, posQuery, alignmentObj, sample)
+                INS = events.INS(alignmentObj.reference_name, posRef, posRef, length, posQuery, alignmentObj.query_sequence, sample)
                 INS_events.append(INS)
 
         ## b) DELETION to the reference >= Xbp
@@ -429,7 +453,7 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, sample):
             # a) No interval specified OR 
             # b) Deletion within target interval 
             if (targetInterval == None) or (gRanges.overlap(posRef, posRef + length, targetInterval[0], targetInterval[1])[0]):
-                DEL = events.DEL(alignmentObj.reference_name, posRef, posRef + length, length, posQuery, alignmentObj, sample)
+                DEL = events.DEL(alignmentObj.reference_name, posRef, posRef + length, length, posQuery, alignmentObj.query_sequence, sample)
                 DEL_events.append(DEL)
                 
         #### Update position over reference and read sequence
