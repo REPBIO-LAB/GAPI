@@ -87,6 +87,33 @@ class CLIPPING():
 
         return clippingType
 
+    def pick_read_seq(self, overhang):
+        '''
+        Pick sequence flanking the clipping breakpoint from CLIPPING supporting read
+
+        Input:
+            1. overhang: number of flanking base pairs around the CLIPPING breakpoint position to be collected from the supporting read sequence 
+
+        Output:
+            1. seq: piece of supporting read sequence spanning the CLIPPING breakpoint event
+        '''
+
+        ## Take into account clipping orientation to pick read sequence (TO DO) 
+        # a) Left clipping (.........*readPos*###################) 
+        #                   ------------------<-overhang-> *endPos
+        if self.clippedSide == 'left':
+            endPos = self.readPos + overhang
+            seq = self.alignmentObj.query_sequence[:endPos]
+
+        # b) Rigth clipping (###################*readPos*.........) 
+        #                   begPos* <-overhang->------------------ 
+        else:
+            begPos = self.readPos - overhang
+            begPos = begPos if begPos >= 0 else 0 # set lower bound to 0
+            seq = self.alignmentObj.query_sequence[begPos:]
+
+        return seq
+
 class INS():
     '''
     Short insertion class. Insertion completely spanned by the read sequence
@@ -108,6 +135,24 @@ class INS():
         self.alignmentObj = alignmentObj
         self.sample = sample
 
+    def pick_read_seq(self, overhang):
+        '''
+        Pick inserted sequence + insertion flanking sequence from INS supporting read
+
+        Input:
+            1. overhang: number of flanking base pairs around the INS event to be collected from the supporting read sequence 
+
+        Output:
+            1. seq: piece of supporting read sequence spanning the INS event
+        '''
+        ## Pick inserted fragment sequence + flanking read sequence
+        begPos = self.readPos - overhang
+        begPos = begPos if begPos >= 0 else 0 # set lower bound to 0
+        endPos = self.readPos + self.length + overhang
+        seq = self.alignmentObj.query_sequence[begPos:endPos]
+
+        return seq
+
 class DEL():
     '''
     Short deletion class. Deletion completely spanned by the read sequence
@@ -128,3 +173,20 @@ class DEL():
         self.alignmentObj = alignmentObj
         self.sample = sample
 
+    def pick_read_seq(self, overhang):
+        '''
+        Pick sequence flanking the deletion breakpoints from DEL supporting read
+
+        Input:
+            1. overhang: number of flanking base pairs around the DEL event to be collected from the supporting read sequence 
+
+        Output:
+            1. seq: piece of supporting read sequence spanning the DEL event
+        '''
+        ## Pick deletion flanking read sequence
+        begPos = self.readPos - overhang
+        begPos = begPos if begPos >= 0 else 0 # set lower bound to 0
+        endPos = self.readPos + overhang
+        seq = self.alignmentObj.query_sequence[begPos:endPos]
+
+        return seq
