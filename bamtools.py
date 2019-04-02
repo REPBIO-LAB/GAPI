@@ -431,7 +431,7 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, sample):
             if (targetInterval == None) or (gRanges.overlap(posRef, posRef + length, targetInterval[0], targetInterval[1])[0]):
                 DEL = events.DEL(alignmentObj.reference_name, posRef, posRef + length, length, posQuery, alignmentObj, sample)
                 DEL_events.append(DEL)
-
+                
         #### Update position over reference and read sequence
         ### a) Operations consuming query and reference
         # - Op M, tag 0, alignment match (can be a sequence match or mismatch)
