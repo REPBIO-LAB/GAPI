@@ -34,11 +34,11 @@ parser.add_argument('-p', '--processes', default=1, dest='processes', type=int, 
 parser.add_argument('-o', '--outDir', default=os.getcwd(), dest='outDir', help='Output directory. Default: current working directory')
 
 ## BAM processing
-parser.add_argument('--no-quality', action="store_false", default=True, dest='quality', help='Quality values not available for the sequencing reads in the input bam files')
 parser.add_argument('--targetBins', default=None, dest='targetBins', type=str, help='Bed file containing target genomic bins for SV calling. Overrides --binSize and --refs. Default: None')
 parser.add_argument('-bS', '--binSize', default=1000000, dest='binSize', type=int, help='Input bams will be analised in genomic bins of this size. Default: 1000000')
 parser.add_argument('--refs', default="ALL", dest='refs', type=str, help='Comma separated list of target references to call SV (i.e. 1,2,3,X). Default: All references included in the bam file')
 parser.add_argument('--SV', default="INS,CLIPPING", dest='SV', type=str, help='Comma separated list of SV event types to collect (INS, DEL and CLIPPING). Default: INS,CLIPPING')
+parser.add_argument('--read-overhang', default=500, dest='overhang', type=int, help='Number of flanking base pairs around the SV event to be collected from the supporting read sequence. Default: 5')
 
 ## Filtering thresholds
 parser.add_argument('--minMAPQ', default=20, dest='minMAPQ', type=int, help='Minimum mapping quality required for each read. Default: 20')
@@ -66,11 +66,11 @@ processes = args.processes
 outDir = args.outDir
 
 ## BAM processing
-quality = args.quality
 targetBins = args.targetBins
 binSize = args.binSize
 refs = args.refs
 SV = args.SV
+overhang = args.overhang
 
 ## Filtering thresholds
 minMAPQ = args.minMAPQ
@@ -121,11 +121,11 @@ print('transduction-search: ', transductionSearch)
 print('outDir: ', outDir, "\n")
 
 print('** BAM processing **')
-print('quality: ', quality)
 print('targetBins: ', targetBins)
 print('binSize: ', binSize)
 print('targetRefs: ', refs)
-print('targetSVs: ', SV, "\n")
+print('targetSVs: ', SV)
+print('overhang: ', overhang, "\n")
 
 print('** Filtering thresholds **')
 print('minMAPQ: ', minMAPQ)
@@ -155,11 +155,13 @@ confDict['technology'] = technology
 confDict['transductionSearch'] = transductionSearch
 
 ## BAM processing
-confDict['quality'] = quality
 confDict['targetBins'] = targetBins
 confDict['binSize'] = binSize
 confDict['targetRefs'] = targetRefs
 confDict['targetSV'] = targetSV
+
+## ...
+confDict['overhang'] = overhang
 
 ## Filtering thresholds
 confDict['minMAPQ'] = minMAPQ
