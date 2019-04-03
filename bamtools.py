@@ -290,6 +290,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             * minMAPQ        -> minimum mapping quality
             * minCLIPPINGlen -> minimum clipping lenght
             * minINDELlen    -> minimum INS and DEL lenght
+            * overhang       -> Number of flanking base pairs around the SV event to be collected from the supporting read. If 'None' the complete read sequence will be collected)
         6. sample: type of sample (TUMOUR, NORMAL or None)
 
     Output:
@@ -339,7 +340,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             ## 1. Collect CLIPPINGS
             if 'CLIPPING' in confDict['targetSV']:
 
-                left_CLIPPING, right_CLIPPING = collectCLIPPING(alignmentObj, confDict['minCLIPPINGlen'], targetInterval, sample)
+                left_CLIPPING, right_CLIPPING = collectCLIPPING(alignmentObj, confDict['minCLIPPINGlen'], targetInterval, confDict['overhang'], sample)
 
                 # Left CLIPPING found
                 if left_CLIPPING != None:
@@ -352,7 +353,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             ## 2. Collect INDELS
             if ('INS' in confDict['targetSV']) or ('DEL' in confDict['targetSV']):
 
-                INS_events, DEL_events = collectINDELS(alignmentObj, confDict['targetSV'], confDict['minINDELlen'], targetInterval, sample)
+                INS_events, DEL_events = collectINDELS(alignmentObj, confDict['targetSV'], confDict['minINDELlen'], targetInterval, confDict['overhang'], sample)
                 
                 # Add events to the pre-existing lists
                 eventsDict['INS'] = eventsDict['INS'] + INS_events
@@ -365,7 +366,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
     return eventsDict
 
 
-def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, sample):
+def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, overhang, sample):
     '''
     For a read alignment check if the read is clipped on each side and return the corresponding clipping objects
 
@@ -373,7 +374,8 @@ def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, sample):
         1. alignmentObj: pysam read alignment object
         2. minCLIPPINGlen: minimum clipping lenght
         3. targetInterval: tuple containing begin and end position of the target genomic interval to extract events from. If 'None' all clippings will be reported
-        4. sample: type of sample (TUMOUR, NORMAL or None). 
+        4. overhang: Number of flanking base pairs around the SV event to be collected from the supporting read. If 'None' the complete read sequence will be collected)
+        5. sample: type of sample (TUMOUR, NORMAL or None). 
 
     Output:
         1. left_CLIPPING: left CLIPPING object (None if no clipping found)
@@ -394,7 +396,12 @@ def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, sample):
         # a) No interval specified OR 
         # b) Clipping within target interval 
         if (targetInterval == None) or (gRanges.overlap(alignmentObj.reference_start, alignmentObj.reference_start, targetInterval[0], targetInterval[1])[0]):
-            left_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_start, 'left', determine_clippingType(alignmentObj, 'left'), alignmentObj.query_alignment_start, alignmentObj.query_sequence, sample)
+            
+            # Collect piece of sequence flanking the clipping event
+            flankingSeq = alignmentObj.query_sequence if overhang == None else events.pick_flanking_seq_CLIPPING(alignmentObj.query_sequence, alignmentObj.query_alignment_start, 'left', overhang)
+            
+            # Create CLIPPING object
+            left_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_start, 'left', determine_clippingType(alignmentObj, 'left'), flankingSeq, sample)
 
     ## Clipping > X bp at the RIGHT
     if ((lastOperation == 4) or (lastOperation == 5)) and (lastOperationLen >= minCLIPPINGlen):
@@ -403,12 +410,17 @@ def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, sample):
         # a) No interval specified OR 
         # b) Clipping within target interval 
         if (targetInterval == None) or (gRanges.overlap(alignmentObj.reference_end, alignmentObj.reference_end, targetInterval[0], targetInterval[1])[0]):
-            right_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_end, alignmentObj.reference_end, 'right', determine_clippingType(alignmentObj, 'right'), alignmentObj.query_alignment_end, alignmentObj.query_sequence, sample)
+
+            # Collect piece of sequence flanking the clipping event
+            flankingSeq = alignmentObj.query_sequence if overhang == None else events.pick_flanking_seq_CLIPPING(alignmentObj.query_sequence, alignmentObj.query_alignment_end, 'right', overhang)
+
+            # Create CLIPPING object
+            right_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_end, alignmentObj.reference_end, 'right', determine_clippingType(alignmentObj, 'right'), flankingSeq, sample)
 
     return left_CLIPPING, right_CLIPPING
 
 
-def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, sample):
+def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang, sample):
     '''
     Collect insertions and deletions longer than a threshold that are completely spanned within an input read alignment
 
@@ -417,7 +429,8 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, sample):
         2. targetSV: list with target SV (INS: insertion; DEL: deletion)
         3. minINDELlen: minimum INS and DEL lenght
         4. targetInterval: tuple containing begin and end position of the target genomic interval to extract events from. If 'None' all the events spanned by the read alignment will be reported
-        5. sample: type of sample (TUMOUR, NORMAL or None). 
+        5. overhang: Number of flanking base pairs around the SV event to be collected from the supporting read. If 'None' the complete read sequence will be collected)        
+        6. sample: type of sample (TUMOUR, NORMAL or None). 
 
     Output:
         1. INS_events: list of INS objects
@@ -443,7 +456,12 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, sample):
             # a) No interval specified OR 
             # b) Insertion within target interval 
             if (targetInterval == None) or (gRanges.overlap(posRef, posRef, targetInterval[0], targetInterval[1])[0]):
-                INS = events.INS(alignmentObj.reference_name, posRef, posRef, length, posQuery, alignmentObj.query_sequence, sample)
+
+                # Collect piece of sequence flanking the INS event
+                flankingSeq = alignmentObj.query_sequence if overhang == None else events.pick_flanking_seq_INS(alignmentObj.query_sequence, posQuery, length, overhang)
+
+                # Create INS object
+                INS = events.INS(alignmentObj.reference_name, posRef, posRef, length, flankingSeq, sample)
                 INS_events.append(INS)
 
         ## b) DELETION to the reference >= Xbp
@@ -453,7 +471,12 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, sample):
             # a) No interval specified OR 
             # b) Deletion within target interval 
             if (targetInterval == None) or (gRanges.overlap(posRef, posRef + length, targetInterval[0], targetInterval[1])[0]):
-                DEL = events.DEL(alignmentObj.reference_name, posRef, posRef + length, length, posQuery, alignmentObj.query_sequence, sample)
+
+                # Collect piece of sequence flanking the DEL event
+                flankingSeq = alignmentObj.query_sequence if overhang == None else events.pick_flanking_seq_DEL(alignmentObj.query_sequence, posQuery, overhang)
+
+                # Create DEL object
+                DEL = events.DEL(alignmentObj.reference_name, posRef, posRef + length, length, flankingSeq, sample)
                 DEL_events.append(DEL)
                 
         #### Update position over reference and read sequence
