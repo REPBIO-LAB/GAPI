@@ -10,9 +10,8 @@ import itertools
 import log
 import gRanges
 
-
 ## FUNCTIONS ##
-def chromLengths_FASTA(index):
+def chrom_lengths_index(index):
     '''
     Read FASTA index and build a dictionary containing chromosome lengths
 
@@ -32,6 +31,29 @@ def chromLengths_FASTA(index):
             chromLengths[ref] = int(length)
 
     return chromLengths
+
+def merge_FASTA(FASTA_list):
+    '''
+    Merge a list of FASTA objects into a single one
+
+    Input:
+        1. FASTA_list: List of FASTA objects to be merged
+    Output:
+        1. FASTA_merged: FASTA object resulting from merging
+    '''
+    ## Initialize output FASTA
+    FASTA_merged = FASTA()
+
+    ## For each FASTA object
+    for FASTA_obj in FASTA_list:
+
+        # For each sequence in the FASTA
+        for seqId, seq in FASTA_obj.seqDict.items():
+                    
+            # Add sequence to the merged FASTA
+            FASTA_merged.seqDict[seqId] = seq 
+
+    return FASTA_merged
 
 ## CLASSES ##
 class FASTA():
