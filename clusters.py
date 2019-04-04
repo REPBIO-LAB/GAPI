@@ -15,7 +15,6 @@ import unix
 import clustering
 import events
 import structures
-import consensus
 import alignment
 import bamtools 
 import repeats
@@ -222,45 +221,24 @@ class cluster():
         # Resort and redefine cluster begin and end coordinates
         self.ref, self.beg, self.end = self.coordinates() 
             
-    def supportingReadIds(self):
+    
+    def collect_reads(self):
         '''
-        Return list of ids for cluster supporting reads
-        '''
-        readIds = [event.readId for event in self.events]
-
-        return readIds
-
-    def collect_supportingReads(self, reads, quality):
-        '''
-        Collect cluster supporting reads from a FASTQ/FASTA object 
+        Create FASTA object containing cluster supporting reads.
         
-        Input:
-            1. reads: FASTQ or FASTA object containing a set of reads
-            2. quality: True (sequence qualities available) or False (not available). 
         Output:
-            1. supportingReads: FASTQ (if qualities available) or FASTA (if qualities NOT available) object containing the cluster supporting reads
+            1. FASTA: FASTA object containing cluster supporting reads
         '''
-        readIds = self.supportingReadIds()
+        ## Initiate FASTA object
+        FASTA = formats.FASTA()
 
-        # a) Quality available  
-        if quality:
-            clusterSupportingReads = formats.FASTQ()
+        ## Add reads supporting the events to the FASTA
+        for event in self.events:
 
-            # Collect from the FASTQ containing all the reads only those supporting the SV cluster 
-            for readId in readIds:
-                entry = reads.seqDict[readId]
-                clusterSupportingReads.add(entry)
+            FASTA.seqDict[event.readName] = event.readSeq
 
-        # b) Quality not available
-        else:
-            clusterSupportingReads = formats.FASTA()
+        return FASTA
 
-            # Collect from the FASTA containing all the reads only those supporting the SV cluster 
-            for readId in readIds:
-                seq = reads.seqDict[readId]
-                clusterSupportingReads.seqDict[readId] = seq
-
-        return clusterSupportingReads
 
     def nbEvents(self):
         '''
@@ -288,40 +266,6 @@ class cluster():
 
         return nbTotal, nbTumour, nbNormal
 
-    def meanLen(self):
-        '''
-        Compute the mean length for the events composing the cluster and the mean coefficient of variation
-        '''
-        lengths = []
-
-        # Make a list with lengths of all events of the same cluster. 
-        for event in self.events:
-
-            # The event has the attribute length
-            if hasattr(event, 'length'):
-                lengths.append(event.length)
-
-        # a) Length values available
-        if lengths:
-
-            ## Compute mean insertion length and standard deviation
-            mean = np.mean(lengths)
-            std = np.std(lengths)
-            
-            ## compute coefficient of variation (CV)
-            # CV = std / mean * 100
-            # std: standard deviation
-            # mean: mean
-            cv = std / mean * 100
-
-        # b) Length not available
-        else:
-            mean = None
-            std = None
-            cv = None
-
-        return mean, std, cv
-
 
 class INS_cluster(cluster):
     '''
@@ -346,171 +290,6 @@ class INS_cluster(cluster):
         self.isConsensus = None
         self.insertSeq = None
 
-    def polish(self):
-        '''
-        Apply successive rounds of polishing to the INS cluster by removing events whose length deviates from the cluster average
-        '''
-        ## 1. Compute length metrics for the initial cluster 
-        initialNbEvents = self.nbEvents()[0]
-        mean, std, cv = self.meanLen()
-
-        ## 2. Apply successive rounds of polishing while cv > threshold 
-        while cv > 15: 
-             
-            ## 2.1 Set length cutoffs 
-            cutOff = std * 1 
-            lowerBound, upperBound = mean - cutOff, mean + cutOff
-
-            ## 2.2 Generate list of events composing the polished cluster
-            eventsAfterPolish = []
-
-            # Evaluate for each event if it´s an ourlier or not
-            for event in self.events:
-
-                # a) No outlier. Event length within boundaries -> include event into polished cluster   
-                if (event.length >= lowerBound) and (event.length <= upperBound):
-                    eventsAfterPolish.append(event)
-
-                # b) Outlier. Event lenght outside boundaries
-
-            ## 2.3 Recompute length metrics for polished cluster
-            ## Prior polishing
-            cvPrior = cv
-            eventsPrior = self.events
-
-            ## After polishing round
-            self.events = eventsAfterPolish
-            mean, std, cv = self.meanLen()
-
-            ## 2.4 Stop polishing and use previous cluster state if current polishing round does not reduce the cv
-            if cv >= cvPrior:
-                self.events = eventsPrior # Use previous cluster state
-                break
-
-        ## 3. Compute the number of outliers
-        finalNbEvents = self.nbEvents()[0]
-        self.nbOutliers = initialNbEvents - finalNbEvents
-
-        ## 4. Recompute cluster begin and end after polishing
-        self.beg = self.events[0].beg
-        self.end = self.events[-1].end
-
-    def create_consensus(self, supportingReads, reference, confDict, rootDir): 
-        '''
-        Use all the cluster supporting reads to (1) generate a consensus sequence for the cluster and (2) perform local realignment of the consensus 
-        to obtain more accurate SV breakpoints and inserted sequence (only for INS)
-
-        Update cluster with all this information
-        
-        Input:
-            1. supportingReads: FASTQ (if qualities available) or FASTA (if qualities NOT available) object containing all the reads supporting SV clusters 
-            2. reference: Path to the reference genome in fasta format. An index of the reference generated with samtools faidx must be located in the same directory
-            3. confDict: Configuration dictionary 
-            4. rootDir: Root directory where temporary folders and files will be created
-        '''
-        ## 0. Create output directory
-        outDir = rootDir + '/' + str(self.id)
-        unix.mkdir(outDir)
-
-        ## 1. Collect cluster supporting reads from the FASTA/FASTQ containing all the reads supporting SV clusters
-        clusterSupportingReads = self.collect_supportingReads(supportingReads, confDict['quality'])
-
-        ## 2. Generate consensus sequence for the cluster
-        self.consensus_FASTA = consensus.racon(clusterSupportingReads, confDict['technology'], confDict['quality'], outDir)
-
-        # Exit if consensus sequence could not be generated
-        if self.consensus_FASTA == None:
-            return
-
-        ## 3. Realign consensus sequence into the SV event genomic region
-        ## 3.1 Write consensus sequence into fasta file
-        consensusFile = outDir + '/consensus.fasta'
-        self.consensus_FASTA.write(consensusFile)
-
-        ## 3.2 Define SV event surrounding region
-        offset = 500
-        targetBeg = self.beg - offset
-        targetEnd = self.end + offset
-        targetLen = targetEnd - targetBeg
-        targetInterval = self.ref + ':' + str(targetBeg) + '-' + str(targetEnd)
-
-        ## 3.3 Do realignment
-        BAM = alignment.targeted_alignment_minimap2(consensusFile, targetInterval, reference, outDir)
-
-        ## 4. Extract consensus SV event from consensus sequence realignment
-        INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events, supportingReads = bamtools.collectSV(targetInterval, 0, targetLen, BAM, confDict, None)
-               
-        ## 5. Redefine cluster properties based on consensus SV event  
-        # a) Single event 
-        if len(INS_events) == 1:
-            INS = INS_events[0]
-            self.isConsensus = True
-            self.beg = INS.beg + targetBeg # Map alignments into chromosomal coordinates
-            self.end = INS.end + targetBeg
-            self.consensusLen = INS.length
-            self.insertSeq = INS.seq
-
-        # b) Multiple possible events. Select most likely (TO DO) 
-        elif len(INS_events) > 1:
-            print("WARNING. Multiple possible INS events")
-
-        # c) No identified events
-             
-        ## Do Cleanup 
-        unix.rm([outDir])
-
-    def determine_insertion_type(self, index, confDict, rootDir): 
-        '''
-        Determine the type of insertion (retrotransposon, simple repeat, virus, ...) and collect insertion information.
-
-        Input: 
-            1. index: Minimap2 index for fasta file containing retrotransposon related sequences 
-            2. confDict: Configuration dictionary 
-            3. rootDir: Root directory where temporary folders and files will be created
-        '''
-
-        ## 0. Create output directory ##
-        outDir = rootDir + '/' + str(self.id)
-        unix.mkdir(outDir)
-
-        ## 1. Define target INS sequence ##
-        # a) INS seq already available
-        if self.insertSeq != None:
-            seq = self.insertSeq
-
-        # b) INS seq not available -> pick arbitrary INS sequence from one read 
-        else:
-            self.isConsensus = False
-            self.insertSeq = self.events[0].seq
-            seq = self.insertSeq
-        
-        ## 2. Write target seq into file ##
-        FASTA = formats.FASTA()
-        FASTA.seqDict[str(self.id)] = seq
-
-        FASTA_file = outDir + '/insert.fa'
-        FASTA.write(FASTA_file)
-
-        ## 3. Is an insertion of a simple/tandem repeat? ##
-        minPercSimple = 70
-        self.insType, self.status, self.percResolved = repeats.is_simple_repeat(FASTA_file, minPercSimple, outDir)
-
-        ## Stop if insertion classified as simple repeat
-        if self.status == 'resolved':
-            return
-
-        ## 4. Is a retrotransposition insertion? ##
-        self.insType, self.family, self.srcId, self.status, self.percResolved, self.strand, self.hits = retrotransposons.is_retrotransposition(FASTA_file, index, outDir)
-        
-        ## Stop if insertion classified as retrotransposon
-        if (self.status == 'resolved') or (self.status == 'partially_resolved'):
-            return
-       
-        ## 5. Is a virus? ##
-        #viruses.is_virus()
-
-        ## 6. Is a chromosomal insertion? (mitochondrial, templated...) ##
-        #¿¿¿rearrangements???.is_chromosomal_dna()
 
 class DEL_cluster(cluster):
     '''
@@ -520,67 +299,6 @@ class DEL_cluster(cluster):
 
         cluster.__init__(self, events, 'DEL')
 
-    def create_consensus(self, supportingReads, reference, confDict, rootDir): 
-        '''
-        Use all the cluster supporting reads to (1) generate a consensus sequence for the cluster and (2) perform local realignment of the consensus 
-        to obtain more accurate SV breakpoints and inserted sequence (only for INS)
-
-        Update cluster with all this information
-        
-        Input:
-            1. supportingReads: FASTQ (if qualities available) or FASTA (if qualities NOT available) object containing all the reads supporting SV clusters 
-            2. reference: Path to the reference genome in fasta format. An index of the reference generated with samtools faidx must be located in the same directory
-            3. confDict: Configuration dictionary 
-            4. rootDir: Root directory where temporary folders and files will be created
-        '''
-        ## 0. Create output directory
-        outDir = rootDir + '/' + str(self.id)
-        unix.mkdir(outDir)
-
-        ## 1. Collect cluster supporting reads from the FASTA/FASTQ containing all the reads supporting SV clusters
-        clusterSupportingReads = self.collect_supportingReads(supportingReads, confDict['quality'])
-
-        ## 2. Generate consensus sequence for the cluster
-        self.consensus_FASTA = consensus.racon(clusterSupportingReads, confDict['technology'], confDict['quality'], outDir)
-
-        # Exit if consensus sequence could not be generated
-        if self.consensus_FASTA == None:
-            return
-
-        ## 3. Realign consensus sequence into the SV event genomic region
-        ## 3.1 Write consensus sequence into fasta file
-        consensusFile = outDir + '/consensus.fasta'
-        self.consensus_FASTA.write(consensusFile)
-
-        ## 3.2 Define SV event surrounding region
-        offset = 500
-        targetBeg = self.beg - offset
-        targetEnd = self.end + offset
-        targetLen = targetEnd - targetBeg
-        targetInterval = self.ref + ':' + str(targetBeg) + '-' + str(targetEnd)
-
-        ## 3.3 Do realignment
-        BAM = alignment.targeted_alignment_minimap2(consensusFile, targetInterval, reference, outDir)
-
-        ## 4. Extract consensus SV event from consensus sequence realignment
-        INS_events, DEL_events, CLIPPING_left_events, CLIPPING_right_events, supportingReads = bamtools.collectSV(targetInterval, 0, targetLen, BAM, confDict, None)
-               
-        ## 5. Redefine cluster properties based on consensus SV event  
-        # a) Single event 
-        if len(DEL_events) == 1:
-            DEL = DEL_events[0]
-            self.beg = DEL.beg + targetBeg # Map alignments into chromosomal coordinates
-            self.end = DEL.end + targetBeg
-            self.consensusLen = self.end - self.beg 
-
-        # b) Multiple possible events. Select most likely (TO DO)
-        elif len(DEL_events) > 1:
-            print("WARNING. Multiple possible DEL events")
-
-        # c) No identified events
-
-        ## Do Cleanup 
-        unix.rm([outDir])
 
 class CLIPPING_cluster(cluster):
     '''
