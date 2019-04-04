@@ -401,7 +401,7 @@ def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, overhang, samp
             flankingSeq = alignmentObj.query_sequence if overhang == None else events.pick_flanking_seq_CLIPPING(alignmentObj.query_sequence, alignmentObj.query_alignment_start, 'left', overhang)
             
             # Create CLIPPING object
-            left_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_start, 'left', determine_clippingType(alignmentObj, 'left'), flankingSeq, sample)
+            left_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_start, 'left', determine_clippingType(alignmentObj, 'left'), flankingSeq, alignmentObj.query_name, sample)
 
     ## Clipping > X bp at the RIGHT
     if ((lastOperation == 4) or (lastOperation == 5)) and (lastOperationLen >= minCLIPPINGlen):
@@ -415,7 +415,7 @@ def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, overhang, samp
             flankingSeq = alignmentObj.query_sequence if overhang == None else events.pick_flanking_seq_CLIPPING(alignmentObj.query_sequence, alignmentObj.query_alignment_end, 'right', overhang)
 
             # Create CLIPPING object
-            right_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_end, alignmentObj.reference_end, 'right', determine_clippingType(alignmentObj, 'right'), flankingSeq, sample)
+            right_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_end, alignmentObj.reference_end, 'right', determine_clippingType(alignmentObj, 'right'), flankingSeq, alignmentObj.query_name, sample)
 
     return left_CLIPPING, right_CLIPPING
 
@@ -461,7 +461,7 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang,
                 flankingSeq = alignmentObj.query_sequence if overhang == None else events.pick_flanking_seq_INS(alignmentObj.query_sequence, posQuery, length, overhang)
 
                 # Create INS object
-                INS = events.INS(alignmentObj.reference_name, posRef, posRef, length, flankingSeq, sample)
+                INS = events.INS(alignmentObj.reference_name, posRef, posRef, length, flankingSeq, alignmentObj.query_name, sample)
                 INS_events.append(INS)
 
         ## b) DELETION to the reference >= Xbp
@@ -476,7 +476,7 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang,
                 flankingSeq = alignmentObj.query_sequence if overhang == None else events.pick_flanking_seq_DEL(alignmentObj.query_sequence, posQuery, overhang)
 
                 # Create DEL object
-                DEL = events.DEL(alignmentObj.reference_name, posRef, posRef + length, length, flankingSeq, sample)
+                DEL = events.DEL(alignmentObj.reference_name, posRef, posRef + length, length, flankingSeq, alignmentObj.query_name, sample)
                 DEL_events.append(DEL)
                 
         #### Update position over reference and read sequence

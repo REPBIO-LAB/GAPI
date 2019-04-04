@@ -118,7 +118,7 @@ class INS():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, length, readSeq, sample):
+    def __init__(self, ref, beg, end, length, readSeq, readName, sample):
         '''
         '''
 
@@ -130,6 +130,7 @@ class INS():
         self.end = int(end)
         self.length = int(length)
         self.readSeq = readSeq
+        self.readName = readName
         self.sample = sample
 
 class DEL():
@@ -138,7 +139,7 @@ class DEL():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, length, readSeq, sample):
+    def __init__(self, ref, beg, end, length, readSeq, readName, sample):
         '''
         '''
         DEL.number += 1 # Update instances counter
@@ -149,6 +150,7 @@ class DEL():
         self.end = int(end)
         self.length = int(length)
         self.readSeq = readSeq
+        self.readName = readName
         self.sample = sample
     
 class CLIPPING():
@@ -157,7 +159,7 @@ class CLIPPING():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, clippedSide, clippingType, readSeq, sample):
+    def __init__(self, ref, beg, end, clippedSide, clippingType, readSeq, readName, sample):
         '''
         '''
         CLIPPING.number += 1 # Update instances counter
@@ -169,4 +171,5 @@ class CLIPPING():
         self.clippedSide = clippedSide
         self.clippingType = clippingType
         self.readSeq = readSeq
+        self.readName = readName
         self.sample = sample
