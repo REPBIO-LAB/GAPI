@@ -130,7 +130,7 @@ class INS():
         self.end = int(end)
         self.length = int(length)
         self.readSeq = readSeq
-        self.readName = readName
+        self.readName =  self.type + '_' + str(self.id) + '_' + readName
         self.sample = sample
 
 class DEL():
@@ -150,7 +150,7 @@ class DEL():
         self.end = int(end)
         self.length = int(length)
         self.readSeq = readSeq
-        self.readName = readName
+        self.readName = self.type + '_' + str(self.id) + '_' + readName
         self.sample = sample
     
 class CLIPPING():
@@ -171,5 +171,5 @@ class CLIPPING():
         self.clippedSide = clippedSide
         self.clippingType = clippingType
         self.readSeq = readSeq
-        self.readName = readName
+        self.readName = self.type + '_' + str(self.id) + '_' + readName
         self.sample = sample
