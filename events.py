@@ -48,14 +48,16 @@ def pick_flanking_seq_INS(readSeq, readPos, length, overhang):
 
     Output:
         1. seq: piece of supporting read sequence spanning the INS event
+        2. seqPos: INS beginning breakpoint position at the output sequence
     '''
     ## Pick inserted fragment sequence + flanking read sequence
     begPos = readPos - overhang
     begPos = begPos if begPos >= 0 else 0 # set lower bound to 0
     endPos = readPos + length + overhang
     seq = readSeq[begPos:endPos]
-
-    return seq
+    seqPos = overhang
+    
+    return seq, seqPos
 
 
 def pick_flanking_seq_DEL(readSeq, readPos, overhang):
@@ -69,14 +71,16 @@ def pick_flanking_seq_DEL(readSeq, readPos, overhang):
 
     Output:
         1. seq: piece of supporting read sequence spanning the DEL event
+        2. seqPos: DEL breakpoint position at the output sequence
     '''
     ## Pick deletion flanking read sequence
     begPos = readPos - overhang
     begPos = begPos if begPos >= 0 else 0 # set lower bound to 0
     endPos = readPos + overhang
     seq = readSeq[begPos:endPos]
+    seqPos = overhang
 
-    return seq
+    return seq, seqPos
 
 
 def pick_flanking_seq_CLIPPING(readSeq, readPos, clippedSide, overhang):
@@ -85,29 +89,32 @@ def pick_flanking_seq_CLIPPING(readSeq, readPos, clippedSide, overhang):
 
     Input:
         1. readSeq: CLIPPING supporting read
-        2. readPos: read position where CLIPPING start
+        2. readPos: CLIPPING breakpoint position at the read
         3. clippedSide: clipping orientation (left or right)
         4. overhang: number of flanking base pairs around the CLIPPING breakpoint position to be collected from the supporting read sequence 
 
     Output:
         1. seq: piece of supporting read sequence spanning the CLIPPING breakpoint event
+        2. seqPos: CLIPPING breakpoint position at the output sequence
     '''
 
     ## Take into account clipping orientation to pick read sequence (TO DO) 
-    # a) Left clipping (.........*readPos*###################) 
-    #                   ------------------<-overhang-> *endPos
+    # a) Left clipping (.........*###################) (*, readPos) 
+    #                   ----------<-overhang->* (*, endPos)
     if clippedSide == 'left':
         endPos = readPos + overhang
         seq = readSeq[:endPos]
+        seqPos = readPos
 
-    # b) Rigth clipping (###################*readPos*.........) 
-    #                   begPos* <-overhang->------------------ 
+    # b) Rigth clipping (###################*.........) (*, readPos) 
+    #                         * <-overhang->------------------ (*, begPos)
     else:
         begPos = readPos - overhang
         begPos = begPos if begPos >= 0 else 0 # set lower bound to 0
         seq = readSeq[begPos:]
+        seqPos = overhang
 
-    return seq
+    return seq, seqPos
 
 
 def determine_clippingType(alignmentObj, clippedSide):
@@ -146,10 +153,9 @@ class INS():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, length, readSeq, alignmentObj, sample):
+    def __init__(self, ref, beg, end, length, readSeq, readBkp, alignmentObj, sample):
         '''
         '''
-
         INS.number += 1 # Update instances counter
         self.id = INS.number
         self.type = 'INS'
@@ -158,6 +164,7 @@ class INS():
         self.end = int(end)
         self.length = int(length)
         self.readSeq = readSeq
+        self.readBkp = readBkp        
         self.readName =  self.type + '_' + str(self.id) + '_' + alignmentObj.query_name
         self.sample = sample
 
@@ -175,7 +182,7 @@ class DEL():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, length, readSeq, alignmentObj, sample):
+    def __init__(self, ref, beg, end, length, readSeq, readBkp, alignmentObj, sample):
         '''
         '''
         DEL.number += 1 # Update instances counter
@@ -186,6 +193,7 @@ class DEL():
         self.end = int(end)
         self.length = int(length)
         self.readSeq = readSeq
+        self.readBkp = readBkp        
         self.readName = self.type + '_' + str(self.id) + '_' + alignmentObj.query_name
         self.sample = sample
     
@@ -203,7 +211,7 @@ class CLIPPING():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, clippedSide, readSeq, alignmentObj, sample):
+    def __init__(self, ref, beg, end, clippedSide, readSeq, readBkp, alignmentObj, sample):
         '''
         '''
         CLIPPING.number += 1 # Update instances counter
@@ -215,6 +223,7 @@ class CLIPPING():
         self.clippedSide = clippedSide
         self.clippingType = determine_clippingType(alignmentObj, self.clippedSide)
         self.readSeq = readSeq
+        self.readBkp = readBkp        
         self.readName = self.type + '-' + self.clippedSide + '_' + str(self.id) + '_' + alignmentObj.query_name
         self.sample = sample
 
