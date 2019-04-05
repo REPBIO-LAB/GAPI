@@ -35,6 +35,7 @@ def separate(events):
 
     return eventTypes
 
+
 def pick_flanking_seq_INS(readSeq, readPos, length, overhang):
     '''
     Pick inserted sequence + insertion flanking sequence from INS supporting read
@@ -55,6 +56,7 @@ def pick_flanking_seq_INS(readSeq, readPos, length, overhang):
     seq = readSeq[begPos:endPos]
 
     return seq
+
 
 def pick_flanking_seq_DEL(readSeq, readPos, overhang):
     '''
@@ -108,6 +110,32 @@ def pick_flanking_seq_CLIPPING(readSeq, readPos, clippedSide, overhang):
     return seq
 
 
+def determine_clippingType(alignmentObj, clippedSide):
+    '''
+    Determine if soft or hard clipping
+
+    Input:
+        1. alignmentObj: pysam read alignment object instance
+        2. clippedSide: Clipped side relative to the read (left or right)
+
+    Output:
+        1. clippingType: soft or hard clipping
+    '''
+    ### Extract operation
+    ## a) Clipping at the begin
+    if clippedSide == 'left':
+        operation =  alignmentObj.cigartuples[0][0]
+
+    ## b) Clipping at the end
+    else:
+        operation = alignmentObj.cigartuples[-1][0]
+
+    ### Determine if soft or hard clipping
+    clippingType = 'soft' if (operation == 4) else 'hard'
+
+    return clippingType
+
+
 #############
 ## CLASSES ##
 #############
@@ -118,7 +146,7 @@ class INS():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, length, readSeq, readName, sample):
+    def __init__(self, ref, beg, end, length, readSeq, alignmentObj, sample):
         '''
         '''
 
@@ -130,8 +158,16 @@ class INS():
         self.end = int(end)
         self.length = int(length)
         self.readSeq = readSeq
-        self.readName =  self.type + '_' + str(self.id) + '_' + readName
+        self.readName =  self.type + '_' + str(self.id) + '_' + alignmentObj.query_name
         self.sample = sample
+
+        # Supporting read alignment properties:
+        self.reverse = alignmentObj.is_reverse
+        self.secondary = alignmentObj.is_secondary
+        self.supplementary = alignmentObj.is_supplementary
+        self.mapQual = alignmentObj.mapping_quality
+        self.supplAlignment = alignmentObj.get_tag('SA') if alignmentObj.has_tag('SA') else None
+
 
 class DEL():
     '''
@@ -139,7 +175,7 @@ class DEL():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, length, readSeq, readName, sample):
+    def __init__(self, ref, beg, end, length, readSeq, alignmentObj, sample):
         '''
         '''
         DEL.number += 1 # Update instances counter
@@ -150,16 +186,24 @@ class DEL():
         self.end = int(end)
         self.length = int(length)
         self.readSeq = readSeq
-        self.readName = self.type + '_' + str(self.id) + '_' + readName
+        self.readName = self.type + '_' + str(self.id) + '_' + alignmentObj.query_name
         self.sample = sample
     
+        # Supporting read alignment properties:
+        self.reverse = alignmentObj.is_reverse
+        self.secondary = alignmentObj.is_secondary
+        self.supplementary = alignmentObj.is_supplementary
+        self.mapQual = alignmentObj.mapping_quality
+        self.supplAlignment = alignmentObj.get_tag('SA') if alignmentObj.has_tag('SA') else None
+
+
 class CLIPPING():
     '''
     Clipping class
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, clippedSide, clippingType, readSeq, readName, sample):
+    def __init__(self, ref, beg, end, clippedSide, readSeq, alignmentObj, sample):
         '''
         '''
         CLIPPING.number += 1 # Update instances counter
@@ -169,7 +213,14 @@ class CLIPPING():
         self.beg = int(beg) # beg==end. 0-based CLIPPING breakpoint
         self.end = int(end)
         self.clippedSide = clippedSide
-        self.clippingType = clippingType
+        self.clippingType = determine_clippingType(alignmentObj, self.clippedSide)
         self.readSeq = readSeq
-        self.readName = self.type + '_' + str(self.id) + '_' + readName
+        self.readName = self.type + '-' + self.clippedSide + '_' + str(self.id) + '_' + alignmentObj.query_name
         self.sample = sample
+
+        # Supporting read alignment properties:
+        self.reverse = alignmentObj.is_reverse
+        self.secondary = alignmentObj.is_secondary
+        self.supplementary = alignmentObj.is_supplementary
+        self.mapQual = alignmentObj.mapping_quality
+        self.supplAlignment = alignmentObj.get_tag('SA') if alignmentObj.has_tag('SA') else None

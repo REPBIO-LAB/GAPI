@@ -132,31 +132,6 @@ def BAM2FASTQ_entry(alignmentObj):
     FASTQ_entry = formats.FASTQ_entry(alignmentObj.query_name, seq, '', qual)
     return FASTQ_entry
 
-def determine_clippingType(alignmentObj, clippedSide):
-    '''
-    Determine if soft or hard clipping
-
-    Input:
-        1. alignmentObj: pysam read alignment object instance
-        2. clippedSide: Clipped side relative to the read (left or right)
-
-    Output:
-        1. clippingType: soft or hard clipping
-    '''
-    ### Extract operation
-    ## a) Clipping at the begin
-    if clippedSide == 'left':
-        operation =  alignmentObj.cigartuples[0][0]
-
-    ## b) Clipping at the end
-    else:
-        operation = alignmentObj.cigartuples[-1][0]
-
-    ### Determine if soft or hard clipping
-    clippingType = 'soft' if (operation == 4) else 'hard'
-
-    return clippingType
-
 def binning(targetBins, bam, binSize, targetRefs):
     '''
     Split the genome into a set of genomic bins. Two possible binning approaches:
@@ -401,7 +376,7 @@ def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, overhang, samp
             flankingSeq = alignmentObj.query_sequence if overhang == None else events.pick_flanking_seq_CLIPPING(alignmentObj.query_sequence, alignmentObj.query_alignment_start, 'left', overhang)
             
             # Create CLIPPING object
-            left_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_start, 'left', determine_clippingType(alignmentObj, 'left'), flankingSeq, alignmentObj.query_name, sample)
+            left_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_start, 'left', flankingSeq, alignmentObj, sample)
 
     ## Clipping > X bp at the RIGHT
     if ((lastOperation == 4) or (lastOperation == 5)) and (lastOperationLen >= minCLIPPINGlen):
@@ -415,7 +390,7 @@ def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, overhang, samp
             flankingSeq = alignmentObj.query_sequence if overhang == None else events.pick_flanking_seq_CLIPPING(alignmentObj.query_sequence, alignmentObj.query_alignment_end, 'right', overhang)
 
             # Create CLIPPING object
-            right_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_end, alignmentObj.reference_end, 'right', determine_clippingType(alignmentObj, 'right'), flankingSeq, alignmentObj.query_name, sample)
+            right_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_end, alignmentObj.reference_end, 'right', flankingSeq, alignmentObj, sample)
 
     return left_CLIPPING, right_CLIPPING
 
@@ -461,7 +436,7 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang,
                 flankingSeq = alignmentObj.query_sequence if overhang == None else events.pick_flanking_seq_INS(alignmentObj.query_sequence, posQuery, length, overhang)
 
                 # Create INS object
-                INS = events.INS(alignmentObj.reference_name, posRef, posRef, length, flankingSeq, alignmentObj.query_name, sample)
+                INS = events.INS(alignmentObj.reference_name, posRef, posRef, length, flankingSeq, alignmentObj, sample)
                 INS_events.append(INS)
 
         ## b) DELETION to the reference >= Xbp
@@ -476,7 +451,7 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang,
                 flankingSeq = alignmentObj.query_sequence if overhang == None else events.pick_flanking_seq_DEL(alignmentObj.query_sequence, posQuery, overhang)
 
                 # Create DEL object
-                DEL = events.DEL(alignmentObj.reference_name, posRef, posRef + length, length, flankingSeq, alignmentObj.query_name, sample)
+                DEL = events.DEL(alignmentObj.reference_name, posRef, posRef + length, length, flankingSeq, alignmentObj, sample)
                 DEL_events.append(DEL)
                 
         #### Update position over reference and read sequence
