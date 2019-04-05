@@ -27,8 +27,9 @@ def mkdir(path):
     # Only attempt to create directory if it does not exists
     if not exist: 
         try:  
-            os.mkdir(path)
-
+            command = ['mkdir', '-p', path]
+            subprocess.call(command)
+            
         except OSError:  
             step = 'ERROR'
             msg = "Creation of the directory %s failed" % path
