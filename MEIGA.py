@@ -105,7 +105,7 @@ if technology not in ['NANOPORE', 'PACBIO', 'ILLUMINA']:
 ##############################################
 scriptName = os.path.basename(sys.argv[0])
 scriptName = os.path.splitext(scriptName)[0]
-version='0.0.8'
+version='0.1.0'
 
 print()
 print('***** ', scriptName, version, 'configuration *****')
