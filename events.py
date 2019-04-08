@@ -165,7 +165,7 @@ class INS():
         self.length = int(length)
         self.readSeq = readSeq
         self.readBkp = readBkp        
-        self.readName =  self.type + '_' + str(self.id) + '_' + alignmentObj.query_name
+        self.readName = alignmentObj.query_name
         self.sample = sample
 
         # Supporting read alignment properties:
@@ -194,7 +194,7 @@ class DEL():
         self.length = int(length)
         self.readSeq = readSeq
         self.readBkp = readBkp        
-        self.readName = self.type + '_' + str(self.id) + '_' + alignmentObj.query_name
+        self.readName = alignmentObj.query_name
         self.sample = sample
     
         # Supporting read alignment properties:
@@ -224,7 +224,7 @@ class CLIPPING():
         self.clippingType = determine_clippingType(alignmentObj, self.clippedSide)
         self.readSeq = readSeq
         self.readBkp = readBkp        
-        self.readName = self.type + '-' + self.clippedSide + '_' + str(self.id) + '_' + alignmentObj.query_name
+        self.readName = alignmentObj.query_name
         self.sample = sample
 
         # Supporting read alignment properties:
@@ -233,3 +233,4 @@ class CLIPPING():
         self.supplementary = alignmentObj.is_supplementary
         self.mapQual = alignmentObj.mapping_quality
         self.supplAlignment = alignmentObj.get_tag('SA') if alignmentObj.has_tag('SA') else None
+        self.refLen = alignmentObj.reference_length

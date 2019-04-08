@@ -1,5 +1,5 @@
 '''
-Module 'retrotransposons' - Contains functions for the identification and characterization of retrotransposon sequences
+Module 'repeats' - Contains functions for the identification and characterization of simple repeats from sequences
 '''
 
 ## DEPENDENCIES ##

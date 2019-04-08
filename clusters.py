@@ -221,7 +221,6 @@ class cluster():
         # Resort and redefine cluster begin and end coordinates
         self.ref, self.beg, self.end = self.coordinates() 
             
-    
     def collect_reads(self):
         '''
         Create FASTA object containing cluster supporting reads.
@@ -238,7 +237,6 @@ class cluster():
             FASTA.seqDict[event.readName] = event.readSeq
 
         return FASTA
-
 
     def nbEvents(self):
         '''
