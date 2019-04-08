@@ -155,6 +155,92 @@ def create_metaclusters(eventsBinDb, confDict):
     metaclustersBinDb = structures.create_bin_database(eventsBinDb.ref, eventsBinDb.beg, eventsBinDb.end, metaclustersDict, binSizes)
     return metaclustersBinDb
 
+def find_chimeric_alignments(clusterA, clusterB):
+    '''
+    Search for chimeric read alignments connecting two clipping clusters. Select one as representative if multiple are identified. 
+
+    Input:
+        1. clusterA: Clipping cluster object
+        2. clusterB: Clipping cluster object
+
+    Output:
+        1. primary: clipping event for representative primary alignment
+        2. supplementary: clipping event for representative supplementary alignment
+        4. chimericSorted: list of tuples. Each tuple is composed by two clipping events corresponding to primary and supplementary alignments, respectively. 
+    ''' 
+    ### 1. Identify chimeric read alignments connecting both clipping clusters
+    chimeric = []
+
+    # For each clipping event composing cluster A        
+    for clippingA in clusterA.events:
+
+        # For each clipping event composing cluster B
+        for clippingB in clusterB.events:
+
+            # Clipping events from the same read
+            if (clippingA.readName == clippingB.readName):
+                        
+                # a) Clipping A primary while clipping B supplementary
+                if (clippingA.supplementary == False) and (clippingB.supplementary == True):
+                    primary = clippingA
+                    supplementary = clippingB
+                    chimeric.append((primary, supplementary))
+
+                # b) Left clipping supplementary while right clipping primary
+                elif (clippingA.supplementary == True) and (clippingB.supplementary == False):
+                    primary = clippingB
+                    supplementary = clippingA
+                    chimeric.append((primary, supplementary))
+
+                # c) Both clippings supplementary (Discard! These cases are not informative as supplementary alignments are hardclipped so don´t allow to pick the inserted fragment)
+                
+    # Exit if not chimeric alignments found
+    if not chimeric:
+        return False, None, None, None
+
+    ### 2. Select the clipping events with the longest supplementary alignment as representative
+    chimericSorted = sorted(chimeric, key=lambda alignments: alignments[1].refLen, reverse=True)
+    primary = chimericSorted[0][0]
+    supplementary = chimericSorted[0][1]
+
+    return True, primary, supplementary, chimericSorted
+
+def find_insertion_at_clipping_bkp(primary, supplementary):
+    '''
+    Search for inserted DNA between the two clipping event breakpoints. 
+
+    Input:
+        1. primary: Clipping event object corresponding to the primary alignment
+        2. supplementary: Clipping event object corresponding to the supplementary alignment
+
+    Output:
+
+        1. insert: DNA fragment inserted between clipping breakpoints
+    ''' 
+    ### Check if there is an unaligned piece of read sequence between the primary and supplementary alignment breakpoints
+    ## A) Primary right clipped 
+    # -: aligned; _: clipped            readBkpA
+    # primary -----------------------------*______________________
+    #                                       <<<<insert>>>>*------- supplementary
+    #                                                  readBkpB == total read length -  length of the supplementary piece of sequence aligned
+    if (primary.clippedSide == 'right'):
+        readBkpA = primary.readBkp
+        readBkpB = len(primary.readSeq) - len(supplementary.readSeq)
+
+    ## B) Primary left clipped
+    # -: aligned; _: clipped        readBkpB
+    # primary        ______________________*-----------------------------
+    # supplementary  -------*<<<<insert>>>>                            
+    #               readBkpA == length of the supplementary piece of sequence aligned
+    else:
+        readBkpA = len(supplementary.readSeq)
+        readBkpB = primary.readBkp             
+
+    # Extract inserted sequence between clipping breakpoints
+    insert = primary.readSeq[readBkpA:readBkpB]
+
+    return insert
+
 
 #############
 ## CLASSES ##
