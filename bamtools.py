@@ -290,10 +290,10 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             eventsDict['RIGHT-CLIPPING'] = []
 
         ## [SR CHANGE]
-        # b) Dividide discordant events into left and right discordants
+        # b) Dividide discordant events into minus and plus discordants
         if (SV_type == 'DISCORDANT'):
-            eventsDict['LEFT-DISCORDANT'] = []
-            eventsDict['RIGHT-DISCORDANT'] = []
+            eventsDict['MINUS-DISCORDANT'] = []
+            eventsDict['PLUS-DISCORDANT'] = []
 
         # c) Other types of events
         else:
@@ -343,15 +343,15 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             ## 3. Collect DISCORDANT
             if 'DISCORDANT' in confDict['targetSV']:
 
-                left_DISCORDANT, right_DISCORDANT = collectDISCORDANT(alignmentObj, sample)
+                minus_DISCORDANT, plus_DISCORDANT = collectDISCORDANT(alignmentObj, sample)
 
-                # Left CLIPPING found
-                if left_DISCORDANT != None:
-                    eventsDict['LEFT-DISCORDANT'].append(left_DISCORDANT)
+                # Minus DISCORDANT found
+                if minus_DISCORDANT != None:
+                    eventsDict['MINUS-DISCORDANT'].append(minus_DISCORDANT)
         
-                # Right CLIPPING found
-                if right_DISCORDANT != None:
-                    eventsDict['RIGHT-DISCORDANT'].append(right_DISCORDANT)
+                # Plus DISCORDANT found
+                if plus_DISCORDANT != None:
+                    eventsDict['PLUS-DISCORDANT'].append(plus_DISCORDANT)
 
     ## Close 
     bamFile.close()
@@ -505,12 +505,12 @@ def collectDISCORDANT(alignmentObj, sample):
         2. sample: type of sample (TUMOUR, NORMAL or None). Move to confDict
 
     Output:
-        1. discordantLeftObj: DISCORDANT object for left discordant (None if no discordant found)
-        2. discordantRightObj: DISCORDANT object for right discordant (None if no discordant found)
+        1. minus_DISCORDANT: minus DISCORDANT object (None if no discordant found)
+        2. plus_DISCORDANT: plus DISCORDANT object (None if no discordant found)
 
     '''
     # Initialize as None
-    left_DISCORDANT, right_DISCORDANT = [None, None]
+    minus_DISCORDANT, plus_DISCORDANT = [None, None]
 
     # If not proper pair (=discordant)
     if not alignmentObj.is_proper_pair:
@@ -518,12 +518,12 @@ def collectDISCORDANT(alignmentObj, sample):
         #if not ((firstOperation == 4) or (firstOperation == 5)) and (firstOperationLen >= confDict['minCLIPPINGlen']):
         # Collect discordant even they are also CLIPPING
         if alignmentObj.is_reverse:
-            left_DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, 'left', alignmentObj.query_name, alignmentObj, sample)
+            minus_DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, 'minus', alignmentObj.query_name, alignmentObj, sample)
 
         else:
-            right_DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, 'right', alignmentObj.query_name, alignmentObj, sample)
+            plus_DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, 'plus', alignmentObj.query_name, alignmentObj, sample)
 
-    return left_DISCORDANT, right_DISCORDANT
+    return minus_DISCORDANT, plus_DISCORDANT
 
 
 ## [SR CHANGE]

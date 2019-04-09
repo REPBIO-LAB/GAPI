@@ -55,7 +55,7 @@ def create_cluster(events, clusterType):
 
     # [SR CHANGE]
     ## e) Create DISCORDANT cluster
-    elif (clusterType == 'DISCORDANT') or (clusterType == 'LEFT-DISCORDANT') or (clusterType == 'RIGHT-DISCORDANT'):
+    elif (clusterType == 'DISCORDANT') or (clusterType == 'MINUS-DISCORDANT') or (clusterType == 'PLUS-DISCORDANT'):
         cluster = DISCORDANT_cluster(events)
 
     ## f) Unexpected cluster type
@@ -141,7 +141,7 @@ def create_metaclusters(eventsBinDb, confDict):
     # 2.5) Create DISCORDANT metaclusters
     if 'DISCORDANT' in confDict['targetSV']:
         # [SR CHANGE]: ESTO PONERLO COMO EN EL CLIPPING, PERO AHORA VA ASI:
-        eventTypes = ['LEFT-DISCORDANT', 'RIGHT-DISCORDANT']
+        eventTypes = ['MINUS-DISCORDANT', 'PLUS-DISCORDANT']
         # TO DO  
         metaclusters = clustering.reciprocal_clustering(eventsBinDb, 1, confDict['minClusterSize'], eventTypes[0], 0)
         metaclusters = clustering.reciprocal_clustering(eventsBinDb, 1, confDict['minClusterSize'], eventTypes[1], 0)

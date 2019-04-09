@@ -107,7 +107,7 @@ def reciprocal_clustering(eventsBinDb, minPercOverlap, minClusterSize, eventType
         # For each bin in the current window size
         for index in eventsBinDb.data[windowSize]:
 
-            ## [SR CHANGE]: IMPORTANT!!! We want right and left discordant clusters separated. That's why here I had to add this step, otherwise it will crush due to the last key (doesnt match with previous)
+            ## [SR CHANGE]: IMPORTANT!!! We want plus and minus discordant clusters separated. That's why here I had to add this step, otherwise it will crush due to the last key (doesnt match with previous)
             for actualEventType in eventsBinDb.data[windowSize][index]:
                 if actualEventType == eventType:
 

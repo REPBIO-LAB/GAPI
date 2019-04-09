@@ -153,15 +153,15 @@ class SV_caller_short(SV_caller):
         ### 3. Search for SV clusters in each bin ##
         # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
-        left_DISCORDANT_clusters, right_DISCORDANT_clusters = zip(*pool.map(self.make_clusters_bin, bins))
+        minus_DISCORDANT_clusters, plus_DISCORDANT_clusters = zip(*pool.map(self.make_clusters_bin, bins))
         pool.close()
         pool.join()
 
         ### 4. Report clusters into output file
         # Create dictionary containing clusters 
         clusters = {}
-        clusters['LEFT-DISCORDANT-CLUSTER'] = left_DISCORDANT_clusters 
-        clusters['RIGHT-DISCORDANT-CLUSTER']= right_DISCORDANT_clusters
+        clusters['MINUS-DISCORDANT-CLUSTER'] = minus_DISCORDANT_clusters 
+        clusters['PLUS-DISCORDANT-CLUSTER']= plus_DISCORDANT_clusters
     
         # Write clusters
         output.writeClusters(clusters, self.outDir)
