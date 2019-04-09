@@ -6,6 +6,8 @@ Module 'bamtools' - Contains functions for extracting data from bam files
 # External
 import pysam
 import subprocess
+## [SR CHANGE]
+import sys
 
 # Internal
 import log
@@ -524,6 +526,87 @@ def collectDISCORDANT(alignmentObj, sample):
             plus_DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, 'plus', alignmentObj.query_name, alignmentObj, sample)
 
     return minus_DISCORDANT, plus_DISCORDANT
+
+## [SR CHANGE]
+def collectMatesSeq(eventsDict, tumourBam, normalBam):
+    '''
+    From a dictionary of events, get the mate sequence for each event.
+    
+    Input:
+        1. eventsDict: dictionary of events of DISCORDANT and/or CLIPPING events {key: eventsType, value: list of events}
+        2. tumourBam
+        3. normalBam
+    Output:
+        1. It doesnt return anything, just add the mate sequence to event.mateSeq attribute.
+    '''
+
+    for eventType, eventsList in eventsDict.items():
+        if 'DISCORDANT' in eventType:
+            print ('eventType ' + eventType)
+            for event in eventsList:
+                if event.sample == None:
+                    collectMateSeq(event, tumourBam)
+                elif event.sample == 'TUMOUR':
+                    collectMateSeq(event, tumourBam)
+                elif event.sample == 'NORMAL':
+                    collectMateSeq(event, normalBam)
+
+        # TODO: Collect mate sequence of clipping events:
+        # elif 'CLIPPING' in eventType:
+        #     print ('eventType ' + eventType)
+        #     for event in eventsList:
+
+        #         # Check if it is a discordant clipping read. IF IT IS DONE LIKE THAT, WE NEED TO ADD SOME CHANGES IN CLIPPING CLASS
+        #         properPair = event.properPair
+        #         if properPair == False:
+        #             # Check if the clipping is on the same side as the mate:
+        #             pair = event.pair
+        #             clippedSide = event.clippedSide
+        #             if (pair == '1' and clippedSide == 'right') or (pair == '2' and clippedSide == 'left'):
+        #                 collectMateSeq(event, bamFile)
+
+        else:
+            log.info('Error at \'collectMatesSeq\'. Unexpected event type')
+            sys.exit(1)
+
+## [SR CHANGE]
+def collectMateSeq(event, bam):
+    '''
+    Get mate sequence for an event.
+    
+    Input:
+        1. event: DISCORDANT and/or CLIPPING event
+        2. bam file
+    Output:
+        1. It doesnt return anything, just add the mate sequence to event.mateSeq attribute.
+    '''
+
+    ## 1. Define bin coordinates based on mate position
+    mateRef = event.mateRef
+    mateStart = event.mateStart
+
+    binBegMate = mateStart
+    binEndMate = mateStart + 1
+
+    readName = event.readId.split('/')[0]
+
+    ## 2. Open BAM file for reading
+    bamFile = pysam.AlignmentFile(bam, "rb")
+
+    # Extract alignments
+    iteratorMate = bamFile.fetch(mateRef, binBegMate, binEndMate)
+    
+    # 3. For each read alignment
+    for alignmentObjMate in iteratorMate:
+        # Check if the aligment has same query_name but different orientation (to ensure that its the mate and not the read itself)
+        if readName == alignmentObjMate.query_name:
+            matePair = '1' if alignmentObjMate.is_read1 else '2'
+            if matePair != event.pair:
+                MAPQ = int(alignmentObjMate.mapping_quality)
+                # Pick only those sequences that are unmmapped or with mapping quality <20
+                if (alignmentObjMate.is_unmapped == True) or (MAPQ < 20):
+                    #if len(alignmentObjMate.query_sequence) > 100:
+                    event.mateSeq = alignmentObjMate.query_sequence
 
 
 ## [SR CHANGE]

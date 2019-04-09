@@ -16,6 +16,8 @@ import clustering
 import clusters
 import filters
 import output
+## [SR CHANGE]
+import virus
 
 ## FUNCTIONS ##
 
@@ -200,4 +202,20 @@ class SV_caller_short(SV_caller):
 
         for events in discordantEventsDict.values():
             for event in events:
-                print (str(event.type) +' '+ str(event.ref) +' '+ str(event.beg) +' '+ str(event.end) )
+                print (str(event.type) +' '+ str(event.ref) +' '+ str(event.beg) +' '+ str(event.end) +' '+ str(event.mateSeq))
+
+        ## 2. Mark those discordant events corresponding to a RT insertion ##
+        ## TODO
+
+        ## 3. Mark those discordant events corresponding to a viral insertion ##
+        # a) Single sample mode
+        if self.mode == "SINGLE":
+            virus.is_virusSR(discordantEventsDict, self.bam, None)
+
+        # b) Paired sample mode (tumour & matched normal)
+        else:
+            virus.is_virusSR(discordantEventsDict, self.bam, self.normalBam)
+
+        for events in discordantEventsDict.values():
+            for event in events:
+                print (str(event.type) +' '+ str(event.ref) +' '+ str(event.beg) +' '+ str(event.end) +' '+ str(event.mateSeq))
