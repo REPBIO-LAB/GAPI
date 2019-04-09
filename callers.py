@@ -208,13 +208,17 @@ class SV_caller_short(SV_caller):
         ## TODO
 
         ## 3. Mark those discordant events corresponding to a viral insertion ##
+
+        # Create a list containing all discordant events:
+        discordantEvents = discordantEventsDict['PLUS-DISCORDANT'] + discordantEventsDict['MINUS-DISCORDANT']
+
         # a) Single sample mode
         if self.mode == "SINGLE":
-            virus.is_virusSR(discordantEventsDict, self.bam, None)
+            virus.is_virusSR(discordantEvents, self.bam, None, self.outDir)
 
         # b) Paired sample mode (tumour & matched normal)
         else:
-            virus.is_virusSR(discordantEventsDict, self.bam, self.normalBam)
+            virus.is_virusSR(discordantEvents, self.bam, self.normalBam, self.outDir)
 
         for events in discordantEventsDict.values():
             for event in events:

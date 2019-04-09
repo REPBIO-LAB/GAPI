@@ -528,46 +528,25 @@ def collectDISCORDANT(alignmentObj, sample):
     return minus_DISCORDANT, plus_DISCORDANT
 
 ## [SR CHANGE]
-def collectMatesSeq(eventsDict, tumourBam, normalBam):
+def collectMatesSeq(events, tumourBam, normalBam):
     '''
-    From a dictionary of events, get the mate sequence for each event.
+    From a list of events, get the mate sequence for each event.
     
     Input:
-        1. eventsDict: dictionary of events of DISCORDANT and/or CLIPPING events {key: eventsType, value: list of events}
+        1. events: list of events
         2. tumourBam
         3. normalBam
     Output:
         1. It doesnt return anything, just add the mate sequence to event.mateSeq attribute.
     '''
 
-    for eventType, eventsList in eventsDict.items():
-        if 'DISCORDANT' in eventType:
-            print ('eventType ' + eventType)
-            for event in eventsList:
-                if event.sample == None:
-                    collectMateSeq(event, tumourBam)
-                elif event.sample == 'TUMOUR':
-                    collectMateSeq(event, tumourBam)
-                elif event.sample == 'NORMAL':
-                    collectMateSeq(event, normalBam)
-
-        # TODO: Collect mate sequence of clipping events:
-        # elif 'CLIPPING' in eventType:
-        #     print ('eventType ' + eventType)
-        #     for event in eventsList:
-
-        #         # Check if it is a discordant clipping read. IF IT IS DONE LIKE THAT, WE NEED TO ADD SOME CHANGES IN CLIPPING CLASS
-        #         properPair = event.properPair
-        #         if properPair == False:
-        #             # Check if the clipping is on the same side as the mate:
-        #             pair = event.pair
-        #             clippedSide = event.clippedSide
-        #             if (pair == '1' and clippedSide == 'right') or (pair == '2' and clippedSide == 'left'):
-        #                 collectMateSeq(event, bamFile)
-
-        else:
-            log.info('Error at \'collectMatesSeq\'. Unexpected event type')
-            sys.exit(1)
+    for event in events:
+        if event.sample == None:
+            collectMateSeq(event, tumourBam)
+        elif event.sample == 'TUMOUR':
+            collectMateSeq(event, tumourBam)
+        elif event.sample == 'NORMAL':
+            collectMateSeq(event, normalBam)
 
 ## [SR CHANGE]
 def collectMateSeq(event, bam):
@@ -604,7 +583,7 @@ def collectMateSeq(event, bam):
             if matePair != event.pair:
                 MAPQ = int(alignmentObjMate.mapping_quality)
                 # Pick only those sequences that are unmmapped or with mapping quality <20
-                if (alignmentObjMate.is_unmapped == True) or (MAPQ < 20):
+                if (alignmentObjMate.is_unmapped == True) or (MAPQ < 20): # PONER COMO OPCIONES
                     #if len(alignmentObjMate.query_sequence) > 100:
                     event.mateSeq = alignmentObjMate.query_sequence
 

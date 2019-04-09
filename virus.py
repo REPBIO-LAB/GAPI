@@ -1,11 +1,14 @@
 '''
 Module 'virus' - for dealing with virus specific needs
 '''
+## External
+import subprocess
 
 ## Internal
 import bamtools
+import formats
 
-def is_virusSR(eventsDict, tumourBam, normalBam):
+def is_virusSR(events, tumourBam, normalBam, outDir):
 
     ## 1. Collect mate sequence of discordant events ##
-    bamtools.collectMatesSeq(eventsDict, tumourBam, normalBam)
+    bamtools.collectMatesSeq(events, tumourBam, normalBam)
