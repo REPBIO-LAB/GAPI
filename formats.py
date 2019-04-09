@@ -231,7 +231,7 @@ class PAF():
 
     def sortByLen(self):
         '''
-        Sort alignments by query alignment length
+        Sort alignments by query alignment length in descending order
         '''
         sortedAlignments = sorted(self.lines, key=lambda x: x.alignmentLen(), reverse=True)
         return sortedAlignments

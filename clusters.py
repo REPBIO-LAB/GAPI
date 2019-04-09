@@ -166,7 +166,7 @@ def find_chimeric_alignments(clusterA, clusterB):
     Output:
         1. primary: clipping event for representative primary alignment
         2. supplementary: clipping event for representative supplementary alignment
-        4. chimericSorted: list of tuples. Each tuple is composed by two clipping events corresponding to primary and supplementary alignments, respectively. 
+        3. chimericSorted: list of tuples. Each tuple is composed by two clipping events corresponding to primary and supplementary alignments, respectively. 
     ''' 
     ### 1. Identify chimeric read alignments connecting both clipping clusters
     chimeric = []
@@ -240,7 +240,6 @@ def find_insertion_at_clipping_bkp(primary, supplementary):
     insert = primary.readSeq[readBkpA:readBkpB]
 
     return insert
-
 
 #############
 ## CLASSES ##
