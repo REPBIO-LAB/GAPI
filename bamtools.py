@@ -528,7 +528,7 @@ def collectDISCORDANT(alignmentObj, sample):
     return minus_DISCORDANT, plus_DISCORDANT
 
 ## [SR CHANGE]
-def collectMatesSeq(events, tumourBam, normalBam):
+def collectMatesSeq(events, tumourBam, normalBam, checkUnmapped, maxMAPQ):
     '''
     From a list of events, get the mate sequence for each event.
     
@@ -536,20 +536,22 @@ def collectMatesSeq(events, tumourBam, normalBam):
         1. events: list of events
         2. tumourBam
         3. normalBam
+        4. checkUnmapped: boolean. True -> collect only the sequence of those mates that are unmapped, False -> dont take into account if they are unmapped or not.
+        5. maxMAPQ: collect only the sequence of those mates witn MAPQ < maxMAPQ
     Output:
         1. It doesnt return anything, just add the mate sequence to event.mateSeq attribute.
     '''
 
     for event in events:
         if event.sample == None:
-            collectMateSeq(event, tumourBam)
+            collectMateSeq(event, tumourBam, checkUnmapped, maxMAPQ)
         elif event.sample == 'TUMOUR':
-            collectMateSeq(event, tumourBam)
+            collectMateSeq(event, tumourBam, checkUnmapped, maxMAPQ)
         elif event.sample == 'NORMAL':
-            collectMateSeq(event, normalBam)
+            collectMateSeq(event, normalBam, checkUnmapped, maxMAPQ)
 
 ## [SR CHANGE]
-def collectMateSeq(event, bam):
+def collectMateSeq(event, bam, checkUnmapped, maxMAPQ):
     '''
     Get mate sequence for an event.
     
@@ -582,10 +584,15 @@ def collectMateSeq(event, bam):
             matePair = '1' if alignmentObjMate.is_read1 else '2'
             if matePair != event.pair:
                 MAPQ = int(alignmentObjMate.mapping_quality)
-                # Pick only those sequences that are unmmapped or with mapping quality <20
-                if (alignmentObjMate.is_unmapped == True) or (MAPQ < 20): # PONER COMO OPCIONES
-                    #if len(alignmentObjMate.query_sequence) > 100:
-                    event.mateSeq = alignmentObjMate.query_sequence
+                # Pick only those sequences that are unmmapped or with mapping quality < maxMAPQ
+                if checkUnmapped == True:
+                    if (alignmentObjMate.is_unmapped == True) or (MAPQ < maxMAPQ):
+                        #if len(alignmentObjMate.query_sequence) > 100:
+                        event.mateSeq = alignmentObjMate.query_sequence
+                # Pick only those sequences with mapping quality < maxMAPQ
+                else:
+                    if MAPQ < maxMAPQ:
+                        event.mateSeq = alignmentObjMate.query_sequence
 
 
 ## [SR CHANGE]
