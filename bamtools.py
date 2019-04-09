@@ -289,7 +289,13 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             eventsDict['LEFT-CLIPPING'] = []
             eventsDict['RIGHT-CLIPPING'] = []
 
-        # b) Other types of events
+        ## [SR CHANGE]
+        # b) Dividide discordant events into left and right discordants
+        if (SV_type == 'DISCORDANT'):
+            eventsDict['LEFT-DISCORDANT'] = []
+            eventsDict['RIGHT-DISCORDANT'] = []
+
+        # c) Other types of events
         else:
             eventsDict[SV_type] = []
 
@@ -333,6 +339,19 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
                 # Add events to the pre-existing lists
                 eventsDict['INS'] = eventsDict['INS'] + INS_events
                 eventsDict['DEL'] = eventsDict['DEL'] + DEL_events
+
+            ## 3. Collect DISCORDANT
+            if 'DISCORDANT' in confDict['targetSV']:
+
+                left_DISCORDANT, right_DISCORDANT = collectDISCORDANT(alignmentObj, sample)
+
+                # Left CLIPPING found
+                if left_DISCORDANT != None:
+                    eventsDict['LEFT-DISCORDANT'].append(left_DISCORDANT)
+        
+                # Right CLIPPING found
+                if right_DISCORDANT != None:
+                    eventsDict['RIGHT-DISCORDANT'].append(right_DISCORDANT)
 
     ## Close 
     bamFile.close()
@@ -476,4 +495,74 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang,
 
     return INS_events, DEL_events
 
+## [SR CHANGE]
+def collectDISCORDANT(alignmentObj, sample):
+    '''
+    For a read alignment check if the read is discordant (not proper in pair) and return the corresponding clipping objects
 
+    Input:
+        1. alignmentObj: pysam read alignment object
+        2. sample: type of sample (TUMOUR, NORMAL or None). Move to confDict
+
+    Output:
+        1. discordantLeftObj: DISCORDANT object for left discordant (None if no discordant found)
+        2. discordantRightObj: DISCORDANT object for right discordant (None if no discordant found)
+
+    '''
+    # Initialize as None
+    left_DISCORDANT, right_DISCORDANT = [None, None]
+
+    # If not proper pair (=discordant)
+    if not alignmentObj.is_proper_pair:
+        # If not clipping (if clipping will be in the above category):
+        #if not ((firstOperation == 4) or (firstOperation == 5)) and (firstOperationLen >= confDict['minCLIPPINGlen']):
+        # Collect discordant even they are also CLIPPING
+        if alignmentObj.is_reverse:
+            left_DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, 'left', alignmentObj.query_name, alignmentObj, sample)
+
+        else:
+            right_DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, 'right', alignmentObj.query_name, alignmentObj, sample)
+
+    return left_DISCORDANT, right_DISCORDANT
+
+
+## [SR CHANGE]
+# FUNTION FOR COLLECTING CLIPPING READS WITHIN AN AREA: TO USE LATER ON!
+def supportingCLIPPING(clustersBinDb, confDict, bam, normalBam):
+    '''
+    Look for clipping reas within the region of the existing discordant clusters. 
+    It doesn't return anything
+    Take into account that discordant and clipped reads could be duplicated!!
+    '''
+
+    clusterTypes = ['METACLUSTERS']
+    clusters = clustersBinDb.collect(clusterTypes)
+
+    tempClippingDict = {}
+    CLIPPINGEventsDict = {}
+    CLIPPINGEventsDict['LEFT-CLIPPING'] = []
+    CLIPPINGEventsDict['RIGHT-CLIPPING'] = []
+
+    ## For each cluster
+    for DISCORDANT_cluster in clusters:
+        
+        ## Define region
+        ref = DISCORDANT_cluster.ref
+        binBeg = DISCORDANT_cluster.beg
+        binEnd = DISCORDANT_cluster.end
+
+        # Collect CLIPPING
+        if normalBam == None:
+            tempClippingDict = collectSV(ref, binBeg, binEnd, bam, confDict, None)
+            if tempClippingDict['LEFT-CLIPPING'] != []:
+                CLIPPINGEventsDict['LEFT-CLIPPING'].extend(tempClippingDict['LEFT-CLIPPING'])
+            if tempClippingDict['RIGHT-CLIPPING'] != []:
+                CLIPPINGEventsDict['RIGHT-CLIPPING'].extend(tempClippingDict['RIGHT-CLIPPING'])
+        else:
+            tempClippingDict = collectSV_paired(ref, binBeg, binEnd, bam, normalBam, confDict)
+            if tempClippingDict['LEFT-CLIPPING'] != []:
+                CLIPPINGEventsDict['LEFT-CLIPPING'].extend(tempClippingDict['LEFT-CLIPPING'])
+            if tempClippingDict['RIGHT-CLIPPING'] != []:
+                CLIPPINGEventsDict['RIGHT-CLIPPING'].extend(tempClippingDict['RIGHT-CLIPPING'])
+    
+    return CLIPPINGEventsDict

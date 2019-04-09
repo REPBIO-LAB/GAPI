@@ -52,6 +52,15 @@ parser.add_argument('--maxClusterSize', default=500, dest='maxClusterSize', type
 parser.add_argument('--maxClusterCV', default=15, dest='maxClusterCV', type=int, help='Maximum Coefficient of Variation of a cluster. Default: 15')
 parser.add_argument('--maxOutliers', default=0.5, dest='maxOutliers', type=int, help='Maximum percentage of events supporting a cluster that have been removed during the polish step. Default: 0.5')
 
+## [SR CHANGE]
+## Filtering thresholds short reads
+## [SR CHANGE]
+parser.add_argument('--minReadsRegionMQ', default=10, dest='minReadsRegionMQ', type=int, help='Surrounding reads above this MQ are considered low MQ reads. Default: 10')
+## [SR CHANGE]
+parser.add_argument('--maxRegionlowMQ', default=0.3, dest='maxRegionlowMQ', type=int, help='Maximum percentage of lowMAPQ/nbReads in cluster´s region. Default: 0.3')
+## [SR CHANGE]
+parser.add_argument('--maxRegionSMS', default=0.15, dest='maxRegionSMS', type=int, help='Maximum percentage of SMS clipping reads in cluster´s region. Default: 0.15')
+
 ## 2. Parse user´s input and initialize variables ##
 args = parser.parse_args()
 
@@ -83,6 +92,16 @@ clusterFilters = args.clusterFilters
 maxClusterSize = args.maxClusterSize
 maxClusterCV = args.maxClusterCV
 maxOutliers = args.maxOutliers
+
+## [SR CHANGE]
+## Filtering thresholds short reads
+minReadsRegionMQ = args.minReadsRegionMQ
+## [SR CHANGE]
+maxRegionlowMQ = args.maxRegionlowMQ
+## [SR CHANGE]
+maxRegionSMS = args.maxRegionSMS
+## [SR CHANGE]
+#overlapBuffer = args.overlapBuffer
 
 # If no reference is specified, get all that are present in the bam file.
 if refs == "ALL":
@@ -174,6 +193,16 @@ confDict['minClusterSize'] = minClusterSize
 confDict['maxClusterSize'] = maxClusterSize
 confDict['maxClusterCV'] = maxClusterCV
 confDict['maxOutliers'] = maxOutliers
+
+## [SR CHANGE]
+## Filtering thresholds short reads
+confDict['minReadsRegionMQ'] = minReadsRegionMQ
+## [SR CHANGE]
+confDict['maxRegionlowMQ'] = maxRegionlowMQ
+## [SR CHANGE]
+confDict['maxRegionSMS'] = maxRegionSMS
+## [SR CHANGE]
+#confDict['overlapBuffer'] = overlapBuffer
 
 ## 2. Execute structural variation caller
 ###########################################

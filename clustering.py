@@ -107,103 +107,108 @@ def reciprocal_clustering(eventsBinDb, minPercOverlap, minClusterSize, eventType
         # For each bin in the current window size
         for index in eventsBinDb.data[windowSize]:
 
-            ### 1. Collect all the events in the current bin and 
-            # in bins located at higher levels of the hierarchy
-            events = eventsBinDb.traverse(index, windowSize, eventType)
+            ## [SR CHANGE]: IMPORTANT!!! We want right and left discordant clusters separated. That's why here I had to add this step, otherwise it will crush due to the last key (doesnt match with previous)
+            for actualEventType in eventsBinDb.data[windowSize][index]:
+                if actualEventType == eventType:
 
-            ### 2. Cluster events based on reciprocal overlap
-            ## For each event A
-            for idx, eventA in enumerate(events):
-                
-                ## 2.1. Skip comparisons if A already belongs to a cluster 
-                if eventA.id in eventsInClusters:
-                    continue
+                    ### 1. Collect all the events in the current bin and 
+                    # in bins located at higher levels of the hierarchy
+                    events = eventsBinDb.traverse(index, windowSize, eventType)
 
-                ## 2.2. Generate 2 lists containing clusters and events overlapping A: 
-                # - clustersOverlapA: list of clusters overlapping event A
-                # - eventsOverlapA: list of events NOT INCLUDED IN A CLUSTER overlapping event A
-                clustersOverlapA = [] 
-                eventsOverlapA = []
+                    ### 2. Cluster events based on reciprocal overlap
+                    ## For each event A
+                    for idx, eventA in enumerate(events):
+                        
+                        ## 2.1. Skip comparisons if A already belongs to a cluster 
+                        if eventA.id in eventsInClusters:
+                            continue
 
-                ## Identify events overlapping A (skip A itself and event pairs already assessed)
-                for eventB in events[idx + 1:]:
+                        ## 2.2. Generate 2 lists containing clusters and events overlapping A: 
+                        # - clustersOverlapA: list of clusters overlapping event A
+                        # - eventsOverlapA: list of events NOT INCLUDED IN A CLUSTER overlapping event A
+                        clustersOverlapA = [] 
+                        eventsOverlapA = []
 
-                    ## Skip comparison if B belongs to a cluster already known to overlap A
-                    if (eventB.clusterId in clustersOverlapA):
-                        continue
-                    
-                    ## Add buffer to ranges
-                    begA = eventA.beg - buffer
-                    endA = eventA.end + buffer
-                    begB = eventB.beg - buffer
-                    endB = eventB.end + buffer
-                    
-                    overlap = gRanges.rcplOverlap(begA, endA, begB, endB, minPercOverlap)
+                        ## [SR CHANGE]: Look at the previous event in order to not split a cluster
+                        ## Identify events overlapping A (skip A itself and event pairs already assessed)
+                        for eventB in events[idx - 1:]:
 
-                    # A) Event B overlap A. 
-                    if overlap:
+                            ## Skip comparison if B belongs to a cluster already known to overlap A
+                            if (eventB.clusterId in clustersOverlapA):
+                                continue
+                            
+                            ## Add buffer to ranges
+                            begA = eventA.beg - buffer
+                            endA = eventA.end + buffer
+                            begB = eventB.beg - buffer
+                            endB = eventB.end + buffer
+                            
+                            overlap = gRanges.rcplOverlap(begA, endA, begB, endB, minPercOverlap)
 
-                        # a) B already belongs to a cluster. So this cluster overlaps A 
-                        if eventB.clusterId != None: 
-                            clustersOverlapA.append(eventB.clusterId)
+                            # A) Event B overlap A. 
+                            if overlap:
 
-                        # b) B does not belong to any cluster
+                                # a) B already belongs to a cluster. So this cluster overlaps A 
+                                if eventB.clusterId != None: 
+                                    clustersOverlapA.append(eventB.clusterId)
+
+                                # b) B does not belong to any cluster
+                                else:
+                                    eventsOverlapA.append(eventB)
+
+                            # B) Event B NOT overlap A                        
+                        
+                        ## 2.3. Finish by adding A and its overlapping events to a cluster or creating a cluster 
+                        # A) One cluster overlaps A -> Add A and its overlapping events into the cluster
+                        if len(clustersOverlapA) == 1:
+
+                            # Add events to the list of events already included into clusters
+                            events2Cluster = [eventA] + eventsOverlapA 
+                            eventsInClusters += [ event.id for event in events2Cluster]
+
+                            # Add events to the cluster
+                            clusterId = clustersOverlapA[0]
+                            clustersDict[clusterId].add(events2Cluster, None)
+
+                        # B) Multiple clusters overlap A -> Merge clusters and add A and its overlapping events into the merged cluster
+                        elif len(clustersOverlapA) > 1:
+
+                            ## Add events to the list of events already included into clusters
+                            events2Cluster = [eventA] + eventsOverlapA 
+                            eventsInClusters += [ event.id for event in events2Cluster]
+
+                            ## Make list of clusters overlapping A
+                            clusters2merge = [ clustersDict[clusterId] for clusterId in clustersOverlapA ]
+
+                            ## Create merged cluster
+                            mergedCluster = clusters.mergeClusters(clusters2merge, eventType)
+
+                            ## Add events to the merged cluster
+                            mergedCluster.add(events2Cluster, None)
+
+                            ## Add merged cluster to the clusters dictionary
+                            clustersDict[mergedCluster.id] = mergedCluster
+
+                            ## Remove events composing the merged cluster from the clusters dictionary
+                            for cluster in clusters2merge:
+                                clustersDict.pop(cluster.id, None)
+                            
+                        # C) No cluster overlaps A -> attempt to create a new cluster composed by A and its overlapping events
                         else:
-                            eventsOverlapA.append(eventB)
+                            events2Cluster = [eventA] + eventsOverlapA 
+                            clusterSize = len(events2Cluster)
 
-                    # B) Event B NOT overlap A                        
-                
-                ## 2.3. Finish by adding A and its overlapping events to a cluster or creating a cluster 
-                # A) One cluster overlaps A -> Add A and its overlapping events into the cluster
-                if len(clustersOverlapA) == 1:
+                            # D) Cluster composed by >= X events:
+                            if clusterSize >= minClusterSize:
+                            
+                                # Add events to the list of events already included into clusters
+                                eventsInClusters += [ event.id for event in events2Cluster]
 
-                    # Add events to the list of events already included into clusters
-                    events2Cluster = [eventA] + eventsOverlapA 
-                    eventsInClusters += [ event.id for event in events2Cluster]
+                                # Create cluster                        
+                                cluster = clusters.create_cluster(events2Cluster, eventType)
+                                clustersDict[cluster.id] = cluster
 
-                    # Add events to the cluster
-                    clusterId = clustersOverlapA[0]
-                    clustersDict[clusterId].add(events2Cluster, None)
-
-                # B) Multiple clusters overlap A -> Merge clusters and add A and its overlapping events into the merged cluster
-                elif len(clustersOverlapA) > 1:
-
-                    ## Add events to the list of events already included into clusters
-                    events2Cluster = [eventA] + eventsOverlapA 
-                    eventsInClusters += [ event.id for event in events2Cluster]
-
-                    ## Make list of clusters overlapping A
-                    clusters2merge = [ clustersDict[clusterId] for clusterId in clustersOverlapA ]
-
-                    ## Create merged cluster
-                    mergedCluster = clusters.mergeClusters(clusters2merge, eventType)
-
-                    ## Add events to the merged cluster
-                    mergedCluster.add(events2Cluster, None)
-
-                    ## Add merged cluster to the clusters dictionary
-                    clustersDict[mergedCluster.id] = mergedCluster
-
-                    ## Remove events composing the merged cluster from the clusters dictionary
-                    for cluster in clusters2merge:
-                        clustersDict.pop(cluster.id, None)
-                    
-                # C) No cluster overlaps A -> attempt to create a new cluster composed by A and its overlapping events
-                else:
-                    events2Cluster = [eventA] + eventsOverlapA 
-                    clusterSize = len(events2Cluster)
-
-                    # D) Cluster composed by >= X events:
-                    if clusterSize >= minClusterSize:
-                    
-                        # Add events to the list of events already included into clusters
-                        eventsInClusters += [ event.id for event in events2Cluster]
-
-                        # Create cluster                        
-                        cluster = clusters.create_cluster(events2Cluster, eventType)
-                        clustersDict[cluster.id] = cluster
-
-                    # Cluster not composed by enough number of events
+                            # Cluster not composed by enough number of events
     
     clustersList = list(clustersDict.values())
 

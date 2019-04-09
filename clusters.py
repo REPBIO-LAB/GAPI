@@ -53,9 +53,10 @@ def create_cluster(events, clusterType):
     elif (clusterType == 'CLIPPING') or (clusterType == 'LEFT-CLIPPING') or (clusterType == 'RIGHT-CLIPPING'):
         cluster = CLIPPING_cluster(events)
 
+    # [SR CHANGE]
     ## e) Create DISCORDANT cluster
-    #elif (clusterType == 'DISCORDANT'):
-    #    cluster = DISCORDANT_cluster(events)
+    elif (clusterType == 'DISCORDANT') or (clusterType == 'LEFT-DISCORDANT') or (clusterType == 'RIGHT-DISCORDANT'):
+        cluster = DISCORDANT_cluster(events)
 
     ## f) Unexpected cluster type
     else:
@@ -136,15 +137,27 @@ def create_metaclusters(eventsBinDb, confDict):
         # metaclusters = clustering.reciprocal_clustering()   
         # allMetaclusters = allMetaclusters + metaclusters
 
+    ## [SR CHANGE]
     # 2.5) Create DISCORDANT metaclusters
     if 'DISCORDANT' in confDict['targetSV']:
-        eventTypes = ['DISCORDANT']
+        # [SR CHANGE]: ESTO PONERLO COMO EN EL CLIPPING, PERO AHORA VA ASI:
+        eventTypes = ['LEFT-DISCORDANT', 'RIGHT-DISCORDANT']
         # TO DO  
-        # metaclusters = clustering.reciprocal_clustering()
-        # allMetaclusters = allMetaclusters + metaclusters
+        metaclusters = clustering.reciprocal_clustering(eventsBinDb, 1, confDict['minClusterSize'], eventTypes[0], 0)
+        metaclusters = clustering.reciprocal_clustering(eventsBinDb, 1, confDict['minClusterSize'], eventTypes[1], 0)
+        allMetaclusters = allMetaclusters + metaclusters
 
     for metacluster in allMetaclusters:
-        print('METACLUSTER: ', metacluster, len(metacluster.events), [(clusterType, len(subcluster.events)) for clusterType, subcluster in metacluster.subclusters.items()])
+        # [SR CHANGE]:
+        #print('METACLUSTER: ', metacluster, len(metacluster.events), [(clusterType, len(subcluster.events)) for clusterType, subcluster in metacluster.subclusters.items()])
+        # [SR CHANGE]:
+        print('METACLUSTER: ', str(metacluster) +' '+ str(len(metacluster.events)) +' '+ str(metacluster.ref) +' '+ str(metacluster.beg) +' '+ str(metacluster.end))
+        # [SR CHANGE]:
+        for event in metacluster.events:
+            if event.type == 'CLIPPING':
+                print (str(metacluster) + ' ' + str(event.readId) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.clippedSide))
+            else:
+                print (str(metacluster) + ' ' + str(event.readId) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.side))
 
 
     ## 3. Organize metaclusters into bins ##    
@@ -391,6 +404,16 @@ class CLIPPING_cluster(cluster):
     def __init__(self, events):
 
         cluster.__init__(self, events, 'CLIPPING')
+
+
+## [SR CHANGE]
+class DISCORDANT_cluster(cluster):
+    '''
+    Discordant cluster subclass
+    '''
+    def __init__(self, events):
+
+        cluster.__init__(self, events, 'DISCORDANT')
 
 
 class META_cluster():
