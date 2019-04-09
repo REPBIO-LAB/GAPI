@@ -196,24 +196,8 @@ class SV_caller_short(SV_caller):
 
         counts = [str(len(discordantEventsDict[SV_type])) for SV_type in SV_types]
         msg = 'Number of SV events in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
-    
         log.step(step, msg)
 
-        ## 2. Organize discordant events into genomic bins prior clustering ##
-        step = 'BINNING'
-        msg = 'Organize all the SV events into genomic bins prior metaclustering'
-        log.step(step, msg)
-
-        ## Define bin database sizes 
-        ## Big window sizes are needed for SR (see comments)
-        binSizes = [self.confDict['maxEventDist'], 10000, 100000, 1000000]
-
-        ## Create bins
-        eventsBinDb = structures.create_bin_database(ref, beg, end, discordantEventsDict, binSizes)
-
-        ## 3. Group discordant events into metaclusters ##
-        metaclustersBinDb = clusters.create_metaclusters(eventsBinDb, self.confDict)
-
-        step = 'META-CLUSTERING'
-        msg = 'Number of created metaclusters: ' + str(metaclustersBinDb.nbEvents()[0])
-        log.step(step, msg)
+        for events in discordantEventsDict.values():
+            for event in events:
+                print (str(event.type) +' '+ str(event.ref) +' '+ str(event.beg) +' '+ str(event.end) )
