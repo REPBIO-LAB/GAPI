@@ -140,7 +140,6 @@ def create_metaclusters(eventsBinDb, confDict):
     ## [SR CHANGE]
     # 2.5) Create DISCORDANT metaclusters
     if 'DISCORDANT' in confDict['targetSV']:
-        # [SR CHANGE]: TODO ESTO PONERLO COMO EN EL CLIPPING, PERO AHORA VA ASI:
         eventTypes = eventsBinDb.collectEventTypes()
         for eventType in eventTypes:
             metaclusters = clustering.reciprocal_clustering(eventsBinDb, 1, confDict['minClusterSize'], eventType, 0)
