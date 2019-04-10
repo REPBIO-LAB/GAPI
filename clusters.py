@@ -5,8 +5,7 @@ Module 'variants' - Contains classes for dealing with genomic variation
 ## DEPENDENCIES ##
 # External
 import sys
-import numpy as np
-import collections 
+import math
 
 # Internal
 import log
@@ -373,6 +372,25 @@ class INS_cluster(cluster):
         self.isConsensus = None
         self.insertSeq = None
 
+    def sort_by_length(self):
+        '''
+        Sort INS events in increasing length ordering
+        '''
+        return sorted(self.events, key=lambda INS: INS.length)
+
+    def pick_INS_median(self):
+        '''
+        Return INS event whose length is at the median amongst all cluster supporting INS events
+        '''
+        ## Sort INS events by their length
+        sortedINS = self.sort_by_length()
+
+        ## Compute the index for the INS with the median length
+        median = (len(sortedINS) - 1)/2  # minus 1 because the first element is index 0
+        medianIndex = int(math.ceil(median))
+
+        ## Pick INS located at the median 
+        return sortedINS[medianIndex]
 
 class DEL_cluster(cluster):
     '''
