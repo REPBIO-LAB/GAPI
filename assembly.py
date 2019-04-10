@@ -1,5 +1,5 @@
 '''
-Module 'consensus' - Contains funtions to create a consensus sequence from a set of input sequences
+Module 'assembly' - Contains funtions to create contigs from a set of input sequences
 '''
 
 ## DEPENDENCIES ##
@@ -229,7 +229,7 @@ def assemble_overlap(fastaA, fastaB, technology, outDir):
 
     return contigFile
 
-def polish_racon(templates, sequences, technology, outDir):
+def polish_racon(templates, sequences, technology, nbRounds, outDir):
     '''
     Use a collection of sequences to polish a set of target sequences (i.e. assembled contig) 
     
@@ -237,44 +237,54 @@ def polish_racon(templates, sequences, technology, outDir):
         1. templates: FASTA file containing sequences to be polished
         2. sequences: FASTA file containing set of sequences used to polish the templates
         3. technology: sequencing technology (NANOPORE, PACBIO or ILLUMINA)
-        4. outDir: output directory
+        4. nbRounds: number of polishing rounds to be performed 
+        5. outDir: output directory
 
     COMMENT: Incorporate nbRounds argument to specify how many rounds of polishing will be performed
 
     Output:
-        1. polished: FASTA file containing polished sequences
+        1. polished: FASTA file containing polished sequences or 'None' if pipeline fails at any step
     '''
-    ## 0. Create logs directory:
+    ## Create logs directory:
     logDir = outDir + '/Logs'
     unix.mkdir(logDir)
 
-    ## 1. Align reads against the template ##
     ## Set preset according to the technology
     preset = alignment.minimap2_presets(technology)
 
-    ## Do alignment 
-    PAF = outDir + '/alignments.paf'
-    err = open(logDir + '/minimap2.err', 'w') 
-    command = 'minimap2 -x ' + preset + ' ' + templates + ' ' + sequences + ' > ' + PAF
-    status = subprocess.call(command, stderr=err, shell=True)
+    ## For each polishing round
+    for roundId in range(1, nbRounds + 1):
 
-    if status != 0:
-        step = 'POLISH-RACON'
-        msg = 'Alignment of sequences against template failed' 
-        log.step(step, msg)
+        ## 1. Align reads against the template ##
+        PAF = outDir + '/alignments_' + str(roundId) + '.paf'
+        err = open(logDir + '/minimap2_' + str(roundId) + '.err', 'w') 
+        command = 'minimap2 -x ' + preset + ' ' + templates + ' ' + sequences + ' > ' + PAF
+        status = subprocess.call(command, stderr=err, shell=True)
 
-    ## 2. Template polishing with racon ##
-    polished = outDir + '/polished.fasta'
-    err = open(logDir + '/racon.err', 'w') 
-    command = 'racon ' + sequences + ' ' + PAF + ' ' + templates + ' > ' + polished
-    status = subprocess.call(command, stderr=err, shell=True)
+        if status != 0:
+            step = 'POLISH-RACON'
+            msg = 'Alignment of sequences against template failed' 
+            log.step(step, msg)
 
-    if status != 0:
-        step = 'POLISH-RACON'
-        msg = 'Template polishing failed' 
-        log.step(step, msg)
+            polished = None            
+            break
 
-    ## Do cleanup
+        ## 2. Template polishing with racon ##
+        polished = outDir + '/polished_' + str(roundId) + '.fasta'
+        err = open(logDir + '/racon_' + str(roundId) + '.err', 'w') 
+        command = 'racon --include-unpolished ' + sequences + ' ' + PAF + ' ' + templates + ' > ' + polished
+        status = subprocess.call(command, stderr=err, shell=True)
+
+        if status != 0:
+            step = 'POLISH-RACON'
+            msg = 'Template polishing failed' 
+            log.step(step, msg)
+
+            polished = None            
+            break
+
+        ## 3. Set polished as templates prior attempting a new polishing round
+        templates = polished
 
     return polished
     
