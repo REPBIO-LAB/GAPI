@@ -137,6 +137,17 @@ class bin_database():
 
         return events
 
+    def collectEventTypes(self):
+
+        eventTypes = []
+
+        for binSize in self.binSizes:
+            for dicti in self.data[binSize].values():
+                for eventType in dicti.keys():
+                    eventTypes.append(eventType)
+
+        return eventTypes
+
     def collect_bin(self, binSize, binIndex, eventTypes):
         '''
         Collect all the events of target event types that are stored 

@@ -200,9 +200,13 @@ class SV_caller_short(SV_caller):
         msg = 'Number of SV events in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
         log.step(step, msg)
 
+        '''
+        ## PRINT 
         for events in discordantEventsDict.values():
             for event in events:
                 print (str(event.type) +' '+ str(event.ref) +' '+ str(event.beg) +' '+ str(event.end) +' '+ str(event.mateSeq))
+                DISCORDANT 19 33770596 33770697 None
+                '''
 
         ## 2. Mark those discordant events corresponding to a RT insertion ##
         ## TODO
@@ -243,6 +247,8 @@ class SV_caller_short(SV_caller):
         ## Create bins
         eventsBinDb = structures.create_bin_database(ref, beg, end, discordantEventsIdent, binSizes)
 
+        '''
+        ## PRINT 
         for a,b in eventsBinDb.data.items():
             print ('1 '+str(a) +' 2 '+str(b))
             for c,d in b.items():
@@ -250,7 +256,6 @@ class SV_caller_short(SV_caller):
                 for e,f in d.items():
                     print ('5 '+ str(e) +' 6 '+ str(f))
 
-                    '''
                     Above print yields the following:
                     1 100 2 {337718: {'PLUS-DISCORDANT-Hepatitis': <structures.events_bin object at 0x7f1b5060fc88>}}
                     3 337718 4 {'PLUS-DISCORDANT-Hepatitis': <structures.events_bin object at 0x7f1b5060fc88>}
@@ -262,7 +267,9 @@ class SV_caller_short(SV_caller):
                     5 PLUS-DISCORDANT-UNVERIFIED: 6 <structures.events_bin object at 0x7f1b5060f908>
                     '''
 
+        ## 5. Group discordant events into metaclusters based on their identity ##
+        metaclustersBinDb = clusters.create_metaclusters(eventsBinDb, self.confDict)
 
-        #for events in discordantEventsDict.values():
-            #for event in events:
-                #print (str(event.type) +' '+ str(event.ref) +' '+ str(event.beg) +' '+ str(event.end) +' '+ str(event.mateSeq))
+        step = 'META-CLUSTERING'
+        msg = 'Number of created metaclusters: ' + str(metaclustersBinDb.nbEvents()[0])
+        log.step(step, msg)

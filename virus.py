@@ -70,12 +70,15 @@ def identifySequence(events, eventType, outDir):
                 aligmentMaxNbMatches = PAFObj.sortNbMatches()[0]
                 identity = aligmentMaxNbMatches.tName.split('|')[2]
 
+                # Add identity to event object
+                event.identity = identity
+
                 # Add identity to the eventType and make the output dictionary
                 eventTypeIdentity = eventType + '-' + identity
 
                 if eventTypeIdentity not in eventsIdentityDict.keys():
-                    print (eventTypeIdentity)
                     eventsIdentityDict[eventTypeIdentity] = []
+
                 eventsIdentityDict[eventTypeIdentity].append(event)
     
     ## TODO: Do cleanup

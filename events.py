@@ -265,3 +265,4 @@ class DISCORDANT():
         self.mateStart = alignmentObj.next_reference_start
         self.properPair = False
         self.mateSeq = None
+        self.identity = None
