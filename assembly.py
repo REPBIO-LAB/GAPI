@@ -31,7 +31,7 @@ def assemble_overlap(fastaA, fastaB, technology, outDir):
         4. outDir: output directory
 
     Output:
-        1. contigFile: FASTA file containing the generated contig
+        1. contigFile: FASTA file containing the generated contig or 'None' if no reciprocal overlap is found 
     '''    
     ## 0. Create directories ##
     logDir = outDir + '/Logs'
@@ -59,7 +59,7 @@ def assemble_overlap(fastaA, fastaB, technology, outDir):
 
     # Exit function if no hit found
     if not PAF.lines:
-        return
+        return None
 
     ## 3. Filter overlaps 
     # Filtering criteria:
@@ -82,7 +82,7 @@ def assemble_overlap(fastaA, fastaB, technology, outDir):
 
     # Exit function if all the overlapping hits have been filtered
     if not PAF.lines:
-        return
+        return None
 
     ## 4. Pick longest overlap passing the filters
     # Sort PAF in decreasing overlap lengths
@@ -129,9 +129,7 @@ def polish_racon(templates, sequences, technology, nbRounds, outDir):
         3. technology: sequencing technology (NANOPORE, PACBIO or ILLUMINA)
         4. nbRounds: number of polishing rounds to be performed 
         5. outDir: output directory
-
-    COMMENT: Incorporate nbRounds argument to specify how many rounds of polishing will be performed
-
+        
     Output:
         1. polished: FASTA file containing polished sequences or 'None' if pipeline fails at any step
     '''

@@ -16,6 +16,7 @@ import events
 import structures
 import alignment
 import bamtools 
+import assembly
 import repeats
 import retrotransposons
 
@@ -195,14 +196,14 @@ def find_chimeric_alignments(clusterA, clusterB):
                 
     # Exit if not chimeric alignments found
     if not chimeric:
-        return False, None, None, None
+        return None, None, None
 
     ### 2. Select the clipping events with the longest supplementary alignment as representative
     chimericSorted = sorted(chimeric, key=lambda alignments: alignments[1].refLen, reverse=True)
     primary = chimericSorted[0][0]
     supplementary = chimericSorted[0][1]
 
-    return True, primary, supplementary, chimericSorted
+    return primary, supplementary, chimericSorted
 
 def find_insertion_at_clipping_bkp(primary, supplementary):
     '''
@@ -248,7 +249,7 @@ class cluster():
     '''
     Events cluster class. A cluster is composed by a set of events.
     Each event is supported by a single read. One cluster can completely represent a single structural
-    variation event or partially if multiple clusters are required (see 'metaCluster' sub class)
+    variation event or partially if multiple clusters are required (see 'metaCluster' class)
     '''
     number = 0 # Number of instances
 
@@ -275,6 +276,12 @@ class cluster():
         '''
         self.events.sort(key=lambda event: event.beg)
 
+    def sort_by_length(self):
+        '''
+        Sort events in increasing length ordering
+        '''
+        return sorted(self.events, key=lambda event: event.length)
+        
     def coordinates(self):
         '''
         Compute cluster ref, beg and end coordinates. 
@@ -304,7 +311,21 @@ class cluster():
 
         # Resort and redefine cluster begin and end coordinates
         self.ref, self.beg, self.end = self.coordinates() 
-            
+
+    def pick_median_length(self):
+        '''
+        Return event whose length is at the median amongst all cluster supporting events
+        '''
+        ## Sort events by their length
+        sortedEvents = self.sort_by_length()
+
+        ## Compute the index for the event with the median length
+        median = (len(sortedEvents) - 1)/2  # minus 1 because the first element is index 0
+        medianIndex = int(math.ceil(median))
+
+        ## Pick event located at the median 
+        return sortedEvents[medianIndex]
+
     def collect_reads(self):
         '''
         Create FASTA object containing cluster supporting reads.
@@ -371,26 +392,6 @@ class INS_cluster(cluster):
         self.consensusLen = None
         self.isConsensus = None
         self.insertSeq = None
-
-    def sort_by_length(self):
-        '''
-        Sort INS events in increasing length ordering
-        '''
-        return sorted(self.events, key=lambda INS: INS.length)
-
-    def pick_INS_median(self):
-        '''
-        Return INS event whose length is at the median amongst all cluster supporting INS events
-        '''
-        ## Sort INS events by their length
-        sortedINS = self.sort_by_length()
-
-        ## Compute the index for the INS with the median length
-        median = (len(sortedINS) - 1)/2  # minus 1 because the first element is index 0
-        medianIndex = int(math.ceil(median))
-
-        ## Pick INS located at the median 
-        return sortedINS[medianIndex]
 
 class DEL_cluster(cluster):
     '''
@@ -534,3 +535,75 @@ class META_cluster():
         nbTotal = len(self.events)
 
         return nbTotal, nbTumour, nbNormal
+
+    def select_template(self, technology, outDir):
+        '''
+        Select one metacluster supporting read as template to be used in the metacluster consensus generation step
+
+        Input: 
+            1. technology: sequencing technology (NANOPORE, PACBIO or ILLUMINA)
+            2. outDir: output directory
+
+        Output:
+            1. templateFile: Path to FASTA file containing the template or 'None' if not template was found
+        '''
+
+        # A) Metacluster contains an insertion cluster
+        if ('INS' in self.subclusters):
+
+            ## Select INS event with median length as template
+            templateEvent = self.subclusters['INS'].pick_median_length()
+
+            ## Write template into output file 
+            templateFasta = formats.FASTA()
+            templateFasta.seqDict['TEMPLATE'] = templateEvent.readSeq
+            templateFile = outDir + '/template.fa'
+            templateFasta.write(templateFile)   
+
+        # B) Metacluster contains a deletion cluster
+        elif ('DEL' in self.subclusters):
+
+            ## Select DEL event with median length as template
+            templateEvent = self.subclusters['DEL'].pick_median_length()
+
+            ## Write template into output file 
+            templateFasta = formats.FASTA()
+            templateFasta.seqDict['TEMPLATE'] = templateEvent.readSeq
+            templateFile = outDir + '/template.fa'
+            templateFasta.write(templateFile)   
+
+        # C) Metacluster composed by only two clipping clusters (left and right) 
+        elif all (clusterType in self.subclusters for clusterType in ['LEFT-CLIPPING', 'RIGHT-CLIPPING']):
+            
+            ## Search for chimeric alignment spanning the SV event
+            templateEvent, supplementary, chimeric = find_chimeric_alignments(self.subclusters['RIGHT-CLIPPING'], self.subclusters['LEFT-CLIPPING'])
+
+            # b) Chimeric alignment found -> Write template into output file 
+            if (templateEvent != None): 
+
+                templateFasta = formats.FASTA()
+                templateFasta.seqDict['TEMPLATE'] = templateEvent.readSeq
+                templateFile = outDir + '/template.fa'
+                templateFasta.write(templateFile)   
+
+            # b) Chimeric alignment NOT found -> search for complementary clippings
+            else:
+
+                ## Generate fasta files containing clusters supporting reads:
+                readsA = self.subclusters['RIGHT-CLIPPING'].collect_reads() 
+                readsB = self.subclusters['LEFT-CLIPPING'].collect_reads()
+
+                readsA_file = outDir + '/seqA.fa'
+                readsB_file = outDir + '/seqB.fa'
+
+                readsA.write(readsA_file)
+                readsB.write(readsB_file)
+
+                ## Assemble clippings based on overlap 
+                templateFile = assembly.assemble_overlap(readsA_file, readsB_file, technology, outDir)
+
+        # D) No template available
+        else:
+            templateFile = None
+        
+        return templateFile

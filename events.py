@@ -220,6 +220,7 @@ class CLIPPING():
         self.ref = str(ref)
         self.beg = int(beg) # beg==end. 0-based CLIPPING breakpoint
         self.end = int(end)
+        self.length = 0
         self.clippedSide = clippedSide
         self.clippingType = determine_clippingType(alignmentObj, self.clippedSide)
         self.readSeq = readSeq
