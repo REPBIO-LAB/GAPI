@@ -241,7 +241,7 @@ class SV_caller_short(SV_caller):
         ## Create bins
         eventsBinDb = structures.create_bin_database(ref, beg, end, discordantEventsIdent, binSizes)
 
-        
+        '''
         ## PRINT 
         for a,b in eventsBinDb.data.items():
             print ('1 '+str(a) +' 2 '+str(b))
@@ -249,7 +249,7 @@ class SV_caller_short(SV_caller):
                 print ('3 '+ str(c) +' 4 '+ str(d))
                 for e,f in d.items():
                     print ('5 '+ str(e) +' 6 '+ str(f))
-                    '''
+                    
                     Above print yields the following:
                     1 100 2 {337718: {'PLUS-DISCORDANT-Hepatitis': <structures.events_bin object at 0x7f1b5060fc88>}}
                     3 337718 4 {'PLUS-DISCORDANT-Hepatitis': <structures.events_bin object at 0x7f1b5060fc88>}
@@ -263,7 +263,48 @@ class SV_caller_short(SV_caller):
 
         ## 5. Group discordant events into metaclusters based on their identity ##
         metaclustersBinDb = clusters.create_metaclusters(eventsBinDb, self.confDict)
+        '''
+        for a,b in metaclustersBinDb.data.items():
+            print ('1 '+str(a) +' 2 '+str(b))
+            for c,d in b.items():
+                print ('3 '+ str(c) +' 4 '+ str(d))
+                for e,f in d.items():
+                    print ('5 '+ str(e) +' 6 '+ str(f))
+                    for cluster in f.events:
+                        print ('7 '+ str(cluster))
+                        for event in cluster.events:
+                            print ('8 '+ event.type)
+                            print ('9 '+ event.side)
+                            '''
+
+        '''                  
+        Above print yields the following:                    
+        1 1000 2 {33771: {'METACLUSTERS': <structures.events_bin object at 0x7f2a8b3c16a0>}, 33770: {'METACLUSTERS': <structures.events_bin object at 0x7f2a8b3c17b8>}}
+        3 33771 4 {'METACLUSTERS': <structures.events_bin object at 0x7f2a8b3c16a0>}
+        5 METACLUSTERS 6 <structures.events_bin object at 0x7f2a8b3c16a0>
+        7 <clusters.DISCORDANT_cluster object at 0x7f2a8b3c1ba8>
+        8 DISCORDANT
+        9 PLUS
+        8 DISCORDANT
+        9 PLUS
+        8 DISCORDANT
+        9 PLUS
+        7 <clusters.DISCORDANT_cluster object at 0x7f2a8b3c1b70>
+        8 DISCORDANT
+        9 PLUS
+        8 DISCORDANT
+        9 PLUS
+        8 DISCORDANT
+        9 PLUS
+        '''
+
 
         step = 'META-CLUSTERING'
         msg = 'Number of created metaclusters: ' + str(metaclustersBinDb.nbEvents()[0])
         log.step(step, msg)
+
+        ## 6. Filter discordant metaclusters ##
+
+        ## LE PONGO LOS DOS EVENTTYPES, PQ EL METACLUSTERS LO USA EN COLLECT() Y EL OTRO PARA APLICAR LOS FILTROS NECESARIOS
+
+        filters.filterClusters(metaclustersBinDb, ['METACLUSTERS','DISCORDANT'], self.confDict, self.bam)
