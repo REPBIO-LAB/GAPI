@@ -256,7 +256,7 @@ class DISCORDANT():
 
 
         ## Set supporting read id
-        mate = '/1' if side == 'left' else '/2'
+        mate = '/1' if side == 'MINUS' else '/2'
         self.readId = alignmentObj.query_name + mate
 
         ## mate

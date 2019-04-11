@@ -10,7 +10,7 @@ import bamtools
 import formats
 import log
 
-def is_virusSR(events, tumourBam, normalBam, eventType, outDir):
+def is_virusSR(events, tumourBam, normalBam, outDir):
     '''
     '''
 
@@ -18,19 +18,18 @@ def is_virusSR(events, tumourBam, normalBam, eventType, outDir):
     bamtools.collectMatesSeq(events, tumourBam, normalBam, True, 20)
 
     ## 2. Identify mate sequence of discordant events ##
-    eventsIdentityDict = identifySequence(events, eventType, outDir)
+    eventsIdentityDict = identifySequence(events, outDir)
 
     return eventsIdentityDict
 
 
-def identifySequence(events, eventType, outDir):
+def identifySequence(events, outDir):
     '''
     From a list of events, perform a search with their sequence in order to find out its identity.
     
     Input:
         1. events: list of events
-        2. eventType
-        3. outDir
+        2. outDir
     Output:
         1. eventsIdentityDict -> keys: eventType + identity. values: list of events
     '''
@@ -52,6 +51,8 @@ def identifySequence(events, eventType, outDir):
 
             # Perform aligment
             PAF_file = outDir + '/' + str(event.id) + 'alignments.paf'
+            # DESILENCIAAAAAR!!!
+            '''
             err = open(outDir + '/identifyMate.err', 'w')
             command = 'minimap2 /lustre/scratch117/casm/team154/jt14/3vi/data/databases/RVDBv12.2_MEIGA_HUMAN/consensusViralDb.mmi ' + FASTA_file + ' > ' + PAF_file
             status = subprocess.call(command, stderr=err, shell=True)
@@ -60,6 +61,7 @@ def identifySequence(events, eventType, outDir):
                 step = 'IDENTIFY MATE SEQ'
                 msg = 'Identify mate sequence failed' 
                 log.step(step, msg)
+                '''
 
             # If PAF file is not empty
             if not os.stat(PAF_file).st_size == 0:
@@ -74,7 +76,7 @@ def identifySequence(events, eventType, outDir):
                 event.identity = identity
 
                 # Add identity to the eventType and make the output dictionary
-                eventTypeIdentity = eventType + '-' + identity
+                eventTypeIdentity = event.side + '-' + event.type + '-' + identity
 
                 if eventTypeIdentity not in eventsIdentityDict.keys():
                     eventsIdentityDict[eventTypeIdentity] = []

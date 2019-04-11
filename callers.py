@@ -214,26 +214,20 @@ class SV_caller_short(SV_caller):
         ## 3. Mark those discordant events corresponding to a viral insertion ##
 
         # Create a list containing all discordant events:
-        #discordantEvents = discordantEventsDict['PLUS-DISCORDANT'] + discordantEventsDict['MINUS-DISCORDANT']
+        discordantEvents = discordantEventsDict['PLUS-DISCORDANT'] + discordantEventsDict['MINUS-DISCORDANT']
 
-        
+        # TODO: ADD RT!!!!
+
+        # Initialize dictionary
         discordantEventsIdent = {}
-        discordantPlusEventsIdent = {}
-        discordantMinusEventsIdent = {}
 
         # a) Single sample mode
         if self.mode == "SINGLE":
-            discordantPlusEventsIdent = virus.is_virusSR(discordantEventsDict['PLUS-DISCORDANT'], self.bam, None, 'PLUS-DISCORDANT', self.outDir)
-            discordantMinusEventsIdent = virus.is_virusSR(discordantEventsDict['MINUS-DISCORDANT'], self.bam, None, 'MINUS-DISCORDANT', self.outDir)
+            discordantEventsIdent = virus.is_virusSR(discordantEvents, self.bam, None, self.outDir)
 
         # b) Paired sample mode (tumour & matched normal)
         else:
-            discordantPlusEventsIdent = virus.is_virusSR(discordantEventsDict['PLUS-DISCORDANT'], self.bam, self.normalBam, 'PLUS-DISCORDANT',self.outDir)
-            discordantMinusEventsIdent= virus.is_virusSR(discordantEventsDict['MINUS-DISCORDANT'], self.bam, self.normalBam, 'MINUS-DISCORDANT',self.outDir)
-
-        # Put plus and minus dictionaries together
-        # TODO: Add also RT!!!
-        discordantEventsIdent = {**discordantPlusEventsIdent, **discordantMinusEventsIdent}
+            discordantEventsIdent = virus.is_virusSR(discordantEvents, self.bam, self.normalBam, self.outDir)
 
         ## 4. Organize identified events into genomic bins prior clustering ##
         step = 'BINNING'
@@ -247,7 +241,7 @@ class SV_caller_short(SV_caller):
         ## Create bins
         eventsBinDb = structures.create_bin_database(ref, beg, end, discordantEventsIdent, binSizes)
 
-        '''
+        
         ## PRINT 
         for a,b in eventsBinDb.data.items():
             print ('1 '+str(a) +' 2 '+str(b))
@@ -255,7 +249,7 @@ class SV_caller_short(SV_caller):
                 print ('3 '+ str(c) +' 4 '+ str(d))
                 for e,f in d.items():
                     print ('5 '+ str(e) +' 6 '+ str(f))
-
+                    '''
                     Above print yields the following:
                     1 100 2 {337718: {'PLUS-DISCORDANT-Hepatitis': <structures.events_bin object at 0x7f1b5060fc88>}}
                     3 337718 4 {'PLUS-DISCORDANT-Hepatitis': <structures.events_bin object at 0x7f1b5060fc88>}

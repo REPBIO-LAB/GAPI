@@ -520,10 +520,10 @@ def collectDISCORDANT(alignmentObj, sample):
         #if not ((firstOperation == 4) or (firstOperation == 5)) and (firstOperationLen >= confDict['minCLIPPINGlen']):
         # Collect discordant even they are also CLIPPING
         if alignmentObj.is_reverse:
-            minus_DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, 'minus', alignmentObj.query_name, alignmentObj, sample)
+            minus_DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, 'MINUS', alignmentObj.query_name, alignmentObj, sample)
 
         else:
-            plus_DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, 'plus', alignmentObj.query_name, alignmentObj, sample)
+            plus_DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, 'PLUS', alignmentObj.query_name, alignmentObj, sample)
 
     return minus_DISCORDANT, plus_DISCORDANT
 
