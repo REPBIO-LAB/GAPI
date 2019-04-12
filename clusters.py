@@ -508,6 +508,32 @@ class META_cluster():
             else:
                 self.subclusters[eventType].add(eventList)
                 
+    def collect_reads(self):
+        '''
+        Create FASTA object containing metacluster supporting reads.
+        
+        Output:
+            1. FASTA: FASTA object containing metacluster supporting reads
+        '''
+        ## Initiate FASTA object
+        FASTA = formats.FASTA()
+
+        ## For each event composing the metacluster         
+        for event in self.events: 
+
+            ## A) Read sequence supporting the event not included in the FASTA yet
+            if event.readName not in FASTA.seqDict:
+                FASTA.seqDict[event.readName] = event.readSeq 
+
+            ## B) Read sequence supporting the event already included in the FASTA
+            else:
+
+                # Current read sequence aligned as primary -> replace previously included sequence (therefore supplementary)
+                if not event.supplementary:
+                    FASTA.seqDict[event.readName] = event.readSeq 
+     
+        return FASTA
+
     def nbEvents(self):
         '''
         Return the number of events composing the metacluster. 
@@ -556,7 +582,7 @@ class META_cluster():
 
             ## Write template into output file 
             templateFasta = formats.FASTA()
-            templateFasta.seqDict['TEMPLATE'] = templateEvent.readSeq
+            templateFasta.seqDict[templateEvent.readName] = templateEvent.readSeq
             templateFile = outDir + '/template.fa'
             templateFasta.write(templateFile)   
 
@@ -568,7 +594,7 @@ class META_cluster():
 
             ## Write template into output file 
             templateFasta = formats.FASTA()
-            templateFasta.seqDict['TEMPLATE'] = templateEvent.readSeq
+            templateFasta.seqDict[templateEvent.readName] = templateEvent.readSeq
             templateFile = outDir + '/template.fa'
             templateFasta.write(templateFile)   
 
@@ -582,7 +608,7 @@ class META_cluster():
             if (templateEvent != None): 
 
                 templateFasta = formats.FASTA()
-                templateFasta.seqDict['TEMPLATE'] = templateEvent.readSeq
+                templateFasta.seqDict[templateEvent.readName] = templateEvent.readSeq
                 templateFile = outDir + '/template.fa'
                 templateFasta.write(templateFile)   
 

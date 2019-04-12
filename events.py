@@ -163,9 +163,9 @@ class INS():
         self.beg = int(beg) # beg==end. 0-based INS breakpoint
         self.end = int(end)
         self.length = int(length)
-        self.readSeq = readSeq
         self.readBkp = readBkp        
         self.readName = alignmentObj.query_name
+        self.readSeq = readSeq
         self.sample = sample
 
         # Supporting read alignment properties:
@@ -192,9 +192,9 @@ class DEL():
         self.beg = int(beg)
         self.end = int(end)
         self.length = int(length)
-        self.readSeq = readSeq
         self.readBkp = readBkp        
         self.readName = alignmentObj.query_name
+        self.readSeq = readSeq
         self.sample = sample
     
         # Supporting read alignment properties:
@@ -223,9 +223,9 @@ class CLIPPING():
         self.length = 0
         self.clippedSide = clippedSide
         self.clippingType = determine_clippingType(alignmentObj, self.clippedSide)
-        self.readSeq = readSeq
         self.readBkp = readBkp        
         self.readName = alignmentObj.query_name
+        self.readSeq = readSeq
         self.sample = sample
 
         # Supporting read alignment properties:
