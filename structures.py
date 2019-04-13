@@ -144,7 +144,8 @@ class bin_database():
         for binSize in self.binSizes:
             for dicti in self.data[binSize].values():
                 for eventType in dicti.keys():
-                    eventTypes.append(eventType)
+                    if eventType not in eventTypes:
+                        eventTypes.append(eventType)
 
         return eventTypes
 
@@ -202,27 +203,31 @@ class bin_database():
             1. events: list of events 
         '''      
         ### Initialize events list adding the events from the root bin
-        rootBin = self.data[rootSize][rootIndex][eventType]
-        events = rootBin.events
+        ## [SR CHANGE]
+        try:
+            rootBin = self.data[rootSize][rootIndex][eventType]
+            events = rootBin.events
 
-        ### Select upper windows sizes/levels
-        upperSizes = [ binSize for binSize in self.binSizes if binSize > rootSize]
+            ### Select upper windows sizes/levels
+            upperSizes = [ binSize for binSize in self.binSizes if binSize > rootSize]
 
-        # For each upper window size
-        for upperSize in upperSizes:
-                
-            # Compute corresponding upper bin index
-            upperIndex = int(rootIndex * rootSize / upperSize)
+            # For each upper window size
+            for upperSize in upperSizes:
+                    
+                # Compute corresponding upper bin index
+                upperIndex = int(rootIndex * rootSize / upperSize)
 
-            # The upper bin contains events:
-            if (upperIndex in self.data[upperSize]):
+                # The upper bin contains events:
+                if (upperIndex in self.data[upperSize]):
 
-                # There are events of the type of interest on the bin 
-                if (eventType in self.data[upperSize][upperIndex]):
+                    # There are events of the type of interest on the bin 
+                    if (eventType in self.data[upperSize][upperIndex]):
 
-                    ## Add upper bin´s events to the list
-                    upperBin = self.data[upperSize][upperIndex][eventType]
-                    events = events + upperBin.events
+                        ## Add upper bin´s events to the list
+                        upperBin = self.data[upperSize][upperIndex][eventType]
+                        events = events + upperBin.events
+        except KeyError:
+            events =  []
 
         return events
 

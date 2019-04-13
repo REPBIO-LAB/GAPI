@@ -43,7 +43,8 @@ def rcplOverlap(begA, endA, begB, endB, minPercOverlap):
     else:
         boolean = False
 
-    return boolean
+    ## [SR CHANGE]
+    return boolean, overlapLen
 
 
 def complementary(begA, endA, begB, endB, maxDist, maxPercOverlap):
