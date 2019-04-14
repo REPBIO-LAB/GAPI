@@ -174,12 +174,14 @@ def create_metaclusters(eventsBinDb, confDict, bam):
         for event in metacluster.events:
                 #print (str(metacluster) + ' ' + str(event.readId) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.identity) + ' ' + str(event.side))
                 print (str(metacluster) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type))
-        metacluster.supportingCLIPPING(1, 'A', bam)
+        metacluster.supportingCLIPPING(1, confDict, bam)
         print('METACLUSTER ADDED: ', str(metacluster) +' '+ str(len(metacluster.events)) +' '+ str(metacluster.ref) +' '+ str(metacluster.beg) +' '+ str(metacluster.end))
         # [SR CHANGE]:
         for event in metacluster.events:
-                #print (str(metacluster) + ' ' + str(event.readId) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.identity) + ' ' + str(event.side))
-                print (str(metacluster) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type))
+                if event.type == 'DISCORDANT':
+                    print (str(metacluster) + ' ' + str(event.readId) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.identity) + ' ' + str(event.side))
+                else:
+                    print (str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' None ' + str(event.clippedSide))
 
 
     ## 3. Organize metaclusters into bins ##    
@@ -561,7 +563,7 @@ class META_cluster():
 
         return nbTotal, nbTumour, nbNormal
 
-    def supportingCLIPPING(self, buffer, configDict, bam):
+    def supportingCLIPPING(self, buffer, confDict, bam):
         '''
         Look for clipping reas within the region of the existing discordant clusters. 
         It doesn't return anything
@@ -593,14 +595,10 @@ class META_cluster():
         for alignmentObj in iterator:
                 try:
                     ## Collect clipping
-                    # TODO hacer para paired tb (FACIL!!! SOLO TIENES QUE LLAMAR A LA OTRA FUNCION!)
-                    # TODO aqui no se si valdra este dictionario poniendo clipping al principio o habra que poner otro
-                    # TODO traer estos argumentos desde las opciones!!!
-                    minCLIPPINGlen = 1
+                    # TODO hacer para paired tb
                     targetInterval = None
-                    overhang = None
                     sample = None
-                    CLIPPING_left_alignmentObj, CLIPPING_right_alignmentObj = bamtools.collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, overhang, sample)
+                    CLIPPING_left_alignmentObj, CLIPPING_right_alignmentObj = bamtools.collectCLIPPING(alignmentObj, confDict['minCLIPPINGlen'], targetInterval, confDict['overhang'], sample)
                     if CLIPPING_left_alignmentObj != None:
                         clippingEventsDict['LEFT-CLIPPING'].append(CLIPPING_left_alignmentObj)
                     if CLIPPING_right_alignmentObj != None:
@@ -608,90 +606,37 @@ class META_cluster():
                 except TypeError:
                     continue
 
-        binSizes = [100, 1000]
-
         ## When the discordant cluster is RIGHT, add the biggest right clipping cluster if any:
         if all (event.side == 'PLUS' for event in self.events):
             ## Get clipping clusters:
             clippingRightEventsDict = dict((key,value) for key, value in clippingEventsDict.items() if key == 'RIGHT-CLIPPING')
-            clippingRightBinDb = structures.create_bin_database(ref, binBeg, binEnd, clippingRightEventsDict, binSizes)
-            binSize = clippingRightBinDb.binSizes[0]
-            #right_CLIPPING_clusters = clustering.distance_clustering(clippingRightBinDb, binSize, ['RIGHT-CLIPPING-CLUSTER'], 'CLIPPING', confDict['maxEventDist'], confDict['minClusterSize']) 
-            right_CLIPPING_clusters = clustering.distance_clustering(clippingRightBinDb, binSize, ['RIGHT-CLIPPING-CLUSTER'], 'CLIPPING', 100, 1) 
-
-            ## Choose the clipping cluster with the highest number of events:
-            # TODO
-            #right_CLIPPING_cluster = chooseBiggestCluster(right_CLIPPING_clusters,'RIGHT-CLIPPING-CLUSTER')
-            right_CLIPPING_cluster = right_CLIPPING_clusters[0]
-
-            ## If a cluster was chosen, add its reads to the discordant cluster and remove any reads above the clipping bkp:
-            if right_CLIPPING_cluster != None:
-
-                self.add(right_CLIPPING_cluster.events)
-                ## Remove events from discordant cluster that are higher (more to the right) than the clippingEnd
-                # discordantCluster.removeDiscordant(clippingEnd, 'right')
+            self.add_clippingEvents(ref, binBeg, binEnd, clippingRightEventsDict, ['RIGHT-CLIPPING'], confDict)
 
         ## When the discordant cluster is LEFT, add the biggest left clipping cluster if any:
         elif all (event.side == 'MINUS' for event in self.events):
             ## Get clipping clusters:
-            clippingLeftEventsDict = dict((key,value) for key, value in clippingEventsDict.items() if key == 'RIGHT-CLIPPING')
-            clippingLeftBinDb = structures.create_bin_database(ref, binBeg, binEnd, clippingLeftEventsDict, binSizes)
-            binSize = clippingLeftBinDb.binSizes[0]
-            #right_CLIPPING_clusters = clustering.distance_clustering(clippingRightBinDb, binSize, ['RIGHT-CLIPPING-CLUSTER'], 'CLIPPING', confDict['maxEventDist'], confDict['minClusterSize']) 
-            left_CLIPPING_clusters = clustering.distance_clustering(clippingLeftBinDb, binSize, ['LEFT-CLIPPING-CLUSTER'], 'CLIPPING', 100, 1) 
-
-            ## TODO
-            ## Choose the clipping cluster with the highest number of events:
-            #left_CLIPPING_cluster = chooseBiggestCluster(left_CLIPPING_clusters,'LEFT-CLIPPING-CLUSTER')
-            left_CLIPPING_cluster = left_CLIPPING_clusters[0]
-
-            ## If a cluster was chosen, add its reads to the discordant cluster and remove any reads above the clipping bkp:
-            if left_CLIPPING_cluster != None:
-
-                self.add(left_CLIPPING_cluster.events)
-                ## Remove events from discordant cluster that are higher (more to the right) than the clippingEnd
-                # discordantCluster.removeDiscordant(clippingEnd, 'right')
-
-            ## PROBAR SOLO CON EL ATTRIBUTE, YO CREO QUE VA A FUNCIONAR
-            ## If no cluster was chosen:
-            #except (UnboundLocalError, AttributeError):
-                #continue
+            clippingLeftEventsDict = dict((key,value) for key, value in clippingEventsDict.items() if key == 'LEFT-CLIPPING')
+            self.add_clippingEvents(ref, binBeg, binEnd, clippingLeftEventsDict, ['LEFT-CLIPPING'], confDict)
 
         # TODO si es reciproco:
         else:
-            ## Get clipping clusters:
-            clippingBinDb = structures.create_bin_database(ref, binBeg, binEnd, clippingEventsDict, binSizes)
+            self.add_clippingEvents(ref, binBeg, binEnd, clippingEventsDict, ['RIGHT-CLIPPING', 'LEFT-CLIPPING'], confDict)
 
-            binSize = clippingBinDb.binSizes[0]
-            #right_CLIPPING_clusters = clustering.distance_clustering(clippingRightBinDb, binSize, ['RIGHT-CLIPPING-CLUSTER'], 'CLIPPING', confDict['maxEventDist'], confDict['minClusterSize']) 
-            CLIPPING_clusters = clustering.distance_clustering(clippingBinDb, binSize, ['LEFT-CLIPPING', 'RIGHT-CLIPPING'], 'CLIPPING', 100, 1) 
+    def add_clippingEvents(self, ref, binBeg, binEnd, clippingEventsDict, eventTypes, confDict):
+        binSizes = [100, 1000]
+        clippingBinDb = structures.create_bin_database(ref, binBeg, binEnd, clippingEventsDict, binSizes)
+        binSize = clippingBinDb.binSizes[0]
+        CLIPPING_clusters = clustering.distance_clustering(clippingBinDb, binSize, eventTypes, 'CLIPPING', confDict['maxEventDist'], confDict['minClusterSize']) 
+
+        # Si hay algun clipping cluster:
+        if len (CLIPPING_clusters) > 0:
             ## Choose the clipping cluster with the highest number of events:
-            #TODO
-            #CLIPPING_cluster = chooseBiggestCluster(CLIPPING_clusters,'CLIPPING-CLUSTER')
-            CLIPPING_cluster = CLIPPING_clusters[0]
+            # Coger el cluster de la lista de clusters si si length es igual a la maxima length de todos los clusters de la lista. (como devuelve una lista de un solo elemento, cojo el primer elemento de la lista.)
+            # TODO: si hay dos con el mismo numero de eventos.
+            CLIPPING_cluster = [cluster for cluster in CLIPPING_clusters if len(cluster.events) == max([len(cluster.events) for cluster in CLIPPING_clusters])][0]
 
-            ## If a cluster was chosen, add its reads to the discordant cluster and remove any reads above the clipping bkp:
-            if CLIPPING_cluster != None:
+            ## Add cluster's reads to the discordant metacluster:
+            self.add(CLIPPING_cluster.events)
 
-                self.add(CLIPPING_cluster.events)
-                ## Remove events from discordant cluster that are higher (more to the right) than the clippingEnd
-                # discordantCluster.removeDiscordant(clippingEnd, 'right')
-
-
-
-def chooseBiggestCluster(clusters,clusterType):
-    '''
-    Choose the cluster with the highest amount of events
-    '''
-    prevNbEvents = 0
-
-    if len(clusters.collect(clusterType)) > 0:
-        for cluster in clusters.collect(clusterType):
-            clusterNbEvents = int(cluster.nbEvents()[0])
-            if clusterNbEvents > prevNbEvents:
-                biggestCluster = cluster
-            prevNbEvents = clusterNbEvents
-    else:
-        biggestCluster = None
-    
-    return biggestCluster
+            ## Remove events from discordant cluster that are higher (more to the right) than the clippingEnd
+            # discordantCluster.removeDiscordant(clippingEnd, 'right')
