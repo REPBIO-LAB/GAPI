@@ -3,12 +3,12 @@ Module 'virus' - for dealing with virus specific needs
 '''
 ## External
 import subprocess
-import os
 
 ## Internal
 import bamtools
 import formats
 import log
+import sequences
 
 def is_virusSR(events, tumourBam, normalBam, outDir):
     '''
@@ -49,27 +49,15 @@ def identifySequence(events, outDir):
             FASTA_file = outDir + '/' + str(event.id) + '.fasta'
             fastaObj.write(FASTA_file)
 
-            # Perform aligment
             PAF_file = outDir + '/' + str(event.id) + 'alignments.paf'
-            # DESILENCIAAAAAR!!!
-            '''
-            err = open(outDir + '/identifyMate.err', 'w')
-            command = 'minimap2 /lustre/scratch117/casm/team154/jt14/3vi/data/databases/RVDBv12.2_MEIGA_HUMAN/consensusViralDb.mmi ' + FASTA_file + ' > ' + PAF_file
-            status = subprocess.call(command, stderr=err, shell=True)
 
-            if status != 0:
-                step = 'IDENTIFY MATE SEQ'
-                msg = 'Identify mate sequence failed' 
-                log.step(step, msg)
-                '''
+            db = '/lustre/scratch117/casm/team154/jt14/3vi/data/databases/RVDBv12.2_MEIGA_HUMAN/consensusViralDb.mmi'
 
-            # If PAF file is not empty
-            if not os.stat(PAF_file).st_size == 0:
-                PAFObj = formats.PAF()
-                PAFObj.read(PAF_file)
+            # Perform aligment
+            aligmentMaxNbMatches = sequences.aligmentMaxNbMatches(FASTA_file, db, PAF_file, outDir)
 
-                # Pick the identity of the aligment with highest number of matches
-                aligmentMaxNbMatches = PAFObj.sortNbMatches()[0]
+            if aligmentMaxNbMatches != None:
+
                 identity = aligmentMaxNbMatches.tName.split('|')[2]
 
                 # Add identity to event object
