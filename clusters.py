@@ -100,7 +100,7 @@ def create_discordantClusters(eventsBinDb, confDict):
     return discordantClustersDict
 
 # [SR CHANGE]
-def create_metaclusters(eventsBinDb, confDict, bam):
+def create_metaclusters(eventsBinDb, confDict, bam, normalBam, mode):
     '''
     
     Input:
@@ -174,14 +174,14 @@ def create_metaclusters(eventsBinDb, confDict, bam):
         for event in metacluster.events:
                 #print (str(metacluster) + ' ' + str(event.readId) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.identity) + ' ' + str(event.side))
                 print (str(metacluster) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type))
-        metacluster.supportingCLIPPING(1, confDict, bam)
+        metacluster.supportingCLIPPING(1, confDict, bam, normalBam, mode)
         print('METACLUSTER ADDED: ', str(metacluster) +' '+ str(len(metacluster.events)) +' '+ str(metacluster.ref) +' '+ str(metacluster.beg) +' '+ str(metacluster.end))
         # [SR CHANGE]:
         for event in metacluster.events:
                 if event.type == 'DISCORDANT':
-                    print (str(metacluster) + ' ' + str(event.readId) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.identity) + ' ' + str(event.side))
+                    print (str(metacluster) + ' ' + str(event.readId) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.identity) + ' ' + str(event.side) + ' ' + str(event.sample))
                 else:
-                    print (str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' None ' + str(event.clippedSide))
+                    print (str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' None ' + str(event.clippedSide) + ' ' + str(event.sample))
 
 
     ## 3. Organize metaclusters into bins ##    
@@ -563,7 +563,7 @@ class META_cluster():
 
         return nbTotal, nbTumour, nbNormal
 
-    def supportingCLIPPING(self, buffer, confDict, bam):
+    def supportingCLIPPING(self, buffer, confDict, bam, normalBam, mode):
         '''
         Look for clipping reas within the region of the existing discordant clusters. 
         It doesn't return anything
@@ -573,6 +573,7 @@ class META_cluster():
         clippingEventsDict = {}
         clippingEventsDict['RIGHT-CLIPPING'] = []
         clippingEventsDict['LEFT-CLIPPING'] = []
+        sample = None
 
         ## Define region
         if self.beg > buffer:
@@ -586,6 +587,28 @@ class META_cluster():
 
         ref = self.ref
 
+        if normalBam != None:
+            sample = 'NORMAL'
+            ## If there is normal bam:
+            normalBamFile = pysam.AlignmentFile(normalBam, "rb")
+
+            ## Extract alignments
+            iterator = normalBamFile.fetch(ref, binBeg, binEnd)
+
+            for alignmentObj in iterator:
+                    try:
+                        ## Collect clipping
+                        # TODO hacer para paired tb
+                        targetInterval = None
+                        CLIPPING_left_alignmentObj, CLIPPING_right_alignmentObj = bamtools.collectCLIPPING(alignmentObj, confDict['minCLIPPINGlen'], targetInterval, confDict['overhang'], sample)
+                        if CLIPPING_left_alignmentObj != None:
+                            clippingEventsDict['LEFT-CLIPPING'].append(CLIPPING_left_alignmentObj)
+                        if CLIPPING_right_alignmentObj != None:
+                            clippingEventsDict['RIGHT-CLIPPING'].append(CLIPPING_right_alignmentObj)
+                    except TypeError:
+                        continue
+            sample = 'TUMOUR'
+
         ## Open BAM file for reading
         bamFile = pysam.AlignmentFile(bam, "rb")
 
@@ -597,7 +620,6 @@ class META_cluster():
                     ## Collect clipping
                     # TODO hacer para paired tb
                     targetInterval = None
-                    sample = None
                     CLIPPING_left_alignmentObj, CLIPPING_right_alignmentObj = bamtools.collectCLIPPING(alignmentObj, confDict['minCLIPPINGlen'], targetInterval, confDict['overhang'], sample)
                     if CLIPPING_left_alignmentObj != None:
                         clippingEventsDict['LEFT-CLIPPING'].append(CLIPPING_left_alignmentObj)
