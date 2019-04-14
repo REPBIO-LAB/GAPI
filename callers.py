@@ -650,7 +650,7 @@ class SV_caller_short(SV_caller):
 
         ## 8. Create metaclusters from reciprocal and independent clusters ##
 
-        metaclustersBinDb = clusters.create_metaclusters(reciprocalEventsBinDb, self.confDict)
+        metaclustersBinDb = clusters.create_metaclusters(reciprocalEventsBinDb, self.confDict, self.bam)
 
         '''
         LO ULTIMO QUE HICE FUE RETORNAR EVENTS DE LA RECIPROCAL EN VEZ DE CLUSTERS, Y FUNCIONA, PERO HAY EN ALGUN MOMENTO QUE SE MEZCLAN LOS DE DISTINTO TIPO AL HACER LA RECIPROCAL, ASI QUE TENGO QUE REPASARLO!

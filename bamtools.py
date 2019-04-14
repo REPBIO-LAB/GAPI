@@ -387,6 +387,7 @@ def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, overhang, samp
     ## Clipping >= X bp at the LEFT
     #  Note: soft (Operation=4) or hard clipped (Operation=5)     
     if ((firstOperation == 4) or (firstOperation == 5)) and (firstOperationLen >= minCLIPPINGlen):
+        
 
         ## Create CLIPPING object if:
         # a) No interval specified OR 
@@ -398,7 +399,7 @@ def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, overhang, samp
 
     ## Clipping > X bp at the RIGHT
     if ((lastOperation == 4) or (lastOperation == 5)) and (lastOperationLen >= minCLIPPINGlen):
-
+ 
         ## Create CLIPPING object if:
         # a) No interval specified OR 
         # b) Clipping within target interval 

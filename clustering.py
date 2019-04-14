@@ -96,7 +96,8 @@ def distance_clustering(binDb, binSize, eventTypes, clusterType, maxDist, minClu
     
     return clustersList
 
-def reciprocal_clustering(eventsBinDb, minPercOverlap, minClusterSize, eventType, buffer):
+## SR CHANGE
+def reciprocal_clustering(eventsBinDb, minPercOverlap, minClusterSize, eventType, buffer, clusterType):
     '''
     '''
     eventsInClusters = []
@@ -201,8 +202,9 @@ def reciprocal_clustering(eventsBinDb, minPercOverlap, minClusterSize, eventType
                         # Add events to the list of events already included into clusters
                         eventsInClusters += [ event.id for event in events2Cluster]
 
+                        # [SR CHANGE]
                         # Create cluster                        
-                        cluster = clusters.create_cluster(events2Cluster, eventType)
+                        cluster = clusters.create_cluster(events2Cluster, clusterType)
                         clustersDict[cluster.id] = cluster
 
                     # Cluster not composed by enough number of events
