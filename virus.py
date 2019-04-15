@@ -10,7 +10,7 @@ import formats
 import log
 import sequences
 
-def is_virusSR(events, tumourBam, normalBam, outDir):
+def is_virusSR(events, tumourBam, normalBam, outDir, viralDb):
     '''
     '''
 
@@ -18,12 +18,12 @@ def is_virusSR(events, tumourBam, normalBam, outDir):
     bamtools.collectMatesSeq(events, tumourBam, normalBam, True, 20)
 
     ## 2. Identify mate sequence of discordant events ##
-    eventsIdentityDict = identifySequence(events, outDir)
+    eventsIdentityDict = identifySequence(events, outDir, viralDb)
 
     return eventsIdentityDict
 
 
-def identifySequence(events, outDir):
+def identifySequence(events, outDir, viralDb):
     '''
     From a list of events, perform a search with their sequence in order to find out its identity.
     
@@ -51,12 +51,14 @@ def identifySequence(events, outDir):
 
             PAF_file = outDir + '/' + str(event.id) + 'alignments.paf'
 
-            db = '/lustre/scratch117/casm/team154/jt14/3vi/data/databases/RVDBv12.2_MEIGA_HUMAN/consensusViralDb.mmi'
+            #db = '/lustre/scratch117/casm/team154/jt14/3vi/data/databases/RVDBv12.2_MEIGA_HUMAN/consensusViralDb.mmi'
 
             # Perform aligment
-            aligmentMaxNbMatches = sequences.aligmentMaxNbMatches(FASTA_file, db, PAF_file, outDir)
+            aligmentMaxNbMatches = sequences.aligmentMaxNbMatches(FASTA_file, viralDb, PAF_file, outDir)
 
             if aligmentMaxNbMatches != None:
+
+                # TODO: Require a minimum percentage of aligment
 
                 identity = aligmentMaxNbMatches.tName.split('|')[2]
 

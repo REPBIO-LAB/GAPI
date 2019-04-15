@@ -144,10 +144,10 @@ class SV_caller_short(SV_caller):
         Search for structural variants (SV) genome wide or in a set of target genomic regions
         '''
         ### 1. Create and index reference databases prior SV calling ##
-        #dbDir = self.outDir + '/databases'
-        #unix.mkdir(dbDir)
+        dbDir = self.outDir + '/databases'
+        unix.mkdir(dbDir)
 
-        #self.retrotransposonDb, self.retrotransposonDbIndex = databases.buildRetrotransposonDb(self.refDir, self.confDict['transductionSearch'], dbDir)
+        self.viralDb, self.viralDbIndex = databases.buildVirusDb(self.refDir, dbDir)
 
         ### 2. Define genomic bins to search for SV ##
         bins = bamtools.binning(self.confDict['targetBins'], self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
@@ -223,11 +223,11 @@ class SV_caller_short(SV_caller):
 
         # a) Single sample mode
         if self.mode == "SINGLE":
-            discordantEventsIdent = virus.is_virusSR(discordantEvents, self.bam, None, self.outDir)
+            discordantEventsIdent = virus.is_virusSR(discordantEvents, self.bam, None, binDir, self.viralDbIndex)
 
         # b) Paired sample mode (tumour & matched normal)
         else:
-            discordantEventsIdent = virus.is_virusSR(discordantEvents, self.bam, self.normalBam, self.outDir)
+            discordantEventsIdent = virus.is_virusSR(discordantEvents, self.bam, self.normalBam, binDir, self.viralDbIndex)
 
         ## 4. Organize identified events into genomic bins prior clustering ##
         step = 'BINNING'

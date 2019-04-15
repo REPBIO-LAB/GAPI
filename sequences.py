@@ -5,6 +5,7 @@ Module 'sequences' - Contains functions for the manipulation and extracting info
 ## DEPENDENCIES ##
 # External
 import os
+import subprocess
 
 # Internal
 import formats
@@ -218,6 +219,7 @@ def aligmentMaxNbMatches(FASTA_file, db, PAF_file, outDir):
 
     # DESILENCIAAAAAR!!!
     '''
+    # TODO: append en el error!
     err = open(outDir + '/identifyMate.err', 'w')
     command = 'minimap2 ' + db + ' ' + FASTA_file + ' > ' + PAF_file
     status = subprocess.call(command, stderr=err, shell=True)
@@ -227,6 +229,7 @@ def aligmentMaxNbMatches(FASTA_file, db, PAF_file, outDir):
         msg = 'Identify mate sequence failed' 
         log.step(step, msg)
         '''
+
 
     # If PAF file is not empty
     if not os.stat(PAF_file).st_size == 0:
@@ -239,7 +242,7 @@ def aligmentMaxNbMatches(FASTA_file, db, PAF_file, outDir):
     else:
         aligmentMaxNbMatches = None
 
-    return (aligmentMaxNbMatches)
+    return aligmentMaxNbMatches
 
 
 ## CLASSES ##
