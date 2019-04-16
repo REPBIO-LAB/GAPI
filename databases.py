@@ -93,6 +93,7 @@ def buildVirusDb(fastaDir, outDir):
     with open(virusDb, 'w') as outFile:
         with open(consensusDb) as inFile:
             outFile.write(inFile.read())
+            
 
     ## 2. Index retrotransposon database fasta file ##
     
@@ -142,6 +143,7 @@ def buildRefIdentityDb(ref, beg, end, identity, specificIdentity, identityDbFast
     # indexo
     refIdentityDbIndex = outDir + '/' + str(beg) + '_' + side + '_refIdentityDb_region.mmi' 
     ## DESILENCIAAAAR
+    
     # TODO
     # ponerlo bien
     #err = open(logDir + '/index.err', 'w')
@@ -153,6 +155,7 @@ def buildRefIdentityDb(ref, beg, end, identity, specificIdentity, identityDbFast
         step = 'BUILD-VIRUS-DATABASE'
         msg = 'Database indexing failed' 
         log.step(step, msg)
+        
         
 
     return refIdentityDbIndex

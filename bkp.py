@@ -28,7 +28,9 @@ def analizeBkp(clustersBinDb, identityDbFasta, reference, side, outDir): # 'RIGH
         end = metacluster.end
 
         # From all specific identitities from all events in the metacluster, pick the specific identity that is repeated more times (si hay dos que coinciden devuelve una al azar.)
-        identity = metacluster.events[0].identity
+        # Coger la identity del primer evento DISCORDANT que aparezca (pq los clipping no tienen identity)
+        identity = next(event.identity for event in metacluster.events if event.type == "DISCORDANT")
+        
 
         specificIdentity = max(set([event.specificIdentity for event in metacluster.events if event.type == "DISCORDANT"]), key=[event.specificIdentity for event in metacluster.events if event.type == "DISCORDANT"].count)
 
