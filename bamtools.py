@@ -570,7 +570,7 @@ def collectMateSeq(event, bam, checkUnmapped, maxMAPQ):
     binBegMate = mateStart
     binEndMate = mateStart + 1
 
-    readName = event.readId.split('/')[0]
+    readName = event.readName.split('/')[0]
 
     ## 2. Open BAM file for reading
     bamFile = pysam.AlignmentFile(bam, "rb")

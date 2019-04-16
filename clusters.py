@@ -156,7 +156,6 @@ def create_metaclusters(eventsBinDb, confDict, bam, normalBam, mode):
     # 2.5) Create DISCORDANT metaclusters
     if 'DISCORDANT' in confDict['targetSV']:
         eventTypes = eventsBinDb.collectEventTypes()
-        print ('eventsMETAAAA ' + str(eventTypes))
         for eventType in eventTypes:
         # TO DO  
             metaclusters = clustering.reciprocal_clustering(eventsBinDb, 1, confDict['minClusterSize'], eventType, 0, 'META')
@@ -172,14 +171,15 @@ def create_metaclusters(eventsBinDb, confDict, bam, normalBam, mode):
         print('METACLUSTER: ', str(metacluster) +' '+ str(len(metacluster.events)) +' '+ str(metacluster.ref) +' '+ str(metacluster.beg) +' '+ str(metacluster.end))
         # [SR CHANGE]:
         for event in metacluster.events:
-                #print (str(metacluster) + ' ' + str(event.readId) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.identity) + ' ' + str(event.side))
+                #print (str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.identity) + ' ' + str(event.side))
                 print (str(metacluster) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type))
         metacluster.supportingCLIPPING(1, confDict, bam, normalBam, mode)
+
         print('METACLUSTER ADDED: ', str(metacluster) +' '+ str(len(metacluster.events)) +' '+ str(metacluster.ref) +' '+ str(metacluster.beg) +' '+ str(metacluster.end))
         # [SR CHANGE]:
         for event in metacluster.events:
                 if event.type == 'DISCORDANT':
-                    print (str(metacluster) + ' ' + str(event.readId) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.identity) + ' ' + str(event.side) + ' ' + str(event.sample))
+                    print (str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.identity) + ' ' + str(event.side) + ' ' + str(event.sample))
                 else:
                     print (str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' None ' + str(event.clippedSide) + ' ' + str(event.sample))
 
@@ -191,6 +191,7 @@ def create_metaclusters(eventsBinDb, confDict, bam, normalBam, mode):
 
     metaclustersBinDb = structures.create_bin_database(eventsBinDb.ref, eventsBinDb.beg, eventsBinDb.end, metaclustersDict, binSizes)
     return metaclustersBinDb
+
 
 def find_chimeric_alignments(clusterA, clusterB):
     '''

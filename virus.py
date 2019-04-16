@@ -44,7 +44,7 @@ def identifySequence(events, outDir, viralDb):
 
             # Write fasta file containing the read sequence
             fastaDict={}
-            fastaDict[event.readId]=event.mateSeq
+            fastaDict[event.readName]=event.mateSeq
             fastaObj.seqDict = fastaDict
             FASTA_file = outDir + '/' + str(event.id) + '.fasta'
             fastaObj.write(FASTA_file)
@@ -61,9 +61,12 @@ def identifySequence(events, outDir, viralDb):
                 # TODO: Require a minimum percentage of aligment
 
                 identity = aligmentMaxNbMatches.tName.split('|')[2]
+                # In order to know more than simply the species.
+                specificIdentity = aligmentMaxNbMatches.tName.split('|')[1]
 
-                # Add identity to event object
+                # Add identities to event object
                 event.identity = identity
+                event.specificIdentity = specificIdentity
 
                 # Add identity to the eventType and make the output dictionary
                 eventTypeIdentity = event.side + '-' + event.type + '-' + identity

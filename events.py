@@ -22,6 +22,9 @@ def separate(events):
         ## Divide clippings into left and right 
         if event.type == 'CLIPPING':
             eventType = 'LEFT-CLIPPING' if event.clippedSide == 'left' else 'RIGHT-CLIPPING'
+        ## [SR CHANGE]
+        elif event.type == 'DISCORDANT':
+            eventType = 'MINUS-DISCORDANT' if event.side == 'MINUS' else 'PLUS-DISCORDANT'
 
         else:
             eventType = event.type
@@ -242,7 +245,7 @@ class DISCORDANT():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, side, readId, alignmentObj, sample):
+    def __init__(self, ref, beg, end, side, readName, alignmentObj, sample):
         DISCORDANT.number += 1 # Update instances counter
         self.id = DISCORDANT.number
         self.type = 'DISCORDANT'
@@ -250,14 +253,13 @@ class DISCORDANT():
         self.beg = int(beg)
         self.end = int(end)
         self.side = side
-        self.readId = readId
+        self.readName = readName
         self.sample = sample
-        self.clusterId = None        
-
+        self.clusterId = None
 
         ## Set supporting read id
         mate = '/1' if side == 'MINUS' else '/2'
-        self.readId = alignmentObj.query_name + mate
+        self.readName = alignmentObj.query_name + mate
 
         ## mate
         self.pair = '1' if alignmentObj.is_read1 else '2'
@@ -266,3 +268,4 @@ class DISCORDANT():
         self.properPair = False
         self.mateSeq = None
         self.identity = None
+        self.specificIdentity = None

@@ -18,6 +18,8 @@ import filters
 import output
 ## [SR CHANGE]
 import virus
+## [SR CHANGE]
+import bkp
 
 ## FUNCTIONS ##
 
@@ -175,6 +177,9 @@ class SV_caller_short(SV_caller):
         '''
         Search for structural variant (SV) clusters in a genomic bin/window
         '''
+
+        dbDir = self.outDir + '/databases'
+
         ## 0. Set bin id and create bin directory ##
         ref, beg, end = window
         binId = '_'.join([str(ref), str(beg), str(end)])
@@ -685,3 +690,12 @@ class SV_caller_short(SV_caller):
         <clusters.DISCORDANT_cluster object at 0x7f73aeae64a8> HWI-ST672:120:D0CF5ACXX:8:2104:17314:11147/1 2 105457619 DISCORDANT HBV MINUS
 
         '''
+
+        dictMetaclustersLEFT = bkp.analizeBkp(metaclustersBinDb, self.viralDb, self.reference, 'LEFT', binDir)
+        dictMetaclustersRIGHT = bkp.analizeBkp(metaclustersBinDb, self.viralDb, self.reference, 'RIGHT', binDir)
+        
+        print ('LEFT')
+        print (dictMetaclustersLEFT)
+
+        print ('RIGHT')
+        print (dictMetaclustersRIGHT)
