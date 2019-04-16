@@ -21,6 +21,7 @@ import alignment
 import bamtools 
 import repeats
 import retrotransposons
+import filters
 
 ###############
 ## FUNCTIONS ##
@@ -168,14 +169,16 @@ def create_metaclusters(eventsBinDb, confDict, bam, normalBam, mode):
         # [SR CHANGE]:
         #print('METACLUSTER: ', metacluster, len(metacluster.events), [(clusterType, len(subcluster.events)) for clusterType, subcluster in metacluster.subclusters.items()])
         # [SR CHANGE]:
-        print('METACLUSTER: ', str(metacluster) +' '+ str(len(metacluster.events)) +' '+ str(metacluster.ref) +' '+ str(metacluster.beg) +' '+ str(metacluster.end))
+        print('METACLUSTER: ', str(metacluster) +' '+ str(len(metacluster.events)) +' '+ str(metacluster.ref) +' '+ str(metacluster.beg) +' '+ str(metacluster.end) +' '+ str(metacluster.intOrigin))
         # [SR CHANGE]:
         for event in metacluster.events:
                 #print (str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.identity) + ' ' + str(event.side))
                 print (str(metacluster) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type))
         metacluster.supportingCLIPPING(1, confDict, bam, normalBam, mode)
+        if mode == 'PAIRED':
+            metacluster.setIntOrigin()
 
-        print('METACLUSTER ADDED: ', str(metacluster) +' '+ str(len(metacluster.events)) +' '+ str(metacluster.ref) +' '+ str(metacluster.beg) +' '+ str(metacluster.end))
+        print('METACLUSTER ADDED: ', str(metacluster) +' '+ str(len(metacluster.events)) +' '+ str(metacluster.ref) +' '+ str(metacluster.beg) +' '+ str(metacluster.end) +' '+ str(metacluster.intOrigin))
         # [SR CHANGE]:
         for event in metacluster.events:
                 if event.type == 'DISCORDANT':
@@ -462,7 +465,10 @@ class META_cluster():
 
         # Organize events into subclusters
         self.subclusters = self.create_subclusters()
-    
+
+        # Tag germline or somatic
+        self.intOrigin = None
+
     def sort(self):
         '''
         Sort events in increasing coordinates order
@@ -663,3 +669,26 @@ class META_cluster():
 
             ## Remove events from discordant cluster that are higher (more to the right) than the clippingEnd
             # discordantCluster.removeDiscordant(clippingEnd, 'right')
+
+    def setIntOrigin(self):
+        '''
+        Set germline or somatic
+        '''
+        nbTumourEvents = 0
+        nbNormalEvents = 0
+        nbEvents = 0
+
+        for event in self.events:
+            if event.sample == "TUMOUR":
+                nbTumourEvents += 1
+            elif event.sample == "NORMAL":
+                nbNormalEvents += 1
+            nbEvents += 1
+        
+        percTumourEvents = filters.percentage(nbTumourEvents, nbEvents)
+        percNormalEvents = filters.percentage(nbNormalEvents, nbEvents)
+
+        if percTumourEvents > percNormalEvents:
+            self.intOrigin = 'somatic'
+        else:
+            self.intOrigin = 'germline'
