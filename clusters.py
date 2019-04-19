@@ -682,21 +682,13 @@ class META_cluster():
         '''
         Set germline or somatic
         '''
-        nbTumourEvents = 0
         nbNormalEvents = 0
-        nbEvents = 0
 
         for event in self.events:
-            if event.sample == "TUMOUR":
-                nbTumourEvents += 1
-            elif event.sample == "NORMAL":
+            if event.sample == "NORMAL":
                 nbNormalEvents += 1
-            nbEvents += 1
-        
-        percTumourEvents = filters.percentage(nbTumourEvents, nbEvents)
-        percNormalEvents = filters.percentage(nbNormalEvents, nbEvents)
-
-        if percTumourEvents > percNormalEvents:
-            self.intOrigin = 'somatic'
-        else:
+        # HACER ESTO ARGUMENTOO!!!
+        if nbNormalEvents > 3:
             self.intOrigin = 'germline'
+        else:
+            self.intOrigin = 'somatic'
