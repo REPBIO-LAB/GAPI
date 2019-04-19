@@ -196,23 +196,52 @@ def bkp(metacluster, side, outDir):
 
 ##################################
 
-def analizeBkpAddClipping(clustersBinDb, confDict, bam, normalBam, mode, indexDb, outDir): # 'RIGHT' OR 'LEFT'
+def analyzeClipping(clustersBinDb, confDict, bam, normalBam, mode, db, indexDb, outDir):
+    '''
+    1. Por cada evento en la BinDB (en este caso especificamente por cada metacluster)
+    a. Anadir supporting clipping al metacluster de discordant.
+    b. Buscar el bkp (punto mas apoyado por los clippings que acabamos de anadir) y quitar aquellos clipping events que no lo soporten
+    c. Hacer las cadenas de secuencias para ambos bkps.
+    '''
+
+    dictMetaclusters = {}
 
     for metacluster in clustersBinDb.collect(['METACLUSTERS']):
+        dictMetaclusters[metacluster] = {}
+
         bkpDir = outDir + '/' + metacluster.ref + '_' + str(metacluster.beg) + '_' + str(metacluster.end)
         unix.mkdir(bkpDir)
 
+        # a. Anadir supporting clipping al metacluster de discordant.
         CLIPPING_cluster = metacluster.supportingCLIPPING(1, confDict, bam, normalBam, mode)
 
-        leftBkp, rightBkp = clippingBkp(CLIPPING_cluster)
+        # b. Buscar el bkp (punto mas apoyado por los clippings que acabamos de anadir) y quitar aquellos clipping events que no lo soporten
+        dictMetaclusters[metacluster]['refLeftBkp'], dictMetaclusters[metacluster]['refRightBkp'] = clippingBkp(CLIPPING_cluster)
 
-        leftSeq, rightSeq = makeSeqChain(CLIPPING_cluster, 'REF', indexDb, bkpDir)
+        print (dictMetaclusters)
+        # c. Hacer las cadenas de secuencias para ambos bkps.
+        #dictMetaclusters[metacluster]['leftSeq'], dictMetaclusters[metacluster]['rightSeq'] = makeConsSeqs(CLIPPING_cluster, 'REF', db, indexDb, bkpDir)
+        leftRefConsensusSeq = makeConsSeqs(CLIPPING_cluster, 'left', 'REF', db, indexDb, bkpDir)[1]
+        rightRefConsensusSeq = makeConsSeqs(CLIPPING_cluster, 'right', 'REF', db, indexDb, bkpDir)[1]
 
-        print (leftSeq, rightSeq)
+        leftIntConsensusPath, leftIntConsensusSeq = makeConsSeqs(CLIPPING_cluster, 'left', 'INT', db, indexDb, bkpDir)
+        rightIntConsensusPath, rightIntConsensusSeq = makeConsSeqs(CLIPPING_cluster, 'right', 'INT', db, indexDb, bkpDir)
+
+        leftSeq = leftIntConsensusSeq + '<[INT]' + leftRefConsensusSeq
+        rightSeq = rightRefConsensusSeq + '[INT]>' + rightIntConsensusSeq
+
+        dictMetaclusters[metacluster]['leftSeq'], dictMetaclusters[metacluster]['rightSeq'] = leftSeq, rightSeq
+
+
+        dictMetaclusters[metacluster]['intLeftBkp'] =  bkpINT(metacluster, leftIntConsensusPath, db, bkpDir)
+        dictMetaclusters[metacluster]['intRightBkp'] = bkpINT(metacluster, rightIntConsensusPath, db, bkpDir)
+
+        print (dictMetaclusters)
+        return dictMetaclusters
 
 def clippingBkp(CLIPPING_cluster):
     '''
-    Saber los bkp en la ref!
+    Buscar el bkp (punto mas apoyado por los clippings ) y quitar aquellos clipping events que no lo soporten
     '''
     leftBkp = None
     rightBkp = None
@@ -247,43 +276,41 @@ def clippingBkp(CLIPPING_cluster):
     return leftBkp, rightBkp
 
 
-def makeSeqChain(CLIPPING_cluster, seqSide, indexDb, outDir):
+def makeConsSeqs(CLIPPING_cluster, clippedSide, seqSide,  db, indexDb, outDir):
+    '''
+    Hacer las cadenas de secuencias para ambos bkps.
+    '''
 
-    leftSeq, rightSeq = None, None
+    consensusSeq = None
 
-    leftClippingEvents = [event for event in CLIPPING_cluster.events if event.clippedSide == 'left']
-    rightClippingEvents = [event for event in CLIPPING_cluster.events if event.clippedSide == 'right']
+    clippingEvents = [event for event in CLIPPING_cluster.events if event.clippedSide == clippedSide]
 
-    if len (leftClippingEvents) > 0:
+    if len (clippingEvents) > 0:
 
-        leftIntConsensusSeq = clippingConsensusSeq(leftClippingEvents, CLIPPING_cluster.id, 'left', 'INT', indexDb, outDir)
-        leftRefConsensusSeq = clippingConsensusSeq(leftClippingEvents, CLIPPING_cluster.id, 'left', 'REF', indexDb, outDir)
-
-        leftSeq = leftIntConsensusSeq + '<[INT]' + leftRefConsensusSeq
-
-    if len (rightClippingEvents) > 0:
-        rightIntConsensusSeq = clippingConsensusSeq(rightClippingEvents, CLIPPING_cluster.id, 'right', 'INT', indexDb, outDir)
-        rightRefConsensusSeq = clippingConsensusSeq(rightClippingEvents, CLIPPING_cluster.id, 'right', 'REF', indexDb, outDir)
-
-        rightSeq = rightRefConsensusSeq + '[INT]>' + rightIntConsensusSeq
+        consensusPath, consensusSeq = clippingConsensusSeq(clippingEvents, CLIPPING_cluster.id, clippedSide, seqSide, db, indexDb, outDir)
     
-    return leftSeq, rightSeq
+    return consensusPath, consensusSeq
 
 
-def clippingConsensusSeq(clippingEvents, CLIPPING_clusterID, clippedSide, seqSide, indexDb, outDir):
+def clippingConsensusSeq(clippingEvents, CLIPPING_clusterID, clippedSide, seqSide, db, indexDb, outDir):
 
+    # Retrieve fasta file with sequence from match or clipped side of clipping reads
     supportingReadsFasta = clippingSeq(clippingEvents, CLIPPING_clusterID, clippedSide, seqSide, outDir)
 
+    # Consensus from the previous fasta
     consensusPath, consensusSeq = getConsensus(supportingReadsFasta, outDir)
 
+    # De aqui sacas el bkp en lo que esta insertado + ¿secuencia? AQUI PUEDES MIRAR SI FALTAN BASES COMO ANTES!
     # If seq side == INT (pq si es el ref no nos interesa hacer esto)
-    if seqSide == 'INT':
-        PAF_File = getPAF(consensusPath, indexDb, outDir)
+    print (seqSide)
 
-    return consensusSeq
+    return consensusPath, consensusSeq
 
 
 def clippingSeq(clippingEvents, CLIPPING_clusterID, clippedSide, seqSide, outDir):
+    '''
+    Retrieve fasta file with sequence from match or clipped side of clipping reads
+    '''
 
     fastaObj = formats.FASTA()
     fastaDict = {}
@@ -310,7 +337,7 @@ def clippingSeq(clippingEvents, CLIPPING_clusterID, clippedSide, seqSide, outDir
         
         fastaObj.seqDict = fastaDict
 
-    fastaPath = outDir + '/' + str(CLIPPING_clusterID) +'_supportingReads.fa'
+    fastaPath = outDir + '/' + str(CLIPPING_clusterID) +'_'+ str(clippedSide) +'_'+ str(seqSide) +'_supportingReads.fa'
     fastaObj.write(fastaPath)
 
     return fastaPath
@@ -350,7 +377,7 @@ def getConsensus(FASTA_file, outDir):
 def getPAF(FASTA_file, indexDb, outDir):
     # Alineo el fasta consenso
     # TODO ponerlo bien
-    PAF_file = FASTA_file.replace("_consensus.FA", "_alignments.paf")
+    PAF_file = FASTA_file.replace("_consensus.fa", "_alignments.paf")
 
     #err = open(logDir + '/align.err', 'w') 
     command = 'minimap2 ' + indexDb + ' ' + FASTA_file + ' > ' + PAF_file
@@ -360,7 +387,63 @@ def getPAF(FASTA_file, indexDb, outDir):
         step = 'ALIGN-INSERT'
         msg = 'Insert alignment failed' 
         log.step(step, msg)
-
-    # De aqui sacas el bkp en lo que esta insertado + ¿secuencia? AQUI PUEDES MIRAR SI FALTAN BASES COMO ANTES!
     
     return PAF_file
+
+
+def bkpINT(metacluster, consensusPath, db, outDir):
+
+    ###### databases ######
+    # Coger la identity del primer evento DISCORDANT que aparezca (pq los clipping no tienen identity)
+    identity = next(event.identity for event in metacluster.events if event.type == "DISCORDANT")
+    
+    specificIdentity = max(set([event.specificIdentity for event in metacluster.events if event.type == "DISCORDANT"]), key=[event.specificIdentity for event in metacluster.events if event.type == "DISCORDANT"].count)
+
+    specificHeader = '"consensus|' + specificIdentity + '|' + identity + '"'
+
+    #dbSpecificIdentity = outDir + '/' + str(CLIPPING_clusterID) + '_specificIdentity.fa'
+    dbSpecificIdentity = outDir + '/' + str(metacluster.id) + '_specificIdentity.fa' 
+
+    # Build database con identity + ref
+    # TODO coger la identity que ya hemos reconocido, en lugar de toda la db!
+    # 2. Cojo de la db de identities la secuencia que fue asignada como identity:
+    # TODO poner bien el status y todo eso
+    #err = open(logDir + '/index.err', 'w') 
+    command = 'samtools faidx  ' + db + ' ' + specificHeader + ' -o ' + dbSpecificIdentity
+    status = subprocess.call(command, shell=True)
+    # indexo
+    indexDbSpecificIdentity = dbSpecificIdentity.replace("_specificIdentity.fa", "_refIdentityDb.mmi")
+
+    ## DESILENCIAAAAR
+    # TODO
+    # ponerlo bien
+    #err = open(logDir + '/index.err', 'w')
+    command = 'minimap2 -k 10 -w 1 -d ' + indexDbSpecificIdentity + ' ' + dbSpecificIdentity 
+    status = subprocess.call(command, shell=True)
+
+    if status != 0:
+        step = 'BUILD-VIRUS-DATABASE'
+        msg = 'Database indexing failed' 
+        log.step(step, msg)
+
+    ###### databases ######    
+
+    PAF_file = getPAF(consensusPath, indexDbSpecificIdentity, outDir)
+    PAFObj = formats.PAF()
+    PAFObj.read(PAF_file)
+
+    # DE AQUI SACAMOS LA INFO QUE QUERAMOS DEL VIRUS
+    intBkp = [line.tBeg for line in PAFObj.lines][0]
+    for line in PAFObj.lines:
+        print (line.qName)
+        print (line.qLen)
+        print (line.qBeg)
+        print (line.qEnd)
+        print (line.strand)
+        print (line.tName)
+        print (line.tLen)
+        print (line.tBeg)
+        print (line.tEnd)
+        print (line.nbMatches)
+
+    return intBkp
