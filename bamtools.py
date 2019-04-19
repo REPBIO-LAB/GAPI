@@ -330,16 +330,24 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
          
             ## 1. Collect CLIPPINGS
             if 'CLIPPING' in confDict['targetSV']:
+                ## [SR CHANGE]
+                leftAdded = "N"
 
                 left_CLIPPING, right_CLIPPING = collectCLIPPING(alignmentObj, confDict['minCLIPPINGlen'], targetInterval, confDict['overhang'], sample)
-
                 # Left CLIPPING found
                 if left_CLIPPING != None:
                     eventsDict['LEFT-CLIPPING'].append(left_CLIPPING)
+                    leftAdded = "Y"
         
                 # Right CLIPPING found
                 if right_CLIPPING != None:
-                    eventsDict['RIGHT-CLIPPING'].append(right_CLIPPING)
+                    ## [SR CHANGE]
+                    if leftAdded != "Y" and 'SMS' in confDict['readFilters']: # Y EL FILTRO ESTA ACTIVADO
+                        eventsDict['RIGHT-CLIPPING'].append(right_CLIPPING)
+                        print (alignmentObj.query_name)
+                    elif 'SMS' not in confDict['readFilters']: # si EL FILTRO NO ESTA ACTIVADO lo meto sin mirar la leftAdded
+                        eventsDict['RIGHT-CLIPPING'].append(right_CLIPPING)
+
 
             ## 2. Collect INDELS
             if ('INS' in confDict['targetSV']) or ('DEL' in confDict['targetSV']):

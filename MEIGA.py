@@ -39,6 +39,9 @@ parser.add_argument('-bS', '--binSize', default=1000000, dest='binSize', type=in
 parser.add_argument('--refs', default="ALL", dest='refs', type=str, help='Comma separated list of target references to call SV (i.e. 1,2,3,X). Default: All references included in the bam file')
 parser.add_argument('--SV', default="INS,CLIPPING", dest='SV', type=str, help='Comma separated list of SV event types to collect (INS, DEL and CLIPPING). Default: INS,CLIPPING')
 parser.add_argument('--read-overhang', default=500, dest='overhang', type=int, help='Number of flanking base pairs around the SV event to be collected from the supporting read sequence. Default: 5')
+## [SR CHANGE]
+parser.add_argument('--readFilters', default="SMS", dest='readFilters', type=str, help='Comma separated list of read filters to apply (SMS)')
+
 
 ## Filtering thresholds
 parser.add_argument('--minMAPQ', default=20, dest='minMAPQ', type=int, help='Minimum mapping quality required for each read. Default: 20')
@@ -80,6 +83,7 @@ binSize = args.binSize
 refs = args.refs
 SV = args.SV
 overhang = args.overhang
+readFilters = args.readFilters
 
 ## Filtering thresholds
 minMAPQ = args.minMAPQ
@@ -145,6 +149,7 @@ print('binSize: ', binSize)
 print('targetRefs: ', refs)
 print('targetSVs: ', SV)
 print('overhang: ', overhang, "\n")
+print('readFilters: ', readFilters, "\n")
 
 print('** Filtering thresholds **')
 print('minMAPQ: ', minMAPQ)
@@ -178,6 +183,7 @@ confDict['targetBins'] = targetBins
 confDict['binSize'] = binSize
 confDict['targetRefs'] = targetRefs
 confDict['targetSV'] = targetSV
+confDict['readFilters'] = readFilters
 
 ## ...
 confDict['overhang'] = overhang
