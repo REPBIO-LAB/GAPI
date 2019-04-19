@@ -253,8 +253,17 @@ def reciprocal(eventsBinDb, minPercOverlap, minClusterSize, buffer):
 
                 #if actualCommonEventType == commonEventType:
                 plusEvents = eventsBinDb.traverse(index, windowSize, plusEventType)
+                # Append events from the adjacent left bin
+                plusEvents.extend(eventsBinDb.collect_bin(windowSize, index-1, plusEventType))
+                # Append events from the adjacent right bin
+                plusEvents.extend(eventsBinDb.collect_bin(windowSize, index+1, plusEventType))
+
                 #if actualCommonEventType == commonEventType:
                 minusEvents = eventsBinDb.traverse(index, windowSize, minusEventType)
+                # Append events from the adjacent left bin
+                minusEvents.extend(eventsBinDb.collect_bin(windowSize, index-1, minusEventType))
+                # Append events from the adjacent right bin
+                minusEvents.extend(eventsBinDb.collect_bin(windowSize, index+1, minusEventType))
 
                 # si ninguna de las dos listas esta vacia:
                 if len(plusEvents) > 0 and len(minusEvents) > 0:
