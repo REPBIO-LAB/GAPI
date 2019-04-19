@@ -22,6 +22,8 @@ import bamtools
 import repeats
 import retrotransposons
 import filters
+## [SR CHANGE]
+import bkp
 
 ###############
 ## FUNCTIONS ##
@@ -174,7 +176,9 @@ def create_metaclusters(eventsBinDb, confDict, bam, normalBam, mode):
         for event in metacluster.events:
                 #print (str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.identity) + ' ' + str(event.side))
                 print (str(metacluster) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type))
-        metacluster.supportingCLIPPING(1, confDict, bam, normalBam, mode)
+        #CLIPPING_cluster = metacluster.supportingCLIPPING(1, confDict, bam, normalBam, mode)
+        #bkp.clippingBkp(CLIPPING_cluster)
+
         if mode == 'PAIRED':
             metacluster.setIntOrigin()
 
@@ -639,17 +643,19 @@ class META_cluster():
         if all (event.side == 'PLUS' for event in self.events):
             ## Get clipping clusters:
             clippingRightEventsDict = dict((key,value) for key, value in clippingEventsDict.items() if key == 'RIGHT-CLIPPING')
-            self.add_clippingEvents(ref, binBeg, binEnd, clippingRightEventsDict, ['RIGHT-CLIPPING'], confDict)
+            CLIPPING_cluster = self.add_clippingEvents(ref, binBeg, binEnd, clippingRightEventsDict, ['RIGHT-CLIPPING'], confDict)
 
         ## When the discordant cluster is LEFT, add the biggest left clipping cluster if any:
         elif all (event.side == 'MINUS' for event in self.events):
             ## Get clipping clusters:
             clippingLeftEventsDict = dict((key,value) for key, value in clippingEventsDict.items() if key == 'LEFT-CLIPPING')
-            self.add_clippingEvents(ref, binBeg, binEnd, clippingLeftEventsDict, ['LEFT-CLIPPING'], confDict)
+            CLIPPING_cluster = self.add_clippingEvents(ref, binBeg, binEnd, clippingLeftEventsDict, ['LEFT-CLIPPING'], confDict)
 
         # TODO si es reciproco:
         else:
-            self.add_clippingEvents(ref, binBeg, binEnd, clippingEventsDict, ['RIGHT-CLIPPING', 'LEFT-CLIPPING'], confDict)
+            CLIPPING_cluster = self.add_clippingEvents(ref, binBeg, binEnd, clippingEventsDict, ['RIGHT-CLIPPING', 'LEFT-CLIPPING'], confDict)
+
+        return CLIPPING_cluster
 
     def add_clippingEvents(self, ref, binBeg, binEnd, clippingEventsDict, eventTypes, confDict):
         binSizes = [100, 1000]
@@ -666,6 +672,8 @@ class META_cluster():
 
             ## Add cluster's reads to the discordant metacluster:
             self.add(CLIPPING_cluster.events)
+
+            return CLIPPING_cluster
 
             ## Remove events from discordant cluster that are higher (more to the right) than the clippingEnd
             # discordantCluster.removeDiscordant(clippingEnd, 'right')

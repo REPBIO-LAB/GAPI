@@ -192,3 +192,175 @@ def bkp(metacluster, side, outDir):
         consensusSeq = consensusSeq.upper()
 
     return consensusSeq
+
+
+##################################
+
+def analizeBkpAddClipping(clustersBinDb, confDict, bam, normalBam, mode, indexDb, outDir): # 'RIGHT' OR 'LEFT'
+
+    for metacluster in clustersBinDb.collect(['METACLUSTERS']):
+        bkpDir = outDir + '/' + metacluster.ref + '_' + str(metacluster.beg) + '_' + str(metacluster.end)
+        unix.mkdir(bkpDir)
+
+        CLIPPING_cluster = metacluster.supportingCLIPPING(1, confDict, bam, normalBam, mode)
+
+        leftBkp, rightBkp = clippingBkp(CLIPPING_cluster)
+
+        leftSeq, rightSeq = makeSeqChain(CLIPPING_cluster, 'REF', indexDb, bkpDir)
+
+        print (leftSeq, rightSeq)
+
+def clippingBkp(CLIPPING_cluster):
+    '''
+    Saber los bkp en la ref!
+    '''
+    leftBkp = None
+    rightBkp = None
+    leftBkps = []
+    rightBkps = []
+    for event in CLIPPING_cluster.events:
+        if event.clippedSide == 'left':
+            print (event.beg)
+            leftBkps.append(event.beg)
+        elif event.clippedSide == 'right':
+            print (event.clippedSide)
+            rightBkps.append(event.beg)
+
+    leftBkp = max(set(leftBkps), key=leftBkps.count)
+    rightBkp = max(set(rightBkps), key=rightBkps.count)
+
+    # TODO: AQUI ES MEJOR QUITARLO DE LA LISTA QUE HACER UNA LSITA NUEVA, PERO DE MOMENTO VA ASI!
+    newEvents = []
+    # Eliminar los clipping reads que no tengan ese bkp:
+    for event in CLIPPING_cluster.events:
+        if event.clippedSide == 'left':
+            if event.beg == leftBkp:
+                # TODO: AQUI IMAGINO QUE SE PUEDE ELIMINAR EL OBJETO DIRECTAMENTE, EN VEZ DE SACARLO DE LA LISTA!
+                newEvents.append(event)
+        if event.clippedSide == 'right':
+            if event.beg == rightBkp:
+                # TODO: AQUI ES MEJOR QUITARLO DE LA LISTA QUE HACER UNA LSITA NUEVA, PERO DE MOMENTO VA ASI!
+                newEvents.append(event)
+
+    CLIPPING_cluster.events = newEvents
+
+    return leftBkp, rightBkp
+
+
+def makeSeqChain(CLIPPING_cluster, seqSide, indexDb, outDir):
+
+    leftSeq, rightSeq = None, None
+
+    leftClippingEvents = [event for event in CLIPPING_cluster.events if event.clippedSide == 'left']
+    rightClippingEvents = [event for event in CLIPPING_cluster.events if event.clippedSide == 'right']
+
+    if len (leftClippingEvents) > 0:
+
+        leftIntConsensusSeq = clippingConsensusSeq(leftClippingEvents, CLIPPING_cluster.id, 'left', 'INT', indexDb, outDir)
+        leftRefConsensusSeq = clippingConsensusSeq(leftClippingEvents, CLIPPING_cluster.id, 'left', 'REF', indexDb, outDir)
+
+        leftSeq = leftIntConsensusSeq + '<[INT]' + leftRefConsensusSeq
+
+    if len (rightClippingEvents) > 0:
+        rightIntConsensusSeq = clippingConsensusSeq(rightClippingEvents, CLIPPING_cluster.id, 'right', 'INT', indexDb, outDir)
+        rightRefConsensusSeq = clippingConsensusSeq(rightClippingEvents, CLIPPING_cluster.id, 'right', 'REF', indexDb, outDir)
+
+        rightSeq = rightRefConsensusSeq + '[INT]>' + rightIntConsensusSeq
+    
+    return leftSeq, rightSeq
+
+
+def clippingConsensusSeq(clippingEvents, CLIPPING_clusterID, clippedSide, seqSide, indexDb, outDir):
+
+    supportingReadsFasta = clippingSeq(clippingEvents, CLIPPING_clusterID, clippedSide, seqSide, outDir)
+
+    consensusPath, consensusSeq = getConsensus(supportingReadsFasta, outDir)
+
+    # If seq side == INT (pq si es el ref no nos interesa hacer esto)
+    if seqSide == 'INT':
+        PAF_File = getPAF(consensusPath, indexDb, outDir)
+
+    return consensusSeq
+
+
+def clippingSeq(clippingEvents, CLIPPING_clusterID, clippedSide, seqSide, outDir):
+
+    fastaObj = formats.FASTA()
+    fastaDict = {}
+    # Determine bkp
+    for event in clippingEvents:
+        # Si queremos sacar la secuencia del lado de la integracion:
+        if seqSide == 'INT':
+            if clippedSide == 'left': 
+                # cojo la seq desde el principio  hasta el bkp:
+                # TODO MIRAR LO DE MAS UUNO
+                fastaDict[event.readName] = event.readSeq[:event.readBkp]
+            elif clippedSide == 'right': 
+                # cojo seq desde el bkp hasta el final:
+                print (event.readName)
+                print (event.readSeq[event.readBkp:])
+                fastaDict[event.readName] = event.readSeq[event.readBkp:]
+
+        elif seqSide == 'REF':
+            if clippedSide == 'left': 
+                # TODO MIRAR LO DE MAS UUNO
+                fastaDict[event.readName] = event.readSeq[event.readBkp:]
+            elif clippedSide == 'right': 
+                fastaDict[event.readName] = event.readSeq[:event.readBkp]
+        
+        fastaObj.seqDict = fastaDict
+
+    fastaPath = outDir + '/' + str(CLIPPING_clusterID) +'_supportingReads.fa'
+    fastaObj.write(fastaPath)
+
+    return fastaPath
+
+def getConsensus(FASTA_file, outDir):
+
+    ### 2. Make multiple sequence alignment
+    # MIRAR SI ESTO ESTA BIEN
+    msfPath = FASTA_file.replace("fa", "msf")
+    command = 'muscle -in ' + FASTA_file + ' -out ' + msfPath + ' -msf' 
+    status = subprocess.call(command, shell=True)
+
+    ### 3. Generate consensus sequence (cons tool from EMBOSS packagge)
+    consensusPath = FASTA_file.replace("_supportingReads", "_consensus")
+
+    command = 'cons -sequence ' + msfPath + ' -outseq ' + consensusPath + ' -identity 0 -plurality 0'
+    status = subprocess.call(command, shell=True)
+
+    ### Read consensus sequence 
+    consensusFastaObj = formats.FASTA()
+    consensusFastaObj.read(consensusPath)
+    consensusSeq = consensusFastaObj.seqDict["EMBOSS_001"].upper()
+
+    # TODO
+    ### Do cleanup
+    #command = 'rm ' + fastaPath + ' ' + msfPath + ' ' + consensusPath             
+    #os.system(command) # returns the exit status
+
+    ## Replace '-' by 'N' for ambiguous bases:
+    consensusSeq = consensusSeq.replace('-', 'N')
+
+    ## Convert consensus sequence into upper case:
+    consensusSeq = consensusSeq.upper()
+
+    return consensusPath, consensusSeq
+
+def getPAF(FASTA_file, indexDb, outDir):
+    # Alineo el fasta consenso
+    # TODO ponerlo bien
+    PAF_file = FASTA_file.replace("_consensus.FA", "_alignments.paf")
+
+    #err = open(logDir + '/align.err', 'w') 
+    command = 'minimap2 ' + indexDb + ' ' + FASTA_file + ' > ' + PAF_file
+    status = subprocess.call(command, shell=True)
+
+    if status != 0:
+        step = 'ALIGN-INSERT'
+        msg = 'Insert alignment failed' 
+        log.step(step, msg)
+
+    # De aqui sacas el bkp en lo que esta insertado + ¿secuencia? AQUI PUEDES MIRAR SI FALTAN BASES COMO ANTES!
+    
+    return PAF_file

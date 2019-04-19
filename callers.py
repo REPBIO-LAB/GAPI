@@ -691,11 +691,16 @@ class SV_caller_short(SV_caller):
 
         '''
 
+        '''
         dictMetaclustersLEFT = bkp.analizeBkp(metaclustersBinDb, self.viralDb, self.reference, 'LEFT', binDir)
         dictMetaclustersRIGHT = bkp.analizeBkp(metaclustersBinDb, self.viralDb, self.reference, 'RIGHT', binDir)
+
         
         print ('LEFT')
         print (dictMetaclustersLEFT)
 
         print ('RIGHT')
         print (dictMetaclustersRIGHT)
+        '''
+
+        bkp.analizeBkpAddClipping(metaclustersBinDb, self.confDict, self.bam, self.normalBam, self.mode, self.viralDbIndex, binDir)
