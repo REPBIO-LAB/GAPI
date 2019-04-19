@@ -690,8 +690,6 @@ class META_cluster():
         elif mode == "PAIRED":
             clippingEventsDict = bamtools.collectSV_paired(ref, binBeg, binEnd, bam, normalBam, clippingConfDict)
 
-        print (clippingEventsDict)
-
         ## When the discordant cluster is RIGHT, add the biggest right clipping cluster if any:
         if all (event.side == 'PLUS' for event in self.events):
             ## Get clipping clusters:

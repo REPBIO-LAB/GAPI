@@ -33,7 +33,6 @@ def analyzeClipping(clustersBinDb, confDict, bam, normalBam, mode, db, indexDb, 
         # b. Buscar el bkp (punto mas apoyado por los clippings que acabamos de anadir) y quitar aquellos clipping events que no lo soporten
         dictMetaclusters[metacluster]['refLeftBkp'], dictMetaclusters[metacluster]['refRightBkp'] = clippingBkp(CLIPPING_cluster)
 
-        print (dictMetaclusters)
         # c. Hacer las cadenas de secuencias para ambos bkps.
         #dictMetaclusters[metacluster]['leftSeq'], dictMetaclusters[metacluster]['rightSeq'] = makeConsSeqs(CLIPPING_cluster, 'REF', db, indexDb, bkpDir)
         leftRefConsensusSeq = makeConsSeqs(CLIPPING_cluster, 'left', 'REF', db, indexDb, bkpDir)[1]
@@ -63,10 +62,8 @@ def clippingBkp(CLIPPING_cluster):
     rightBkps = []
     for event in CLIPPING_cluster.events:
         if event.clippedSide == 'left':
-            print (event.beg)
             leftBkps.append(event.beg)
         elif event.clippedSide == 'right':
-            print (event.clippedSide)
             rightBkps.append(event.beg)
 
     leftBkp = max(set(leftBkps), key=leftBkps.count)
@@ -114,10 +111,6 @@ def clippingConsensusSeq(clippingEvents, CLIPPING_clusterID, clippedSide, seqSid
     # Consensus from the previous fasta
     consensusPath, consensusSeq = sequences.getConsensusSeq(supportingReadsFasta, outDir)
 
-    # De aqui sacas el bkp en lo que esta insertado + ¿secuencia? AQUI PUEDES MIRAR SI FALTAN BASES COMO ANTES!
-    # If seq side == INT (pq si es el ref no nos interesa hacer esto)
-    print (seqSide)
-
     return consensusPath, consensusSeq
 
 
@@ -138,8 +131,6 @@ def clippingSeq(clippingEvents, CLIPPING_clusterID, clippedSide, seqSide, outDir
                 fastaDict[event.readName] = event.readSeq[:event.readBkp]
             elif clippedSide == 'right': 
                 # cojo seq desde el bkp hasta el final:
-                print (event.readName)
-                print (event.readSeq[event.readBkp:])
                 fastaDict[event.readName] = event.readSeq[event.readBkp:]
 
         elif seqSide == 'REF':

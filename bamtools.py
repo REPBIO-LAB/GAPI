@@ -344,7 +344,6 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
                     ## [SR CHANGE]
                     if leftAdded != "Y" and 'SMS' in confDict['readFilters']: # Y EL FILTRO ESTA ACTIVADO
                         eventsDict['RIGHT-CLIPPING'].append(right_CLIPPING)
-                        print (alignmentObj.query_name)
                     elif 'SMS' not in confDict['readFilters']: # si EL FILTRO NO ESTA ACTIVADO lo meto sin mirar la leftAdded
                         eventsDict['RIGHT-CLIPPING'].append(right_CLIPPING)
 
