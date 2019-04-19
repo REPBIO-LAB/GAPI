@@ -8,6 +8,8 @@ import subprocess
 import log
 import unix
 
+import sequences
+
 
 def analyzeClipping(clustersBinDb, confDict, bam, normalBam, mode, db, indexDb, outDir):
     '''
@@ -49,7 +51,6 @@ def analyzeClipping(clustersBinDb, confDict, bam, normalBam, mode, db, indexDb, 
         dictMetaclusters[metacluster]['intLeftBkp'] =  bkpINT(metacluster, leftIntConsensusPath, db, bkpDir)
         dictMetaclusters[metacluster]['intRightBkp'] = bkpINT(metacluster, rightIntConsensusPath, db, bkpDir)
 
-        print (dictMetaclusters)
         return dictMetaclusters
 
 def clippingBkp(CLIPPING_cluster):
@@ -89,7 +90,7 @@ def clippingBkp(CLIPPING_cluster):
     return leftBkp, rightBkp
 
 
-def makeConsSeqs(CLIPPING_cluster, clippedSide, seqSide,  db, indexDb, outDir):
+def makeConsSeqs(CLIPPING_cluster, clippedSide, seqSide, db, indexDb, outDir):
     '''
     Hacer las cadenas de secuencias para ambos bkps.
     '''
@@ -111,7 +112,7 @@ def clippingConsensusSeq(clippingEvents, CLIPPING_clusterID, clippedSide, seqSid
     supportingReadsFasta = clippingSeq(clippingEvents, CLIPPING_clusterID, clippedSide, seqSide, outDir)
 
     # Consensus from the previous fasta
-    consensusPath, consensusSeq = getConsensus(supportingReadsFasta, outDir)
+    consensusPath, consensusSeq = sequences.getConsensusSeq(supportingReadsFasta, outDir)
 
     # De aqui sacas el bkp en lo que esta insertado + ¿secuencia? AQUI PUEDES MIRAR SI FALTAN BASES COMO ANTES!
     # If seq side == INT (pq si es el ref no nos interesa hacer esto)
@@ -155,54 +156,6 @@ def clippingSeq(clippingEvents, CLIPPING_clusterID, clippedSide, seqSide, outDir
 
     return fastaPath
 
-def getConsensus(FASTA_file, outDir):
-
-    ### 2. Make multiple sequence alignment
-    # MIRAR SI ESTO ESTA BIEN
-    msfPath = FASTA_file.replace("fa", "msf")
-    command = 'muscle -in ' + FASTA_file + ' -out ' + msfPath + ' -msf' 
-    status = subprocess.call(command, shell=True)
-
-    ### 3. Generate consensus sequence (cons tool from EMBOSS packagge)
-    consensusPath = FASTA_file.replace("_supportingReads", "_consensus")
-
-    command = 'cons -sequence ' + msfPath + ' -outseq ' + consensusPath + ' -identity 0 -plurality 0'
-    status = subprocess.call(command, shell=True)
-
-    ### Read consensus sequence 
-    consensusFastaObj = formats.FASTA()
-    consensusFastaObj.read(consensusPath)
-    consensusSeq = consensusFastaObj.seqDict["EMBOSS_001"].upper()
-
-    # TODO
-    ### Do cleanup
-    #command = 'rm ' + fastaPath + ' ' + msfPath + ' ' + consensusPath             
-    #os.system(command) # returns the exit status
-
-    ## Replace '-' by 'N' for ambiguous bases:
-    consensusSeq = consensusSeq.replace('-', 'N')
-
-    ## Convert consensus sequence into upper case:
-    consensusSeq = consensusSeq.upper()
-
-    return consensusPath, consensusSeq
-
-def getPAF(FASTA_file, indexDb, outDir):
-    # Alineo el fasta consenso
-    # TODO ponerlo bien
-    PAF_file = FASTA_file.replace("_consensus.fa", "_alignments.paf")
-
-    #err = open(logDir + '/align.err', 'w') 
-    command = 'minimap2 ' + indexDb + ' ' + FASTA_file + ' > ' + PAF_file
-    status = subprocess.call(command, shell=True)
-
-    if status != 0:
-        step = 'ALIGN-INSERT'
-        msg = 'Insert alignment failed' 
-        log.step(step, msg)
-    
-    return PAF_file
-
 
 def bkpINT(metacluster, consensusPath, db, outDir):
 
@@ -212,22 +165,11 @@ def bkpINT(metacluster, consensusPath, db, outDir):
 
     ###### databases ######    
 
-    PAF_file = getPAF(consensusPath, indexDbSpecificIdentity, outDir)
+    PAF_file = sequences.getPAFAlign(consensusPath, indexDbSpecificIdentity, outDir)
     PAFObj = formats.PAF()
     PAFObj.read(PAF_file)
 
     # DE AQUI SACAMOS LA INFO QUE QUERAMOS DEL VIRUS
     intBkp = [line.tBeg for line in PAFObj.lines][0]
-    for line in PAFObj.lines:
-        print (line.qName)
-        print (line.qLen)
-        print (line.qBeg)
-        print (line.qEnd)
-        print (line.strand)
-        print (line.tName)
-        print (line.tLen)
-        print (line.tBeg)
-        print (line.tEnd)
-        print (line.nbMatches)
 
     return intBkp

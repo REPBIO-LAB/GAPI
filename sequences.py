@@ -277,3 +277,52 @@ class monomer():
         Return monomer length
         '''
         return len(self.seq)
+
+## [SR CHANGE]
+def getConsensusSeq(FASTA_file, outDir):
+
+    ### 2. Make multiple sequence alignment
+    msfPath = FASTA_file.replace("fa", "msf")
+    command = 'muscle -in ' + FASTA_file + ' -out ' + msfPath + ' -msf' 
+    status = subprocess.call(command, shell=True)
+
+    ### 3. Generate consensus sequence (cons tool from EMBOSS packagge)
+    consensusPath = FASTA_file.replace("_supportingReads", "_consensus")
+
+    command = 'cons -sequence ' + msfPath + ' -outseq ' + consensusPath + ' -identity 0 -plurality 0'
+    status = subprocess.call(command, shell=True)
+
+    ### Read consensus sequence 
+    consensusFastaObj = formats.FASTA()
+    consensusFastaObj.read(consensusPath)
+    consensusSeq = consensusFastaObj.seqDict["EMBOSS_001"].upper()
+
+    # TODO
+    ### Do cleanup
+    #command = 'rm ' + fastaPath + ' ' + msfPath + ' ' + consensusPath             
+    #os.system(command) # returns the exit status
+
+    ## Replace '-' by 'N' for ambiguous bases:
+    consensusSeq = consensusSeq.replace('-', 'N')
+
+    ## Convert consensus sequence into upper case:
+    consensusSeq = consensusSeq.upper()
+
+    return consensusPath, consensusSeq
+
+## [SR CHANGE]
+def getPAFAlign(FASTA_file, indexDb, outDir):
+    # Alineo el fasta consenso
+    # TODO ponerlo bien
+    PAF_file = FASTA_file.replace(".fa", "_alignments.paf")
+
+    #err = open(logDir + '/align.err', 'w') 
+    command = 'minimap2 ' + indexDb + ' ' + FASTA_file + ' > ' + PAF_file
+    status = subprocess.call(command, shell=True)
+
+    if status != 0:
+        step = 'ALIGN-INSERT'
+        msg = 'Insert alignment failed' 
+        log.step(step, msg)
+    
+    return PAF_file
