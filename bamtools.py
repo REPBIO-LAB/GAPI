@@ -252,7 +252,8 @@ def collectSV_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict):
 
     return eventsDict
 
-
+## [SR CHANGE]: rm duplicates as option
+# TODO: PONERLA BIEN EN EL CONFIG
 def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
     '''
     Collect structural variant (SV) events in a genomic bin from a bam file
@@ -318,8 +319,15 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
         # - Mapping quality < threshold
         MAPQ = int(alignmentObj.mapping_quality)
 
-        if (alignmentObj.is_unmapped == False) and (alignmentObj.is_duplicate == False) and (alignmentObj.query_sequence != None) and (MAPQ >= confDict['minMAPQ']):
-                                
+        ## [SR CHANGE IMPORTANTE!!!!!]
+        '''
+        EJEMPLO
+        ESTE READ:  HWI-ST672:129:D0DF0ACXX:7:2307:1853:126943 (BIN: 2_105457202_105457974, SAMPLE: RK107, MODE: SINGLE)
+        Es duplicado, pero es que resulta que un duplicado esta map y el otro no, entonces no la coge de ninguna de las maneras y no funciona lo demas!
+        '''
+        #if (alignmentObj.is_unmapped == False) and (alignmentObj.is_duplicate == False) and (alignmentObj.query_sequence != None) and (MAPQ >= confDict['minMAPQ']):
+        if (alignmentObj.is_unmapped == False) and (alignmentObj.query_sequence != None) and (MAPQ >= confDict['minMAPQ']):
+         
             ## 1. Collect CLIPPINGS
             if 'CLIPPING' in confDict['targetSV']:
 
@@ -594,45 +602,3 @@ def collectMateSeq(event, bam, checkUnmapped, maxMAPQ):
                 else:
                     if MAPQ < maxMAPQ:
                         event.mateSeq = alignmentObjMate.query_sequence
-
-
-## [SR CHANGE]
-# FUNTION FOR COLLECTING CLIPPING READS WITHIN AN AREA: TO USE LATER ON!
-def supportingCLIPPING(clustersBinDb, confDict, bam, normalBam):
-    '''
-    Look for clipping reas within the region of the existing discordant clusters. 
-    It doesn't return anything
-    Take into account that discordant and clipped reads could be duplicated!!
-    '''
-
-    clusterTypes = ['METACLUSTERS']
-    clusters = clustersBinDb.collect(clusterTypes)
-
-    tempClippingDict = {}
-    CLIPPINGEventsDict = {}
-    CLIPPINGEventsDict['LEFT-CLIPPING'] = []
-    CLIPPINGEventsDict['RIGHT-CLIPPING'] = []
-
-    ## For each cluster
-    for DISCORDANT_cluster in clusters:
-        
-        ## Define region
-        ref = DISCORDANT_cluster.ref
-        binBeg = DISCORDANT_cluster.beg
-        binEnd = DISCORDANT_cluster.end
-
-        # Collect CLIPPING
-        if normalBam == None:
-            tempClippingDict = collectSV(ref, binBeg, binEnd, bam, confDict, None)
-            if tempClippingDict['LEFT-CLIPPING'] != []:
-                CLIPPINGEventsDict['LEFT-CLIPPING'].extend(tempClippingDict['LEFT-CLIPPING'])
-            if tempClippingDict['RIGHT-CLIPPING'] != []:
-                CLIPPINGEventsDict['RIGHT-CLIPPING'].extend(tempClippingDict['RIGHT-CLIPPING'])
-        else:
-            tempClippingDict = collectSV_paired(ref, binBeg, binEnd, bam, normalBam, confDict)
-            if tempClippingDict['LEFT-CLIPPING'] != []:
-                CLIPPINGEventsDict['LEFT-CLIPPING'].extend(tempClippingDict['LEFT-CLIPPING'])
-            if tempClippingDict['RIGHT-CLIPPING'] != []:
-                CLIPPINGEventsDict['RIGHT-CLIPPING'].extend(tempClippingDict['RIGHT-CLIPPING'])
-    
-    return CLIPPINGEventsDict

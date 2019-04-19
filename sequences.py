@@ -218,7 +218,6 @@ def aligmentMaxNbMatches(FASTA_file, db, PAF_file, outDir):
     '''
 
     # DESILENCIAAAAAR!!!
-    '''
     # TODO: append en el error!
     err = open(outDir + '/identifyMate.err', 'w')
     command = 'minimap2 ' + db + ' ' + FASTA_file + ' > ' + PAF_file
@@ -228,7 +227,6 @@ def aligmentMaxNbMatches(FASTA_file, db, PAF_file, outDir):
         step = 'IDENTIFY MATE SEQ'
         msg = 'Identify mate sequence failed' 
         log.step(step, msg)
-        '''
         
 
 

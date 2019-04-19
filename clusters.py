@@ -573,13 +573,9 @@ class META_cluster():
         nbTotal = len(self.events)
 
         return nbTotal, nbTumour, nbNormal
-
+    '''
     def supportingCLIPPING(self, buffer, confDict, bam, normalBam, mode):
-        '''
-        Look for clipping reas within the region of the existing discordant clusters. 
-        It doesn't return anything
-        Take into account that discordant and clipped reads could be duplicated!!
-        '''
+        
 
         clippingEventsDict = {}
         clippingEventsDict['RIGHT-CLIPPING'] = []
@@ -599,6 +595,7 @@ class META_cluster():
         ref = self.ref
 
         if normalBam != None:
+            print  ('HOLAAAAAAA')
             sample = 'NORMAL'
             ## If there is normal bam:
             normalBamFile = pysam.AlignmentFile(normalBam, "rb")
@@ -655,7 +652,68 @@ class META_cluster():
         else:
             CLIPPING_cluster = self.add_clippingEvents(ref, binBeg, binEnd, clippingEventsDict, ['RIGHT-CLIPPING', 'LEFT-CLIPPING'], confDict)
 
+        for event in CLIPPING_cluster.events:
+            print (event.readName)
+            print (event.beg)
+            print (event.end)
+            print (event.readSeq)
+            print (event.sample)
         return CLIPPING_cluster
+        '''
+        
+     
+    def supportingCLIPPING(self, buffer, confDict, bam, normalBam, mode):
+        # ESTA FUNCIONA PER EN EL CLIPPING TIENES QUE PERMITIR LOS DUPLICATES!!!!!!
+
+
+        # Hago un dict especial para llamar solo a collect clipping
+        clippingConfDict = confDict
+        clippingConfDict['targetSV'] = ['CLIPPING']
+        clippingConfDict['minMAPQ'] = 0
+
+        clippingEventsDict = {}
+
+        ## Define region
+        if self.beg > buffer:
+            binBeg = self.beg - buffer
+
+        else:
+            binBeg = self.beg
+        
+        # TODO check as above
+        binEnd = self.end
+
+        ref = self.ref
+
+        if mode == "SINGLE":
+            clippingEventsDict = bamtools.collectSV(ref, binBeg, binEnd, bam, clippingConfDict, None)
+        elif mode == "PAIRED":
+            clippingEventsDict = bamtools.collectSV_paired(ref, binBeg, binEnd, bam, normalBam, clippingConfDict)
+
+        print (clippingEventsDict)
+
+        ## When the discordant cluster is RIGHT, add the biggest right clipping cluster if any:
+        if all (event.side == 'PLUS' for event in self.events):
+            ## Get clipping clusters:
+            clippingRightEventsDict = dict((key,value) for key, value in clippingEventsDict.items() if key == 'RIGHT-CLIPPING')
+            CLIPPING_cluster = self.add_clippingEvents(ref, binBeg, binEnd, clippingRightEventsDict, ['RIGHT-CLIPPING'], confDict)
+
+        ## When the discordant cluster is LEFT, add the biggest left clipping cluster if any:
+        elif all (event.side == 'MINUS' for event in self.events):
+            ## Get clipping clusters:
+            clippingLeftEventsDict = dict((key,value) for key, value in clippingEventsDict.items() if key == 'LEFT-CLIPPING')
+            CLIPPING_cluster = self.add_clippingEvents(ref, binBeg, binEnd, clippingLeftEventsDict, ['LEFT-CLIPPING'], confDict)
+
+        # TODO si es reciproco:
+        else:
+            CLIPPING_cluster = self.add_clippingEvents(ref, binBeg, binEnd, clippingEventsDict, ['RIGHT-CLIPPING', 'LEFT-CLIPPING'], confDict)
+
+        for event in CLIPPING_cluster.events:
+            print (event.readName)
+            print (event.readSeq)
+        return CLIPPING_cluster
+        
+
 
     def add_clippingEvents(self, ref, binBeg, binEnd, clippingEventsDict, eventTypes, confDict):
         binSizes = [100, 1000]
