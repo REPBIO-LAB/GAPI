@@ -10,6 +10,9 @@ import subprocess
 # Internal
 import formats
 
+## [SR CHANGE]
+import log
+
 
 ## FUNCTIONS ##
 def rev_complement(seq):

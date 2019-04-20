@@ -179,9 +179,6 @@ def create_metaclusters(eventsBinDb, confDict, bam, normalBam, mode):
         #CLIPPING_cluster = metacluster.supportingCLIPPING(1, confDict, bam, normalBam, mode)
         #bkp.clippingBkp(CLIPPING_cluster)
 
-        if mode == 'PAIRED':
-            metacluster.setIntOrigin()
-
         print('METACLUSTER ADDED: ', str(metacluster) +' '+ str(len(metacluster.events)) +' '+ str(metacluster.ref) +' '+ str(metacluster.beg) +' '+ str(metacluster.end) +' '+ str(metacluster.intOrigin))
         # [SR CHANGE]:
         for event in metacluster.events:

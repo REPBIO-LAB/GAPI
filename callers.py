@@ -703,6 +703,6 @@ class SV_caller_short(SV_caller):
         print (dictMetaclustersRIGHT)
         '''
 
-        dictMetaclusters = bkp.analyzeClipping(metaclustersBinDb, self.confDict, self.bam, self.normalBam, self.mode, self.viralDb, self.viralDbIndex, binDir)
+        dictMetaclusters = bkp.analyzeMetaclusters(metaclustersBinDb, self.confDict, self.bam, self.normalBam, self.mode, self.viralDb, self.viralDbIndex, binDir)
 
         print (dictMetaclusters)

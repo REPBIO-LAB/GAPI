@@ -12,7 +12,7 @@ import sequences
 import assembly
 
 
-def analyzeClipping(clustersBinDb, confDict, bam, normalBam, mode, db, indexDb, outDir):
+def analyzeMetaclusters(clustersBinDb, confDict, bam, normalBam, mode, db, indexDb, outDir):
     '''
     1. Por cada evento en la BinDB (en este caso especificamente por cada metacluster)
     a. Anadir supporting clipping al metacluster de discordant.
@@ -23,6 +23,11 @@ def analyzeClipping(clustersBinDb, confDict, bam, normalBam, mode, db, indexDb, 
     dictMetaclusters = {}
 
     for metacluster in clustersBinDb.collect(['METACLUSTERS']):
+
+        # Set origin
+        if mode == 'PAIRED':
+            metacluster.setIntOrigin()
+
         dictMetaclusters[metacluster] = {}
 
         bkpDir = outDir + '/' + metacluster.ref + '_' + str(metacluster.beg) + '_' + str(metacluster.end)
