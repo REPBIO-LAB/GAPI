@@ -37,7 +37,7 @@ def analyzeMetaclusters(clustersBinDb, confDict, bam, normalBam, mode, db, index
         unix.mkdir(bkpDir)
 
         # a. Anadir supporting clipping al metacluster de discordant.
-        CLIPPING_cluster = metacluster.supportingCLIPPING(1, confDict, bam, normalBam, mode)
+        CLIPPING_cluster = metacluster.supportingCLIPPING(100, confDict, bam, normalBam, mode)
 
         # b. Buscar el bkp (punto mas apoyado por los clippings que acabamos de anadir) y quitar aquellos clipping events que no lo soporten
         dictMetaclusters[metacluster]['refLeftBkp'], dictMetaclusters[metacluster]['refRightBkp'] = clippingBkp(CLIPPING_cluster)
