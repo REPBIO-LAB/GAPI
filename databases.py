@@ -142,6 +142,7 @@ def buildIdentityDb(metacluster, db, outDir):
     # TODO
     # ponerlo bien
     #err = open(logDir + '/index.err', 'w')
+    '''
     command = 'minimap2 -k 10 -w 1 -d ' + indexDbSpecificIdentity + ' ' + dbSpecificIdentity 
     status = subprocess.call(command, shell=True)
 
@@ -149,5 +150,6 @@ def buildIdentityDb(metacluster, db, outDir):
         step = 'BUILD-VIRUS-DATABASE'
         msg = 'Database indexing failed' 
         log.step(step, msg)
+        '''
 
     return indexDbSpecificIdentity

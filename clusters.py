@@ -674,11 +674,7 @@ class META_cluster():
         clippingEventsDict = {}
 
         ## Define region
-        if self.beg > buffer:
-            binBeg = self.beg - buffer
-
-        else:
-            binBeg = self.beg
+        binBeg = self.beg - buffer if self.beg > buffer else 0
         
         # TODO check as above
         binEnd = self.end
