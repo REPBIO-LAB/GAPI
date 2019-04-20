@@ -166,27 +166,9 @@ def create_metaclusters(eventsBinDb, confDict, bam, normalBam, mode):
         # metaclusters = clustering.reciprocal_clustering()
         # allMetaclusters = allMetaclusters + metaclusters
 
-
-    for metacluster in allMetaclusters:
-        # [SR CHANGE]:
+    ## [SR CHANGE]:
+    #for metacluster in allMetaclusters:
         #print('METACLUSTER: ', metacluster, len(metacluster.events), [(clusterType, len(subcluster.events)) for clusterType, subcluster in metacluster.subclusters.items()])
-        # [SR CHANGE]:
-        print('METACLUSTER: ', str(metacluster) +' '+ str(len(metacluster.events)) +' '+ str(metacluster.ref) +' '+ str(metacluster.beg) +' '+ str(metacluster.end) +' '+ str(metacluster.intOrigin))
-        # [SR CHANGE]:
-        for event in metacluster.events:
-                #print (str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.identity) + ' ' + str(event.side))
-                print (str(metacluster) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type))
-        #CLIPPING_cluster = metacluster.supportingCLIPPING(1, confDict, bam, normalBam, mode)
-        #bkp.clippingBkp(CLIPPING_cluster)
-
-        print('METACLUSTER ADDED: ', str(metacluster) +' '+ str(len(metacluster.events)) +' '+ str(metacluster.ref) +' '+ str(metacluster.beg) +' '+ str(metacluster.end) +' '+ str(metacluster.intOrigin))
-        # [SR CHANGE]:
-        for event in metacluster.events:
-                if event.type == 'DISCORDANT':
-                    print (str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.identity) + ' ' + str(event.side) + ' ' + str(event.sample))
-                else:
-                    print (str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' None ' + str(event.clippedSide) + ' ' + str(event.sample))
-
 
     ## 3. Organize metaclusters into bins ##    
     binSizes = [100, 1000, 10000, 100000, 1000000]

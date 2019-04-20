@@ -158,24 +158,28 @@ class SV_caller_short(SV_caller):
         # Genomic bins will be distributed into X processes
         # TODO: mirar que pasa cuando tienes 2 dictionarios
         pool = mp.Pool(processes=self.confDict['processes'])
-        dictMetaclusters = pool.map(self.make_clusters_bin, bins)
+        metaclustersList = pool.map(self.make_clusters_bin, bins)
         pool.close()
         pool.join()
 
-        print ('FINAAAAL')
-        print (dictMetaclusters)
-
-        ### 4. Report clusters into output file
-        # Create dictionary containing clusters 
-        #clusters = {}
-        #clusters['MINUS-DISCORDANT-CLUSTER'] = minus_DISCORDANT_clusters 
-        #clusters['PLUS-DISCORDANT-CLUSTER']= plus_DISCORDANT_clusters
+        '''
+        for dictMetacluster in metaclustersList:
+            for metacluster,d2 in dictMetacluster.items():
+                print('METACLUSTER: ', str(metacluster) +' '+ str(len(metacluster.events)) +' '+ str(metacluster.ref) +' '+ str(metacluster.beg) +' '+ str(metacluster.end) +' '+ str(metacluster.intOrigin))
+                for event in metacluster.events:
+                        if event.type == 'DISCORDANT':
+                            print (str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.identity) + ' ' + str(event.side) + ' ' + str(event.sample))
+                        else:
+                            print (str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' None ' + str(event.clippedSide) + ' ' + str(event.sample))
+                for k,v in d2.items():
+                    print (str(k) + ' = ' + str(v))   
+                    '''     
     
-        # Write clusters
-        #output.writeClusters(clusters, self.outDir)
+        # Write metaclusters
+        output.writeMetaclusters(metaclustersList, self.outDir)
 
         ### 5. Do cleanup
-        unix.rm([dbDir])
+        #unix.rm([dbDir])
 
     def make_clusters_bin(self, window):
         '''
@@ -708,7 +712,7 @@ class SV_caller_short(SV_caller):
         dictMetaclusters = bkp.analyzeMetaclusters(metaclustersBinDb, self.confDict, self.bam, self.normalBam, self.mode, self.viralDb, self.viralDbIndex, binDir)
 
         ### Do cleanup
-        unix.rm([binDir])
+        #unix.rm([binDir])
 
         return dictMetaclusters
 
