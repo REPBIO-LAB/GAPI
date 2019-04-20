@@ -2,6 +2,9 @@
 Module 'filters' - Contains functions for filtering clusters
 '''
 
+## [SR CHANGE]
+import pysam
+
 ###############
 ## FUNCTIONS ##
 ###############
@@ -21,8 +24,10 @@ def filterClusters(clusters, clusterType, confDict, tumourBam):
     ## Get a list containing the filters to apply
     filters2Apply = confDict['clusterFilters'].split(',')
 
+    ## [SR CHANGE] collect cluster types
+    clusterTypes = clusters.collectEventTypes()
     ## For each cluster
-    for cluster in clusters.collect(clusterType):
+    for cluster in clusters.collect(clusterTypes):
         
         ## a) Filter INS cluster
         if (clusterType == 'INS-CLUSTER'):
@@ -46,6 +51,9 @@ def filterClusters(clusters, clusterType, confDict, tumourBam):
         else:
             log.info('Error at \'filterClusters\'. Unexpected cluster type')
             sys.exit(1)
+        
+        print ('CLUSTER FILTEEEEERS')
+        print (cluster.filters)
 
 def filterINS(cluster, filters2Apply, confDict):
     '''
@@ -215,21 +223,23 @@ def area(cluster,confDict,bam):
 
     for alignmentObj in iterator:
         
-        # Check if aligment pass minimum mapq for reads within the cluster region
-        passMAPQ = areaMAPQ(alignmentObj, minReadsRegionMQ)
-
-        # If it doesnt pass, add 1 to the counts of low mapping quality reads within the cluster region
-        if passMAPQ == False:
-            lowMAPQ += 1
-
-        # Check if aligment is mapped this way: Soft Match Soft (SMS)
-        SMSRead = areaSMS(alignmentObj)
+        if alignmentObj.cigartuples != None:
         
-        # If it is mapped SMS, add 1 to the counts of SMS reads within the cluster region
-        if SMSRead == True:
-            SMSReads += 1
-        # Count total number of reads in the region
-        nbReads += 1
+            # Check if aligment pass minimum mapq for reads within the cluster region
+            passMAPQ = areaMAPQ(alignmentObj, minReadsRegionMQ)
+
+            # If it doesnt pass, add 1 to the counts of low mapping quality reads within the cluster region
+            if passMAPQ == False:
+                lowMAPQ += 1
+
+            # Check if aligment is mapped this way: Soft Match Soft (SMS)
+            SMSRead = areaSMS(alignmentObj)
+            
+            # If it is mapped SMS, add 1 to the counts of SMS reads within the cluster region
+            if SMSRead == True:
+                SMSReads += 1
+            # Count total number of reads in the region
+            nbReads += 1
     
     ## Calculate percentages
     percMAPQ = fraction(lowMAPQ, nbReads)
