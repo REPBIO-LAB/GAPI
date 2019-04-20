@@ -56,6 +56,9 @@ def analyzeMetaclusters(clustersBinDb, confDict, bam, normalBam, mode, db, index
         dictMetaclusters[metacluster]['intLeftBkp'] =  bkpINT(metacluster, leftIntConsensusPath, db, bkpDir)
         dictMetaclusters[metacluster]['intRightBkp'] = bkpINT(metacluster, rightIntConsensusPath, db, bkpDir)
 
+        ### Do cleanup
+        unix.rm([bkpDir])
+
         return dictMetaclusters
 
 def clippingBkp(CLIPPING_cluster):
