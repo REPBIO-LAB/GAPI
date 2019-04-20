@@ -11,6 +11,9 @@ import log
 import sequences
 import filters
 
+## [SR CHANGE]
+import os
+
 def is_virusSR(events, tumourBam, normalBam, outDir, viralDb):
     '''
     '''
@@ -57,6 +60,9 @@ def identifySequence(events, outDir, viralDb):
             # Perform aligment
             aligmentMaxNbMatches = sequences.aligmentMaxNbMatches(FASTA_file, viralDb, PAF_file, outDir)
 
+            command = 'rm ' + FASTA_file               
+            os.system(command) 
+
             if aligmentMaxNbMatches != None:
 
                 # Require a minimum percentage of aligment
@@ -82,6 +88,10 @@ def identifySequence(events, outDir, viralDb):
                         eventsIdentityDict[eventTypeIdentity] = []
 
                     eventsIdentityDict[eventTypeIdentity].append(event)
+
+            ## DESILENCIAAAAR!
+            #command = 'rm ' + PAF_file               
+            #os.system(command) 
     
     ## TODO: Do cleanup
 
