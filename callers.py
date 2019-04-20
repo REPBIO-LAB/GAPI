@@ -275,6 +275,9 @@ class SV_caller_short(SV_caller):
         ## 5. Group discordant events into clusters based on their identity ##
         discordantClustersDict = clusters.create_discordantClusters(eventsBinDb, self.confDict)
 
+        print ('ANTERIOR discordantClustersDict')
+        print (discordantClustersDict)
+
         discordantClustersBinDb = structures.create_bin_database(ref, beg, end, discordantClustersDict, binSizes)
         
         '''
@@ -407,6 +410,14 @@ class SV_caller_short(SV_caller):
 
         filters.filterClusters(discordantClustersBinDb, ['DISCORDANT'], self.confDict, self.bam)
 
+        ## Remove those clusters that fail in one or more filters
+        newDiscordantClustersDict = filters.applyFilters(discordantClustersBinDb)
+
+        # vuelvo a hacer la bindb que contiene ya solo los clusters que pasaron los filtros
+        discordantClustersBinDb = structures.create_bin_database(ref, beg, end, newDiscordantClustersDict, binSizes)
+
+        print ('NUEVO newDiscordantClustersDict')
+        print (newDiscordantClustersDict)
         ## 7. Making reciprocal clusters ##
         # TODO: AJUSTAR ESTOS PARAMETROS!!! (PASARLOS SI ESO COMO OPCION EN LOS ARGUMENTOS)
         reciprocalEventsDict = clustering.reciprocal(discordantClustersBinDb, 1, 1, 300)

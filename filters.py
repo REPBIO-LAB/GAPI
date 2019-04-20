@@ -51,9 +51,23 @@ def filterClusters(clusters, clusterType, confDict, tumourBam):
         else:
             log.info('Error at \'filterClusters\'. Unexpected cluster type')
             sys.exit(1)
-        
-        print ('CLUSTER FILTEEEEERS')
-        print (cluster.filters)
+
+## [SR CHANGE]
+def applyFilters(clusters):
+    '''
+    Remove those clusters that fail in one or more filters
+    '''
+    newClusterDict = {}
+    clusterTypes = clusters.collectEventTypes()
+    ## TODO: aqui seria mejor qitarlo de la lista en vez de hacer una nueva
+    ## TODO: aqui mirar de coger el clusterType de otra manera sin tener que hacer dos loops:
+    for clusterType in clusterTypes:
+        for cluster in clusters.collect([clusterType]):
+            newClusterDict[clusterType]=[]
+            if False not in [value for value in cluster.filters.values()]:
+                newClusterDict[clusterType].append(cluster)
+
+    return newClusterDict
 
 def filterINS(cluster, filters2Apply, confDict):
     '''
