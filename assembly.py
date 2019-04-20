@@ -142,11 +142,6 @@ def getConsensusSeq(FASTA_file, outDir):
             consensusFastaObj.read(consensusPath)
             consensusSeq = consensusFastaObj.seqDict["EMBOSS_001"].upper()
 
-            # TODO
-            ### Do cleanup
-            #command = 'rm ' + fastaPath + ' ' + msfPath + ' ' + consensusPath             
-            #os.system(command) # returns the exit status
-
             ## Replace '-' by 'N' for ambiguous bases:
             consensusSeq = consensusSeq.replace('-', 'N')
 

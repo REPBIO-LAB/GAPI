@@ -179,7 +179,7 @@ class SV_caller_short(SV_caller):
         output.writeMetaclusters(metaclustersList, self.outDir)
 
         ### 5. Do cleanup
-        #unix.rm([dbDir])
+        unix.rm([dbDir])
 
     def make_clusters_bin(self, window):
         '''
@@ -718,7 +718,7 @@ class SV_caller_short(SV_caller):
         dictMetaclusters = bkp.analyzeMetaclusters(metaclustersBinDb, self.confDict, self.bam, self.normalBam, self.mode, self.viralDb, self.viralDbIndex, binDir)
 
         ### Do cleanup
-        #unix.rm([binDir])
+        unix.rm([binDir])
 
         return dictMetaclusters
 
