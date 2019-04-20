@@ -124,34 +124,35 @@ def racon(reads, technology, quality, outDir):
 ## [SR CHANGE]
 def getConsensusSeq(FASTA_file, outDir):
 
-    ### 2. Make multiple sequence alignment
-    msfPath = FASTA_file.replace("fa", "msf")
-    command = 'muscle -in ' + FASTA_file + ' -out ' + msfPath + ' -msf' 
-    status = subprocess.call(command, shell=True)
+    if not os.stat(FASTA_file).st_size == 0:
+        ### 2. Make multiple sequence alignment
+        msfPath = FASTA_file.replace("fa", "msf")
+        command = 'muscle -in ' + FASTA_file + ' -out ' + msfPath + ' -msf' 
+        status = subprocess.call(command, shell=True)
 
-    ### 3. Generate consensus sequence (cons tool from EMBOSS packagge)
-    consensusPath = FASTA_file.replace("_supportingReads", "_consensus")
+        ### 3. Generate consensus sequence (cons tool from EMBOSS packagge)
+        consensusPath = FASTA_file.replace("_supportingReads", "_consensus")
 
-    command = 'cons -sequence ' + msfPath + ' -outseq ' + consensusPath + ' -identity 0 -plurality 0'
-    status = subprocess.call(command, shell=True)
+        command = 'cons -sequence ' + msfPath + ' -outseq ' + consensusPath + ' -identity 0 -plurality 0'
+        status = subprocess.call(command, shell=True)
 
-    if not os.stat(consensusPath).st_size == 0:
-        ### Read consensus sequence 
-        consensusFastaObj = formats.FASTA()
-        consensusFastaObj.read(consensusPath)
-        consensusSeq = consensusFastaObj.seqDict["EMBOSS_001"].upper()
+        if not os.stat(consensusPath).st_size == 0:
+            ### Read consensus sequence 
+            consensusFastaObj = formats.FASTA()
+            consensusFastaObj.read(consensusPath)
+            consensusSeq = consensusFastaObj.seqDict["EMBOSS_001"].upper()
 
-        # TODO
-        ### Do cleanup
-        #command = 'rm ' + fastaPath + ' ' + msfPath + ' ' + consensusPath             
-        #os.system(command) # returns the exit status
+            # TODO
+            ### Do cleanup
+            #command = 'rm ' + fastaPath + ' ' + msfPath + ' ' + consensusPath             
+            #os.system(command) # returns the exit status
 
-        ## Replace '-' by 'N' for ambiguous bases:
-        consensusSeq = consensusSeq.replace('-', 'N')
+            ## Replace '-' by 'N' for ambiguous bases:
+            consensusSeq = consensusSeq.replace('-', 'N')
 
-        ## Convert consensus sequence into upper case:
-        consensusSeq = consensusSeq.upper()
-    else:
-        consensusSeq = None
+            ## Convert consensus sequence into upper case:
+            consensusSeq = consensusSeq.upper()
+        else:
+            consensusSeq = None
 
     return consensusPath, consensusSeq
