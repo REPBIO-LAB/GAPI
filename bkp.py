@@ -24,6 +24,9 @@ def analyzeMetaclusters(clustersBinDb, confDict, bam, normalBam, mode, db, index
 
     for metacluster in clustersBinDb.collect(['METACLUSTERS']):
 
+        leftIntConsensusSeq = None
+        rightIntConsensusSeq = None
+
         # Set origin
         if mode == 'PAIRED':
             metacluster.setIntOrigin()
@@ -47,14 +50,21 @@ def analyzeMetaclusters(clustersBinDb, confDict, bam, normalBam, mode, db, index
         leftIntConsensusPath, leftIntConsensusSeq = makeConsSeqs(CLIPPING_cluster, 'left', 'INT', db, indexDb, bkpDir)
         rightIntConsensusPath, rightIntConsensusSeq = makeConsSeqs(CLIPPING_cluster, 'right', 'INT', db, indexDb, bkpDir)
 
-        leftSeq = leftIntConsensusSeq + '<[INT]' + leftRefConsensusSeq
-        rightSeq = rightRefConsensusSeq + '[INT]>' + rightIntConsensusSeq
+        if leftIntConsensusSeq != None:
+            leftSeq = leftIntConsensusSeq + '<[INT]' + leftRefConsensusSeq
+        else:
+            leftSeq = None
+        if rightIntConsensusSeq != None:
+            rightSeq = rightRefConsensusSeq + '[INT]>' + rightIntConsensusSeq
+        else:
+            rightSeq = None
 
         dictMetaclusters[metacluster]['leftSeq'], dictMetaclusters[metacluster]['rightSeq'] = leftSeq, rightSeq
 
-
-        dictMetaclusters[metacluster]['intLeftBkp'] =  bkpINT(metacluster, leftIntConsensusPath, db, bkpDir)
-        dictMetaclusters[metacluster]['intRightBkp'] = bkpINT(metacluster, rightIntConsensusPath, db, bkpDir)
+        if leftIntConsensusPath != None:
+            dictMetaclusters[metacluster]['intLeftBkp'] =  bkpINT(metacluster, leftIntConsensusPath, db, bkpDir)
+        if rightIntConsensusPath != None:
+            dictMetaclusters[metacluster]['intRightBkp'] = bkpINT(metacluster, rightIntConsensusPath, db, bkpDir)
 
         ### Do cleanup
         #unix.rm([bkpDir])
@@ -75,8 +85,10 @@ def clippingBkp(CLIPPING_cluster):
         elif event.clippedSide == 'right':
             rightBkps.append(event.beg)
 
-    leftBkp = max(set(leftBkps), key=leftBkps.count)
-    rightBkp = max(set(rightBkps), key=rightBkps.count)
+    if len(leftBkps) > 0:
+        leftBkp = max(set(leftBkps), key=leftBkps.count)
+    if len(rightBkps) > 0:
+        rightBkp = max(set(rightBkps), key=rightBkps.count)
 
     # TODO: AQUI ES MEJOR QUITARLO DE LA LISTA QUE HACER UNA LSITA NUEVA, PERO DE MOMENTO VA ASI!
     newEvents = []
@@ -100,7 +112,7 @@ def makeConsSeqs(CLIPPING_cluster, clippedSide, seqSide, db, indexDb, outDir):
     '''
     Hacer las cadenas de secuencias para ambos bkps.
     '''
-
+    consensusPath = None
     consensusSeq = None
 
     clippingEvents = [event for event in CLIPPING_cluster.events if event.clippedSide == clippedSide]
@@ -169,7 +181,10 @@ def bkpINT(metacluster, consensusPath, db, outDir):
     PAFObj = formats.PAF()
     PAFObj.read(PAF_file)
 
-    # DE AQUI SACAMOS LA INFO QUE QUERAMOS DEL VIRUS
-    intBkp = [line.tBeg for line in PAFObj.lines][0]
+    if not os.stat(PAF_file).st_size == 0:
+        # DE AQUI SACAMOS LA INFO QUE QUERAMOS DEL VIRUS
+        intBkp = [line.tBeg for line in PAFObj.lines][0]
+    else:
+        intBkp = None
 
     return intBkp

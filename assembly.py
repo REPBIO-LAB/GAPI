@@ -11,6 +11,7 @@ import log
 import formats
 import unix
 import alignment
+import os
 
 ## FUNCTIONS ##
 
@@ -134,20 +135,23 @@ def getConsensusSeq(FASTA_file, outDir):
     command = 'cons -sequence ' + msfPath + ' -outseq ' + consensusPath + ' -identity 0 -plurality 0'
     status = subprocess.call(command, shell=True)
 
-    ### Read consensus sequence 
-    consensusFastaObj = formats.FASTA()
-    consensusFastaObj.read(consensusPath)
-    consensusSeq = consensusFastaObj.seqDict["EMBOSS_001"].upper()
+    if not os.stat(consensusPath).st_size == 0:
+        ### Read consensus sequence 
+        consensusFastaObj = formats.FASTA()
+        consensusFastaObj.read(consensusPath)
+        consensusSeq = consensusFastaObj.seqDict["EMBOSS_001"].upper()
 
-    # TODO
-    ### Do cleanup
-    #command = 'rm ' + fastaPath + ' ' + msfPath + ' ' + consensusPath             
-    #os.system(command) # returns the exit status
+        # TODO
+        ### Do cleanup
+        #command = 'rm ' + fastaPath + ' ' + msfPath + ' ' + consensusPath             
+        #os.system(command) # returns the exit status
 
-    ## Replace '-' by 'N' for ambiguous bases:
-    consensusSeq = consensusSeq.replace('-', 'N')
+        ## Replace '-' by 'N' for ambiguous bases:
+        consensusSeq = consensusSeq.replace('-', 'N')
 
-    ## Convert consensus sequence into upper case:
-    consensusSeq = consensusSeq.upper()
+        ## Convert consensus sequence into upper case:
+        consensusSeq = consensusSeq.upper()
+    else:
+        consensusSeq = None
 
     return consensusPath, consensusSeq
