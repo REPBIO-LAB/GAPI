@@ -7,8 +7,9 @@ import os
 import subprocess
 import log
 import unix
-
+## [SR CHANGE]
 import sequences
+import assembly
 
 
 def analyzeClipping(clustersBinDb, confDict, bam, normalBam, mode, db, indexDb, outDir):
@@ -109,7 +110,7 @@ def clippingConsensusSeq(clippingEvents, CLIPPING_clusterID, clippedSide, seqSid
     supportingReadsFasta = clippingSeq(clippingEvents, CLIPPING_clusterID, clippedSide, seqSide, outDir)
 
     # Consensus from the previous fasta
-    consensusPath, consensusSeq = sequences.getConsensusSeq(supportingReadsFasta, outDir)
+    consensusPath, consensusSeq = assembly.getConsensusSeq(supportingReadsFasta, outDir)
 
     return consensusPath, consensusSeq
 
