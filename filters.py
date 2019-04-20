@@ -232,8 +232,8 @@ def area(cluster,confDict,bam):
         nbReads += 1
     
     ## Calculate percentages
-    percMAPQ = percentage(lowMAPQ, nbReads)
-    percSMSReads = percentage(SMSReads, nbReads)
+    percMAPQ = fraction(lowMAPQ, nbReads)
+    percSMSReads = fraction(SMSReads, nbReads)
 
     ## If the percentage of low MQ reads is lower than the threshold pass the filter.
     if percMAPQ < float(maxRegionlowMQ):
@@ -299,7 +299,7 @@ def areaSMS(alignmentObj):
     return SMSRead
 
 ## TODO: WHERE CAN WE PUT THIS FUNCTION??
-def percentage(counts, total):
+def fraction(counts, total):
     
     ## Percentage of SMS reads
     if counts > 0:

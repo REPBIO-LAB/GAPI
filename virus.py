@@ -9,6 +9,7 @@ import bamtools
 import formats
 import log
 import sequences
+import filters
 
 def is_virusSR(events, tumourBam, normalBam, outDir, viralDb):
     '''
@@ -58,23 +59,33 @@ def identifySequence(events, outDir, viralDb):
 
             if aligmentMaxNbMatches != None:
 
-                # TODO: Require a minimum percentage of aligment
+                # Require a minimum percentage of aligment
+                lenAlig = abs(aligmentMaxNbMatches.qEnd - aligmentMaxNbMatches.qBeg)
 
-                identity = aligmentMaxNbMatches.tName.split('|')[2]
-                # In order to know more than simply the species.
-                specificIdentity = aligmentMaxNbMatches.tName.split('|')[1]
+                print (lenAlig)
 
-                # Add identities to event object
-                event.identity = identity
-                event.specificIdentity = specificIdentity
+                percAlig = filters.fraction(lenAlig, aligmentMaxNbMatches.qLen)
 
-                # Add identity to the eventType and make the output dictionary
-                eventTypeIdentity = event.side + '-' + event.type + '-' + identity
+                print (percAlig)
 
-                if eventTypeIdentity not in eventsIdentityDict.keys():
-                    eventsIdentityDict[eventTypeIdentity] = []
+                # TODO: ponerlo de parametrooo???
+                if percAlig > 0.5: 
+                
+                    identity = aligmentMaxNbMatches.tName.split('|')[2]
+                    # In order to know more than simply the species.
+                    specificIdentity = aligmentMaxNbMatches.tName.split('|')[1]
 
-                eventsIdentityDict[eventTypeIdentity].append(event)
+                    # Add identities to event object
+                    event.identity = identity
+                    event.specificIdentity = specificIdentity
+
+                    # Add identity to the eventType and make the output dictionary
+                    eventTypeIdentity = event.side + '-' + event.type + '-' + identity
+
+                    if eventTypeIdentity not in eventsIdentityDict.keys():
+                        eventsIdentityDict[eventTypeIdentity] = []
+
+                    eventsIdentityDict[eventTypeIdentity].append(event)
     
     ## TODO: Do cleanup
 
