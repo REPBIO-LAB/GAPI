@@ -707,7 +707,9 @@ class SV_caller_short(SV_caller):
 
         dictMetaclusters = bkp.analyzeMetaclusters(metaclustersBinDb, self.confDict, self.bam, self.normalBam, self.mode, self.viralDb, self.viralDbIndex, binDir)
 
-        return dictMetaclusters
-
         ### Do cleanup
         unix.rm([binDir])
+
+        return dictMetaclusters
+
+
