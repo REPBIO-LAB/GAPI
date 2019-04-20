@@ -156,29 +156,31 @@ class SV_caller_short(SV_caller):
 
         ### 3. Search for SV clusters in each bin ##
         # Genomic bins will be distributed into X processes
+        # TODO: mirar que pasa cuando tienes 2 dictionarios
         pool = mp.Pool(processes=self.confDict['processes'])
-        minus_DISCORDANT_clusters, plus_DISCORDANT_clusters = zip(*pool.map(self.make_clusters_bin, bins))
+        dictMetaclusters = pool.map(self.make_clusters_bin, bins)
         pool.close()
         pool.join()
 
+        print ('FINAAAAL')
+        print (dictMetaclusters)
+
         ### 4. Report clusters into output file
         # Create dictionary containing clusters 
-        clusters = {}
-        clusters['MINUS-DISCORDANT-CLUSTER'] = minus_DISCORDANT_clusters 
-        clusters['PLUS-DISCORDANT-CLUSTER']= plus_DISCORDANT_clusters
+        #clusters = {}
+        #clusters['MINUS-DISCORDANT-CLUSTER'] = minus_DISCORDANT_clusters 
+        #clusters['PLUS-DISCORDANT-CLUSTER']= plus_DISCORDANT_clusters
     
         # Write clusters
-        output.writeClusters(clusters, self.outDir)
+        #output.writeClusters(clusters, self.outDir)
 
         ### 5. Do cleanup
-        #unix.rm([dbDir])
+        unix.rm([dbDir])
 
     def make_clusters_bin(self, window):
         '''
         Search for structural variant (SV) clusters in a genomic bin/window
         '''
-
-        dbDir = self.outDir + '/databases'
 
         ## 0. Set bin id and create bin directory ##
         ref, beg, end = window
@@ -705,4 +707,7 @@ class SV_caller_short(SV_caller):
 
         dictMetaclusters = bkp.analyzeMetaclusters(metaclustersBinDb, self.confDict, self.bam, self.normalBam, self.mode, self.viralDb, self.viralDbIndex, binDir)
 
-        print (dictMetaclusters)
+        return dictMetaclusters
+
+        ### Do cleanup
+        unix.rm([binDir])

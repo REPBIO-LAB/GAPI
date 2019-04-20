@@ -699,9 +699,6 @@ class META_cluster():
         else:
             CLIPPING_cluster = self.add_clippingEvents(ref, binBeg, binEnd, clippingEventsDict, ['RIGHT-CLIPPING', 'LEFT-CLIPPING'], confDict)
 
-        for event in CLIPPING_cluster.events:
-            print (event.readName)
-            print (event.readSeq)
         return CLIPPING_cluster
         
 

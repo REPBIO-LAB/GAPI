@@ -62,11 +62,7 @@ def identifySequence(events, outDir, viralDb):
                 # Require a minimum percentage of aligment
                 lenAlig = abs(aligmentMaxNbMatches.qEnd - aligmentMaxNbMatches.qBeg)
 
-                print (lenAlig)
-
                 percAlig = filters.fraction(lenAlig, aligmentMaxNbMatches.qLen)
-
-                print (percAlig)
 
                 # TODO: ponerlo de parametrooo???
                 if percAlig > 0.5: 

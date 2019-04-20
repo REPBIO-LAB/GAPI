@@ -87,13 +87,13 @@ def buildVirusDb(fastaDir, outDir):
     virusDb = outDir + '/virusDb.fa'
 
     ## DESILENCIAAAAR
-    '''
+    
     consensusDb = fastaDir + 'consensusViralDb.fa'
 
     with open(virusDb, 'w') as outFile:
         with open(consensusDb) as inFile:
             outFile.write(inFile.read())
-            '''
+            
             
 
     ## 2. Index retrotransposon database fasta file ##
@@ -101,7 +101,7 @@ def buildVirusDb(fastaDir, outDir):
 
     index = outDir + '/virusDb.mmi'
     ## DESILENCIAAAAR
-    '''
+    
     err = open(logDir + '/index.err', 'w') 
     command = 'minimap2 -k 10 -w 1 -d ' + index + ' ' + virusDb 
     status = subprocess.call(command, stderr=err, shell=True)
@@ -110,7 +110,7 @@ def buildVirusDb(fastaDir, outDir):
         step = 'BUILD-VIRUS-DATABASE'
         msg = 'Database indexing failed' 
         log.step(step, msg)
-        '''
+        
         
 
     return virusDb, index
@@ -142,7 +142,7 @@ def buildIdentityDb(metacluster, db, outDir):
     # TODO
     # ponerlo bien
     #err = open(logDir + '/index.err', 'w')
-    '''
+    
     command = 'minimap2 -k 10 -w 1 -d ' + indexDbSpecificIdentity + ' ' + dbSpecificIdentity 
     status = subprocess.call(command, shell=True)
 
@@ -150,6 +150,6 @@ def buildIdentityDb(metacluster, db, outDir):
         step = 'BUILD-VIRUS-DATABASE'
         msg = 'Database indexing failed' 
         log.step(step, msg)
-        '''
+        
 
     return indexDbSpecificIdentity
