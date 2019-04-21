@@ -81,7 +81,7 @@ class SV_caller_long(SV_caller):
         output.writeClusters(clusters, self.outDir)
 
         ### 5. Do cleanup
-        #unix.rm([dbDir])
+        unix.rm([dbDir])
 
     def make_clusters_bin(self, window):
         '''
@@ -179,7 +179,7 @@ class SV_caller_short(SV_caller):
         output.writeMetaclusters(metaclustersList, self.outDir)
 
         ### 5. Do cleanup
-        #unix.rm([dbDir])
+        unix.rm([dbDir])
 
     def make_clusters_bin(self, window):
         '''
@@ -210,6 +210,10 @@ class SV_caller_short(SV_caller):
         counts = [str(len(discordantEventsDict[SV_type])) for SV_type in SV_types]
         msg = 'Number of SV events in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
         log.step(step, msg)
+
+        if counts == []:
+            unix.rm([binDir])
+            return None
 
         '''
         ## PRINT 
@@ -250,6 +254,10 @@ class SV_caller_short(SV_caller):
         msg = 'Number of SV events with identity in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
         log.step(step, msg)
 
+        if counts == []:
+            unix.rm([binDir])
+            return None
+
         ## 4. Organize identified events into genomic bins prior clustering ##
         step = 'BINNING'
         msg = 'Organize all the SV events into genomic bins prior metaclustering'
@@ -284,6 +292,17 @@ class SV_caller_short(SV_caller):
 
         ## 5. Group discordant events into clusters based on their identity ##
         discordantClustersDict = clusters.create_discordantClusters(eventsBinDb, self.confDict)
+
+        step = 'DISCORDANT-CLUSTERING'
+        SV_types = sorted(discordantClustersDict.keys())
+
+        counts = [str(len(discordantClustersDict[SV_type])) for SV_type in SV_types]
+        msg = 'Number of created discordant clusters in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
+        log.step(step, msg)
+
+        if counts == []:
+            unix.rm([binDir])
+            return None
 
         discordantClustersBinDb = structures.create_bin_database(ref, beg, end, discordantClustersDict, binSizes)
         
@@ -408,11 +427,6 @@ class SV_caller_short(SV_caller):
         9 MINUS
         '''
 
-
-        step = 'DISCORDANT-CLUSTERING'
-        msg = 'Number of created discordant clusters: ' + str(discordantClustersBinDb.nbEvents()[0])
-        log.step(step, msg)
-
         ## 6. Filter discordant metaclusters ##
 
         filters.filterClusters(discordantClustersBinDb, ['DISCORDANT'], self.confDict, self.bam)
@@ -420,12 +434,19 @@ class SV_caller_short(SV_caller):
         ## Remove those clusters that fail in one or more filters
         newDiscordantClustersDict = filters.applyFilters(discordantClustersBinDb)
 
+        step = 'DISCORDANT-FILTERING'
+        SV_types = sorted(discordantClustersDict.keys())
+
+        counts = [str(len(discordantClustersDict[SV_type])) for SV_type in SV_types]
+        msg = 'Number of created discordant clusters after filtering in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
+        log.step(step, msg)
+
+        if counts == []:
+            unix.rm([binDir])
+            return None
+
         # vuelvo a hacer la bindb que contiene ya solo los clusters que pasaron los filtros
         discordantClustersBinDb = structures.create_bin_database(ref, beg, end, newDiscordantClustersDict, binSizes)
-
-        step = 'DISCORDANT-FILTERING'
-        msg = 'Number of created discordant clusters after filtering: ' + str(discordantClustersBinDb.nbEvents()[0])
-        log.step(step, msg)
 
         ## 7. Making reciprocal clusters ##
         # TODO: AJUSTAR ESTOS PARAMETROS!!! (PASARLOS SI ESO COMO OPCION EN LOS ARGUMENTOS)
@@ -736,7 +757,7 @@ class SV_caller_short(SV_caller):
         dictMetaclusters = bkp.analyzeMetaclusters(metaclustersBinDb, self.confDict, self.bam, self.normalBam, self.mode, self.viralDb, self.viralDbIndex, binDir)
 
         ### Do cleanup
-        #unix.rm([binDir])
+        unix.rm([binDir])
 
         return dictMetaclusters
 
