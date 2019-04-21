@@ -646,9 +646,15 @@ class META_cluster():
 
 
         # Hago un dict especial para llamar solo a collect clipping
-        clippingConfDict = confDict
+        print ('11111')
+        print (confDict['targetSV'])
+        clippingConfDict = dict(confDict)
         clippingConfDict['targetSV'] = ['CLIPPING']
         clippingConfDict['minMAPQ'] = 0
+
+        print ('AAAAA')
+        print (clippingConfDict['targetSV'])
+        print (confDict['targetSV'])
 
         clippingEventsDict = {}
 
