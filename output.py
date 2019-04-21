@@ -58,19 +58,20 @@ def writeMetaclusters(metaclustersList, outDir):
     outFile = open(outFilePath, 'w')
 
     for dictMetacluster in metaclustersList:
-        for metacluster,d2 in dictMetacluster.items():
-            row = 'METACLUSTER: ' + str(metacluster) +' '+ str(len(metacluster.events)) +' '+ str(metacluster.ref) +' '+ str(metacluster.beg) +' '+ str(metacluster.end) +' '+ str(metacluster.intOrigin) + '\n'
-            outFile.write(row)
-            for event in metacluster.events:
-                    if event.type == 'DISCORDANT':
-                        row = str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.identity) + ' ' + str(event.side) + ' ' + str(event.sample) + '\n'
-                        outFile.write (row)
-                    else:
-                        row = str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' None ' + str(event.clippedSide) + ' ' + str(event.sample) + '\n'
-                        outFile.write (row)
-            for k,v in d2.items():
-                row = str(k) + ' = ' + str(v) + '\n'
-                outFile.write (row)  
+        if dictMetacluster != None:
+            for metacluster,d2 in dictMetacluster.items():
+                row = 'METACLUSTER: ' + str(metacluster) +' '+ str(len(metacluster.events)) +' '+ str(metacluster.ref) +' '+ str(metacluster.beg) +' '+ str(metacluster.end) +' '+ str(metacluster.intOrigin) + '\n'
+                outFile.write(row)
+                for event in metacluster.events:
+                        if event.type == 'DISCORDANT':
+                            row = str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.identity) + ' ' + str(event.side) + ' ' + str(event.sample) + '\n'
+                            outFile.write (row)
+                        else:
+                            row = str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' None ' + str(event.clippedSide) + ' ' + str(event.sample) + '\n'
+                            outFile.write (row)
+                for k,v in d2.items():
+                    row = str(k) + ' = ' + str(v) + '\n'
+                    outFile.write (row)  
          
         
 
