@@ -81,7 +81,7 @@ class SV_caller_long(SV_caller):
         output.writeClusters(clusters, self.outDir)
 
         ### 5. Do cleanup
-        unix.rm([dbDir])
+        #unix.rm([dbDir])
 
     def make_clusters_bin(self, window):
         '''
@@ -179,7 +179,7 @@ class SV_caller_short(SV_caller):
         output.writeMetaclusters(metaclustersList, self.outDir)
 
         ### 5. Do cleanup
-        unix.rm([dbDir])
+        #unix.rm([dbDir])
 
     def make_clusters_bin(self, window):
         '''
@@ -228,7 +228,7 @@ class SV_caller_short(SV_caller):
         discordantEvents = []
         for eventType in discordantEventsDict.keys():
             discordantEvents.extend(discordantEventsDict[eventType])
-        
+
         # TODO: ADD RT!!!!
 
         # Initialize dictionary
@@ -241,6 +241,14 @@ class SV_caller_short(SV_caller):
         # b) Paired sample mode (tumour & matched normal)
         else:
             discordantEventsIdent = virus.is_virusSR(discordantEvents, self.bam, self.normalBam, binDir, self.viralDbIndex)
+
+
+        step = 'IDENTIFY'
+        SV_types = sorted(discordantEventsIdent.keys())
+
+        counts = [str(len(discordantEventsIdent[SV_type])) for SV_type in SV_types]
+        msg = 'Number of SV events with identity in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
+        log.step(step, msg)
 
         ## 4. Organize identified events into genomic bins prior clustering ##
         step = 'BINNING'
@@ -414,6 +422,10 @@ class SV_caller_short(SV_caller):
 
         # vuelvo a hacer la bindb que contiene ya solo los clusters que pasaron los filtros
         discordantClustersBinDb = structures.create_bin_database(ref, beg, end, newDiscordantClustersDict, binSizes)
+
+        step = 'DISCORDANT-FILTERING'
+        msg = 'Number of created discordant clusters after filtering: ' + str(discordantClustersBinDb.nbEvents()[0])
+        log.step(step, msg)
 
         ## 7. Making reciprocal clusters ##
         # TODO: AJUSTAR ESTOS PARAMETROS!!! (PASARLOS SI ESO COMO OPCION EN LOS ARGUMENTOS)
@@ -671,6 +683,10 @@ class SV_caller_short(SV_caller):
 
         metaclustersBinDb = clusters.create_metaclusters(reciprocalEventsBinDb, self.confDict, self.bam, self.normalBam, self.mode)
 
+        step = 'META-CLUSTERING'
+        msg = 'Number of created metaclusters: ' + str(metaclustersBinDb.nbEvents()[0])
+        log.step(step, msg)
+
         '''
         LO ULTIMO QUE HICE FUE RETORNAR EVENTS DE LA RECIPROCAL EN VEZ DE CLUSTERS, Y FUNCIONA, PERO HAY EN ALGUN MOMENTO QUE SE MEZCLAN LOS DE DISTINTO TIPO AL HACER LA RECIPROCAL, ASI QUE TENGO QUE REPASARLO!
         
@@ -720,7 +736,7 @@ class SV_caller_short(SV_caller):
         dictMetaclusters = bkp.analyzeMetaclusters(metaclustersBinDb, self.confDict, self.bam, self.normalBam, self.mode, self.viralDb, self.viralDbIndex, binDir)
 
         ### Do cleanup
-        unix.rm([binDir])
+        #unix.rm([binDir])
 
         return dictMetaclusters
 
