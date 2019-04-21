@@ -225,8 +225,10 @@ class SV_caller_short(SV_caller):
         ## 3. Mark those discordant events corresponding to a viral insertion ##
 
         # Create a list containing all discordant events:
-        discordantEvents = discordantEventsDict['PLUS-DISCORDANT'] + discordantEventsDict['MINUS-DISCORDANT']
-
+        discordantEvents = []
+        for eventType in discordantEventsDict.keys():
+            discordantEvents.extend(discordantEventsDict[eventType])
+        
         # TODO: ADD RT!!!!
 
         # Initialize dictionary
