@@ -208,8 +208,8 @@ class SV_caller_short(SV_caller):
         SV_types = sorted(discordantEventsDict.keys())
 
         counts = [str(len(discordantEventsDict[SV_type])) for SV_type in SV_types]
-        msg = 'Number of SV events in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
-        log.step(step, msg)
+        msg = '[COLLECT] Number of SV events in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
+        log.subHeader(msg)
 
         if counts == []:
             unix.rm([binDir])
@@ -251,8 +251,8 @@ class SV_caller_short(SV_caller):
         SV_types = sorted(discordantEventsIdent.keys())
 
         counts = [str(len(discordantEventsIdent[SV_type])) for SV_type in SV_types]
-        msg = 'Number of SV events with identity in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
-        log.step(step, msg)
+        msg = '[IDENTIFY] Number of SV events with identity in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
+        log.subHeader(msg)
 
         if counts == []:
             unix.rm([binDir])
@@ -260,8 +260,8 @@ class SV_caller_short(SV_caller):
 
         ## 4. Organize identified events into genomic bins prior clustering ##
         step = 'BINNING'
-        msg = 'Organize all the SV events into genomic bins prior metaclustering'
-        log.step(step, msg)
+        msg = '[BINNING] Organize all the SV events into genomic bins prior metaclustering'
+        log.subHeader(msg)
 
         ## Define bin database sizes 
         ## Big window sizes are needed for SR (see comments)
@@ -297,8 +297,8 @@ class SV_caller_short(SV_caller):
         SV_types = sorted(discordantClustersDict.keys())
 
         counts = [str(len(discordantClustersDict[SV_type])) for SV_type in SV_types]
-        msg = 'Number of created discordant clusters in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
-        log.step(step, msg)
+        msg = '[DISCORDANT-CLUSTERING] Number of created discordant clusters in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
+        log.subHeader(msg)
 
         if counts == []:
             unix.rm([binDir])
@@ -438,8 +438,8 @@ class SV_caller_short(SV_caller):
         SV_types = sorted(discordantClustersDict.keys())
 
         counts = [str(len(discordantClustersDict[SV_type])) for SV_type in SV_types]
-        msg = 'Number of created discordant clusters after filtering in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
-        log.step(step, msg)
+        msg = '[DISCORDANT-FILTERING] Number of created discordant clusters after filtering in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
+        log.subHeader(msg)
 
         if counts == []:
             unix.rm([binDir])
@@ -705,8 +705,8 @@ class SV_caller_short(SV_caller):
         metaclustersBinDb = clusters.create_metaclusters(reciprocalEventsBinDb, self.confDict, self.bam, self.normalBam, self.mode)
 
         step = 'META-CLUSTERING'
-        msg = 'Number of created metaclusters: ' + str(metaclustersBinDb.nbEvents()[0])
-        log.step(step, msg)
+        msg = '[META-CLUSTERING] Number of created metaclusters: ' + str(metaclustersBinDb.nbEvents()[0])
+        log.subHeader(msg)
 
         '''
         LO ULTIMO QUE HICE FUE RETORNAR EVENTS DE LA RECIPROCAL EN VEZ DE CLUSTERS, Y FUNCIONA, PERO HAY EN ALGUN MOMENTO QUE SE MEZCLAN LOS DE DISTINTO TIPO AL HACER LA RECIPROCAL, ASI QUE TENGO QUE REPASARLO!

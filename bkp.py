@@ -14,10 +14,30 @@ import assembly
 
 def analyzeMetaclusters(clustersBinDb, confDict, bam, normalBam, mode, db, indexDb, outDir):
     '''
-    1. Por cada evento en la BinDB (en este caso especificamente por cada metacluster)
-    a. Anadir supporting clipping al metacluster de discordant.
-    b. Buscar el bkp (punto mas apoyado por los clippings que acabamos de anadir) y quitar aquellos clipping events que no lo soporten
-    c. Hacer las cadenas de secuencias para ambos bkps.
+    SPANISH:
+    1. Por cada evento en la binDB (en este caso especificamente por cada metacluster)
+        a. Anadir supporting clipping al metacluster de discordant.
+        b. Buscar el bkp (punto mas apoyado por los clippings que acabamos de anadir) y quitar aquellos clipping events que no lo soporten
+        c. Hacer las cadenas de secuencias para ambos bkps.
+
+    ENGLISH:
+    1. For each event in the binDb (in this case, for each metacluster)
+        a. Add supporting clipping events to the discordant metacluster.
+        b. Look for reference breakpoint (most supported coordinate by clipping events added above) and remove those clipping events that dont support the bkp
+        c. Make sequences of integrations for each bkp.
+    
+    Input:
+        1. clustersBinDb
+        2. confDict
+        3. bam
+        4. normalBam
+        5. mode
+        6. db: Fasta file db
+        7. indexDb: Db indexed with minimap2
+        8. outDir
+
+    Output:
+        1. dictMetaclusters: Nested dictionary -> First key: metacluster object. Second keys and corresponding values: refLeftBkp (value = None if UNK), refRightBkp (value = None if UNK), leftSeq (value = None if UNK), rightSeq (value = None if UNK), intLeftBkp (not present if UNK), intRightBkp (not present if UNK)
     '''
 
     dictMetaclusters = {}
@@ -36,13 +56,13 @@ def analyzeMetaclusters(clustersBinDb, confDict, bam, normalBam, mode, db, index
         bkpDir = outDir + '/' + metacluster.ref + '_' + str(metacluster.beg) + '_' + str(metacluster.end)
         unix.mkdir(bkpDir)
 
-        # a. Anadir supporting clipping al metacluster de discordant.
+        # a. Add supporting clipping to discordant metacluster.
         CLIPPING_cluster = metacluster.supportingCLIPPING(100, confDict, bam, normalBam, mode)
 
-        # b. Buscar el bkp (punto mas apoyado por los clippings que acabamos de anadir) y quitar aquellos clipping events que no lo soporten
+        # b. Look for reference breakpoint (most supported coordinate by clipping events added above) and remove those clipping events that dont support the bkp
         dictMetaclusters[metacluster]['refLeftBkp'], dictMetaclusters[metacluster]['refRightBkp'] = clippingBkp(CLIPPING_cluster)
 
-        # c. Hacer las cadenas de secuencias para ambos bkps.
+        # c. Make sequences of integrations for each bkp.
         #dictMetaclusters[metacluster]['leftSeq'], dictMetaclusters[metacluster]['rightSeq'] = makeConsSeqs(CLIPPING_cluster, 'REF', db, indexDb, bkpDir)
         leftRefConsensusSeq = makeConsSeqs(CLIPPING_cluster, 'left', 'REF', db, indexDb, bkpDir)[1]
         rightRefConsensusSeq = makeConsSeqs(CLIPPING_cluster, 'right', 'REF', db, indexDb, bkpDir)[1]
@@ -73,7 +93,10 @@ def analyzeMetaclusters(clustersBinDb, confDict, bam, normalBam, mode, db, index
 
 def clippingBkp(CLIPPING_cluster):
     '''
-    Buscar el bkp (punto mas apoyado por los clippings ) y quitar aquellos clipping events que no lo soporten
+    Look for reference breakpoint (most supported coordinate by clipping events added above) and remove those clipping events that dont support the bkp
+
+    Input:
+        1. CLIPPING_cluster
     '''
     leftBkp = None
     rightBkp = None
@@ -90,9 +113,9 @@ def clippingBkp(CLIPPING_cluster):
     if len(rightBkps) > 0:
         rightBkp = max(set(rightBkps), key=rightBkps.count)
 
-    # TODO: AQUI ES MEJOR QUITARLO DE LA LISTA QUE HACER UNA LSITA NUEVA, PERO DE MOMENTO VA ASI!
+    # TODO: AQUI ES MEJOR QUITARLO DE LA LISTA QUE HACER UNA LISTA NUEVA, PERO DE MOMENTO VA ASI!
     newEvents = []
-    # Eliminar los clipping reads que no tengan ese bkp:
+    # Remove those clipping events that dont support the bkp
     for event in CLIPPING_cluster.events:
         if event.clippedSide == 'left':
             if event.beg == leftBkp:
@@ -110,7 +133,16 @@ def clippingBkp(CLIPPING_cluster):
 
 def makeConsSeqs(CLIPPING_cluster, clippedSide, seqSide, db, indexDb, outDir):
     '''
-    Hacer las cadenas de secuencias para ambos bkps.
+    Make consesus sequence of one of the sides of the clipping cluster.
+
+    Input:
+        1. CLIPPING_cluster
+        2. clippedSide: 'left' or 'right'
+        3. seqSide: 'INT' if the consensus of the integrated sequence is wanted or 'REF' if the consensus of the reference is wanted
+    
+    Output:
+        1. consensusPath: consensus file
+        2. consensusSeq: consensus sequence
     '''
     consensusPath = None
     consensusSeq = None
@@ -171,11 +203,7 @@ def clippingSeq(clippingEvents, CLIPPING_clusterID, clippedSide, seqSide, outDir
 
 def bkpINT(metacluster, consensusPath, db, outDir):
 
-    indexDbSpecificIdentity = databases.buildIdentityDb(metacluster, db, outDir)
-
-    ###### databases ######
-
-    ###### databases ######    
+    indexDbSpecificIdentity = databases.buildIdentityDb(metacluster, db, outDir)   
 
     PAF_file = sequences.getPAFAlign(consensusPath, indexDbSpecificIdentity, outDir)
     PAFObj = formats.PAF()

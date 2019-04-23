@@ -516,11 +516,11 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang,
 ## [SR CHANGE]
 def collectDISCORDANT(alignmentObj, sample):
     '''
-    For a read alignment check if the read is discordant (not proper in pair) and return the corresponding clipping objects
+    For a read alignment check if the read is discordant (not proper in pair) and return the corresponding discordant objects
 
     Input:
         1. alignmentObj: pysam read alignment object
-        2. sample: type of sample (TUMOUR, NORMAL or None). Move to confDict
+        2. sample: type of sample (TUMOUR, NORMAL or None).
 
     Output:
         1. minus_DISCORDANT: minus DISCORDANT object (None if no discordant found)
@@ -558,26 +558,41 @@ def collectMatesSeq(events, tumourBam, normalBam, checkUnmapped, maxMAPQ):
         1. It doesnt return anything, just add the mate sequence to event.mateSeq attribute.
     '''
 
+    counter = 0
+
+    ## 2. Open BAM file for reading
+    bamFile = pysam.AlignmentFile(tumourBam, "rb")
+
+    # TODO: First and second conditions can be together, since they have same outcome.
+    msg = 'LEN EVENTTTS: ' + str(len(events))
+    log.subHeader(msg)
     for event in events:
+        counter += 1
         if event.sample == None:
-            collectMateSeq(event, tumourBam, checkUnmapped, maxMAPQ)
+            collectMateSeq(event, bamFile, checkUnmapped, maxMAPQ)
         elif event.sample == 'TUMOUR':
             collectMateSeq(event, tumourBam, checkUnmapped, maxMAPQ)
         elif event.sample == 'NORMAL':
             collectMateSeq(event, normalBam, checkUnmapped, maxMAPQ)
 
+    msg = '[COUNTER OF collectMatesSeq LOOP] '+ str(counter)
+    log.subHeader(msg)
+
 ## [SR CHANGE]
-def collectMateSeq(event, bam, checkUnmapped, maxMAPQ):
+def collectMateSeq(event, bamFile, checkUnmapped, maxMAPQ):
     '''
     Get mate sequence for an event.
     
     Input:
-        1. event: DISCORDANT and/or CLIPPING event
+        1. event: DISCORDANT event
         2. bam file
+        3. checkUnmapped: boolean. True -> Pick only those sequences that are unmmapped or with mapping quality < maxMAPQ. False -> Pick only those sequences with mapping quality < maxMAPQ
+        4. maxMAPQ: int. Pick only those reads with MAPQ < maxMAPQ.
     Output:
         1. It doesnt return anything, just add the mate sequence to event.mateSeq attribute.
     '''
-
+    msg = '[Start collectMateSeq]'
+    log.subHeader(msg)
     ## 1. Define bin coordinates based on mate position
     mateRef = event.mateRef
     mateStart = event.mateStart
@@ -588,24 +603,36 @@ def collectMateSeq(event, bam, checkUnmapped, maxMAPQ):
     readName = event.readName.split('/')[0]
 
     ## 2. Open BAM file for reading
-    bamFile = pysam.AlignmentFile(bam, "rb")
 
-    # Extract alignments
+    # Extract alignments   
     iteratorMate = bamFile.fetch(mateRef, binBegMate, binEndMate)
     
     # 3. For each read alignment
     for alignmentObjMate in iteratorMate:
         # Check if the aligment has same query_name but different orientation (to ensure that its the mate and not the read itself)
         if readName == alignmentObjMate.query_name:
+            msg = '[collectMateSeq: if readName == alignmentObjMate.query_name]' + str(binBegMate)
+            log.subHeader(msg)
+            
             matePair = '1' if alignmentObjMate.is_read1 else '2'
             if matePair != event.pair:
+                msg = 'if matePair != event.pair' + str(binBegMate)
+                log.subHeader(msg)
+
                 MAPQ = int(alignmentObjMate.mapping_quality)
                 # Pick only those sequences that are unmmapped or with mapping quality < maxMAPQ
                 if checkUnmapped == True:
                     if (alignmentObjMate.is_unmapped == True) or (MAPQ < maxMAPQ):
+                        msg = 'if (alignmentObjMate.is_unmapped == True) or (MAPQ < maxMAPQ)' + str(binBegMate)
+                        log.subHeader(msg)
+
                         #if len(alignmentObjMate.query_sequence) > 100:
                         event.mateSeq = alignmentObjMate.query_sequence
+                        break
                 # Pick only those sequences with mapping quality < maxMAPQ
                 else:
                     if MAPQ < maxMAPQ:
+                        msg = 'if MAPQ < maxMAPQ' + str(binBegMate)
+                        log.subHeader(msg)
                         event.mateSeq = alignmentObjMate.query_sequence
+                        break

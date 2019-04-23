@@ -19,10 +19,18 @@ def is_virusSR(events, tumourBam, normalBam, outDir, viralDb):
     '''
 
     ## 1. Collect mate sequence of discordant events ##
+    msg = '[Start bamtools.collectMatesSeq]'
+    log.subHeader(msg)
     bamtools.collectMatesSeq(events, tumourBam, normalBam, True, 20)
+    msg = '[End bamtools.collectMatesSeq]'
+    log.subHeader(msg)
 
     ## 2. Identify mate sequence of discordant events ##
+    msg = '[Start identifySequence]'
+    log.subHeader(msg)
     eventsIdentityDict = identifySequence(events, outDir, viralDb)
+    msg = '[End identifySequence]'
+    log.subHeader(msg)
 
     return eventsIdentityDict
 
