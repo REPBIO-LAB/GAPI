@@ -217,7 +217,7 @@ def collectSV_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict):
     Collect structural variant (SV) events in a genomic bin from tumour and matched normal bam files
 
     Input:
-        1. ref: target referenge
+        1. ref: target reference
         2. binBeg: bin begin
         3. binEnd: bin end
         4. tumourBam: indexed tumour BAM file
@@ -265,7 +265,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             * minMAPQ        -> minimum mapping quality
             * minCLIPPINGlen -> minimum clipping lenght
             * minINDELlen    -> minimum INS and DEL lenght
-            * overhang       -> Number of flanking base pairs around the SV event to be collected from the supporting read. If 'None' the complete read sequence will be collected)
+            * overhang       -> Number of flanking base pairs around the INDEL events to be collected from the supporting read. If 'None' the complete read sequence will be collected)
         6. sample: type of sample (TUMOUR, NORMAL or None)
 
     Output:
@@ -315,7 +315,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             ## 1. Collect CLIPPINGS
             if 'CLIPPING' in confDict['targetSV']:
 
-                left_CLIPPING, right_CLIPPING = collectCLIPPING(alignmentObj, confDict['minCLIPPINGlen'], targetInterval, confDict['overhang'], sample)
+                left_CLIPPING, right_CLIPPING = collectCLIPPING(alignmentObj, confDict['minCLIPPINGlen'], targetInterval, sample)
 
                 # Left CLIPPING found
                 if left_CLIPPING != None:
@@ -341,7 +341,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
     return eventsDict
 
 
-def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, overhang, sample):
+def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, sample):
     '''
     For a read alignment check if the read is clipped on each side and return the corresponding clipping objects
 
@@ -349,8 +349,7 @@ def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, overhang, samp
         1. alignmentObj: pysam read alignment object
         2. minCLIPPINGlen: minimum clipping lenght
         3. targetInterval: tuple containing begin and end position of the target genomic interval to extract events from. If 'None' all clippings will be reported
-        4. overhang: Number of flanking base pairs around the SV event to be collected from the supporting read. If 'None' the complete read sequence will be collected)
-        5. sample: type of sample (TUMOUR, NORMAL or None). 
+        4. sample: type of sample (TUMOUR, NORMAL or None). 
 
     Output:
         1. left_CLIPPING: left CLIPPING object (None if no clipping found)
