@@ -52,14 +52,14 @@ def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir):
         4. outDir: Output directory
         
     Output:
-        1. BAM_sorted: Path to sorted BAM file containing input sequences alignments 
+        1. BAM_sorted: Path to sorted BAM file containing input sequences alignments or 'None' if realignment failed 
     '''
     ## 0. Create logs directory
     logDir = outDir + '/Logs'
     unix.mkdir(logDir)
 
     ## 1. Extract the reference target region prior alignment 
-    target = outDir + '/target.fasta'
+    target = outDir + '/target.fa'
     err = open(logDir + '/target.err', 'w') 
     command = 'samtools faidx ' + reference + ' ' + targetInterval + ' > ' + target
     status = subprocess.call(command, stderr=err, shell=True)
@@ -68,6 +68,7 @@ def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir):
         step = 'TARGET'
         msg = 'Extraction of reference target region failed' 
         log.step(step, msg)
+        return None
 
     ## 2. Align the sequences into the target region 
     SAM = outDir + '/alignments.sam'
@@ -80,6 +81,7 @@ def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir):
         step = 'ALIGN'
         msg = 'Local alignment failed' 
         log.step(step, msg)
+        return None
 
     ## 3. Convert SAM to sorted BAM
     BAM = bamtools.SAM2BAM(SAM, outDir)

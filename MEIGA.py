@@ -38,7 +38,7 @@ parser.add_argument('--targetBins', default=None, dest='targetBins', type=str, h
 parser.add_argument('-bS', '--binSize', default=1000000, dest='binSize', type=int, help='Input bams will be analised in genomic bins of this size. Default: 1000000')
 parser.add_argument('--refs', default="ALL", dest='refs', type=str, help='Comma separated list of target references to call SV (i.e. 1,2,3,X). Default: All references included in the bam file')
 parser.add_argument('--SV', default="INS,CLIPPING", dest='SV', type=str, help='Comma separated list of SV event types to collect (INS, DEL and CLIPPING). Default: INS,CLIPPING')
-parser.add_argument('--read-overhang', default=500, dest='overhang', type=int, help='Number of flanking base pairs around the SV event to be collected from the supporting read sequence. Default: 5')
+parser.add_argument('--read-overhang', default=5000, dest='overhang', type=int, help='Number of flanking base pairs around the SV event to be collected from the supporting read sequence. Default: 10000')
 
 ## Filtering thresholds
 parser.add_argument('--minMAPQ', default=20, dest='minMAPQ', type=int, help='Minimum mapping quality required for each read. Default: 20')
