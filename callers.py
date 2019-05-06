@@ -15,11 +15,6 @@ import structures
 import clusters
 import output
 
-# TMP:
-import formats
-import assembly
-import alignment
-
 ## FUNCTIONS ##
 
 ## CLASSES ##
