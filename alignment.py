@@ -71,9 +71,10 @@ def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir):
         return None
 
     ## 2. Align the sequences into the target region 
+    # Use -Y to get soft clippings for supplementary alignments
     SAM = outDir + '/alignments.sam'
     err = open(logDir + '/align.err', 'w') 
-    command = 'minimap2 -a -k15 -w10 ' + target + ' ' + FASTA + ' > ' + SAM
+    command = 'minimap2 -Y -a -k15 -w10 ' + target + ' ' + FASTA + ' > ' + SAM
 
     status = subprocess.call(command, stderr=err, shell=True)
 
