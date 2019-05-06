@@ -429,12 +429,14 @@ class META_cluster():
         # Set cluster's reference, begin and end position
         self.ref, self.beg, self.end = self.coordinates() 
 
-        # Cluster filtering
-        self.filters = None
-
         # Organize events into subclusters
         self.subclusters = self.create_subclusters()
     
+        # Set some metacluster properties as None
+        self.filters = None
+        self.SV_type = None
+        self.consensus = None
+
     def sort(self):
         '''
         Sort events in increasing coordinates order
@@ -571,11 +573,13 @@ class META_cluster():
             2. outDir: output directory
 
         Output:
-            1. templateFile: Path to FASTA file containing the template or 'None' if not template was found
+            1. templateFile: Path to FASTA file containing the template or 'None' if no template was found
         '''
 
-        # A) Metacluster contains an insertion cluster
+        # A) Metacluster contains an INS cluster
         if ('INS' in self.subclusters):
+
+            print('A) Metacluster contains an insertion cluster')
 
             ## Select INS event with median length as template
             templateEvent = self.subclusters['INS'].pick_median_length()
@@ -586,8 +590,10 @@ class META_cluster():
             templateFile = outDir + '/template.fa'
             templateFasta.write(templateFile)   
 
-        # B) Metacluster contains a deletion cluster
+        # B) Metacluster contains a DEL cluster
         elif ('DEL' in self.subclusters):
+
+            print('B) Metacluster contains a deletion cluster')
 
             ## Select DEL event with median length as template
             templateEvent = self.subclusters['DEL'].pick_median_length()
@@ -598,14 +604,18 @@ class META_cluster():
             templateFile = outDir + '/template.fa'
             templateFasta.write(templateFile)   
 
-        # C) Metacluster composed by only two clipping clusters (left and right) 
+        # C) Metacluster composed by only two CLIPPING clusters (left and right) 
         elif all (clusterType in self.subclusters for clusterType in ['LEFT-CLIPPING', 'RIGHT-CLIPPING']):
             
+            print('C) Metacluster composed by only two clipping clusters (left and right)')
+        
             ## Search for chimeric alignment spanning the SV event
             templateEvent, supplementary, chimeric = find_chimeric_alignments(self.subclusters['RIGHT-CLIPPING'], self.subclusters['LEFT-CLIPPING'])
 
-            # b) Chimeric alignment found -> Write template into output file 
+            # a) Chimeric alignment found -> Write template into output file 
             if (templateEvent != None): 
+
+                print('C.a) Chimeric alignment found')
 
                 templateFasta = formats.FASTA()
                 templateFasta.seqDict[templateEvent.readName] = templateEvent.readSeq
@@ -628,7 +638,12 @@ class META_cluster():
                 ## Assemble clippings based on overlap 
                 templateFile = assembly.assemble_overlap(readsA_file, readsB_file, technology, outDir)
 
-        # D) No template available
+                if (templateFile != None): 
+                    print('C.b) complementary clippings found')
+
+        # D) Metacluster composed by a single CLIPPING cluster. 
+        # For now set the template as None, but at one point I should set a criteria for picking a template
+        # in these cases. I think the template will be the read with the longest piece of clipped sequence
         else:
             templateFile = None
         
