@@ -87,3 +87,46 @@ def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir):
     BAM = bamtools.SAM2BAM(SAM, outDir)
 
     return BAM    
+
+def targetered2genomic_coord(event, ref, offset):
+    '''
+    Convert event coordinates resulting from the realignment of a sequence into a target region into genomic coordinates
+
+    Input:
+        1. event: INS, DEL or CLIPPING event object
+        2. ref: reference corresponding to the targetered seq
+        3. offset: offset to be added to event coordinates
+
+    Output:
+        1. event: modified event object
+    '''
+    ## 1. Convert reference                
+    event.ref = ref
+
+    ## 2. Add offset to event begin and end coordinates
+    event.beg = event.beg + offset
+    event.end = event.end + offset 
+
+    ## 3. Add offset to supplementary alignments 
+    if event.supplAlignment != None:
+
+        supplAlignments = ''
+
+        # For each supplementary alignment
+        for supplAlignment in event.supplAlignment.split(';'):
+
+            # Stop after the last supplementary alignment
+            if supplAlignment == '':
+                break
+
+            supplRef, supplBeg, strand, cigar, MAPQ, NM = supplAlignment.split(',')
+
+            supplRef = ref
+            beg = int(supplBeg) + offset
+
+            supplAlignment = supplRef + ',' + str(beg) + ',' + strand + ',' + cigar + ',' + MAPQ + ',' + NM
+            supplAlignments = supplAlignments + supplAlignment + ';' if supplAlignments != '' else supplAlignment + ';'
+
+            event.supplAlignment = supplAlignments
+
+    return event
