@@ -18,6 +18,7 @@ import output
 # TMP:
 import formats
 import assembly
+import alignment
 
 ## FUNCTIONS ##
 
@@ -131,71 +132,7 @@ class SV_caller_long(SV_caller):
         log.step(step, msg)
 
         ## 4. Create consensus sequence for each SV metacluster ##
-        for metacluster in metaclustersBinDb.collect(['METACLUSTERS']):
-
-            ### INS clusters available
-            if ('INS' in metacluster.subclusters) and (metacluster.subclusters['INS'].nbEvents()[0] >= 2):
-
-                ### 1. Create fasta with template
-                ## Pick one cluster supporting read as template
-                INS = metacluster.subclusters['INS'].pick_INS_median()
-
-                ## Write template into fasta
-                template = formats.FASTA()
-                template.seqDict['TEMPLATE'] = INS.readSeq
-
-                templateFile = binDir + '/template.fa'
-                template.write(templateFile)                
-                
-                ### 2. Create fasta containing cluster supporting reads to correct the template 
-                ## Collect cluster supporting reads 
-                supportingReads = metacluster.subclusters['INS'].collect_reads() 
-                                 
-                ## Exclude the template
-                del supportingReads.seqDict[INS.readName]
-                
-                ## Write reads into fasta
-                supportingReadsFile = binDir + '/supportingReads.fa'
-                supportingReads.write(supportingReadsFile)
-
-                print('NB_READS_FOR_POLISHING: ', len(supportingReads.seqDict))
-
-                ### 3. Polish template using cluster supporting reads
-                polished = assembly.polish_racon(templateFile, supportingReadsFile, self.confDict['technology'], 1, binDir)
-                
-                #print('METACLUSTER: ', metacluster.subclusters['INS'], metacluster.subclusters['INS'].nbEvents(), supportingReads, supportingReadsFile)
-
-                ## Use cluster supporting reads to correct the template
-
-
-                print('-----------------------------------')
-
-            '''
-            ## Lets select metaclusters composed by only two clipping clusters (left and right) 
-            if ('INS' not in metacluster.subclusters) and all (clusterType in metacluster.subclusters for clusterType in ['LEFT-CLIPPING', 'RIGHT-CLIPPING']):
-
-                chimericBool, primary, supplementary, chimeric = clusters.find_chimeric_alignments(metacluster.subclusters['LEFT-CLIPPING'], metacluster.subclusters['RIGHT-CLIPPING'])
-
-                # a) Chimeric alignment found
-                if chimericBool: 
-                    insert = clusters.find_insertion_at_clipping_bkp(primary, supplementary)
-                
-                # b) Chimeric alignment NOT found -> search for complementary clippings
-                else:
-
-                    ## Generate fasta files containing clusters supporting reads:
-                    readsA = metacluster.subclusters['RIGHT-CLIPPING'].collect_reads() 
-                    readsB = metacluster.subclusters['LEFT-CLIPPING'].collect_reads()
-
-                    readsA_file = binDir + '/seqA.fa'
-                    readsB_file = binDir + '/seqB.fa'
-
-                    readsA.write(readsA_file)
-                    readsB.write(readsB_file)
-
-                    ## Assemble clippings based on overlap 
-                    contigFile = assembly.assemble_overlap(readsA_file, readsB_file, self.confDict['technology'], binDir)
-                    '''
+        clusters.make_consensus(metaclustersBinDb, self.confDict, self.reference, 'METACLUSTERS', binDir)
 
 class SV_caller_short(SV_caller):
     '''

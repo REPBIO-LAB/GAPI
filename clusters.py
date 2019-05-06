@@ -155,6 +155,38 @@ def create_metaclusters(eventsBinDb, confDict):
     metaclustersBinDb = structures.create_bin_database(eventsBinDb.ref, eventsBinDb.beg, eventsBinDb.end, metaclustersDict, binSizes)
     return metaclustersBinDb
 
+
+def make_consensus(clustersBinDb, confDict, reference, clusterType, rootOutDir):
+    '''
+    Make consensus supporting sequence and event for a set of cluster objects
+
+    Input:
+        1. clustersBinDb: Data structure containing a set of clusters organized in genomic bins
+        2. confDict: 
+            * technology     -> sequencing technology (NANOPORE, PACBIO or ILLUMINA)
+            * targetSV       -> list with target SV (INS: insertion; DEL: deletion; CLIPPING: left and right clippings)
+            * minMAPQ        -> minimum mapping quality
+            * minCLIPPINGlen -> minimum clipping lenght
+            * minINDELlen    -> minimum INS and DEL lenght
+            * overhang       -> Number of flanking base pairs around the INDEL events to be collected from the supporting read. If 'None' the complete read sequence will be collected)
+
+        3. reference: path to reference genome in fasta format    
+        4. clusterType: target cluster type to generate consensus
+        5. rootOutDir: root output directory
+
+    Output:
+        1. : 
+    ''' 
+    for cluster in clustersBinDb.collect([clusterType]):
+
+        print('CREATE_CONSENSUS_FOR: ', cluster, cluster.ref, cluster.beg, cluster.end)
+
+        clusterId = '_'.join([str(cluster.ref), str(cluster.beg), str(cluster.end)])
+        outDir = rootOutDir + '/' + clusterId
+        cluster.make_consensus(confDict, reference, outDir)
+
+        print('-------------------------------')
+
 def find_chimeric_alignments(clusterA, clusterB):
     '''
     Search for chimeric read alignments connecting two clipping clusters. Select one as representative if multiple are identified. 
@@ -648,3 +680,165 @@ class META_cluster():
             templateFile = None
         
         return templateFile
+
+
+    def make_consensus(self, confDict, reference, outDir):
+        '''
+        Make consensus supporting sequence and event for the metacluster
+
+        Input: 
+            1. confDict: 
+                * technology     -> sequencing technology (NANOPORE, PACBIO or ILLUMINA)
+                * targetSV       -> list with target SV (INS: insertion; DEL: deletion; CLIPPING: left and right clippings)
+                * minMAPQ        -> minimum mapping quality
+                * minCLIPPINGlen -> minimum clipping lenght
+                * minINDELlen    -> minimum INS and DEL lenght
+                * overhang       -> Number of flanking base pairs around the INDEL events to be collected from the supporting read. If 'None' the complete read sequence will be collected)            2. outDir: output directory
+            2. reference: path to reference genome in fasta format    
+            3. outDir: Output directory
+        
+        Output:
+            1. : 
+        '''
+        ## 0. Create directory 
+        logDir = outDir + '/Logs'
+        unix.mkdir(outDir)
+
+        ## 1. Define template
+        templateFile = self.select_template(confDict['technology'], outDir)
+
+        if templateFile == None:
+            print('TEMPLATE EXTRACTION FAILED. SKIP CONSENSUS GENERATION')
+            return
+            
+        template = formats.FASTA()
+        template.read(templateFile)
+        templateReadName = list(template.seqDict.keys())[0]
+
+        ## 2. Collect metacluster supporting reads 
+        supportingReads = self.collect_reads()
+
+        ## Remove template from FASTA
+        if templateReadName in supportingReads.seqDict:
+            del supportingReads.seqDict[templateReadName]
+
+        ## Write supporting reads FASTA 
+        supportingReadsFile = outDir + '/supportingReads.fa'
+        supportingReads.write(supportingReadsFile)
+            
+        ## 3. Template polishing to generate consensus
+        consensusFile = assembly.polish_racon(templateFile, supportingReadsFile, confDict['technology'], 2, outDir)
+
+        ## If polishing failed use directly the template as consensus
+        if consensusFile == None:
+            print('POLISHING FAILED. USE TEMPLATE AS CONSENSUS')
+            consensusFile = templateFile
+
+        ## 4. Realign consensus sequence into the SV event genomic region
+        ##  Define SV cluster surrounding region
+        # ------------------<***SV_cluster***>-----------------
+        # <--nbFlankingBp-->                  <--nbFlankingBp-->
+        nbFlankingBp = 10000
+        intervalBeg = self.beg - nbFlankingBp
+        intervalBeg = intervalBeg if intervalBeg >= 0 else 0 ## Set lower bound
+        intervalEnd = self.end + nbFlankingBp
+        intervalCoord = self.ref + ':' + str(intervalBeg) + '-' + str(intervalEnd)
+            
+        ## Do realignment
+        # ------------------<***SV_cluster***>-----------------
+        #         -------------consensus_seq-------------
+        BAM = alignment.targeted_alignment_minimap2(consensusFile, intervalCoord, reference, outDir)
+            
+        ## Consensus realignment failed
+        if BAM == None:
+            print('CONSENSUS REALIGNMENT FAILED')
+
+        ## Extract events from consensus sequence realignment
+        # ------------------<***SV_cluster***>-----------------
+        #        -------------consensus_seq-------------
+        #               <--->----------------<---> overhang (100 bp)
+        #                   event_search_space         
+        overhang = 100
+        clusterIntervalLen = self.end - self.beg
+        targetBeg = nbFlankingBp - overhang
+        targetEnd = nbFlankingBp + clusterIntervalLen + overhang
+        print('COLLECT: ', self.end, self.beg, intervalCoord, targetBeg, targetEnd, BAM)
+            
+        eventsDict = bamtools.collectSV(intervalCoord, targetBeg, targetEnd, BAM, confDict, None)
+
+        print('EVENTS_AFTER_REALIGNMENT: ', eventsDict)
+        print('EVENTS_COUNTS: ', len(eventsDict['INS']), len(eventsDict['DEL']), len(eventsDict['LEFT-CLIPPING']), len(eventsDict['RIGHT-CLIPPING']))
+            
+        ## 5. Define metacluster type and properties based on events collected from consensus sequence realignment
+        # A) Single INS event
+        if len(eventsDict['INS']) == 1:
+            print('CONSENSUS!! A) Single INS event')
+
+            ## Set metacluster type
+            self.SV_type = 'INS'
+                
+            ## Convert coordinates
+            event = eventsDict['INS'][0]
+            event = alignment.targetered2genomic_coord(event, self.ref, intervalBeg)
+
+            ## Incorporate INS in the metacluster as consensus  
+            self.consensus = event
+
+        # B) Multiple INS events 
+        # Raw alignment    -------------[INS]-[INS]---[INS]-------------
+        # Consensus        -------------[       INS       ]-------------
+        # This is consequence of fragmented alignments. So Merge events into a single consensus INS
+        elif len(eventsDict['INS']) > 1:
+            print('CONSENSUS!! B) Multiple INS events')
+
+            ## Set metacluster type
+            self.SV_type = 'INS'
+
+            ## Do merging
+
+            ## Convert coordinates
+
+            ## Incorporate merged INS in the metacluster as consensus  
+
+        # C) Single DEL event
+        elif len(eventsDict['DEL']) == 1:
+            print('CONSENSUS!! C) Single DEL event')
+
+            ## Set metacluster type
+            self.SV_type = 'DEL'
+                
+            ## Convert coordinates
+            event = eventsDict['DEL'][0]
+            event = alignment.targetered2genomic_coord(event, self.ref, intervalBeg)
+
+            ## Incorporate DEL in the metacluster as consensus  
+            self.consensus = event
+
+        # D) Multiple DEL events (same scenario as B) 
+        elif len(eventsDict['DEL']) > 1:
+            print('CONSENSUS!! D) Multiple DEL events (same scenario as B)')
+
+            ## Set metacluster type
+            self.SV_type = 'DEL'
+
+            ## Do merging
+
+            ## Convert coordinates
+
+            ## Incorporate merged DEL in the metacluster as consensus 
+
+        # E) One left and one right CLIPPING (NEXT TO DO)
+        elif (len(eventsDict['LEFT-CLIPPING']) == 1) and (len(eventsDict['RIGHT-CLIPPING']) == 1):
+            print('CONSENSUS!! E) One left and one right CLIPPING')
+
+        # F) Single left CLIPPING
+        elif (len(eventsDict['LEFT-CLIPPING']) == 1): 
+            print('CONSENSUS!! F) Single left CLIPPING')
+
+        # G) Single right CLIPPING
+        elif (len(eventsDict['RIGHT-CLIPPING']) == 1): 
+            print('CONSENSUS!! G) Single right CLIPPING')
+
+        # H) Another possibility
+        else:
+            print('CONSENSUS!! H) Another possibility')
