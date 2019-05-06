@@ -177,16 +177,32 @@ def make_consensus(clustersBinDb, confDict, reference, clusterType, rootOutDir):
     Output:
         1. : 
     ''' 
+    consensusDict = {}
+
+    ## For each cluster in the database
     for cluster in clustersBinDb.collect([clusterType]):
 
         print('CREATE_CONSENSUS_FOR: ', cluster, cluster.ref, cluster.beg, cluster.end)
 
         clusterId = '_'.join([str(cluster.ref), str(cluster.beg), str(cluster.end)])
         outDir = rootOutDir + '/' + clusterId
-        SV_type, consensus = cluster.make_consensus(confDict, reference, outDir)
+        cluster.SV_type, cluster.consensus = cluster.make_consensus(confDict, reference, outDir)
 
-        print('CONSENSUS_RESULT: ', SV_type, consensus)
-        print('-------------------------------')
+        # Discard clusters without known SV type
+        if cluster.SV_type is not None:
+
+            # Initialize SV type at the dictionary
+            if cluster.SV_type not in consensusDict:
+                consensusDict[cluster.SV_type] = []
+
+            # Add cluster 
+            consensusDict[cluster.SV_type].append(cluster)
+    
+    ## 3. Organize metaclusters into bins according to their SV type    
+    binSizes = [100, 1000, 10000, 100000, 1000000]
+    consensusBinDb = structures.create_bin_database(clustersBinDb.ref, clustersBinDb.beg, clustersBinDb.end, consensusDict, binSizes)
+
+    return consensusBinDb
 
 def find_chimeric_alignments(clusterA, clusterB):
     '''
