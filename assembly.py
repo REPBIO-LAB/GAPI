@@ -158,7 +158,7 @@ def polish_racon(templates, sequences, technology, nbRounds, outDir):
             break
 
         ## 2. Template polishing with racon ##
-        polished = outDir + '/polished_' + str(roundId) + '.fasta'
+        polished = outDir + '/polished_' + str(roundId) + '.fa'
         err = open(logDir + '/racon_' + str(roundId) + '.err', 'w') 
         command = 'racon --include-unpolished ' + sequences + ' ' + PAF + ' ' + templates + ' > ' + polished
         status = subprocess.call(command, stderr=err, shell=True)
