@@ -50,13 +50,28 @@ def pick_flanking_seq_INS(readSeq, readPos, length, overhang):
         1. seq: piece of supporting read sequence spanning the INS event
         2. seqPos: INS beginning breakpoint position at the output sequence
     '''
-    ## Pick inserted fragment sequence + flanking read sequence
-    begPos = readPos - overhang
-    begPos = begPos if begPos >= 0 else 0 # set lower bound to 0
-    endPos = readPos + length + overhang
-    seq = readSeq[begPos:endPos]
-    seqPos = overhang
     
+    ## A) Enough sequence for extracting overhang at the begin
+    #              readPos
+    # ----*-----------|-------------------*---
+    #      <--------->|<--MEI--><--------->
+    #        overhang |seqPos    overhang
+    if (readPos - overhang) > 0:
+        begPos = readPos - overhang
+        endPos = readPos + length + overhang
+        seq = readSeq[begPos:endPos]
+        seqPos = overhang
+
+    ## B) Not enough sequence, so we would get into - values. Set lower bound
+    #              readPos
+    #          *------|--------------------*---
+    #      <--------->|<--MEI--><--------->
+    #       overhang  |seqPos     overhang
+    else:
+        endPos = readPos + length + overhang
+        seq = readSeq[:endPos]
+        seqPos = readPos
+        
     return seq, seqPos
 
 
@@ -153,7 +168,7 @@ class INS():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, length, readSeq, readBkp, alignmentObj, sample):
+    def __init__(self, ref, beg, end, length, readName, readSeq, readBkp, alignmentObj, sample):
         '''
         '''
         INS.number += 1 # Update instances counter
@@ -163,18 +178,34 @@ class INS():
         self.beg = int(beg) # beg==end. 0-based INS breakpoint
         self.end = int(end)
         self.length = int(length)
-        self.readBkp = readBkp        
-        self.readName = alignmentObj.query_name
+        self.readName = readName
         self.readSeq = readSeq
+        self.readBkp = readBkp        
         self.sample = sample
 
         # Supporting read alignment properties:
-        self.reverse = alignmentObj.is_reverse
-        self.secondary = alignmentObj.is_secondary
-        self.supplementary = alignmentObj.is_supplementary
-        self.mapQual = alignmentObj.mapping_quality
-        self.supplAlignment = alignmentObj.get_tag('SA') if alignmentObj.has_tag('SA') else None
-
+        if alignmentObj is None:
+            self.reverse = None
+            self.secondary = None
+            self.supplementary = None
+            self.mapQual = None
+            self.supplAlignment = None
+        else:
+            self.reverse = alignmentObj.is_reverse
+            self.secondary = alignmentObj.is_secondary
+            self.supplementary = alignmentObj.is_supplementary
+            self.mapQual = alignmentObj.mapping_quality
+            self.supplAlignment = alignmentObj.get_tag('SA') if alignmentObj.has_tag('SA') else None
+    
+    def pick_insert(self):
+        '''
+        Pick and return the inserted sequence 
+        '''
+        begPos = self.readBkp
+        endPos = self.readBkp + self.length 
+        insert = self.readSeq[begPos:endPos]
+        
+        return insert
 
 class DEL():
     '''
@@ -182,7 +213,7 @@ class DEL():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, length, readSeq, readBkp, alignmentObj, sample):
+    def __init__(self, ref, beg, end, length, readName, readSeq, readBkp, alignmentObj, sample):
         '''
         '''
         DEL.number += 1 # Update instances counter
@@ -192,17 +223,24 @@ class DEL():
         self.beg = int(beg)
         self.end = int(end)
         self.length = int(length)
-        self.readBkp = readBkp        
-        self.readName = alignmentObj.query_name
+        self.readName = readName
         self.readSeq = readSeq
+        self.readBkp = readBkp        
         self.sample = sample
     
         # Supporting read alignment properties:
-        self.reverse = alignmentObj.is_reverse
-        self.secondary = alignmentObj.is_secondary
-        self.supplementary = alignmentObj.is_supplementary
-        self.mapQual = alignmentObj.mapping_quality
-        self.supplAlignment = alignmentObj.get_tag('SA') if alignmentObj.has_tag('SA') else None
+        if alignmentObj is None:
+            self.reverse = None
+            self.secondary = None
+            self.supplementary = None
+            self.mapQual = None
+            self.supplAlignment = None
+        else:
+            self.reverse = alignmentObj.is_reverse
+            self.secondary = alignmentObj.is_secondary
+            self.supplementary = alignmentObj.is_supplementary
+            self.mapQual = alignmentObj.mapping_quality
+            self.supplAlignment = alignmentObj.get_tag('SA') if alignmentObj.has_tag('SA') else None
 
 
 class CLIPPING():
@@ -211,7 +249,7 @@ class CLIPPING():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, clippedSide, readSeq, readBkp, alignmentObj, sample):
+    def __init__(self, ref, beg, end, clippedSide, readName, readSeq, readBkp, alignmentObj, sample):
         '''
         '''
         CLIPPING.number += 1 # Update instances counter
@@ -223,15 +261,22 @@ class CLIPPING():
         self.length = 0
         self.clippedSide = clippedSide
         self.clippingType = determine_clippingType(alignmentObj, self.clippedSide)
-        self.readBkp = readBkp        
-        self.readName = alignmentObj.query_name
+        self.readName = readName
         self.readSeq = readSeq
+        self.readBkp = readBkp        
         self.sample = sample
 
         # Supporting read alignment properties:
-        self.reverse = alignmentObj.is_reverse
-        self.secondary = alignmentObj.is_secondary
-        self.supplementary = alignmentObj.is_supplementary
-        self.mapQual = alignmentObj.mapping_quality
-        self.supplAlignment = alignmentObj.get_tag('SA') if alignmentObj.has_tag('SA') else None
-        self.refLen = alignmentObj.reference_length
+        if alignmentObj is None:
+            self.reverse = None
+            self.secondary = None
+            self.supplementary = None
+            self.mapQual = None
+            self.supplAlignment = None
+        else:
+            self.reverse = alignmentObj.is_reverse
+            self.secondary = alignmentObj.is_secondary
+            self.supplementary = alignmentObj.is_supplementary
+            self.mapQual = alignmentObj.mapping_quality
+            self.supplAlignment = alignmentObj.get_tag('SA') if alignmentObj.has_tag('SA') else None
+            self.refLen = alignmentObj.reference_length
