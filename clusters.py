@@ -143,8 +143,8 @@ def create_metaclusters(eventsBinDb, confDict):
         # metaclusters = clustering.reciprocal_clustering()
         # allMetaclusters = allMetaclusters + metaclusters
 
-    for metacluster in allMetaclusters:
-        print('METACLUSTER: ', metacluster, len(metacluster.events), [(clusterType, len(subcluster.events)) for clusterType, subcluster in metacluster.subclusters.items()])
+    #for metacluster in allMetaclusters:
+    #    print('METACLUSTER: ', metacluster, len(metacluster.events), [(clusterType, len(subcluster.events)) for clusterType, subcluster in metacluster.subclusters.items()])
 
 
     ## 3. Organize metaclusters into bins ##    
@@ -154,7 +154,6 @@ def create_metaclusters(eventsBinDb, confDict):
 
     metaclustersBinDb = structures.create_bin_database(eventsBinDb.ref, eventsBinDb.beg, eventsBinDb.end, metaclustersDict, binSizes)
     return metaclustersBinDb
-
 
 def make_consensus(clustersBinDb, confDict, reference, clusterType, rootOutDir):
     '''
@@ -175,17 +174,15 @@ def make_consensus(clustersBinDb, confDict, reference, clusterType, rootOutDir):
         5. rootOutDir: root output directory
 
     Output:
-        1. : 
+        1. consensusBinDb: bin database structure containing metaclusters for which consensus sequences and events have been generated
     ''' 
     consensusDict = {}
 
     ## For each cluster in the database
     for cluster in clustersBinDb.collect([clusterType]):
 
-        print('CREATE_CONSENSUS_FOR: ', cluster, cluster.ref, cluster.beg, cluster.end)
+        outDir = rootOutDir + '/Consensus/' + str(cluster.id)
 
-        clusterId = '_'.join([str(cluster.ref), str(cluster.beg), str(cluster.end)])
-        outDir = rootOutDir + '/' + clusterId
         cluster.SV_type, cluster.consensus = cluster.make_consensus(confDict, reference, outDir)
 
         # Discard clusters without known SV type
@@ -289,6 +286,25 @@ def find_insertion_at_clipping_bkp(primary, supplementary):
     insert = primary.readSeq[readBkpA:readBkpB]
 
     return insert
+
+
+def determine_INS_type(metaclusters, index, confDict, rootOutDir):
+    '''
+    Function to determine what has been inserted for each cluster. 
+
+    Input:
+        1. metaclusters: list containing metaclusters supporting INS events
+        2. index: Minimap2 index for fasta file containing retrotransposon related sequences 
+        3. confDict: ...
+        4: rootOutDir: root directory to write files and directories
+    '''
+    ## For each metacluster in the list
+    for metacluster in metaclusters:
+
+        ## Determine the insertion type
+        outDir = rootOutDir + '/INS_type/' + str(metacluster.id)
+        metacluster.determine_INS_type(index, confDict, outDir)
+
 
 #############
 ## CLASSES ##
@@ -459,7 +475,6 @@ class CLIPPING_cluster(cluster):
 
         cluster.__init__(self, events, 'CLIPPING')
 
-
 class META_cluster():
     '''
     Meta cluster class
@@ -483,8 +498,14 @@ class META_cluster():
     
         # Set some metacluster properties as None
         self.filters = None
-        self.SV_type = None
         self.consensus = None
+        self.SV_type = None
+
+        # Metacluster SV features
+        self.INS_features = {}
+        self.DEL_features = {}
+        self.BKP_features = {}
+
 
     def sort(self):
         '''
@@ -628,7 +649,7 @@ class META_cluster():
         # A) Metacluster contains an INS cluster
         if ('INS' in self.subclusters):
 
-            print('A) Metacluster contains an insertion cluster')
+            # print('A) Metacluster contains an insertion cluster')
 
             ## Select INS event with median length as template
             templateEvent = self.subclusters['INS'].pick_median_length()
@@ -642,7 +663,7 @@ class META_cluster():
         # B) Metacluster contains a DEL cluster
         elif ('DEL' in self.subclusters):
 
-            print('B) Metacluster contains a deletion cluster')
+            #print('B) Metacluster contains a deletion cluster')
 
             ## Select DEL event with median length as template
             templateEvent = self.subclusters['DEL'].pick_median_length()
@@ -656,7 +677,7 @@ class META_cluster():
         # C) Metacluster composed by only two CLIPPING clusters (left and right) 
         elif all (clusterType in self.subclusters for clusterType in ['LEFT-CLIPPING', 'RIGHT-CLIPPING']):
             
-            print('C) Metacluster composed by only two clipping clusters (left and right)')
+            #print('C) Metacluster composed by only two clipping clusters (left and right)')
         
             ## Search for chimeric alignment spanning the SV event
             templateEvent, supplementary, chimeric = find_chimeric_alignments(self.subclusters['RIGHT-CLIPPING'], self.subclusters['LEFT-CLIPPING'])
@@ -664,7 +685,7 @@ class META_cluster():
             # a) Chimeric alignment found -> Write template into output file 
             if (templateEvent != None): 
 
-                print('C.a) Chimeric alignment found')
+                #print('C.a) Chimeric alignment found')
 
                 templateFasta = formats.FASTA()
                 templateFasta.seqDict[templateEvent.readName] = templateEvent.readSeq
@@ -687,8 +708,8 @@ class META_cluster():
                 ## Assemble clippings based on overlap 
                 templateFile = assembly.assemble_overlap(readsA_file, readsB_file, technology, outDir)
 
-                if (templateFile != None): 
-                    print('C.b) complementary clippings found')
+                #if (templateFile is not None): 
+                #    print('C.b) complementary clippings found')
 
         # D) Metacluster composed by a single CLIPPING cluster. 
         # For now set the template as None, but at one point I should set a criteria for picking a template
@@ -724,8 +745,7 @@ class META_cluster():
         ## 1. Define template
         templateFile = self.select_template(confDict['technology'], outDir)
 
-        if templateFile == None:
-            print('TEMPLATE EXTRACTION FAILED. SKIP CONSENSUS GENERATION')
+        if templateFile is None:
             return None, None
             
         template = formats.FASTA()
@@ -748,7 +768,6 @@ class META_cluster():
 
         ## If polishing failed use directly the template as consensus
         if consensusFile == None:
-            print('POLISHING FAILED. USE TEMPLATE AS CONSENSUS')
             consensusFile = templateFile
 
         ## 4. Realign consensus sequence into the SV event genomic region
@@ -767,8 +786,8 @@ class META_cluster():
         BAM = alignment.targeted_alignment_minimap2(consensusFile, intervalCoord, reference, outDir)
             
         ## Consensus realignment failed
-        if BAM == None:
-            print('CONSENSUS REALIGNMENT FAILED')
+        if BAM is None:
+            return None, None
 
         ## Extract events from consensus sequence realignment
         # ------------------<***SV_cluster***>-----------------
@@ -781,10 +800,10 @@ class META_cluster():
         targetEnd = nbFlankingBp + clusterIntervalLen + overhang            
         eventsDict = bamtools.collectSV(intervalCoord, targetBeg, targetEnd, BAM, confDict, None)
 
-        ## 5. Define metacluster type and properties based on events collected from consensus sequence realignment
+        ## 5. Define metacluster type based on events collected from consensus sequence realignment
         # A) Single INS event
         if len(eventsDict['INS']) == 1:
-            print('CONSENSUS!! A) Single INS event')
+            #print('CONSENSUS!! A) Single INS event')
 
             ## Set metacluster type
             SV_type = 'INS'
@@ -801,7 +820,7 @@ class META_cluster():
         # Consensus        -------------[       INS       ]-------------
         # This is consequence of fragmented alignments. So Merge events into a single consensus INS
         elif len(eventsDict['INS']) > 1:
-            print('CONSENSUS!! B) Multiple INS events')
+            #print('CONSENSUS!! B) Multiple INS events')
 
             ## Set metacluster type
             SV_type = None
@@ -815,7 +834,7 @@ class META_cluster():
 
         # C) Single DEL event
         elif len(eventsDict['DEL']) == 1:
-            print('CONSENSUS!! C) Single DEL event')
+            #print('CONSENSUS!! C) Single DEL event')
 
             ## Set metacluster type
             SV_type = 'DEL'
@@ -829,7 +848,7 @@ class META_cluster():
 
         # D) Multiple DEL events (same scenario as B) 
         elif len(eventsDict['DEL']) > 1:
-            print('CONSENSUS!! D) Multiple DEL events (same scenario as B)')
+            #print('CONSENSUS!! D) Multiple DEL events (same scenario as B)')
 
             ## Set metacluster type
             SV_type = None
@@ -843,7 +862,7 @@ class META_cluster():
 
         # E) One left and one right CLIPPING (NEXT TO DO)
         elif (len(eventsDict['LEFT-CLIPPING']) == 1) and (len(eventsDict['RIGHT-CLIPPING']) == 1):
-            print('CONSENSUS!! E) One left and one right CLIPPING')
+            #print('CONSENSUS!! E) One left and one right CLIPPING')
 
             ## Set metacluster type
             SV_type = 'INS'
@@ -862,20 +881,73 @@ class META_cluster():
 
         # F) Single left CLIPPING
         elif (len(eventsDict['LEFT-CLIPPING']) == 1): 
-            print('CONSENSUS!! F) Single left CLIPPING')
+            #print('CONSENSUS!! F) Single left CLIPPING')
             SV_type = None
             consensus = None
 
         # G) Single right CLIPPING
         elif (len(eventsDict['RIGHT-CLIPPING']) == 1): 
-            print('CONSENSUS!! G) Single right CLIPPING')
+            #print('CONSENSUS!! G) Single right CLIPPING')
             SV_type = None
             consensus = None
 
         # H) Another possibility
         else:
-            print('CONSENSUS!! H) Another possibility')
+            #print('CONSENSUS!! H) Another possibility')
             SV_type = None
             consensus = None
     
+        ## Cleanup
+        unix.rm([outDir])
+
         return SV_type, consensus
+
+    def determine_INS_type(self, index, confDict, outDir): 
+        '''
+        Determine the type of insertion (retrotransposon, simple repeat, virus, ...) and collect insertion information.
+
+        Input: 
+            1. index: Minimap2 index for fasta file containing retrotransposon related sequences 
+            2. confDict: Configuration dictionary 
+            3. outDir: Output directory
+        '''
+
+        ## 0. Create output directory 
+        unix.mkdir(outDir)
+
+        ## 1. Pick inserted sequence
+        insert = self.consensus.pick_insert()
+        
+        ## 2. Write target seq into file 
+        FASTA = formats.FASTA()
+        FASTA.seqDict[str(self.id)] = insert
+
+        FASTA_file = outDir + '/insert.fa'
+        FASTA.write(FASTA_file)
+
+        ## 3. Determine to what corresponds the insertion
+        # A) Tandem repeat/simple repeat expansion? 
+        minPercSimple = 70
+        self.INS_features['insType'], self.INS_features['status'], self.INS_features['percResolved'] = repeats.is_simple_repeat(FASTA_file, minPercSimple, outDir)
+
+        ## Stop if insertion classified as simple repeat
+        if self.INS_features['status'] == 'resolved':
+            return
+
+        # B) Retrotransposon insertion? 
+        self.INS_features['insType'], self.INS_features['family'], self.INS_features['srcId'], self.INS_features['status'], self.INS_features['percResolved'], self.INS_features['strand'], self.INS_features['hits'] = retrotransposons.is_retrotransposition(FASTA_file, index, outDir)
+        
+        ## Stop if insertion classified as retrotransposon
+        if (self.INS_features['status'] == 'resolved') or (self.INS_features['status'] == 'partially_resolved'):
+            return
+       
+        # C) Viral insertion? 
+        #viruses.is_virus()
+
+        # D) Telomemric insertion? 
+
+        # E) Mitochondrial or rearranged DNA insert?
+        #¿¿¿rearrangements???.is_chromosomal_dna()
+        
+        ## Cleanup
+        unix.rm([outDir])
