@@ -183,8 +183,9 @@ def make_consensus(clustersBinDb, confDict, reference, clusterType, rootOutDir):
 
         clusterId = '_'.join([str(cluster.ref), str(cluster.beg), str(cluster.end)])
         outDir = rootOutDir + '/' + clusterId
-        cluster.make_consensus(confDict, reference, outDir)
+        SV_type, consensus = cluster.make_consensus(confDict, reference, outDir)
 
+        print('CONSENSUS_RESULT: ', SV_type, consensus)
         print('-------------------------------')
 
 def find_chimeric_alignments(clusterA, clusterB):
@@ -698,10 +699,10 @@ class META_cluster():
             3. outDir: Output directory
         
         Output:
-            1. : 
+            1. SV_type: Structural variation type (INS, DEL, BKP or None)
+            2. consensus: Consensus SV event object
         '''
         ## 0. Create directory 
-        logDir = outDir + '/Logs'
         unix.mkdir(outDir)
 
         ## 1. Define template
@@ -709,7 +710,7 @@ class META_cluster():
 
         if templateFile == None:
             print('TEMPLATE EXTRACTION FAILED. SKIP CONSENSUS GENERATION')
-            return
+            return None, None
             
         template = formats.FASTA()
         template.read(templateFile)
@@ -761,29 +762,24 @@ class META_cluster():
         overhang = 100
         clusterIntervalLen = self.end - self.beg
         targetBeg = nbFlankingBp - overhang
-        targetEnd = nbFlankingBp + clusterIntervalLen + overhang
-        print('COLLECT: ', self.end, self.beg, intervalCoord, targetBeg, targetEnd, BAM)
-            
+        targetEnd = nbFlankingBp + clusterIntervalLen + overhang            
         eventsDict = bamtools.collectSV(intervalCoord, targetBeg, targetEnd, BAM, confDict, None)
 
-        print('EVENTS_AFTER_REALIGNMENT: ', eventsDict)
-        print('EVENTS_COUNTS: ', len(eventsDict['INS']), len(eventsDict['DEL']), len(eventsDict['LEFT-CLIPPING']), len(eventsDict['RIGHT-CLIPPING']))
-            
         ## 5. Define metacluster type and properties based on events collected from consensus sequence realignment
         # A) Single INS event
         if len(eventsDict['INS']) == 1:
             print('CONSENSUS!! A) Single INS event')
 
             ## Set metacluster type
-            self.SV_type = 'INS'
+            SV_type = 'INS'
                 
             ## Convert coordinates
             event = eventsDict['INS'][0]
             event = alignment.targetered2genomic_coord(event, self.ref, intervalBeg)
 
             ## Incorporate INS in the metacluster as consensus  
-            self.consensus = event
-
+            consensus = event
+            
         # B) Multiple INS events 
         # Raw alignment    -------------[INS]-[INS]---[INS]-------------
         # Consensus        -------------[       INS       ]-------------
@@ -792,53 +788,78 @@ class META_cluster():
             print('CONSENSUS!! B) Multiple INS events')
 
             ## Set metacluster type
-            self.SV_type = 'INS'
+            SV_type = None
 
             ## Do merging
 
             ## Convert coordinates
 
             ## Incorporate merged INS in the metacluster as consensus  
+            consensus = None
 
         # C) Single DEL event
         elif len(eventsDict['DEL']) == 1:
             print('CONSENSUS!! C) Single DEL event')
 
             ## Set metacluster type
-            self.SV_type = 'DEL'
+            SV_type = 'DEL'
                 
             ## Convert coordinates
             event = eventsDict['DEL'][0]
             event = alignment.targetered2genomic_coord(event, self.ref, intervalBeg)
 
             ## Incorporate DEL in the metacluster as consensus  
-            self.consensus = event
+            consensus = event
 
         # D) Multiple DEL events (same scenario as B) 
         elif len(eventsDict['DEL']) > 1:
             print('CONSENSUS!! D) Multiple DEL events (same scenario as B)')
 
             ## Set metacluster type
-            self.SV_type = 'DEL'
+            SV_type = None
 
             ## Do merging
 
             ## Convert coordinates
 
             ## Incorporate merged DEL in the metacluster as consensus 
+            consensus = None
 
         # E) One left and one right CLIPPING (NEXT TO DO)
         elif (len(eventsDict['LEFT-CLIPPING']) == 1) and (len(eventsDict['RIGHT-CLIPPING']) == 1):
             print('CONSENSUS!! E) One left and one right CLIPPING')
 
+            ## Set metacluster type
+            SV_type = 'INS'
+
+            ## Create INS event
+            rightClipping = eventsDict['RIGHT-CLIPPING'][0]
+            leftClipping = eventsDict['LEFT-CLIPPING'][0]
+            length = leftClipping.readBkp - rightClipping.readBkp
+            event = events.INS(rightClipping.ref, rightClipping.beg, rightClipping.end, length, rightClipping.readName, rightClipping.readSeq, rightClipping.readBkp, None, None)
+        
+            ## Convert coordinates
+            event = alignment.targetered2genomic_coord(event, self.ref, intervalBeg)
+
+            ## Incorporate INS in the metacluster as consensus  
+            consensus = event
+
         # F) Single left CLIPPING
         elif (len(eventsDict['LEFT-CLIPPING']) == 1): 
             print('CONSENSUS!! F) Single left CLIPPING')
+            SV_type = None
+            consensus = None
 
         # G) Single right CLIPPING
         elif (len(eventsDict['RIGHT-CLIPPING']) == 1): 
             print('CONSENSUS!! G) Single right CLIPPING')
+            SV_type = None
+            consensus = None
 
         # H) Another possibility
         else:
             print('CONSENSUS!! H) Another possibility')
+            SV_type = None
+            consensus = None
+    
+        return SV_type, consensus
