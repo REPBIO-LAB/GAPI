@@ -371,8 +371,6 @@ def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, sample):
         # b) Clipping within target interval 
         if (targetInterval == None) or (gRanges.overlap(alignmentObj.reference_start, alignmentObj.reference_start, targetInterval[0], targetInterval[1])[0]):
             
-            # (self, ref, beg, end, clippedSide, readName, readSeq, readBkp, alignmentObj, sample)
-
             # Create CLIPPING object
             left_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_start, 'left', alignmentObj.query_name, alignmentObj.query_sequence, alignmentObj.query_alignment_start, alignmentObj, sample)
 
