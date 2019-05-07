@@ -609,13 +609,19 @@ class META_cluster():
     def nbEvents(self):
         '''
         Return the number of events composing the metacluster. 
-        
-        Extend to return a as well a dictionary containing the number of events composing each subcluster
         '''
+        ## Initialize counters
         nbTumour = 0
         nbNormal = 0
 
+        nbINS = 0
+        nbDEL = 0
+        nbCLIPPING = 0   
+
+        # For each event composing the metacluster
         for event in self.events:
+
+            ## Tumour and matched normal counts
             # a) Event identified in the TUMOUR sample
             if event.sample == "TUMOUR":
                 nbTumour += 1
@@ -629,10 +635,25 @@ class META_cluster():
                 nbTumour = None
                 nbNormal = None
                 break
+            
+            ## Event type counts
+            # a) INS event
+            if event.type == 'INS':
+                nbINS += 1
+
+            # b) DEL event
+            elif event.type == 'DEL':
+                nbDEL += 1
+
+            # c) CLIPPING event
+            else:
+                nbCLIPPING += 1            
 
         nbTotal = len(self.events)
 
-        return nbTotal, nbTumour, nbNormal
+        return nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING
+
+           
 
     def select_template(self, technology, outDir):
         '''
