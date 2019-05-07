@@ -892,13 +892,22 @@ class META_cluster():
             rightClipping = eventsDict['RIGHT-CLIPPING'][0]
             leftClipping = eventsDict['LEFT-CLIPPING'][0]
             length = leftClipping.readBkp - rightClipping.readBkp
-            event = events.INS(rightClipping.ref, rightClipping.beg, rightClipping.end, length, rightClipping.readName, rightClipping.readSeq, rightClipping.readBkp, None, None)
-        
-            ## Convert coordinates
-            event = alignment.targetered2genomic_coord(event, self.ref, intervalBeg)
 
-            ## Incorporate INS in the metacluster as consensus  
-            consensus = event
+            # a) Missalignment leading to aberrant clipping 
+            # (rarely happens, at one point investigate further)
+            if length <= 0:
+                SV_type = None
+                consensus = None
+
+            # b) Correct clipping
+            else:
+                event = events.INS(rightClipping.ref, rightClipping.beg, rightClipping.end, length, rightClipping.readName, rightClipping.readSeq, rightClipping.readBkp, None, None)
+        
+                ## Convert coordinates
+                event = alignment.targetered2genomic_coord(event, self.ref, intervalBeg)
+
+                ## Incorporate INS in the metacluster as consensus  
+                consensus = event
 
         # F) Single left CLIPPING
         elif (len(eventsDict['LEFT-CLIPPING']) == 1): 
@@ -918,6 +927,7 @@ class META_cluster():
             SV_type = None
             consensus = None
     
+         
         ## Cleanup
         unix.rm([outDir])
 
@@ -938,7 +948,7 @@ class META_cluster():
 
         ## 1. Pick inserted sequence
         insert = self.consensus.pick_insert()
-        
+
         ## 2. Write target seq into file 
         FASTA = formats.FASTA()
         FASTA.seqDict[str(self.id)] = insert

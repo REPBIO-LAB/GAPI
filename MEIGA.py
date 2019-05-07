@@ -52,6 +52,7 @@ parser.add_argument('--maxClusterSize', default=500, dest='maxClusterSize', type
 parser.add_argument('--maxClusterCV', default=15, dest='maxClusterCV', type=int, help='Maximum Coefficient of Variation of a cluster. Default: 15')
 parser.add_argument('--maxOutliers', default=0.5, dest='maxOutliers', type=int, help='Maximum percentage of events supporting a cluster that have been removed during the polish step. Default: 0.5')
 
+
 ## 2. Parse user´s input and initialize variables ##
 args = parser.parse_args()
 
