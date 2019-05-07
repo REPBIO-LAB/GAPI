@@ -281,17 +281,10 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
 
     ## Initialize dictionary to store SV events
     eventsDict = {}
-
-    for SV_type in confDict['targetSV']:
-
-        # a) Dividide clipping events into left and right clippings
-        if (SV_type == 'CLIPPING'):
-            eventsDict['LEFT-CLIPPING'] = []
-            eventsDict['RIGHT-CLIPPING'] = []
-
-        # b) Other types of events
-        else:
-            eventsDict[SV_type] = []
+    eventsDict['INS'] = []
+    eventsDict['DEL'] = []
+    eventsDict['LEFT-CLIPPING'] = []
+    eventsDict['RIGHT-CLIPPING'] = []
 
     ## Open BAM file for reading
     bamFile = pysam.AlignmentFile(bam, "rb")
