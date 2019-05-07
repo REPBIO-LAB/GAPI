@@ -67,7 +67,7 @@ class SV_caller_long(SV_caller):
         output.write_INS(metaclustersBinDb, self.outDir)
 
         ### 5. Do cleanup
-        #unix.rm([dbDir])
+        unix.rm([dbDir])
 
     def make_clusters_bin(self, window):
         '''
@@ -131,9 +131,10 @@ class SV_caller_long(SV_caller):
 
         clusters.determine_INS_type(consensusBinDb.collect(['INS']), self.retrotransposonDbIndex, self.confDict, binDir)
 
-        return consensusBinDb
         ### Do cleanup
-        # unix.rm([binDir])
+        unix.rm([binDir])
+
+        return consensusBinDb
 
 
 class SV_caller_short(SV_caller):
