@@ -101,7 +101,7 @@ def create_discordantClusters(eventsBinDb, confDict):
 
     return discordantClustersDict
 
-def create_metaclusters(eventsBinDb, confDict, bam, normalBam, mode):
+def create_metaclusters(eventsBinDb, confDict):
     '''
     
     Input:
@@ -679,7 +679,7 @@ class META_cluster():
 
         nbTotal = len(self.events)
 
-        return nbTotal, nbTumour, nbNormal
+        return nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING
         
     
     def supportingCLIPPING(self, buffer, confDict, bam, normalBam, mode):

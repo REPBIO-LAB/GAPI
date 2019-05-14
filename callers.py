@@ -710,7 +710,7 @@ class SV_caller_short(SV_caller):
 
         ## 8. Create metaclusters from reciprocal and independent clusters ##
 
-        metaclustersBinDb = clusters.create_metaclusters(reciprocalEventsBinDb, self.confDict, self.bam, self.normalBam, self.mode)
+        metaclustersBinDb = clusters.create_metaclusters(reciprocalEventsBinDb, self.confDict)
 
         step = 'META-CLUSTERING'
         msg = '[META-CLUSTERING] Number of created metaclusters: ' + str(metaclustersBinDb.nbEvents()[0])

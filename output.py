@@ -42,7 +42,7 @@ def write_INS(metaclustersBinDb, outDir):
     ## Close output file ##
     outFile.close()
 
-## [SR CHANGE]: imagino que este cambio es solo temporal!
+
 def writeMetaclusters(metaclustersList, outDir):
     '''
     Write structural variation clusters into a tsv file
