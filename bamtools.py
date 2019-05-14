@@ -6,7 +6,6 @@ Module 'bamtools' - Contains functions for extracting data from bam files
 # External
 import pysam
 import subprocess
-## [SR CHANGE]
 import sys
 
 # Internal
@@ -219,7 +218,7 @@ def collectSV_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict):
     Collect structural variant (SV) events in a genomic bin from tumour and matched normal bam files
 
     Input:
-        1. ref: target referenge
+        1. ref: target reference
         2. binBeg: bin begin
         3. binEnd: bin end
         4. tumourBam: indexed tumour BAM file
@@ -229,7 +228,6 @@ def collectSV_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict):
             * minMAPQ        -> minimum mapping quality
             * minCLIPPINGlen -> minimum clipping lenght
             * minINDELlen    -> minimum INS and DEL lenght
-            * quality        -> True (sequence qualities available) or False (not available). 
 
     Output:
         1. eventsDict: dictionary containing list of SV events grouped according to the SV type:
@@ -252,8 +250,6 @@ def collectSV_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict):
 
     return eventsDict
 
-## [SR CHANGE]: rm duplicates as option
-# TODO: PONERLA BIEN EN EL CONFIG
 def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
     '''
     Collect structural variant (SV) events in a genomic bin from a bam file
@@ -268,7 +264,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             * minMAPQ        -> minimum mapping quality
             * minCLIPPINGlen -> minimum clipping lenght
             * minINDELlen    -> minimum INS and DEL lenght
-            * overhang       -> Number of flanking base pairs around the SV event to be collected from the supporting read. If 'None' the complete read sequence will be collected)
+            * overhang       -> Number of flanking base pairs around the INDEL events to be collected from the supporting read. If 'None' the complete read sequence will be collected)
         6. sample: type of sample (TUMOUR, NORMAL or None)
 
     Output:
@@ -284,23 +280,10 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
 
     ## Initialize dictionary to store SV events
     eventsDict = {}
-
-    for SV_type in confDict['targetSV']:
-
-        # a) Dividide clipping events into left and right clippings
-        if (SV_type == 'CLIPPING'):
-            eventsDict['LEFT-CLIPPING'] = []
-            eventsDict['RIGHT-CLIPPING'] = []
-
-        ## [SR CHANGE]
-        # b) Dividide discordant events into minus and plus discordants
-        if (SV_type == 'DISCORDANT'):
-            eventsDict['MINUS-DISCORDANT'] = []
-            eventsDict['PLUS-DISCORDANT'] = []
-
-        # c) Other types of events
-        else:
-            eventsDict[SV_type] = []
+    eventsDict['INS'] = []
+    eventsDict['DEL'] = []
+    eventsDict['LEFT-CLIPPING'] = []
+    eventsDict['RIGHT-CLIPPING'] = []
 
     ## Open BAM file for reading
     bamFile = pysam.AlignmentFile(bam, "rb")
@@ -319,9 +302,8 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
         # - Mapping quality < threshold
         MAPQ = int(alignmentObj.mapping_quality)
 
-        ## [SR CHANGE IMPORTANTE!!!!!]
         '''
-        EJEMPLO
+        IMPORTANT: do not remove duplicates... ask Eva to explain this better... See her comment bellow:
         ESTE READ:  HWI-ST672:129:D0DF0ACXX:7:2307:1853:126943 (BIN: 2_105457202_105457974, SAMPLE: RK107, MODE: SINGLE)
         Es duplicado, pero es que resulta que un duplicado esta map y el otro no, entonces no la coge de ninguna de las maneras y no funciona lo demas!
         '''
@@ -330,10 +312,11 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
          
             ## 1. Collect CLIPPINGS
             if 'CLIPPING' in confDict['targetSV']:
-                ## [SR CHANGE]
+
                 leftAdded = "N"
 
-                left_CLIPPING, right_CLIPPING = collectCLIPPING(alignmentObj, confDict['minCLIPPINGlen'], targetInterval, confDict['overhang'], sample)
+                left_CLIPPING, right_CLIPPING = collectCLIPPING(alignmentObj, confDict['minCLIPPINGlen'], targetInterval, sample)
+
                 # Left CLIPPING found
                 if left_CLIPPING != None:
                     eventsDict['LEFT-CLIPPING'].append(left_CLIPPING)
@@ -341,12 +324,14 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
         
                 # Right CLIPPING found
                 if right_CLIPPING != None:
-                    ## [SR CHANGE]
-                    if leftAdded != "Y" and 'SMS' in confDict['readFilters']: # Y EL FILTRO ESTA ACTIVADO
+                    
+                    # a) Filter activated
+                    if leftAdded != "Y" and 'SMS' in confDict['readFilters']: 
                         eventsDict['RIGHT-CLIPPING'].append(right_CLIPPING)
-                    elif 'SMS' not in confDict['readFilters']: # si EL FILTRO NO ESTA ACTIVADO lo meto sin mirar la leftAdded
+                    
+                    # b) Filter not activated -> pick read without checking if read clipped on the left as well
+                    elif 'SMS' not in confDict['readFilters']: 
                         eventsDict['RIGHT-CLIPPING'].append(right_CLIPPING)
-
 
             ## 2. Collect INDELS
             if ('INS' in confDict['targetSV']) or ('DEL' in confDict['targetSV']):
@@ -377,7 +362,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
     return eventsDict
 
 
-def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, overhang, sample):
+def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, sample):
     '''
     For a read alignment check if the read is clipped on each side and return the corresponding clipping objects
 
@@ -385,8 +370,7 @@ def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, overhang, samp
         1. alignmentObj: pysam read alignment object
         2. minCLIPPINGlen: minimum clipping lenght
         3. targetInterval: tuple containing begin and end position of the target genomic interval to extract events from. If 'None' all clippings will be reported
-        4. overhang: Number of flanking base pairs around the SV event to be collected from the supporting read. If 'None' the complete read sequence will be collected)
-        5. sample: type of sample (TUMOUR, NORMAL or None). 
+        4. sample: type of sample (TUMOUR, NORMAL or None). 
 
     Output:
         1. left_CLIPPING: left CLIPPING object (None if no clipping found)
@@ -410,7 +394,7 @@ def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, overhang, samp
         if (targetInterval == None) or (gRanges.overlap(alignmentObj.reference_start, alignmentObj.reference_start, targetInterval[0], targetInterval[1])[0]):
             
             # Create CLIPPING object
-            left_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_start, 'left', alignmentObj.query_sequence, alignmentObj.query_alignment_start, alignmentObj, sample)
+            left_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_start, 'left', alignmentObj.query_name, alignmentObj.query_sequence, alignmentObj.query_alignment_start, alignmentObj, sample)
 
     ## Clipping > X bp at the RIGHT
     if ((lastOperation == 4) or (lastOperation == 5)) and (lastOperationLen >= minCLIPPINGlen):
@@ -421,7 +405,7 @@ def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, overhang, samp
         if (targetInterval == None) or (gRanges.overlap(alignmentObj.reference_end, alignmentObj.reference_end, targetInterval[0], targetInterval[1])[0]):
 
             # Create CLIPPING object
-            right_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_end, alignmentObj.reference_end, 'right', alignmentObj.query_sequence, alignmentObj.query_alignment_end, alignmentObj, sample)         
+            right_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_end, alignmentObj.reference_end, 'right', alignmentObj.query_name, alignmentObj.query_sequence, alignmentObj.query_alignment_end, alignmentObj, sample)         
 
     return left_CLIPPING, right_CLIPPING
 
@@ -467,7 +451,7 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang,
                 flankingSeq, bkpPos = (alignmentObj.query_sequence, posQuery) if overhang == None else events.pick_flanking_seq_INS(alignmentObj.query_sequence, posQuery, length, overhang)
 
                 # Create INS object
-                INS = events.INS(alignmentObj.reference_name, posRef, posRef, length, flankingSeq, bkpPos, alignmentObj, sample)
+                INS = events.INS(alignmentObj.reference_name, posRef, posRef, length, alignmentObj.query_name, flankingSeq, bkpPos, alignmentObj, sample)
                 INS_events.append(INS)
 
         ## b) DELETION to the reference >= Xbp
@@ -482,7 +466,7 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang,
                 flankingSeq, bkpPos = (alignmentObj.query_sequence, posQuery) if overhang == None else events.pick_flanking_seq_DEL(alignmentObj.query_sequence, posQuery, overhang)
 
                 # Create DEL object
-                DEL = events.DEL(alignmentObj.reference_name, posRef, posRef + length, length, flankingSeq, bkpPos, alignmentObj, sample)
+                DEL = events.DEL(alignmentObj.reference_name, posRef, posRef + length, length, alignmentObj.query_name, flankingSeq, bkpPos, alignmentObj, sample)
                 DEL_events.append(DEL)
                 
         #### Update position over reference and read sequence
@@ -512,8 +496,6 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang,
         # Do not do anything
 
     return INS_events, DEL_events
-
-## [SR CHANGE]
 def collectDISCORDANT(alignmentObj, sample):
     '''
     For a read alignment check if the read is discordant (not proper in pair) and return the corresponding discordant objects
@@ -532,8 +514,7 @@ def collectDISCORDANT(alignmentObj, sample):
 
     # If not proper pair (=discordant)
     if not alignmentObj.is_proper_pair:
-        # If not clipping (if clipping will be in the above category):
-        #if not ((firstOperation == 4) or (firstOperation == 5)) and (firstOperationLen >= confDict['minCLIPPINGlen']):
+
         # Collect discordant even they are also CLIPPING
         if alignmentObj.is_reverse:
             minus_DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, 'MINUS', alignmentObj.query_name, alignmentObj, sample)
@@ -543,7 +524,6 @@ def collectDISCORDANT(alignmentObj, sample):
 
     return minus_DISCORDANT, plus_DISCORDANT
 
-## [SR CHANGE]
 def collectMatesSeq(events, tumourBam, normalBam, checkUnmapped, maxMAPQ):
     '''
     From a list of events, get the mate sequence for each event.
@@ -578,7 +558,6 @@ def collectMatesSeq(events, tumourBam, normalBam, checkUnmapped, maxMAPQ):
     msg = '[COUNTER OF collectMatesSeq LOOP] '+ str(counter)
     log.subHeader(msg)
 
-## [SR CHANGE]
 def collectMateSeq(event, bamFile, checkUnmapped, maxMAPQ):
     '''
     Get mate sequence for an event.
@@ -593,6 +572,7 @@ def collectMateSeq(event, bamFile, checkUnmapped, maxMAPQ):
     '''
     msg = '[Start collectMateSeq]'
     log.subHeader(msg)
+    
     ## 1. Define bin coordinates based on mate position
     mateRef = event.mateRef
     mateStart = event.mateStart
@@ -603,23 +583,26 @@ def collectMateSeq(event, bamFile, checkUnmapped, maxMAPQ):
     readName = event.readName.split('/')[0]
 
     ## 2. Open BAM file for reading
-
     # Extract alignments   
     iteratorMate = bamFile.fetch(mateRef, binBegMate, binEndMate)
     
     # 3. For each read alignment
     for alignmentObjMate in iteratorMate:
+        
         # Check if the aligment has same query_name but different orientation (to ensure that its the mate and not the read itself)
         if readName == alignmentObjMate.query_name:
+            
             msg = '[collectMateSeq: if readName == alignmentObjMate.query_name]' + str(binBegMate)
             log.subHeader(msg)
             
             matePair = '1' if alignmentObjMate.is_read1 else '2'
+            
             if matePair != event.pair:
                 msg = 'if matePair != event.pair' + str(binBegMate)
                 log.subHeader(msg)
 
                 MAPQ = int(alignmentObjMate.mapping_quality)
+                
                 # Pick only those sequences that are unmmapped or with mapping quality < maxMAPQ
                 if checkUnmapped == True:
                     if (alignmentObjMate.is_unmapped == True) or (MAPQ < maxMAPQ):
@@ -629,6 +612,7 @@ def collectMateSeq(event, bamFile, checkUnmapped, maxMAPQ):
                         #if len(alignmentObjMate.query_sequence) > 100:
                         event.mateSeq = alignmentObjMate.query_sequence
                         break
+                    
                 # Pick only those sequences with mapping quality < maxMAPQ
                 else:
                     if MAPQ < maxMAPQ:

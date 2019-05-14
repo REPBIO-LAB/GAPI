@@ -1,5 +1,5 @@
 '''
-Module 'variants' - Contains classes for dealing with genomic variation
+Module 'clusters' - Contains classes for dealing with genomic variation
 '''
 
 ## DEPENDENCIES ##
@@ -7,8 +7,8 @@ Module 'variants' - Contains classes for dealing with genomic variation
 import sys
 import numpy as np
 import collections 
-# [SR CHANGE]
 import pysam
+import math
 
 # Internal
 import log
@@ -19,11 +19,12 @@ import events
 import structures
 import alignment
 import bamtools 
+import assembly
 import repeats
 import retrotransposons
 import filters
-## [SR CHANGE]
 import bkp
+
 
 ###############
 ## FUNCTIONS ##
@@ -58,7 +59,6 @@ def create_cluster(events, clusterType):
     elif (clusterType == 'CLIPPING') or (clusterType == 'LEFT-CLIPPING') or (clusterType == 'RIGHT-CLIPPING'):
         cluster = CLIPPING_cluster(events)
 
-    # [SR CHANGE]
     ## e) Create DISCORDANT cluster
     elif 'DISCORDANT' in clusterType:
         cluster = DISCORDANT_cluster(events)
@@ -89,7 +89,6 @@ def merge_clusters(clusters, clusterType):
 
     return mergedCluster
 
-## [SR CHANGE]
 def create_discordantClusters(eventsBinDb, confDict):
     '''
     '''
@@ -102,7 +101,6 @@ def create_discordantClusters(eventsBinDb, confDict):
 
     return discordantClustersDict
 
-# [SR CHANGE]
 def create_metaclusters(eventsBinDb, confDict, bam, normalBam, mode):
     '''
     
@@ -159,16 +157,11 @@ def create_metaclusters(eventsBinDb, confDict, bam, normalBam, mode):
     # 2.5) Create DISCORDANT metaclusters
     if 'DISCORDANT' in confDict['targetSV']:
         eventTypes = eventsBinDb.collectEventTypes()
+        
         for eventType in eventTypes:
-        # TO DO  
+            
             metaclusters = clustering.reciprocal_clustering(eventsBinDb, 1, confDict['minClusterSize'], eventType, 0, 'META')
             allMetaclusters = allMetaclusters + metaclusters
-        # metaclusters = clustering.reciprocal_clustering()
-        # allMetaclusters = allMetaclusters + metaclusters
-
-    ## [SR CHANGE]:
-    #for metacluster in allMetaclusters:
-        #print('METACLUSTER: ', metacluster, len(metacluster.events), [(clusterType, len(subcluster.events)) for clusterType, subcluster in metacluster.subclusters.items()])
 
     ## 3. Organize metaclusters into bins ##    
     binSizes = [100, 1000, 10000, 100000, 1000000]
@@ -178,6 +171,52 @@ def create_metaclusters(eventsBinDb, confDict, bam, normalBam, mode):
     metaclustersBinDb = structures.create_bin_database(eventsBinDb.ref, eventsBinDb.beg, eventsBinDb.end, metaclustersDict, binSizes)
     return metaclustersBinDb
 
+
+def make_consensus(clustersBinDb, confDict, reference, clusterType, rootOutDir):
+    '''
+    Make consensus supporting sequence and event for a set of cluster objects
+
+    Input:
+        1. clustersBinDb: Data structure containing a set of clusters organized in genomic bins
+        2. confDict: 
+            * technology     -> sequencing technology (NANOPORE, PACBIO or ILLUMINA)
+            * targetSV       -> list with target SV (INS: insertion; DEL: deletion; CLIPPING: left and right clippings)
+            * minMAPQ        -> minimum mapping quality
+            * minCLIPPINGlen -> minimum clipping lenght
+            * minINDELlen    -> minimum INS and DEL lenght
+            * overhang       -> Number of flanking base pairs around the INDEL events to be collected from the supporting read. If 'None' the complete read sequence will be collected)
+
+        3. reference: path to reference genome in fasta format    
+        4. clusterType: target cluster type to generate consensus
+        5. rootOutDir: root output directory
+
+    Output:
+        1. consensusBinDb: bin database structure containing metaclusters for which consensus sequences and events have been generated
+    ''' 
+    consensusDict = {}
+
+    ## For each cluster in the database
+    for cluster in clustersBinDb.collect([clusterType]):
+
+        outDir = rootOutDir + '/Consensus/' + str(cluster.id)
+
+        cluster.SV_type, cluster.consensus = cluster.make_consensus(confDict, reference, outDir)
+
+        # Discard clusters without known SV type
+        if cluster.SV_type is not None:
+
+            # Initialize SV type at the dictionary
+            if cluster.SV_type not in consensusDict:
+                consensusDict[cluster.SV_type] = []
+
+            # Add cluster 
+            consensusDict[cluster.SV_type].append(cluster)
+    
+    ## 3. Organize metaclusters into bins according to their SV type    
+    binSizes = [100, 1000, 10000, 100000, 1000000]
+    consensusBinDb = structures.create_bin_database(clustersBinDb.ref, clustersBinDb.beg, clustersBinDb.end, consensusDict, binSizes)
+
+    return consensusBinDb
 
 def find_chimeric_alignments(clusterA, clusterB):
     '''
@@ -190,7 +229,7 @@ def find_chimeric_alignments(clusterA, clusterB):
     Output:
         1. primary: clipping event for representative primary alignment
         2. supplementary: clipping event for representative supplementary alignment
-        4. chimericSorted: list of tuples. Each tuple is composed by two clipping events corresponding to primary and supplementary alignments, respectively. 
+        3. chimericSorted: list of tuples. Each tuple is composed by two clipping events corresponding to primary and supplementary alignments, respectively. 
     ''' 
     ### 1. Identify chimeric read alignments connecting both clipping clusters
     chimeric = []
@@ -220,14 +259,15 @@ def find_chimeric_alignments(clusterA, clusterB):
                 
     # Exit if not chimeric alignments found
     if not chimeric:
-        return False, None, None, None
+        return None, None, None
 
     ### 2. Select the clipping events with the longest supplementary alignment as representative
     chimericSorted = sorted(chimeric, key=lambda alignments: alignments[1].refLen, reverse=True)
     primary = chimericSorted[0][0]
     supplementary = chimericSorted[0][1]
 
-    return True, primary, supplementary, chimericSorted
+    return primary, supplementary, chimericSorted
+
 
 def find_insertion_at_clipping_bkp(primary, supplementary):
     '''
@@ -266,6 +306,24 @@ def find_insertion_at_clipping_bkp(primary, supplementary):
     return insert
 
 
+def determine_INS_type(metaclusters, index, confDict, rootOutDir):
+    '''
+    Function to determine what has been inserted for each cluster. 
+
+    Input:
+        1. metaclusters: list containing metaclusters supporting INS events
+        2. index: Minimap2 index for fasta file containing retrotransposon related sequences 
+        3. confDict: ...
+        4: rootOutDir: root directory to write files and directories
+    '''
+    ## For each metacluster in the list
+    for metacluster in metaclusters:
+
+        ## Determine the insertion type
+        outDir = rootOutDir + '/INS_type/' + str(metacluster.id)
+        metacluster.determine_INS_type(index, confDict, outDir)
+
+
 #############
 ## CLASSES ##
 #############
@@ -274,7 +332,7 @@ class cluster():
     '''
     Events cluster class. A cluster is composed by a set of events.
     Each event is supported by a single read. One cluster can completely represent a single structural
-    variation event or partially if multiple clusters are required (see 'metaCluster' sub class)
+    variation event or partially if multiple clusters are required (see 'metaCluster' class)
     '''
     number = 0 # Number of instances
 
@@ -301,6 +359,12 @@ class cluster():
         '''
         self.events.sort(key=lambda event: event.beg)
 
+    def sort_by_length(self):
+        '''
+        Sort events in increasing length ordering
+        '''
+        return sorted(self.events, key=lambda event: event.length)
+        
     def coordinates(self):
         '''
         Compute cluster ref, beg and end coordinates. 
@@ -330,7 +394,21 @@ class cluster():
 
         # Resort and redefine cluster begin and end coordinates
         self.ref, self.beg, self.end = self.coordinates() 
-            
+
+    def pick_median_length(self):
+        '''
+        Return event whose length is at the median amongst all cluster supporting events
+        '''
+        ## Sort events by their length
+        sortedEvents = self.sort_by_length()
+
+        ## Compute the index for the event with the median length
+        median = (len(sortedEvents) - 1)/2  # minus 1 because the first element is index 0
+        medianIndex = int(math.ceil(median))
+
+        ## Pick event located at the median 
+        return sortedEvents[medianIndex]
+
     def collect_reads(self):
         '''
         Create FASTA object containing cluster supporting reads.
@@ -398,7 +476,6 @@ class INS_cluster(cluster):
         self.isConsensus = None
         self.insertSeq = None
 
-
 class DEL_cluster(cluster):
     '''
     Deletion (DEL) cluster subclass
@@ -416,7 +493,6 @@ class CLIPPING_cluster(cluster):
 
         cluster.__init__(self, events, 'CLIPPING')
 
-## [SR CHANGE]
 class DISCORDANT_cluster(cluster):
     '''
     Discordant cluster subclass
@@ -443,14 +519,21 @@ class META_cluster():
         # Set cluster's reference, begin and end position
         self.ref, self.beg, self.end = self.coordinates() 
 
-        # Cluster filtering
-        self.filters = None
-
         # Organize events into subclusters
         self.subclusters = self.create_subclusters()
 
         # Tag germline or somatic
         self.intOrigin = None
+
+        # Set some metacluster properties as None
+        self.filters = None
+        self.consensus = None
+        self.SV_type = None
+
+        # Metacluster SV features
+        self.INS_features = {}
+        self.DEL_features = {}
+        self.BKP_features = {}
 
     def sort(self):
         '''
@@ -525,16 +608,48 @@ class META_cluster():
             else:
                 self.subclusters[eventType].add(eventList)
                 
+    def collect_reads(self):
+        '''
+        Create FASTA object containing metacluster supporting reads.
+        
+        Output:
+            1. FASTA: FASTA object containing metacluster supporting reads
+        '''
+        ## Initiate FASTA object
+        FASTA = formats.FASTA()
+
+        ## For each event composing the metacluster         
+        for event in self.events: 
+
+            ## A) Read sequence supporting the event not included in the FASTA yet
+            if event.readName not in FASTA.seqDict:
+                FASTA.seqDict[event.readName] = event.readSeq 
+
+            ## B) Read sequence supporting the event already included in the FASTA
+            else:
+
+                # Current read sequence aligned as primary -> replace previously included sequence (therefore supplementary)
+                if not event.supplementary:
+                    FASTA.seqDict[event.readName] = event.readSeq 
+     
+        return FASTA
+
     def nbEvents(self):
         '''
         Return the number of events composing the metacluster. 
-        
-        Extend to return a as well a dictionary containing the number of events composing each subcluster
         '''
+        ## Initialize counters
         nbTumour = 0
         nbNormal = 0
 
+        nbINS = 0
+        nbDEL = 0
+        nbCLIPPING = 0   
+
+        # For each event composing the metacluster
         for event in self.events:
+
+            ## Tumour and matched normal counts
             # a) Event identified in the TUMOUR sample
             if event.sample == "TUMOUR":
                 nbTumour += 1
@@ -548,104 +663,29 @@ class META_cluster():
                 nbTumour = None
                 nbNormal = None
                 break
+            
+            ## Event type counts
+            # a) INS event
+            if event.type == 'INS':
+                nbINS += 1
+
+            # b) DEL event
+            elif event.type == 'DEL':
+                nbDEL += 1
+
+            # c) CLIPPING event
+            else:
+                nbCLIPPING += 1            
 
         nbTotal = len(self.events)
 
         return nbTotal, nbTumour, nbNormal
-    '''
+        
+    
     def supportingCLIPPING(self, buffer, confDict, bam, normalBam, mode):
-        
+        # Note: This function works but you have to allow duplicates in the clipping 
 
-        clippingEventsDict = {}
-        clippingEventsDict['RIGHT-CLIPPING'] = []
-        clippingEventsDict['LEFT-CLIPPING'] = []
-        sample = None
-
-        ## Define region
-        if self.beg > buffer:
-            binBeg = self.beg - buffer
-
-        else:
-            binBeg = self.beg
-        
-        # TODO check as above
-        binEnd = self.end
-
-        ref = self.ref
-
-        if normalBam != None:
-            print  ('HOLAAAAAAA')
-            sample = 'NORMAL'
-            ## If there is normal bam:
-            normalBamFile = pysam.AlignmentFile(normalBam, "rb")
-
-            ## Extract alignments
-            iterator = normalBamFile.fetch(ref, binBeg, binEnd)
-
-            for alignmentObj in iterator:
-                    try:
-                        ## Collect clipping
-                        # TODO hacer para paired tb
-                        targetInterval = None
-                        CLIPPING_left_alignmentObj, CLIPPING_right_alignmentObj = bamtools.collectCLIPPING(alignmentObj, confDict['minCLIPPINGlen'], targetInterval, confDict['overhang'], sample)
-                        if CLIPPING_left_alignmentObj != None:
-                            clippingEventsDict['LEFT-CLIPPING'].append(CLIPPING_left_alignmentObj)
-                        if CLIPPING_right_alignmentObj != None:
-                            clippingEventsDict['RIGHT-CLIPPING'].append(CLIPPING_right_alignmentObj)
-                    except TypeError:
-                        continue
-            sample = 'TUMOUR'
-
-        ## Open BAM file for reading
-        bamFile = pysam.AlignmentFile(bam, "rb")
-
-        ## Extract alignments
-        iterator = bamFile.fetch(ref, binBeg, binEnd)
-
-        for alignmentObj in iterator:
-                try:
-                    ## Collect clipping
-                    # TODO hacer para paired tb
-                    targetInterval = None
-                    CLIPPING_left_alignmentObj, CLIPPING_right_alignmentObj = bamtools.collectCLIPPING(alignmentObj, confDict['minCLIPPINGlen'], targetInterval, confDict['overhang'], sample)
-                    if CLIPPING_left_alignmentObj != None:
-                        clippingEventsDict['LEFT-CLIPPING'].append(CLIPPING_left_alignmentObj)
-                    if CLIPPING_right_alignmentObj != None:
-                        clippingEventsDict['RIGHT-CLIPPING'].append(CLIPPING_right_alignmentObj)
-                except TypeError:
-                    continue
-
-        ## When the discordant cluster is RIGHT, add the biggest right clipping cluster if any:
-        if all (event.side == 'PLUS' for event in self.events):
-            ## Get clipping clusters:
-            clippingRightEventsDict = dict((key,value) for key, value in clippingEventsDict.items() if key == 'RIGHT-CLIPPING')
-            CLIPPING_cluster = self.add_clippingEvents(ref, binBeg, binEnd, clippingRightEventsDict, ['RIGHT-CLIPPING'], confDict)
-
-        ## When the discordant cluster is LEFT, add the biggest left clipping cluster if any:
-        elif all (event.side == 'MINUS' for event in self.events):
-            ## Get clipping clusters:
-            clippingLeftEventsDict = dict((key,value) for key, value in clippingEventsDict.items() if key == 'LEFT-CLIPPING')
-            CLIPPING_cluster = self.add_clippingEvents(ref, binBeg, binEnd, clippingLeftEventsDict, ['LEFT-CLIPPING'], confDict)
-
-        # TODO si es reciproco:
-        else:
-            CLIPPING_cluster = self.add_clippingEvents(ref, binBeg, binEnd, clippingEventsDict, ['RIGHT-CLIPPING', 'LEFT-CLIPPING'], confDict)
-
-        for event in CLIPPING_cluster.events:
-            print (event.readName)
-            print (event.beg)
-            print (event.end)
-            print (event.readSeq)
-            print (event.sample)
-        return CLIPPING_cluster
-        '''
-        
-     
-    def supportingCLIPPING(self, buffer, confDict, bam, normalBam, mode):
-        # ESTA FUNCIONA PER EN EL CLIPPING TIENES QUE PERMITIR LOS DUPLICATES!!!!!!
-
-
-        # Hago un dict especial para llamar solo a collect clipping
+        # Make custom conf. dict for only selecting duplicates
         clippingConfDict = dict(confDict)
         clippingConfDict['targetSV'] = ['CLIPPING']
         clippingConfDict['minMAPQ'] = 0
@@ -667,31 +707,31 @@ class META_cluster():
 
         ## When the discordant cluster is RIGHT, add the biggest right clipping cluster if any:
         if all (event.side == 'PLUS' for event in self.events):
+            
             ## Get clipping clusters:
             clippingRightEventsDict = dict((key,value) for key, value in clippingEventsDict.items() if key == 'RIGHT-CLIPPING')
             CLIPPING_cluster = self.add_clippingEvents(ref, binBeg, binEnd, clippingRightEventsDict, ['RIGHT-CLIPPING'], confDict)
 
         ## When the discordant cluster is LEFT, add the biggest left clipping cluster if any:
         elif all (event.side == 'MINUS' for event in self.events):
+            
             ## Get clipping clusters:
             clippingLeftEventsDict = dict((key,value) for key, value in clippingEventsDict.items() if key == 'LEFT-CLIPPING')
             CLIPPING_cluster = self.add_clippingEvents(ref, binBeg, binEnd, clippingLeftEventsDict, ['LEFT-CLIPPING'], confDict)
 
-        # TODO si es reciproco:
+        # TODO if it is reciprocal
         else:
             CLIPPING_cluster = self.add_clippingEvents(ref, binBeg, binEnd, clippingEventsDict, ['RIGHT-CLIPPING', 'LEFT-CLIPPING'], confDict)
 
         return CLIPPING_cluster
         
-
-
     def add_clippingEvents(self, ref, binBeg, binEnd, clippingEventsDict, eventTypes, confDict):
         binSizes = [100, 1000]
         clippingBinDb = structures.create_bin_database(ref, binBeg, binEnd, clippingEventsDict, binSizes)
         binSize = clippingBinDb.binSizes[0]
         CLIPPING_clusters = clustering.distance_clustering(clippingBinDb, binSize, eventTypes, 'CLIPPING', confDict['maxEventDist'], confDict['minClusterSize']) 
 
-        # Si hay algun clipping cluster:
+        # If there is a clipping cluster
         if len (CLIPPING_clusters) > 0:
             ## Choose the clipping cluster with the highest number of events:
             # Coger el cluster de la lista de clusters si si length es igual a la maxima length de todos los clusters de la lista. (como devuelve una lista de un solo elemento, cojo el primer elemento de la lista.)
@@ -715,8 +755,340 @@ class META_cluster():
         for event in self.events:
             if event.sample == "NORMAL":
                 nbNormalEvents += 1
+                
         # HACER ESTO ARGUMENTOO!!!
         if nbNormalEvents > 3:
             self.intOrigin = 'germline'
         else:
             self.intOrigin = 'somatic'
+
+        return nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING
+
+           
+    def select_template(self, technology, outDir):
+        '''
+        Select one metacluster supporting read as template to be used in the metacluster consensus generation step
+
+        Input: 
+            1. technology: sequencing technology (NANOPORE, PACBIO or ILLUMINA)
+            2. outDir: output directory
+
+        Output:
+            1. templateFile: Path to FASTA file containing the template or 'None' if no template was found
+        '''
+
+        # A) Metacluster contains an INS cluster
+        if ('INS' in self.subclusters):
+
+            # print('A) Metacluster contains an insertion cluster')
+
+            ## Select INS event with median length as template
+            templateEvent = self.subclusters['INS'].pick_median_length()
+
+            ## Write template into output file 
+            templateFasta = formats.FASTA()
+            templateFasta.seqDict[templateEvent.readName] = templateEvent.readSeq
+            templateFile = outDir + '/template.fa'
+            templateFasta.write(templateFile)   
+
+        # B) Metacluster contains a DEL cluster
+        elif ('DEL' in self.subclusters):
+
+            #print('B) Metacluster contains a deletion cluster')
+
+            ## Select DEL event with median length as template
+            templateEvent = self.subclusters['DEL'].pick_median_length()
+
+            ## Write template into output file 
+            templateFasta = formats.FASTA()
+            templateFasta.seqDict[templateEvent.readName] = templateEvent.readSeq
+            templateFile = outDir + '/template.fa'
+            templateFasta.write(templateFile)   
+
+        # C) Metacluster composed by only two CLIPPING clusters (left and right) 
+        elif all (clusterType in self.subclusters for clusterType in ['LEFT-CLIPPING', 'RIGHT-CLIPPING']):
+            
+            #print('C) Metacluster composed by only two clipping clusters (left and right)')
+        
+            ## Search for chimeric alignment spanning the SV event
+            templateEvent, supplementary, chimeric = find_chimeric_alignments(self.subclusters['RIGHT-CLIPPING'], self.subclusters['LEFT-CLIPPING'])
+
+            # a) Chimeric alignment found -> Write template into output file 
+            if (templateEvent != None): 
+
+                #print('C.a) Chimeric alignment found')
+
+                templateFasta = formats.FASTA()
+                templateFasta.seqDict[templateEvent.readName] = templateEvent.readSeq
+                templateFile = outDir + '/template.fa'
+                templateFasta.write(templateFile)   
+
+            # b) Chimeric alignment NOT found -> search for complementary clippings
+            else:
+
+                ## Generate fasta files containing clusters supporting reads:
+                readsA = self.subclusters['RIGHT-CLIPPING'].collect_reads() 
+                readsB = self.subclusters['LEFT-CLIPPING'].collect_reads()
+
+                readsA_file = outDir + '/seqA.fa'
+                readsB_file = outDir + '/seqB.fa'
+
+                readsA.write(readsA_file)
+                readsB.write(readsB_file)
+
+                ## Assemble clippings based on overlap 
+                templateFile = assembly.assemble_overlap(readsA_file, readsB_file, technology, outDir)
+
+                #if (templateFile is not None): 
+                #    print('C.b) complementary clippings found')
+
+        # D) Metacluster composed by a single CLIPPING cluster. 
+        # For now set the template as None, but at one point I should set a criteria for picking a template
+        # in these cases. I think the template will be the read with the longest piece of clipped sequence
+        else:
+            templateFile = None
+        
+        return templateFile
+
+
+    def make_consensus(self, confDict, reference, outDir):
+        '''
+        Make consensus supporting sequence and event for the metacluster
+
+        Input: 
+            1. confDict: 
+                * technology     -> sequencing technology (NANOPORE, PACBIO or ILLUMINA)
+                * targetSV       -> list with target SV (INS: insertion; DEL: deletion; CLIPPING: left and right clippings)
+                * minMAPQ        -> minimum mapping quality
+                * minCLIPPINGlen -> minimum clipping lenght
+                * minINDELlen    -> minimum INS and DEL lenght
+                * overhang       -> Number of flanking base pairs around the INDEL events to be collected from the supporting read. If 'None' the complete read sequence will be collected)            2. outDir: output directory
+            2. reference: path to reference genome in fasta format    
+            3. outDir: Output directory
+        
+        Output:
+            1. SV_type: Structural variation type (INS, DEL, BKP or None)
+            2. consensus: Consensus SV event object
+        '''
+        ## 0. Create directory 
+        unix.mkdir(outDir)
+
+        ## 1. Define template
+        templateFile = self.select_template(confDict['technology'], outDir)
+
+        if templateFile is None:
+            return None, None
+            
+        template = formats.FASTA()
+        template.read(templateFile)
+        templateReadName = list(template.seqDict.keys())[0]
+
+        ## 2. Collect metacluster supporting reads 
+        supportingReads = self.collect_reads()
+
+        ## Remove template from FASTA
+        if templateReadName in supportingReads.seqDict:
+            del supportingReads.seqDict[templateReadName]
+
+        ## Write supporting reads FASTA 
+        supportingReadsFile = outDir + '/supportingReads.fa'
+        supportingReads.write(supportingReadsFile)
+            
+        ## 3. Template polishing to generate consensus
+        consensusFile = assembly.polish_racon(templateFile, supportingReadsFile, confDict['technology'], 2, outDir)
+
+        ## If polishing failed use directly the template as consensus
+        if consensusFile == None:
+            consensusFile = templateFile
+
+        ## 4. Realign consensus sequence into the SV event genomic region
+        ##  Define SV cluster surrounding region
+        # ------------------<***SV_cluster***>-----------------
+        # <--nbFlankingBp-->                  <--nbFlankingBp-->
+        nbFlankingBp = 10000
+        intervalBeg = self.beg - nbFlankingBp
+        intervalBeg = intervalBeg if intervalBeg >= 0 else 0 ## Set lower bound
+        intervalEnd = self.end + nbFlankingBp
+        intervalCoord = self.ref + ':' + str(intervalBeg) + '-' + str(intervalEnd)
+            
+        ## Do realignment
+        # ------------------<***SV_cluster***>-----------------
+        #         -------------consensus_seq-------------
+        BAM = alignment.targeted_alignment_minimap2(consensusFile, intervalCoord, reference, outDir)
+            
+        ## Consensus realignment failed
+        if BAM is None:
+            return None, None
+
+        ## Extract events from consensus sequence realignment
+        # ------------------<***SV_cluster***>-----------------
+        #        -------------consensus_seq-------------
+        #               <--->----------------<---> overhang (100 bp)
+        #                   event_search_space         
+        overhang = 100
+        clusterIntervalLen = self.end - self.beg
+        targetBeg = nbFlankingBp - overhang
+        targetEnd = nbFlankingBp + clusterIntervalLen + overhang            
+        eventsDict = bamtools.collectSV(intervalCoord, targetBeg, targetEnd, BAM, confDict, None)
+
+        ## 5. Define metacluster type based on events collected from consensus sequence realignment
+        # A) Single INS event
+        if len(eventsDict['INS']) == 1:
+            #print('CONSENSUS!! A) Single INS event')
+
+            ## Set metacluster type
+            SV_type = 'INS'
+                
+            ## Convert coordinates
+            event = eventsDict['INS'][0]
+            event = alignment.targetered2genomic_coord(event, self.ref, intervalBeg)
+
+            ## Incorporate INS in the metacluster as consensus  
+            consensus = event
+            
+        # B) Multiple INS events 
+        # Raw alignment    -------------[INS]-[INS]---[INS]-------------
+        # Consensus        -------------[       INS       ]-------------
+        # This is consequence of fragmented alignments. So Merge events into a single consensus INS
+        elif len(eventsDict['INS']) > 1:
+            #print('CONSENSUS!! B) Multiple INS events')
+
+            ## Set metacluster type
+            SV_type = None
+
+            ## Do merging
+
+            ## Convert coordinates
+
+            ## Incorporate merged INS in the metacluster as consensus  
+            consensus = None
+
+        # C) Single DEL event
+        elif len(eventsDict['DEL']) == 1:
+            #print('CONSENSUS!! C) Single DEL event')
+
+            ## Set metacluster type
+            SV_type = 'DEL'
+                
+            ## Convert coordinates
+            event = eventsDict['DEL'][0]
+            event = alignment.targetered2genomic_coord(event, self.ref, intervalBeg)
+
+            ## Incorporate DEL in the metacluster as consensus  
+            consensus = event
+
+        # D) Multiple DEL events (same scenario as B) 
+        elif len(eventsDict['DEL']) > 1:
+            #print('CONSENSUS!! D) Multiple DEL events (same scenario as B)')
+
+            ## Set metacluster type
+            SV_type = None
+
+            ## Do merging
+
+            ## Convert coordinates
+
+            ## Incorporate merged DEL in the metacluster as consensus 
+            consensus = None
+
+        # E) One left and one right CLIPPING (NEXT TO DO)
+        elif (len(eventsDict['LEFT-CLIPPING']) == 1) and (len(eventsDict['RIGHT-CLIPPING']) == 1):
+            #print('CONSENSUS!! E) One left and one right CLIPPING')
+
+            ## Set metacluster type
+            SV_type = 'INS'
+
+            ## Create INS event
+            rightClipping = eventsDict['RIGHT-CLIPPING'][0]
+            leftClipping = eventsDict['LEFT-CLIPPING'][0]
+            length = leftClipping.readBkp - rightClipping.readBkp
+
+            # a) Missalignment leading to aberrant clipping 
+            # (rarely happens, at one point investigate further)
+            if length <= 0:
+                SV_type = None
+                consensus = None
+
+            # b) Correct clipping
+            else:
+                event = events.INS(rightClipping.ref, rightClipping.beg, rightClipping.end, length, rightClipping.readName, rightClipping.readSeq, rightClipping.readBkp, None, None)
+        
+                ## Convert coordinates
+                event = alignment.targetered2genomic_coord(event, self.ref, intervalBeg)
+
+                ## Incorporate INS in the metacluster as consensus  
+                consensus = event
+
+        # F) Single left CLIPPING
+        elif (len(eventsDict['LEFT-CLIPPING']) == 1): 
+            #print('CONSENSUS!! F) Single left CLIPPING')
+            SV_type = None
+            consensus = None
+
+        # G) Single right CLIPPING
+        elif (len(eventsDict['RIGHT-CLIPPING']) == 1): 
+            #print('CONSENSUS!! G) Single right CLIPPING')
+            SV_type = None
+            consensus = None
+
+        # H) Another possibility
+        else:
+            #print('CONSENSUS!! H) Another possibility')
+            SV_type = None
+            consensus = None
+    
+         
+        ## Cleanup
+        unix.rm([outDir])
+
+        return SV_type, consensus
+
+    def determine_INS_type(self, index, confDict, outDir): 
+        '''
+        Determine the type of insertion (retrotransposon, simple repeat, virus, ...) and collect insertion information.
+
+        Input: 
+            1. index: Minimap2 index for fasta file containing retrotransposon related sequences 
+            2. confDict: Configuration dictionary 
+            3. outDir: Output directory
+        '''
+
+        ## 0. Create output directory 
+        unix.mkdir(outDir)
+
+        ## 1. Pick inserted sequence
+        insert = self.consensus.pick_insert()
+
+        ## 2. Write target seq into file 
+        FASTA = formats.FASTA()
+        FASTA.seqDict[str(self.id)] = insert
+
+        FASTA_file = outDir + '/insert.fa'
+        FASTA.write(FASTA_file)
+
+        ## 3. Determine to what corresponds the insertion
+        # A) Tandem repeat/simple repeat expansion? 
+        minPercSimple = 70
+        self.INS_features['insType'], self.INS_features['status'], self.INS_features['percResolved'] = repeats.is_simple_repeat(FASTA_file, minPercSimple, outDir)
+
+        ## Stop if insertion classified as simple repeat
+        if self.INS_features['status'] == 'resolved':
+            return
+
+        # B) Retrotransposon insertion? 
+        self.INS_features['insType'], self.INS_features['family'], self.INS_features['srcId'], self.INS_features['status'], self.INS_features['percResolved'], self.INS_features['strand'], self.INS_features['hits'] = retrotransposons.is_retrotransposition(FASTA_file, index, outDir)
+        
+        ## Stop if insertion classified as retrotransposon
+        if (self.INS_features['status'] == 'resolved') or (self.INS_features['status'] == 'partially_resolved'):
+            return
+       
+        # C) Viral insertion? 
+        #viruses.is_virus()
+
+        # D) Telomemric insertion? 
+
+        # E) Mitochondrial or rearranged DNA insert?
+        #¿¿¿rearrangements???.is_chromosomal_dna()
+        
+        ## Cleanup
+        unix.rm([outDir])

@@ -1,5 +1,5 @@
 '''
-Module 'consensus' - Contains funtions to create a consensus sequence from a set of input sequences
+Module 'assembly' - Contains funtions to create contigs from a set of input sequences
 '''
 
 ## DEPENDENCIES ##
@@ -8,120 +8,177 @@ import subprocess
 
 # Internal
 import log
-import formats
 import unix
 import alignment
 import os
+import formats
+
 
 ## FUNCTIONS ##
-
-def racon(reads, technology, quality, outDir):
-    '''
-    Build a consensus sequence from a set of sequencing reads  
-
-    The algorithm selects an arbitrary read sequence as template and uses the remaining sequences to correct the template
-    with racon. 
     
+def assemble_overlap(fastaA, fastaB, technology, outDir):
+    '''
+    Assemble two sets sequences via the identification of reciprocal overlap at the sequence ends. 
+    (custom algorithm based on minimap2 alignments)
+
+     -: aligned; _: clipped      sequence_bkp
+    sequence A:     -------------------*_____________________
+    sequence B:                                    |________|______________*-------------------
+    assembled:      ---------------------------------------------------------------------------
+
     Input:
-        1. reads: FASTQ (if qualities available) or FASTA (if qualities NOT available) object containing all the reads to be used to build a consensus 
-        2. technology: Sequencing technology (NANOPORE, PACBIO or ILLUMINA)
-        3. quality: True (sequence qualities available) or False (not available).
-        4. outDir: Output directory
+        1. fastaA: FASTA file containing set of sequences A
+        2. fastaB: FASTA file containing set of sequences B
+        3. technology: sequencing technology (NANOPORE, PACBIO or ILLUMINA)
+        4. outDir: output directory
 
     Output:
-        1. FASTA: FASTA object containing consensus sequence or None if no consensus sequence was generated 
-    '''
-
-    ## 0. Create logs directory:
+        1. contigFile: FASTA file containing the generated contig or 'None' if no reciprocal overlap is found 
+    '''    
+    ## 0. Create directories ##
     logDir = outDir + '/Logs'
     unix.mkdir(logDir)
 
-    ## 1. Divide the FASTQ/FASTA in two: 
-    # 1) template: containing template read to be polished (template arbitrarily selected)
-    # 2) reads2polish: containing the remaining reads to polish the template 
+    ## 1. Align sequences A vs B ##
+    ## Set preset according to the technology
+    preset = alignment.minimap2_presets(technology)
     
-    # a) Quality available -> Create FASTQ files
-    if quality:
-        template = formats.FASTQ()
-        reads2polish = formats.FASTQ()
+    ## Do alignment 
+    PAF_file = outDir + '/overlaps.paf'
+    err = open(logDir + '/minimap2.err', 'w') 
+    command = 'minimap2 -x ' + preset + ' ' + fastaB + ' ' + fastaA + ' > ' + PAF_file
 
-        # Iterate over FASTQ entries
-        for entry in reads.seqDict.values():
-            # a) Select read to be polished
-            if not template.seqDict:
-                template.add(entry)
+    status = subprocess.call(command, stderr=err, shell=True)
 
-            # b) Collect remaining reads to polish
-            else:
-                reads2polish.add(entry)
+    if status != 0:
+        step = 'ASSEMBLE-OVERLAP'
+        msg = 'Sequences A vs B alignment failed' 
+        log.step(step, msg)
 
-        ## Write FASTQ files 
-        template_file = outDir + '/template.fastq'
-        template.write(template_file)
+    ## 2. Read PAF alignments ##
+    PAF = formats.PAF()
+    PAF.read(PAF_file)
 
-        reads2polish_file = outDir + '/reads2polish.fastq'
-        reads2polish.write(reads2polish_file)
+    # Exit function if no hit found
+    if not PAF.lines:
+        return None
 
-    # b) Quality not available > Create FASTA files
-    else:    
-        template = formats.FASTA()
-        reads2polish = formats.FASTA()
+    ## 3. Filter overlaps 
+    # Filtering criteria:
+    # Pick alignments on the + strand 
+    # Pick alignments starting within 250 from sequences ends. 
+    filtered = []
 
-        ## Iterate over FASTA entries
-        for readId, seq in reads.seqDict.items():
+    for overlap in PAF.lines:
 
-            # a) Select read to be polished
-            if not template.seqDict:
-                template.seqDict[readId] = seq
+        # Compute the distance between the corresponding sequence end and the overlap begin or end position
+        distA = overlap.qLen - overlap.qEnd 
+        distB = overlap.tBeg
+    
+        # Apply filters
+        if (overlap.strand == '+') and (distA <= 250) and (distB <= 250):
+            filtered.append(overlap)
 
-            # b) Collect remaining reads to polish
-            else:
-                reads2polish.seqDict[readId] = seq
+    # Replace raw by filtered overlaps
+    PAF.lines = filtered
 
-        ## Write FASTA files 
-        template_file = outDir + '/template.fasta'
-        template.write(template_file)
+    # Exit function if all the overlapping hits have been filtered
+    if not PAF.lines:
+        return None
 
-        reads2polish_file = outDir + '/reads2polish.fasta'
-        reads2polish.write(reads2polish_file)
+    ## 4. Pick longest overlap passing the filters
+    # Sort PAF in decreasing overlap lengths
+    PAF.lines = PAF.sortByLen()
 
-    ## 3. Align reads against the template 
+    # Pick longest overlap
+    overlapLongest = PAF.lines[0]
+
+    ## 5. Concatenate overlapping sequences to generate a contig 
+    ## Read input fasta files
+    sequencesA = formats.FASTA()
+    sequencesA.read(fastaA)
+    
+    sequencesB = formats.FASTA()
+    sequencesB.read(fastaB)
+    
+    ## Contig generation  
+    #  -: aligned; _: clipped                     sequence_bkp    qBeg       qEnd
+    # sequence A (query):                ---------------*___________|_________|___      sequence_bkp
+    # sequence B (template):                                    ____|_________|______________*-------------------
+    #                                                             tBeg       tEnd
+    # contig:                            -------------------------------------|----------------------------------
+    #                                                  sequence_1        :qEnd tEnd:       sequence_2
+    seqA = sequencesA.seqDict[overlapLongest.qName][:overlapLongest.qEnd]
+    seqB = sequencesB.seqDict[overlapLongest.tName][overlapLongest.tEnd:]
+    contigSeq = seqA + seqB 
+
+    ## Write contig into fasta
+    contig = formats.FASTA()
+    contig.seqDict['CONTIG'] = contigSeq
+
+    contigFile = outDir + '/contig.fa'
+    contig.write(contigFile)
+
+    return contigFile
+
+def polish_racon(templates, sequences, technology, nbRounds, outDir):
+    '''
+    Use a collection of sequences to polish a set of target sequences (i.e. assembled contig) 
+    
+    Input:
+        1. templates: FASTA file containing sequences to be polished
+        2. sequences: FASTA file containing set of sequences used to polish the templates
+        3. technology: sequencing technology (NANOPORE, PACBIO or ILLUMINA)
+        4. nbRounds: number of polishing rounds to be performed 
+        5. outDir: output directory
+        
+    Output:
+        1. polished: FASTA file containing polished sequences or 'None' if pipeline fails at any step
+    '''
+    ## Create logs directory:
+    logDir = outDir + '/Logs'
+    unix.mkdir(logDir)
+
     ## Set preset according to the technology
     preset = alignment.minimap2_presets(technology)
 
-    ## Do alignment 
-    PAF = outDir + '/alignments.paf'
-    err = open(logDir + '/minimap2.err', 'w') 
-    command = 'minimap2 -x ' + preset + ' ' + template_file + ' ' + reads2polish_file + ' > ' + PAF
-    status = subprocess.call(command, stderr=err, shell=True)
+    ## For each polishing round
+    for roundId in range(1, nbRounds + 1):
 
-    if status != 0:
-        step = 'CONSENSUS'
-        msg = 'Alignment of sequences against template failed' 
-        log.step(step, msg)
+        ## 1. Align reads against the template ##
+        PAF = outDir + '/alignments_' + str(roundId) + '.paf'
+        err = open(logDir + '/minimap2_' + str(roundId) + '.err', 'w') 
+        command = 'minimap2 -x ' + preset + ' ' + templates + ' ' + sequences + ' > ' + PAF
+        status = subprocess.call(command, stderr=err, shell=True)
 
-    ## 4. Template polishing with racon
-    POLISHED = outDir + '/polished.fasta'
-    err = open(logDir + '/racon.err', 'w') 
-    command = 'racon ' + reads2polish_file + ' ' + PAF + ' ' + template_file + ' > ' + POLISHED
-    status = subprocess.call(command, stderr=err, shell=True)
+        if status != 0:
+            step = 'POLISH-RACON'
+            msg = 'Alignment of sequences against template failed' 
+            log.step(step, msg)
 
-    if status != 0:
-        step = 'CONSENSUS'
-        msg = 'Template polishing failed' 
-        log.step(step, msg)
+            polished = None            
+            break
 
-    ## 5. Read polished sequence 
-    FASTA = formats.FASTA()
-    FASTA.read(POLISHED)
+        ## 2. Template polishing with racon ##
+        polished = outDir + '/polished_' + str(roundId) + '.fa'
+        err = open(logDir + '/racon_' + str(roundId) + '.err', 'w') 
+        command = 'racon --include-unpolished ' + sequences + ' ' + PAF + ' ' + templates + ' > ' + polished
+        status = subprocess.call(command, stderr=err, shell=True)
 
-    ## 6. Set FASTA as None if no consensus sequence was generated
-    if not FASTA.seqDict:
-        FASTA = None
+        if status != 0:
+            step = 'POLISH-RACON'
+            msg = 'Template polishing failed' 
+            log.step(step, msg)
 
-    return FASTA
+            polished = None            
+            break
 
-## [SR CHANGE]
+        ## 3. Set polished as templates prior attempting a new polishing round
+        templates = polished
+
+    return polished
+
+
 def getConsensusSeq(FASTA_file, outDir):
     '''
     Build consensus seq from fasta file
@@ -136,6 +193,7 @@ def getConsensusSeq(FASTA_file, outDir):
 
     # 1. Check that the fasta file is not empty:
     if not os.stat(FASTA_file).st_size == 0:
+        
         # 2. Make multiple sequence alignment
         msfPath = FASTA_file.replace("fa", "msf")
         command = 'muscle -in ' + FASTA_file + ' -out ' + msfPath + ' -msf' 
@@ -149,6 +207,7 @@ def getConsensusSeq(FASTA_file, outDir):
 
         # 4. Check that consensus file is not empty
         if not os.stat(consensusPath).st_size == 0:
+            
             # 5. Read consensus sequence 
             consensusFastaObj = formats.FASTA()
             consensusFastaObj.read(consensusPath)
@@ -159,7 +218,9 @@ def getConsensusSeq(FASTA_file, outDir):
 
             # 7. Convert consensus sequence into upper case:
             consensusSeq = consensusSeq.upper()
+            
         else:
             consensusSeq = None
 
     return consensusPath, consensusSeq
+

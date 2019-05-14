@@ -52,14 +52,14 @@ def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir):
         4. outDir: Output directory
         
     Output:
-        1. BAM_sorted: Path to sorted BAM file containing input sequences alignments 
+        1. BAM_sorted: Path to sorted BAM file containing input sequences alignments or 'None' if realignment failed 
     '''
     ## 0. Create logs directory
     logDir = outDir + '/Logs'
     unix.mkdir(logDir)
 
     ## 1. Extract the reference target region prior alignment 
-    target = outDir + '/target.fasta'
+    target = outDir + '/target.fa'
     err = open(logDir + '/target.err', 'w') 
     command = 'samtools faidx ' + reference + ' ' + targetInterval + ' > ' + target
     status = subprocess.call(command, stderr=err, shell=True)
@@ -68,11 +68,13 @@ def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir):
         step = 'TARGET'
         msg = 'Extraction of reference target region failed' 
         log.step(step, msg)
+        return None
 
     ## 2. Align the sequences into the target region 
+    # Use -Y to get soft clippings for supplementary alignments
     SAM = outDir + '/alignments.sam'
     err = open(logDir + '/align.err', 'w') 
-    command = 'minimap2 -a -k15 -w10 ' + target + ' ' + FASTA + ' > ' + SAM
+    command = 'minimap2 -Y -a -k15 -w10 ' + target + ' ' + FASTA + ' > ' + SAM
 
     status = subprocess.call(command, stderr=err, shell=True)
 
@@ -80,8 +82,52 @@ def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir):
         step = 'ALIGN'
         msg = 'Local alignment failed' 
         log.step(step, msg)
+        return None
 
     ## 3. Convert SAM to sorted BAM
     BAM = bamtools.SAM2BAM(SAM, outDir)
 
     return BAM    
+
+def targetered2genomic_coord(event, ref, offset):
+    '''
+    Convert event coordinates resulting from the realignment of a sequence into a target region into genomic coordinates
+
+    Input:
+        1. event: INS, DEL or CLIPPING event object
+        2. ref: reference corresponding to the targetered seq
+        3. offset: offset to be added to event coordinates
+
+    Output:
+        1. event: modified event object
+    '''
+    ## 1. Convert reference                
+    event.ref = ref
+
+    ## 2. Add offset to event begin and end coordinates
+    event.beg = event.beg + offset
+    event.end = event.end + offset 
+
+    ## 3. Add offset to supplementary alignments 
+    if event.supplAlignment != None:
+
+        supplAlignments = ''
+
+        # For each supplementary alignment
+        for supplAlignment in event.supplAlignment.split(';'):
+
+            # Stop after the last supplementary alignment
+            if supplAlignment == '':
+                break
+
+            supplRef, supplBeg, strand, cigar, MAPQ, NM = supplAlignment.split(',')
+
+            supplRef = ref
+            beg = int(supplBeg) + offset
+
+            supplAlignment = supplRef + ',' + str(beg) + ',' + strand + ',' + cigar + ',' + MAPQ + ',' + NM
+            supplAlignments = supplAlignments + supplAlignment + ';' if supplAlignments != '' else supplAlignment + ';'
+
+            event.supplAlignment = supplAlignments
+
+    return event

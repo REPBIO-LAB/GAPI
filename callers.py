@@ -12,9 +12,7 @@ import unix
 import databases
 import bamtools
 import structures
-import clustering
 import clusters
-import filters
 import output
 ## [SR CHANGE]
 import virus
@@ -65,20 +63,12 @@ class SV_caller_long(SV_caller):
         ### 3. Search for SV clusters in each bin ##
         # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
-        INS_clusters, DEL_clusters, left_CLIPPING_clusters, right_CLIPPING_clusters = zip(*pool.map(self.make_clusters_bin, bins))
+        metaclustersBinDb = pool.map(self.make_clusters_bin, bins)
         pool.close()
         pool.join()
 
-        ### 4. Report clusters into output file
-        # Create dictionary containing clusters 
-        clusters = {}
-        clusters['INS-CLUSTER'] = INS_clusters
-        clusters['DEL-CLUSTER'] = DEL_clusters
-        clusters['LEFT-CLIPPING-CLUSTER'] = left_CLIPPING_clusters 
-        clusters['RIGHT-CLIPPING-CLUSTER']= right_CLIPPING_clusters
-    
-        # Write clusters
-        output.writeClusters(clusters, self.outDir)
+        ### 4. Report SV calls into output files
+        output.write_INS(metaclustersBinDb, self.outDir)
 
         ### 5. Do cleanup
         unix.rm([dbDir])
@@ -106,14 +96,13 @@ class SV_caller_long(SV_caller):
         else:
             eventsDict = bamtools.collectSV_paired(ref, beg, end, self.bam, self.normalBam, self.confDict)
 
-        step = 'COLLECT'
         SV_types = sorted(eventsDict.keys())
-
         counts = [str(len(eventsDict[SV_type])) for SV_type in SV_types]
+       
+        step = 'COLLECT'
         msg = 'Number of SV events in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
-    
         log.step(step, msg)
-
+        
         ## 2. Organize all the SV events into genomic bins prior clustering ##
         step = 'BINNING'
         msg = 'Organize all the SV events into genomic bins prior metaclustering'
@@ -132,7 +121,26 @@ class SV_caller_long(SV_caller):
         msg = 'Number of created metaclusters: ' + str(metaclustersBinDb.nbEvents()[0])
         log.step(step, msg)
 
+        ## 4. Create consensus sequence for each SV metacluster
+        step = 'CONSENSUS'
+        msg = 'Create consensus sequence for each SV metacluster' 
+        log.step(step, msg)
+
+        consensusBinDb = clusters.make_consensus(metaclustersBinDb, self.confDict, self.reference, 'METACLUSTERS', binDir)
         
+        ##  5. For each metacluster supporting an insertion determine what has been inserted (INS TYPE)
+        step = 'INS-TYPE'
+        msg = 'Determine the insertion type for each metacluster supporting an insertion'
+        log.step(step, msg)
+
+        clusters.determine_INS_type(consensusBinDb.collect(['INS']), self.retrotransposonDbIndex, self.confDict, binDir)
+
+        ### Do cleanup
+        unix.rm([binDir])
+
+        return consensusBinDb
+
+
 class SV_caller_short(SV_caller):
     '''
     Structural variation (SV) caller for Illumina short read sequencing data
