@@ -236,6 +236,14 @@ class PAF():
         sortedAlignments = sorted(self.lines, key=lambda x: x.alignmentLen(), reverse=True)
         return sortedAlignments
 
+    ## [SR CHANGES]
+    def sortNbMatches(self):
+        '''
+        Sort alignments by query alignment length
+        '''
+        sortedAlignments = sorted(self.lines, key=lambda x: x.nbMatches, reverse=True)
+        return sortedAlignments
+
     def chain(self):
         '''
         Chain PAF alignments based on alignment complementariety

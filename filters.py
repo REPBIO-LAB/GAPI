@@ -2,11 +2,16 @@
 Module 'filters' - Contains functions for filtering clusters
 '''
 
+## [SR CHANGE]
+import pysam
+
 ###############
 ## FUNCTIONS ##
 ###############
 
-def filterClusters(clusters, clusterType, confDict):
+## [SR CHANGE]: bam files added as argument
+## TODO: ADD NORMAL BAM!!!
+def filterClusters(clusters, clusterType, confDict, tumourBam):
     '''
     Function to apply filters to each cluster according to its type. It does not produce any output just modify cluster's attribute filters.
 
@@ -19,8 +24,10 @@ def filterClusters(clusters, clusterType, confDict):
     ## Get a list containing the filters to apply
     filters2Apply = confDict['clusterFilters'].split(',')
 
+    ## [SR CHANGE] collect cluster types
+    clusterTypes = clusters.collectEventTypes()
     ## For each cluster
-    for cluster in clusters.collect(clusterType):
+    for cluster in clusters.collect(clusterTypes):
         
         ## a) Filter INS cluster
         if (clusterType == 'INS-CLUSTER'):
@@ -34,10 +41,33 @@ def filterClusters(clusters, clusterType, confDict):
         elif (clusterType == 'LEFT-CLIPPING-CLUSTER') or (clusterType == 'RIGHT-CLIPPING-CLUSTER'):
             cluster.filters = filterCLIPPING(cluster, filters2Apply, confDict)
 
+        ## [SR CHANGE]
+        ## TODO: CHANGE THIS EVENTYPE!!!!!!
+        ## c) Filter DISCORDANT cluster
+        elif 'DISCORDANT' in clusterType:
+            cluster.filters = filterDISCORDANT(cluster, filters2Apply, confDict, tumourBam)
+
         ## d) Unexpected cluster type
         else:
             log.info('Error at \'filterClusters\'. Unexpected cluster type')
             sys.exit(1)
+
+## [SR CHANGE]
+def applyFilters(clusters):
+    '''
+    Remove those clusters that fail in one or more filters
+    '''
+    newClusterDict = {}
+    clusterTypes = clusters.collectEventTypes()
+    ## TODO: aqui seria mejor qitarlo de la lista en vez de hacer una nueva
+    ## TODO: aqui mirar de coger el clusterType de otra manera sin tener que hacer dos loops:
+    for clusterType in clusterTypes:
+        for cluster in clusters.collect([clusterType]):
+            newClusterDict[clusterType]=[]
+            if False not in [value for value in cluster.filters.values()]:
+                newClusterDict[clusterType].append(cluster)
+
+    return newClusterDict
 
 def filterINS(cluster, filters2Apply, confDict):
     '''
@@ -125,6 +155,183 @@ def filterCLIPPING(cluster, filters2Apply, confDict):
         filterClippingResults['MAX-NBREADS'] = maxNbEventsFilter(cluster, confDict['maxClusterSize'])
 
     return filterClippingResults
+
+## [SR CHANGE]
+def filterDISCORDANT(cluster, filters2Apply, confDict, bam):
+    '''
+    Apply appropriate filters to each DISCORDANT-CLUSTER.
+
+    Input:
+        1. cluster: cluster object
+        2. filters2Apply: list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
+        3. confDict
+    Output:
+        1. filterDiscordantResults -> keys: name of filters; values: True if the cluster pass the filter, False if it doesn't pass.
+    '''
+
+    filterDiscordantResults = {}
+
+    ## 1. FILTER 1: Minimum number of reads per cluster
+    if 'MIN-NBREADS' in filters2Apply: # check if the filter is selected
+        filterDiscordantResults['MIN-NBREADS'] = minNbEventsFilter(cluster, confDict['minClusterSize'])
+
+    ## 2. FILTER 2: Maximum number of reads per cluster
+    if 'MAX-NBREADS' in filters2Apply: # check if the filter is selected
+        filterDiscordantResults['MAX-NBREADS'] = maxNbEventsFilter(cluster, confDict['maxClusterSize'])
+
+    ## 3. FILTER 3: Area mapping quality
+    if "AREAMAPQ" in filters2Apply:
+        filterDiscordantResults["AREAMAPQ"] = area(cluster,confDict,bam)[0]
+
+    ## 4. FILTER 4: Area clipping SMS
+    if "AREASMS" in filters2Apply:
+        filterDiscordantResults["AREASMS"] = area(cluster,confDict,bam)[1]
+
+    return filterDiscordantResults
+
+# [SR CHANGE]
+def area(cluster,confDict,bam):
+    '''
+    Apply filters to cluster (SR bam) based on the characteristics of its region.
+
+    Input:
+        1. cluster: cluster object
+        2. confDict
+        3. bam
+    Output:
+        1. percMAPQFilter -> boolean: True if the cluster pass the filter, False if it doesn't
+        2. percSMSReadsFilter -> boolean: True if the cluster pass the filter, False if it doesn't
+    '''
+
+    ## Set region coordinates
+    if cluster.beg == cluster.end:
+        if cluster.beg > 100:
+            binBeg = cluster.beg - 100
+        else:
+            binBeg = cluster.beg
+        binEnd = cluster.beg + 100
+    else:
+        if cluster.beg > 50:
+            binBeg = cluster.beg - 50
+        else:
+            binBeg = cluster.beg
+        binEnd = cluster.end + 50
+
+    ref = cluster.ref
+
+    ## Extract filter parameters from config dict
+    minReadsRegionMQ = confDict['minReadsRegionMQ']
+    maxRegionlowMQ = confDict['maxRegionlowMQ']
+    maxRegionSMS = confDict['maxRegionSMS']
+
+    # Set counts to 0
+    lowMAPQ = 0
+    SMSReads = 0
+    nbReads = 0
+
+    ## Open BAM file for reading
+    bamFile = pysam.AlignmentFile(bam, "rb")
+
+    ## Extract alignments
+    iterator = bamFile.fetch(ref, binBeg, binEnd)
+
+    for alignmentObj in iterator:
+        
+        if alignmentObj.cigartuples != None:
+        
+            # Check if aligment pass minimum mapq for reads within the cluster region
+            passMAPQ = areaMAPQ(alignmentObj, minReadsRegionMQ)
+
+            # If it doesnt pass, add 1 to the counts of low mapping quality reads within the cluster region
+            if passMAPQ == False:
+                lowMAPQ += 1
+
+            # Check if aligment is mapped this way: Soft Match Soft (SMS)
+            SMSRead = areaSMS(alignmentObj)
+            
+            # If it is mapped SMS, add 1 to the counts of SMS reads within the cluster region
+            if SMSRead == True:
+                SMSReads += 1
+            # Count total number of reads in the region
+            nbReads += 1
+    
+    ## Calculate percentages
+    percMAPQ = fraction(lowMAPQ, nbReads)
+    percSMSReads = fraction(SMSReads, nbReads)
+
+    ## If the percentage of low MQ reads is lower than the threshold pass the filter.
+    if percMAPQ < float(maxRegionlowMQ):
+        percMAPQFilter = True
+    else:
+        percMAPQFilter = False
+
+    ## If the percentage of SMS reads is lower than the threshold pass the filter.
+    if percSMSReads < float(maxRegionSMS):
+        percSMSReadsFilter = True
+    else:
+        percSMSReadsFilter = False
+    
+    #print (str(cluster.ref) + ' ' + str(cluster.beg) + ' ' + str (cluster.end) + ' ' + str(percMAPQFilter) + ' ' + str(percSMSReadsFilter))
+
+    return percMAPQFilter, percSMSReadsFilter
+
+# [SR CHANGE]
+def areaMAPQ(alignmentObj, minReadsRegionMQ):
+    '''
+    Check if the MAPQ of a read pass the minReadsRegionMQ threshold
+
+    Input:
+        1. alignmentObj
+        2. minReadsRegionMQ
+    Output:
+        1. percMAPQFilter -> boolean: True if the cluster pass the filter, False if it doesn't
+    '''
+
+    MAPQ = int(alignmentObj.mapping_quality)
+
+    if MAPQ > int(minReadsRegionMQ):
+        passMAPQ = True
+    else:
+        passMAPQ = False
+
+    return passMAPQ
+
+# [SR CHANGE]
+def areaSMS(alignmentObj):
+    '''
+    Check if aligment is mapped this way: Soft Match Soft (SMS)
+
+    Input:
+        1. alignmentObj
+        2. maxRegionSMS
+    Output:
+        1. percSMSReadsFilter -> boolean: True if the cluster pass the filter, False if it doesnt
+    '''
+
+    SMSRead = False
+
+    # Select first and last operation from cigar to search for clipping
+    firstOperation, firstOperationLen = alignmentObj.cigartuples[0]
+    lastOperation, lastOperationLen = alignmentObj.cigartuples[-1]
+    ## Clipping >= X bp at the left
+    #  Note: soft (Operation=4) or hard clipped (Operation=5)     
+    if ((firstOperation == 4) or (firstOperation == 5)) and ((lastOperation == 4) or (lastOperation == 5)):
+        SMSRead = True
+    if ((lastOperation == 4) or (lastOperation == 5)) and ((firstOperation != 4) and (firstOperation != 5)):
+        SMSRead = True
+
+    return SMSRead
+
+## TODO: WHERE CAN WE PUT THIS FUNCTION??
+def fraction(counts, total):
+    
+    ## Percentage of SMS reads
+    if counts > 0:
+        perc = counts/total
+    else:
+        perc = 0
+    
+    return perc
 
 def minNbEventsFilter(cluster, minNbEvents):
     '''

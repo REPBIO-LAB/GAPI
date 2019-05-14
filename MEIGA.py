@@ -38,7 +38,9 @@ parser.add_argument('--targetBins', default=None, dest='targetBins', type=str, h
 parser.add_argument('-bS', '--binSize', default=1000000, dest='binSize', type=int, help='Input bams will be analised in genomic bins of this size. Default: 1000000')
 parser.add_argument('--refs', default="ALL", dest='refs', type=str, help='Comma separated list of target references to call SV (i.e. 1,2,3,X). Default: All references included in the bam file')
 parser.add_argument('--SV', default="INS,CLIPPING", dest='SV', type=str, help='Comma separated list of SV event types to collect (INS, DEL and CLIPPING). Default: INS,CLIPPING')
-parser.add_argument('--read-overhang', default=5000, dest='overhang', type=int, help='Number of flanking base pairs around the SV event to be collected from the supporting read sequence. Default: 10000')
+parser.add_argument('--readFilters', default="SMS", dest='readFilters', type=str, help='Comma separated list of read filters to apply (SMS)')
+parser.add_argument('--readOverhang', default=5000, dest='overhang', type=int, help='Number of flanking base pairs around the SV event to be collected from the supporting read sequence. Default: 10000')
+
 
 ## Filtering thresholds
 parser.add_argument('--minMAPQ', default=20, dest='minMAPQ', type=int, help='Minimum mapping quality required for each read. Default: 20')
@@ -52,6 +54,10 @@ parser.add_argument('--maxClusterSize', default=500, dest='maxClusterSize', type
 parser.add_argument('--maxClusterCV', default=15, dest='maxClusterCV', type=int, help='Maximum Coefficient of Variation of a cluster. Default: 15')
 parser.add_argument('--maxOutliers', default=0.5, dest='maxOutliers', type=int, help='Maximum percentage of events supporting a cluster that have been removed during the polish step. Default: 0.5')
 
+## Filtering thresholds short reads
+parser.add_argument('--minReadsRegionMQ', default=10, dest='minReadsRegionMQ', type=int, help='Surrounding reads above this MQ are considered low MQ reads. Default: 10')
+parser.add_argument('--maxRegionlowMQ', default=0.3, dest='maxRegionlowMQ', type=int, help='Maximum percentage of lowMAPQ/nbReads in cluster´s region. Default: 0.3')
+parser.add_argument('--maxRegionSMS', default=0.15, dest='maxRegionSMS', type=int, help='Maximum percentage of SMS clipping reads in cluster´s region. Default: 0.15')
 
 ## 2. Parse user´s input and initialize variables ##
 args = parser.parse_args()
@@ -72,6 +78,7 @@ binSize = args.binSize
 refs = args.refs
 SV = args.SV
 overhang = args.overhang
+readFilters = args.readFilters
 
 ## Filtering thresholds
 minMAPQ = args.minMAPQ
@@ -84,6 +91,12 @@ clusterFilters = args.clusterFilters
 maxClusterSize = args.maxClusterSize
 maxClusterCV = args.maxClusterCV
 maxOutliers = args.maxOutliers
+
+## Filtering thresholds short reads
+minReadsRegionMQ = args.minReadsRegionMQ
+maxRegionlowMQ = args.maxRegionlowMQ
+maxRegionSMS = args.maxRegionSMS
+#overlapBuffer = args.overlapBuffer
 
 # If no reference is specified, get all that are present in the bam file.
 if refs == "ALL":
@@ -127,6 +140,7 @@ print('binSize: ', binSize)
 print('targetRefs: ', refs)
 print('targetSVs: ', SV)
 print('overhang: ', overhang, "\n")
+print('readFilters: ', readFilters, "\n")
 
 print('** Filtering thresholds **')
 print('minMAPQ: ', minMAPQ)
@@ -160,6 +174,7 @@ confDict['targetBins'] = targetBins
 confDict['binSize'] = binSize
 confDict['targetRefs'] = targetRefs
 confDict['targetSV'] = targetSV
+confDict['readFilters'] = readFilters
 
 ## ...
 confDict['overhang'] = overhang
@@ -175,6 +190,12 @@ confDict['minClusterSize'] = minClusterSize
 confDict['maxClusterSize'] = maxClusterSize
 confDict['maxClusterCV'] = maxClusterCV
 confDict['maxOutliers'] = maxOutliers
+
+## Filtering thresholds short reads
+confDict['minReadsRegionMQ'] = minReadsRegionMQ
+confDict['maxRegionlowMQ'] = maxRegionlowMQ
+confDict['maxRegionSMS'] = maxRegionSMS
+#confDict['overlapBuffer'] = overlapBuffer
 
 ## 2. Execute structural variation caller
 ###########################################

@@ -1,10 +1,13 @@
 '''
-Module 'variants' - Contains classes for dealing with genomic variation
+Module 'clusters' - Contains classes for dealing with genomic variation
 '''
 
 ## DEPENDENCIES ##
 # External
 import sys
+import numpy as np
+import collections 
+import pysam
 import math
 
 # Internal
@@ -19,6 +22,9 @@ import bamtools
 import assembly
 import repeats
 import retrotransposons
+import filters
+import bkp
+
 
 ###############
 ## FUNCTIONS ##
@@ -54,8 +60,8 @@ def create_cluster(events, clusterType):
         cluster = CLIPPING_cluster(events)
 
     ## e) Create DISCORDANT cluster
-    #elif (clusterType == 'DISCORDANT'):
-    #    cluster = DISCORDANT_cluster(events)
+    elif 'DISCORDANT' in clusterType:
+        cluster = DISCORDANT_cluster(events)
 
     ## f) Unexpected cluster type
     else:
@@ -83,7 +89,19 @@ def merge_clusters(clusters, clusterType):
 
     return mergedCluster
 
-def create_metaclusters(eventsBinDb, confDict):
+def create_discordantClusters(eventsBinDb, confDict):
+    '''
+    '''
+    discordantClustersDict = {}
+
+    if 'DISCORDANT' in confDict['targetSV']:
+        eventTypes = eventsBinDb.collectEventTypes()
+        for eventType in eventTypes:
+            discordantClustersDict[eventType] = clustering.reciprocal_clustering(eventsBinDb, 1, confDict['minClusterSize'], eventType, 0, eventType)
+
+    return discordantClustersDict
+
+def create_metaclusters(eventsBinDb, confDict, bam, normalBam, mode):
     '''
     
     Input:
@@ -138,14 +156,12 @@ def create_metaclusters(eventsBinDb, confDict):
 
     # 2.5) Create DISCORDANT metaclusters
     if 'DISCORDANT' in confDict['targetSV']:
-        eventTypes = ['DISCORDANT']
-        # TO DO  
-        # metaclusters = clustering.reciprocal_clustering()
-        # allMetaclusters = allMetaclusters + metaclusters
-
-    #for metacluster in allMetaclusters:
-    #    print('METACLUSTER: ', metacluster, len(metacluster.events), [(clusterType, len(subcluster.events)) for clusterType, subcluster in metacluster.subclusters.items()])
-
+        eventTypes = eventsBinDb.collectEventTypes()
+        
+        for eventType in eventTypes:
+            
+            metaclusters = clustering.reciprocal_clustering(eventsBinDb, 1, confDict['minClusterSize'], eventType, 0, 'META')
+            allMetaclusters = allMetaclusters + metaclusters
 
     ## 3. Organize metaclusters into bins ##    
     binSizes = [100, 1000, 10000, 100000, 1000000]
@@ -154,6 +170,7 @@ def create_metaclusters(eventsBinDb, confDict):
 
     metaclustersBinDb = structures.create_bin_database(eventsBinDb.ref, eventsBinDb.beg, eventsBinDb.end, metaclustersDict, binSizes)
     return metaclustersBinDb
+
 
 def make_consensus(clustersBinDb, confDict, reference, clusterType, rootOutDir):
     '''
@@ -250,6 +267,7 @@ def find_chimeric_alignments(clusterA, clusterB):
     supplementary = chimericSorted[0][1]
 
     return primary, supplementary, chimericSorted
+
 
 def find_insertion_at_clipping_bkp(primary, supplementary):
     '''
@@ -475,6 +493,14 @@ class CLIPPING_cluster(cluster):
 
         cluster.__init__(self, events, 'CLIPPING')
 
+class DISCORDANT_cluster(cluster):
+    '''
+    Discordant cluster subclass
+    '''
+    def __init__(self, events):
+
+        cluster.__init__(self, events, 'DISCORDANT')
+
 class META_cluster():
     '''
     Meta cluster class
@@ -495,7 +521,10 @@ class META_cluster():
 
         # Organize events into subclusters
         self.subclusters = self.create_subclusters()
-    
+
+        # Tag germline or somatic
+        self.intOrigin = None
+
         # Set some metacluster properties as None
         self.filters = None
         self.consensus = None
@@ -505,7 +534,6 @@ class META_cluster():
         self.INS_features = {}
         self.DEL_features = {}
         self.BKP_features = {}
-
 
     def sort(self):
         '''
@@ -651,10 +679,92 @@ class META_cluster():
 
         nbTotal = len(self.events)
 
+        return nbTotal, nbTumour, nbNormal
+        
+    
+    def supportingCLIPPING(self, buffer, confDict, bam, normalBam, mode):
+        # Note: This function works but you have to allow duplicates in the clipping 
+
+        # Make custom conf. dict for only selecting duplicates
+        clippingConfDict = dict(confDict)
+        clippingConfDict['targetSV'] = ['CLIPPING']
+        clippingConfDict['minMAPQ'] = 0
+
+        clippingEventsDict = {}
+
+        ## Define region
+        binBeg = self.beg - buffer if self.beg > buffer else 0
+        
+        # TODO check as above
+        binEnd = self.end
+
+        ref = self.ref
+
+        if mode == "SINGLE":
+            clippingEventsDict = bamtools.collectSV(ref, binBeg, binEnd, bam, clippingConfDict, None)
+        elif mode == "PAIRED":
+            clippingEventsDict = bamtools.collectSV_paired(ref, binBeg, binEnd, bam, normalBam, clippingConfDict)
+
+        ## When the discordant cluster is RIGHT, add the biggest right clipping cluster if any:
+        if all (event.side == 'PLUS' for event in self.events):
+            
+            ## Get clipping clusters:
+            clippingRightEventsDict = dict((key,value) for key, value in clippingEventsDict.items() if key == 'RIGHT-CLIPPING')
+            CLIPPING_cluster = self.add_clippingEvents(ref, binBeg, binEnd, clippingRightEventsDict, ['RIGHT-CLIPPING'], confDict)
+
+        ## When the discordant cluster is LEFT, add the biggest left clipping cluster if any:
+        elif all (event.side == 'MINUS' for event in self.events):
+            
+            ## Get clipping clusters:
+            clippingLeftEventsDict = dict((key,value) for key, value in clippingEventsDict.items() if key == 'LEFT-CLIPPING')
+            CLIPPING_cluster = self.add_clippingEvents(ref, binBeg, binEnd, clippingLeftEventsDict, ['LEFT-CLIPPING'], confDict)
+
+        # TODO if it is reciprocal
+        else:
+            CLIPPING_cluster = self.add_clippingEvents(ref, binBeg, binEnd, clippingEventsDict, ['RIGHT-CLIPPING', 'LEFT-CLIPPING'], confDict)
+
+        return CLIPPING_cluster
+        
+    def add_clippingEvents(self, ref, binBeg, binEnd, clippingEventsDict, eventTypes, confDict):
+        binSizes = [100, 1000]
+        clippingBinDb = structures.create_bin_database(ref, binBeg, binEnd, clippingEventsDict, binSizes)
+        binSize = clippingBinDb.binSizes[0]
+        CLIPPING_clusters = clustering.distance_clustering(clippingBinDb, binSize, eventTypes, 'CLIPPING', confDict['maxEventDist'], confDict['minClusterSize']) 
+
+        # If there is a clipping cluster
+        if len (CLIPPING_clusters) > 0:
+            ## Choose the clipping cluster with the highest number of events:
+            # Coger el cluster de la lista de clusters si si length es igual a la maxima length de todos los clusters de la lista. (como devuelve una lista de un solo elemento, cojo el primer elemento de la lista.)
+            # TODO: si hay dos con el mismo numero de eventos.
+            CLIPPING_cluster = [cluster for cluster in CLIPPING_clusters if len(cluster.events) == max([len(cluster.events) for cluster in CLIPPING_clusters])][0]
+
+            ## Add cluster's reads to the discordant metacluster:
+            self.add(CLIPPING_cluster.events)
+
+            return CLIPPING_cluster
+
+            ## Remove events from discordant cluster that are higher (more to the right) than the clippingEnd
+            # discordantCluster.removeDiscordant(clippingEnd, 'right')
+
+    def setIntOrigin(self):
+        '''
+        Set germline or somatic
+        '''
+        nbNormalEvents = 0
+
+        for event in self.events:
+            if event.sample == "NORMAL":
+                nbNormalEvents += 1
+                
+        # HACER ESTO ARGUMENTOO!!!
+        if nbNormalEvents > 3:
+            self.intOrigin = 'germline'
+        else:
+            self.intOrigin = 'somatic'
+
         return nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING
 
            
-
     def select_template(self, technology, outDir):
         '''
         Select one metacluster supporting read as template to be used in the metacluster consensus generation step

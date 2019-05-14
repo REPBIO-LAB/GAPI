@@ -4,8 +4,14 @@ Module 'sequences' - Contains functions for the manipulation and extracting info
 
 ## DEPENDENCIES ##
 # External
+import os
+import subprocess
 
 # Internal
+import formats
+
+## [SR CHANGE]
+import log
 
 
 ## FUNCTIONS ##
@@ -210,6 +216,40 @@ def find_monomers(seq, targetMonomer, windowSize, maxWindowDist, minMonomerSize,
     return filteredMonomers
 
 
+def aligmentMaxNbMatches(FASTA_file, db, PAF_file, outDir):
+    '''
+    '''
+
+    # DESILENCIAAAAAR!!!
+    
+    # TODO: append en el error!
+    err = open(outDir + '/identifyMate.err', 'w')
+    command = 'minimap2 ' + db + ' ' + FASTA_file + ' > ' + PAF_file
+    status = subprocess.call(command, stderr=err, shell=True)
+
+    if status != 0:
+        step = 'IDENTIFY MATE SEQ'
+        msg = 'Identify mate sequence failed' 
+        log.step(step, msg)
+        
+        
+        
+
+
+    # If PAF file is not empty
+    if not os.stat(PAF_file).st_size == 0:
+        PAFObj = formats.PAF()
+        PAFObj.read(PAF_file)
+
+        # Pick the identity of the aligment with highest number of matches
+        aligmentMaxNbMatches = PAFObj.sortNbMatches()[0]
+
+    else:
+        aligmentMaxNbMatches = None
+
+    return aligmentMaxNbMatches
+
+
 ## CLASSES ##
 class monomer():
     '''
@@ -241,3 +281,20 @@ class monomer():
         Return monomer length
         '''
         return len(self.seq)
+
+## [SR CHANGE]
+def getPAFAlign(FASTA_file, indexDb, outDir):
+    # Alineo el fasta consenso
+    # TODO ponerlo bien
+    PAF_file = FASTA_file.replace(".fa", "_alignments.paf")
+
+    #err = open(logDir + '/align.err', 'w') 
+    command = 'minimap2 ' + indexDb + ' ' + FASTA_file + ' > ' + PAF_file
+    status = subprocess.call(command, shell=True)
+
+    if status != 0:
+        step = 'ALIGN-INSERT'
+        msg = 'Insert alignment failed' 
+        log.step(step, msg)
+    
+    return PAF_file

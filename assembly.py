@@ -10,7 +10,9 @@ import subprocess
 import log
 import unix
 import alignment
+import os
 import formats
+
 
 ## FUNCTIONS ##
     
@@ -175,4 +177,50 @@ def polish_racon(templates, sequences, technology, nbRounds, outDir):
         templates = polished
 
     return polished
-    
+
+
+def getConsensusSeq(FASTA_file, outDir):
+    '''
+    Build consensus seq from fasta file
+
+    Input:
+        1. FASTA_file: Fasta file
+        2. outDir
+    Output:
+        1. consensusPath: consensus file
+        2. consensusSeq: consensus sequence
+    '''
+
+    # 1. Check that the fasta file is not empty:
+    if not os.stat(FASTA_file).st_size == 0:
+        
+        # 2. Make multiple sequence alignment
+        msfPath = FASTA_file.replace("fa", "msf")
+        command = 'muscle -in ' + FASTA_file + ' -out ' + msfPath + ' -msf' 
+        status = subprocess.call(command, shell=True)
+
+        # 3. Generate consensus sequence (cons tool from EMBOSS package)
+        consensusPath = FASTA_file.replace("_supportingReads", "_consensus")
+
+        command = 'cons -sequence ' + msfPath + ' -outseq ' + consensusPath + ' -identity 0 -plurality 0'
+        status = subprocess.call(command, shell=True)
+
+        # 4. Check that consensus file is not empty
+        if not os.stat(consensusPath).st_size == 0:
+            
+            # 5. Read consensus sequence 
+            consensusFastaObj = formats.FASTA()
+            consensusFastaObj.read(consensusPath)
+            consensusSeq = consensusFastaObj.seqDict["EMBOSS_001"].upper()
+
+            # 6. Replace '-' by 'N' for ambiguous bases:
+            consensusSeq = consensusSeq.replace('-', 'N')
+
+            # 7. Convert consensus sequence into upper case:
+            consensusSeq = consensusSeq.upper()
+            
+        else:
+            consensusSeq = None
+
+    return consensusPath, consensusSeq
+
