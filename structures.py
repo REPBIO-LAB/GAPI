@@ -8,8 +8,47 @@ Module 'structures' - Contains functions and classes to organize data into more 
 import log
 
 ## FUNCTIONS ##
-def create_bin_database(ref, beg, end, eventsDict, binSizes):
+
+def create_bin_database(refLengths, eventsDict):
     '''
+    Organize events located genome wide into a set of bin databases, one per reference
+
+    Input:
+        1. refLengths: dictionary containing references as keys and their lengths as values
+        2. eventsDict: nested dictionary containing:
+            * FIRST LEVEL KEYS:
+                - REF_1
+                - ...
+
+                * SECOND LEVEL KEYS:
+                    - EVENT_TYPE_1 -> list of objects
+                    - ...
+
+    Output:
+        1. wgBinDb: dictionary containing references as keys and the corresponding 'bin_database' as value
+    '''    
+    ## Initialize dict
+    wgBinDb = {}
+
+    ## For each ref
+    for ref, refLen in refLengths.items():
+
+        ## Skip if no events in that particular ref
+        if ref not in eventsDict:
+            continue
+
+        ## Create bin database
+        binSizes = [10000, 100000, 1000000, refLen]
+        binDb = create_bin_database_interval(ref, 0, refLen, eventsDict[ref], binSizes)
+        
+        ## Add bin database 
+        wgBinDb[ref] = binDb
+    
+    return wgBinDb
+
+def create_bin_database_interval(ref, beg, end, eventsDict, binSizes):
+    '''
+    Organize events identified in a given genomic interval into a bin database
 
     Input:
         1. ref: reference/chromosome
@@ -138,12 +177,21 @@ class bin_database():
         return events
 
     def collectEventTypes(self):
+        '''
+        Return a list of all the event types stored in the database
+        '''
 
         eventTypes = []
 
+        # For each bin size
         for binSize in self.binSizes:
-            for dicti in self.data[binSize].values():
-                for eventType in dicti.keys():
+
+            # For each bin 
+            for binDict in self.data[binSize].values():
+
+                # For each event type in the bin
+                for eventType in binDict.keys():
+
                     if eventType not in eventTypes:
                         eventTypes.append(eventType)
 
@@ -181,7 +229,6 @@ class bin_database():
 
         return events
 
-
     def traverse(self, rootIndex, rootSize, eventType):
         '''
         Traverse bin structure starting in a root bin and going through all the bins located at upper levels
@@ -203,7 +250,6 @@ class bin_database():
             1. events: list of events 
         '''      
         ### Initialize events list adding the events from the root bin
-        ## [SR CHANGE]
         try:
             rootBin = self.data[rootSize][rootIndex][eventType]
             events = rootBin.events
