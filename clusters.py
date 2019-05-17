@@ -168,7 +168,7 @@ def create_metaclusters(eventsBinDb, confDict):
     metaclustersDict = {}
     metaclustersDict['METACLUSTERS'] = allMetaclusters 
 
-    metaclustersBinDb = structures.create_bin_database(eventsBinDb.ref, eventsBinDb.beg, eventsBinDb.end, metaclustersDict, binSizes)
+    metaclustersBinDb = structures.create_bin_database_interval(eventsBinDb.ref, eventsBinDb.beg, eventsBinDb.end, metaclustersDict, binSizes)
     return metaclustersBinDb
 
 
@@ -214,7 +214,7 @@ def make_consensus(clustersBinDb, confDict, reference, clusterType, rootOutDir):
     
     ## 3. Organize metaclusters into bins according to their SV type    
     binSizes = [100, 1000, 10000, 100000, 1000000]
-    consensusBinDb = structures.create_bin_database(clustersBinDb.ref, clustersBinDb.beg, clustersBinDb.end, consensusDict, binSizes)
+    consensusBinDb = structures.create_bin_database_interval(clustersBinDb.ref, clustersBinDb.beg, clustersBinDb.end, consensusDict, binSizes)
 
     return consensusBinDb
 
@@ -727,7 +727,7 @@ class META_cluster():
         
     def add_clippingEvents(self, ref, binBeg, binEnd, clippingEventsDict, eventTypes, confDict):
         binSizes = [100, 1000]
-        clippingBinDb = structures.create_bin_database(ref, binBeg, binEnd, clippingEventsDict, binSizes)
+        clippingBinDb = structures.create_bin_database_interval(ref, binBeg, binEnd, clippingEventsDict, binSizes)
         binSize = clippingBinDb.binSizes[0]
         CLIPPING_clusters = clustering.distance_clustering(clippingBinDb, binSize, eventTypes, 'CLIPPING', confDict['maxEventDist'], confDict['minClusterSize']) 
 
