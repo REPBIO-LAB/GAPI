@@ -5,6 +5,7 @@ Module 'formats' - Contains classes for dealing with file formats such as fasta,
 ## DEPENDENCIES ##
 # External
 import itertools
+import sys
 
 # Internal
 import log
@@ -165,17 +166,53 @@ class BED():
     Class for dealing with files in BED format. 
     '''
 
-    def __init__(self):
+    def __init__(self, filePath, structure):
         '''
         Initialize empty class instance
         '''
-        self.lines = []
+        self.lines = None
+        self.read(filePath, structure)
+        self.structure =  structure
 
-    def read(self, filePath):
+    def read(self, filePath, structure):
         '''
-        BED file reader. Read and store data line objects into a list:
+        BED file reader. Read and store bed lines into a data structure
+
+        Input:
+            1) filePath: path to bed file
+            2) structure: data structure where BED lines will be stored. 3 Possible structures:
+                - 'List': lines saved in a list
+                - 'Dict': lines saved in a dictionary where each key will correspond to a reference and the corresponding value will be the list of lines in that reference
+                - 'nestedDict': lines saved in a nested dictionary where first level keys correspond to the references and second level keys to bed entry names  
+        
+        Update lines attribute as output
+        '''
+
+        if (structure == 'List'):
+            self.lines = self.organize_list(filePath)
+
+        elif (structure == 'Dict'):
+            self.lines = self.organize_dict(filePath)
+
+        elif (structure == 'nestedDict'):
+            self.lines = self.organize_nestedDict(filePath)
+
+        else:
+            print('[ERROR] Bed file reader. Unknown structure provided: ', structure)
+            sys.exit(1)
+
+    def organize_list(self, filePath):
+        '''
+        Organize bed file lines in a list
+
+        Input:
+            1) filePath: path to bed file
+
+        Output:
+            1) lines: list containing bed entries
         '''
         bedFile = open(filePath)
+        lines = []
 
         # For line in the file
         for line in bedFile:
@@ -186,7 +223,86 @@ class BED():
 
             fields = line.split() 
             line = BED_line(fields)
-            self.lines.append(line)
+            lines.append(line)
+        
+        return lines
+        
+    def organize_dict(self, filePath):
+        '''
+        Organize bed file lines in a dictionary where each key will correspond to a reference and the corresponding value will be the list of lines in that reference
+        
+        Input:
+            1) filePath: path to bed file
+
+        Output:
+            1) lines: dictionary containing bed entries
+        '''
+
+        bedFile = open(filePath)
+        lines = {}
+
+        # For line in the file
+        for line in bedFile:
+            
+            # Skip comments and blank lines
+            if line.startswith('#') or not line:
+                continue
+
+            fields = line.split() 
+            line = BED_line(fields)
+
+            # A) Initialize reference and add line
+            if line.ref not in lines:
+                lines[line.ref] = [line]
+
+            # B) Add to preexisting reference
+            else:
+                lines[line.ref].append(line)
+
+        return lines
+
+    def organize_nestedDict(self, filePath):
+        '''
+        Organize bed file lines in a nested dictionary where first level keys correspond to the references and second level keys to bed entry names  
+
+        Input:
+            1) filePath: path to bed file
+
+        Output:
+            1) lines: nested dictionary containing bed entries
+        '''
+
+        bedFile = open(filePath)
+        lines = {}
+
+        # For line in the file
+        for line in bedFile:
+            
+            # Skip comments and blank lines
+            if line.startswith('#') or not line:
+                continue
+
+            fields = line.split() 
+            line = BED_line(fields)
+
+            # A) Initialize reference and add line
+            if line.ref not in lines:
+                lines[line.ref] = {}
+                lines[line.ref][line.name] = [line]
+
+            # B) Add to preexisting reference
+            else:
+
+                # a) Initialize entry name
+                if line.name not in lines[line.ref]:
+                    lines[line.ref][line.name] = [line]
+
+                # b) Add to preexisting entry name
+                else:
+
+                    lines[line.ref][line.name].append(line)
+
+        return lines
 
 class BED_line():
     '''
@@ -199,7 +315,7 @@ class BED_line():
         self.ref = str(fields[0])
         self.beg = int(fields[1])
         self.end = int(fields[2])
-        
+        self.name = str(fields[3])
 
 class PAF():
     '''
