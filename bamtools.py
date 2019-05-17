@@ -17,7 +17,7 @@ import formats
 import sequences
 
 ## FUNCTIONS ##
-def getREFS(bam):
+def get_refs(bam):
     '''
     Get all references present in the bam file.
 
@@ -30,6 +30,27 @@ def getREFS(bam):
     bamFile = pysam.AlignmentFile(bam, 'rb')
     refs  = ','.join(bamFile.references)
     return refs
+
+def get_ref_lengths(bam):
+    '''
+    Make dictionary containing the length for each reference
+
+	Input:
+		1. bam: indexed BAM file
+	
+	Output:
+		1. lengths: Dictionary containing reference ids as keys and as values the length for each reference
+    '''
+    ## Open BAM file for reading
+    bamFile = pysam.AlignmentFile(bam, 'rb')
+
+    ## Make dictionary with the length for each reference (move this code into a function)
+    refLengths = dict(list(zip(bamFile.references, bamFile.lengths)))
+
+    ## Close bam file
+    bamFile.close()
+
+    return refLengths
 
 
 def SAM2BAM(SAM, outDir):
@@ -157,8 +178,7 @@ def binning(targetBins, bam, binSize, targetRefs):
 
     # B) Read bins from bed file
     else:
-        BED = formats.BED()
-        BED.read(targetBins)
+        BED = formats.BED(targetBins, 'List')
         bins = [ (line.ref, line.beg, line.end) for line in BED.lines]
     
     return bins
@@ -176,12 +196,8 @@ def makeGenomicBins(bam, binSize, targetRefs):
     Output:
         1. bins: List of non overlapping bins. Each list item corresponds to a tuple (ref, beg, end)
     '''
-
-    ## Open BAM file for reading
-    bamFile = pysam.AlignmentFile(bam, 'rb')
-
-    ## Make dictionary with the length for each reference
-    refLengths  = dict(list(zip(bamFile.references, bamFile.lengths)))
+    ## Obtain the length for each reference
+    refLengths = get_ref_lengths(bam)
 
     ## Select target references
     if targetRefs != None:
@@ -207,8 +223,6 @@ def makeGenomicBins(bam, binSize, targetRefs):
                 window = (ref, beg, end)
                 bins.append(window)
 
-    ## Close bam file
-    bamFile.close()
 
     return bins
 
@@ -284,6 +298,8 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
     eventsDict['DEL'] = []
     eventsDict['LEFT-CLIPPING'] = []
     eventsDict['RIGHT-CLIPPING'] = []
+    eventsDict['PLUS-DISCORDANT'] = []
+    eventsDict['MINUS-DISCORDANT'] = []
 
     ## Open BAM file for reading
     bamFile = pysam.AlignmentFile(bam, "rb")
@@ -387,7 +403,6 @@ def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, sample):
     #  Note: soft (Operation=4) or hard clipped (Operation=5)     
     if ((firstOperation == 4) or (firstOperation == 5)) and (firstOperationLen >= minCLIPPINGlen):
         
-
         ## Create CLIPPING object if:
         # a) No interval specified OR 
         # b) Clipping within target interval 
