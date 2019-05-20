@@ -6,12 +6,13 @@ Module 'structures' - Contains functions and classes to organize data into more 
 # External
 # Internal
 import log
+import gRanges
 
 ## FUNCTIONS ##
 
 def create_bin_database(refLengths, eventsDict):
     '''
-    Organize events located genome wide into a set of bin databases, one per reference
+    Organize genome wide events into a set of bin databases, one per reference
 
     Input:
         1. refLengths: dictionary containing references as keys and their lengths as values
@@ -71,7 +72,7 @@ def create_bin_database_interval(ref, beg, end, eventsDict, binSizes):
     for eventType, events in eventsDict.items():
 
         # Add all the events from the given event type to the bin database
-        binDb.addEvents(events, eventType)
+        binDb.add_events(events, eventType)
 
     return binDb
 
@@ -91,13 +92,14 @@ class bin_database():
         self.beg = int(beg)  
         self.end = int(end)
         self.binSizes = sorted(binSizes)
+        self.eventTypes = []
         self.data = {}
         
         ## Initialize one bin dictionary per size
         for binSize in self.binSizes:
             self.data[binSize] = {}
 
-    def addEvents(self, events, eventType):
+    def add_events(self, events, eventType):
         '''
         Add events into a hierarchy of genomic bins
 
@@ -105,7 +107,11 @@ class bin_database():
             1. events: list of objects. Every object must have 'beg' and 'end' attributes
             2. eventType: type of events (DEL, INS, CLIPPING, ...)
         '''        
-        ## 1. Allocate each event into a genomic bin 
+        ## 1. Add event type to event type list
+        if eventType not in self.eventTypes:
+            self.eventTypes.append(eventType)
+
+        ## 2. Allocate each event into a genomic bin 
         # For each event
         for event in events:
         
@@ -137,7 +143,7 @@ class bin_database():
 
                 ## B) Event spans several bins. Try with the next bin size 
 
-        ## 2. For each bin sort the events in increasing coordinates order
+        ## 3. For each bin sort the events in increasing coordinates order
         for binSize in self.data.keys():
             for binIndex in self.data[binSize].keys():
                 if eventType in self.data[binSize][binIndex]:
@@ -176,27 +182,6 @@ class bin_database():
 
         return events
 
-    def collectEventTypes(self):
-        '''
-        Return a list of all the event types stored in the database
-        '''
-
-        eventTypes = []
-
-        # For each bin size
-        for binSize in self.binSizes:
-
-            # For each bin 
-            for binDict in self.data[binSize].values():
-
-                # For each event type in the bin
-                for eventType in binDict.keys():
-
-                    if eventType not in eventTypes:
-                        eventTypes.append(eventType)
-
-        return eventTypes
-
     def collect_bin(self, binSize, binIndex, eventTypes):
         '''
         Collect all the events of target event types that are stored 
@@ -229,7 +214,52 @@ class bin_database():
 
         return events
 
-    def traverse(self, rootIndex, rootSize, eventType):
+    def collect_interval(self, beg, end, eventTypes):
+        '''
+        Collect all the events of target event types that are located with the input interval
+
+         Input:
+            1. beg: interval begin
+            2. end: interval end
+            3. eventTypes: list containing target event types. If 'ALL' all event types stored in the target bins will be retrieved
+
+         Output:
+            2. events. List of tuples containing events within the input interval (first element) and the number of bases overlapping the with interval (second element)
+        '''  
+        ## 1. Determine genomic bins spanned by the input interval
+        minBinSize = self.binSizes[0]
+        indexStart = int(beg / minBinSize)
+        indexEnd = int(end / minBinSize)
+            
+        ## 2. Collect all the events potentially within input interval 
+        allEvents = []
+
+        # For each bin spanning the interval
+        for index in range(indexStart, indexEnd + 1, 1):
+
+            # Collect events at target bin and overlapping bins at higher levels of the database
+            events = self.traverse(index, minBinSize, eventTypes)
+            allEvents = allEvents + events
+            
+        # Remove redundant events
+        allEvents = list(set(allEvents))
+
+        ## 3. Make list of events within input interval
+        events = []
+
+        # For each event
+        for event in allEvents:
+
+            # Assess if located within the interval
+            overlap, overlapLen = gRanges.overlap(beg, end, event.beg, event.end)
+
+            # Overlap found -> Add to the list the tuple
+            if overlap:
+                events.append((event, overlapLen))
+        
+        return events
+      
+    def traverse(self, rootIndex, rootSize, eventTypes):
         '''
         Traverse bin structure starting in a root bin and going through all the bins located at upper levels
         in the hierarchy. Collect events from all the visited bins. E.g:
@@ -244,15 +274,18 @@ class bin_database():
         Input:
             1. rootIndex: root bin index
             2. rootSize: window size/level where the root index is located 
-            3. eventType: type of events (DEL, INS, CLIPPING, ...)
+            3. eventTypes: list containing target event types. If 'ALL' all event types stored in the target bins will be retrieved
 
         Output:
             1. events: list of events 
-        '''      
+        '''    
+        # 'eventTypes' set as 'ALL' -> All distinct event types stored in the bin database will be retrieved
+        if eventTypes == 'ALL':
+            eventTypes = self.eventTypes
+
         ### Initialize events list adding the events from the root bin
         try:
-            rootBin = self.data[rootSize][rootIndex][eventType]
-            events = rootBin.events
+            events = self.collect_bin(rootSize, rootIndex, eventTypes)
 
             ### Select upper windows sizes/levels
             upperSizes = [ binSize for binSize in self.binSizes if binSize > rootSize]
@@ -263,15 +296,12 @@ class bin_database():
                 # Compute corresponding upper bin index
                 upperIndex = int(rootIndex * rootSize / upperSize)
 
-                # The upper bin contains events:
-                if (upperIndex in self.data[upperSize]):
+                # Collect events in the upper bin
+                upperBinEvents = self.collect_bin(upperSize, upperIndex, eventTypes)
 
-                    # There are events of the type of interest on the bin 
-                    if (eventType in self.data[upperSize][upperIndex]):
+                ## Add upper bin´s events to the list
+                events = events + upperBinEvents
 
-                        ## Add upper bin´s events to the list
-                        upperBin = self.data[upperSize][upperIndex][eventType]
-                        events = events + upperBin.events
         except KeyError:
             events =  []
 
