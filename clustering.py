@@ -111,7 +111,7 @@ def reciprocal_clustering(eventsBinDb, minPercOverlap, minClusterSize, eventType
 
             ### 1. Collect all the events in the current bin and 
             # in bins located at higher levels of the hierarchy
-            events = eventsBinDb.traverse(index, windowSize, eventType)
+            events = eventsBinDb.traverse(index, windowSize, [eventType])
 
             ### 2. Cluster events based on reciprocal overlap
             ## For each event A
@@ -214,12 +214,6 @@ def reciprocal_clustering(eventsBinDb, minPercOverlap, minClusterSize, eventType
     return clustersList
 
 
-
-
-
-
-
-
 def reciprocal(eventsBinDb, minPercOverlap, minClusterSize, buffer):
     '''
     '''
@@ -234,7 +228,7 @@ def reciprocal(eventsBinDb, minPercOverlap, minClusterSize, buffer):
         for index in eventsBinDb.data[windowSize]:
 
             # Collect all event types present in the binDb
-            commonEventTypes = set([i.split('-', 1)[1] for i in eventsBinDb.collectEventTypes()])
+            commonEventTypes = set([i.split('-', 1)[1] for i in eventsBinDb.eventTypes])
 
             for commonEventType in commonEventTypes:
                 # cogo solo las partes comunes de los eventTypes
@@ -252,14 +246,14 @@ def reciprocal(eventsBinDb, minPercOverlap, minClusterSize, buffer):
                 #minusEvents = []
 
                 #if actualCommonEventType == commonEventType:
-                plusEvents = eventsBinDb.traverse(index, windowSize, plusEventType)
+                plusEvents = eventsBinDb.traverse(index, windowSize, [plusEventType])
                 # Append events from the adjacent left bin
                 plusEvents.extend(eventsBinDb.collect_bin(windowSize, index-1, plusEventType))
                 # Append events from the adjacent right bin
                 plusEvents.extend(eventsBinDb.collect_bin(windowSize, index+1, plusEventType))
 
                 #if actualCommonEventType == commonEventType:
-                minusEvents = eventsBinDb.traverse(index, windowSize, minusEventType)
+                minusEvents = eventsBinDb.traverse(index, windowSize, [minusEventType])
                 # Append events from the adjacent left bin
                 minusEvents.extend(eventsBinDb.collect_bin(windowSize, index-1, minusEventType))
                 # Append events from the adjacent right bin

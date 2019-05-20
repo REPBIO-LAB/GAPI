@@ -94,11 +94,7 @@ def buildVirusDb(fastaDir, outDir):
         with open(consensusDb) as inFile:
             outFile.write(inFile.read())
             
-            
-
     ## 2. Index retrotransposon database fasta file ##
-    
-
     index = outDir + '/virusDb.mmi'
     ## DESILENCIAAAAR
     

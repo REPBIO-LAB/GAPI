@@ -25,7 +25,8 @@ def filterClusters(clusters, clusterType, confDict, tumourBam):
     filters2Apply = confDict['clusterFilters'].split(',')
 
     ## [SR CHANGE] collect cluster types
-    clusterTypes = clusters.collectEventTypes()
+    clusterTypes = clusters.eventTypes
+
     ## For each cluster
     for cluster in clusters.collect(clusterTypes):
         
@@ -58,7 +59,8 @@ def applyFilters(clusters):
     Remove those clusters that fail in one or more filters
     '''
     newClusterDict = {}
-    clusterTypes = clusters.collectEventTypes()
+    clusterTypes = clusters.eventTypes
+
     ## TODO: aqui seria mejor qitarlo de la lista en vez de hacer una nueva
     ## TODO: aqui mirar de coger el clusterType de otra manera sin tener que hacer dos loops:
     for clusterType in clusterTypes:

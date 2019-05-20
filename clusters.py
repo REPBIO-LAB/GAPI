@@ -95,7 +95,7 @@ def create_discordantClusters(eventsBinDb, confDict):
     discordantClustersDict = {}
 
     if 'DISCORDANT' in confDict['targetSV']:
-        eventTypes = eventsBinDb.collectEventTypes()
+        eventTypes = eventsBinDb.eventTypes
         for eventType in eventTypes:
             discordantClustersDict[eventType] = clustering.reciprocal_clustering(eventsBinDb, 1, confDict['minClusterSize'], eventType, 0, eventType)
 
@@ -156,7 +156,7 @@ def create_metaclusters(eventsBinDb, confDict):
 
     # 2.5) Create DISCORDANT metaclusters
     if 'DISCORDANT' in confDict['targetSV']:
-        eventTypes = eventsBinDb.collectEventTypes()
+        eventTypes = eventsBinDb.eventTypes
         
         for eventType in eventTypes:
             
