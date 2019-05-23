@@ -17,23 +17,23 @@ import sequences
 ## FUNCTIONS ##
 def is_mate_retrotransposon(discordants, repeatsDb):
     '''
-    For each input discordant read assess if the mate aligns in a retrotransposon located elsewhere in the reference genome
+    For each input anchor read assess if the mate aligns in a retrotransposon located elsewhere in the reference genome
 
     Input: 
         1) discordants: list containing input discordant read pair events
         2) repeatsDb: dictionary containing annotated retrotransposons organized per chromosome (keys) into genomic bins (values)
 
     Output:
-        1) discordantsMatePos: dictionary containing lists of discordant read pairs organized taking into account their orientation and if the mate aligns in an annotated retrotransposon 
+        1) discordantsIdentity: dictionary containing lists of discordant read pairs organized taking into account their orientation and if the mate aligns in an annotated retrotransposon 
                                This info is encoded in the dictionary keys as follows. Keys composed by 3 elements separated by '-':
                                 
                                     - Orientation: read orientation (PLUS or MINUS)
                                     - Event type: DISCORDANT   
                                     - Family: Retrotransposon family or 'None' if mate does not align in a retrotransposon
     '''
-    discordantsMatePos = {}
+    discordantsIdentity = {}
 
-    ## Assess for each discordant read pair if mate aligns over an annotated retrotransposon
+    ## Assess for each anchor read if mate aligns over an annotated retrotransposon
     for discordant in discordants:
 
         # A) Annotated repeat in the same ref where the mate aligns
@@ -67,14 +67,14 @@ def is_mate_retrotransposon(discordants, repeatsDb):
         identity = discordant.side + '-DISCORDANT-' + family
 
         # a) There are already discordant read pairs with this identity
-        if identity in discordantsMatePos:
-            discordantsMatePos[identity].append(discordant)
+        if identity in discordantsIdentity:
+            discordantsIdentity[identity].append(discordant)
 
         # b) First discordant read pair with this identity
         else:
-            discordantsMatePos[identity] = [ discordant ] 
+            discordantsIdentity[identity] = [ discordant ] 
     
-    return discordantsMatePos
+    return discordantsIdentity
 
 
 def is_retrotransposition(FASTA_file, index, outDir):
