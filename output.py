@@ -5,7 +5,6 @@ def write_INS(metaclustersBinDb, outDir):
     '''
     Write INS calls into a tsv file
     '''
-
     ## 1. Open output file 
     fileName = "INS_MEIGA.tsv"
     outFilePath = outDir + '/' + fileName
@@ -42,6 +41,43 @@ def write_INS(metaclustersBinDb, outDir):
     ## Close output file ##
     outFile.close()
 
+def write_DISCORDANT(discordantClusters, outDir):
+    '''
+    Write DISCORDANT read pair calls into a tsv file
+    '''
+
+    ## 1. Open output file 
+    fileName = "DISCORDANT_MEIGA.tsv"
+    outFilePath = outDir + '/' + fileName
+    outFile = open(outFilePath, 'w')
+
+    ## 2. Write header 
+    row = "#ref \t beg \t end \t clusterType \t family \t nbTotal \t nbTumour \t nbNormal \n"
+    outFile.write(row)
+
+    ## 3. Write clusters 
+    # Iterate over the bins
+    for discordantDict in discordantClusters:
+
+        # Iterate over the cluster types
+        for key, clusterList in discordantDict.items():
+            orientation, clusterType, family = key.split('-')
+            clusterType = orientation + '-' + clusterType
+
+            # For each cluster from a given cluster type
+            for DISCORDANT in clusterList:
+
+                nbTotal, nbTumour, nbNormal = DISCORDANT.nbEvents()
+
+                ## TEMPORARY: Only report discordant clusters that:
+                # - Are supported by at least 4 reads in the tumour
+                # - Are supported by less than 4 reads in the normal (so they can be considered as somatic)
+                # - Mate do not aligns on a retrotransposon
+                if (nbTumour >= 4) and (nbNormal < 4) and (family != 'None'):
+
+                    # Write DISCORDANT cluster into output file
+                    row = "\t".join([DISCORDANT.ref, str(DISCORDANT.beg), str(DISCORDANT.end), clusterType, family, str(nbTotal), str(nbTumour), str(nbNormal), "\n"])
+                    outFile.write(row)
 
 def writeMetaclusters(metaclustersList, outDir):
     '''
@@ -69,7 +105,5 @@ def writeMetaclusters(metaclustersList, outDir):
                     row = str(k) + ' = ' + str(v) + '\n'
                     outFile.write (row)  
          
-        
-
     ## Close output file ##
     outFile.close()
