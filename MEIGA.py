@@ -100,7 +100,7 @@ maxRegionSMS = args.maxRegionSMS
 
 # If no reference is specified, get all that are present in the bam file.
 if refs == "ALL":
-	refs = bamtools.getREFS(bam)
+	refs = bamtools.get_refs(bam)
 
 # Convert comma-separated string inputs into lists:
 targetSV = SV.split(',')
@@ -139,7 +139,7 @@ print('targetBins: ', targetBins)
 print('binSize: ', binSize)
 print('targetRefs: ', refs)
 print('targetSVs: ', SV)
-print('overhang: ', overhang, "\n")
+print('overhang: ', overhang)
 print('readFilters: ', readFilters, "\n")
 
 print('** Filtering thresholds **')

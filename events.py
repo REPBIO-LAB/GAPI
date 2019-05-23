@@ -6,6 +6,9 @@ Module 'events' - Contains classes for dealing with structural variation events 
 # External
 
 # Internal
+import retrotransposons
+import virus
+
 
 ###############
 ## FUNCTIONS ##
@@ -160,6 +163,46 @@ def determine_clippingType(alignmentObj, clippedSide):
 
     return clippingType
 
+def determine_discordant_identity(discordants, repeatsBinDb):
+    '''
+    Determine discortant read pair identity based on the mapping position of anchor´s mate
+
+    Input:
+        1. discordants: list containing input discordant read pair events
+        2. repeatsBinDb: dictionary containing annotated retrotransposons organized per chromosome (keys) into genomic bins (values)
+
+    Output:
+        1) discordantsIdentity: dictionary containing lists of discordant read pairs organized taking into account their orientation and if the mate aligns in an annotated retrotransposon 
+                               This info is encoded in the dictionary keys as follows. Keys composed by 3 elements separated by '-':
+                                
+                                    - Orientation: read orientation (PLUS or MINUS)
+                                    - Event type: DISCORDANT   
+                                    - Type: 
+    '''
+
+    ## 1. Assess if discordant read pairs support RT insertion 
+    discordantsIdentity = retrotransposons.is_mate_retrotransposon(discordants, repeatsBinDb)
+
+    '''
+    ## 2. Assess if discordant read pairs support viral insertion
+
+    # Create a list containing all discordant events:
+    discordantEvents = []
+    for eventType in discordantDict.keys():
+    discordantEvents.extend(discordantDict[eventType])
+
+    # a) Single sample mode
+    if self.mode == "SINGLE":
+        discordantEventsIdent = virus.is_virusSR(discordantEvents, self.bam, None, binDir, self.viralDbIndex)
+
+    # b) Paired sample mode (tumour & matched normal)
+    else:
+        discordantEventsIdent = virus.is_virusSR(discordantEvents, self.bam, self.normalBam, binDir, self.viralDbIndex)
+    '''
+
+    return discordantsIdentity
+
+
 
 #############
 ## CLASSES ##
@@ -209,6 +252,7 @@ class INS():
         insert = self.readSeq[begPos:endPos]
         
         return insert
+
 
 class DEL():
     '''
@@ -284,6 +328,7 @@ class CLIPPING():
             self.supplAlignment = alignmentObj.get_tag('SA') if alignmentObj.has_tag('SA') else None
             self.refLen = alignmentObj.reference_length
 
+
 class DISCORDANT():
     '''
     Discordant class
@@ -303,14 +348,13 @@ class DISCORDANT():
         self.clusterId = None
 
         ## Set supporting read id
-        mate = '/1' if side == 'MINUS' else '/2'
+        mate = '/1' if side == 'MINUS' else '/2'  ### Comment from Berni: I think this assumption is not ok. MINUS are not always mate1 and PLUS mate_2. Orientation do not have to do with mate relative position
         self.readName = alignmentObj.query_name + mate
 
         ## mate
         self.pair = '1' if alignmentObj.is_read1 else '2'
         self.mateRef = alignmentObj.next_reference_name
         self.mateStart = alignmentObj.next_reference_start
-        self.properPair = False
         self.mateSeq = None
         self.identity = None
         self.specificIdentity = None
