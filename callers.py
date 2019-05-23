@@ -5,18 +5,18 @@ Module 'callers' - Contains classes and functions for calling variants from next
 ## DEPENDENCIES ##
 # External
 import multiprocessing as mp
+import sys
 
 # Internal
 import log
 import unix
 import databases
+import formats
 import bamtools
 import structures
+import events
 import clusters
 import output
-## [SR CHANGE]
-import virus
-## [SR CHANGE]
 import bkp
 
 ## FUNCTIONS ##
@@ -37,7 +37,7 @@ class SV_caller():
         self.outDir = outDir
         self.retrotransposonDb = None
         self.retrotransposonDbIndex = None
-
+        self.repeatsBinDb = None
 
 class SV_caller_long(SV_caller):
     '''
@@ -51,7 +51,7 @@ class SV_caller_long(SV_caller):
         '''
         Search for structural variants (SV) genome wide or in a set of target genomic regions
         '''
-        ### 1. Create and index reference databases prior SV calling ##
+        ### 1. Create, index and load reference databases prior SV calling ##
         dbDir = self.outDir + '/databases'
         unix.mkdir(dbDir)
 
@@ -77,7 +77,6 @@ class SV_caller_long(SV_caller):
         '''
         Search for structural variant (SV) clusters in a genomic bin/window
         '''
-
         ## 0. Set bin id and create bin directory ##
         ref, beg, end = window
         binId = '_'.join([str(ref), str(beg), str(end)])
@@ -112,7 +111,7 @@ class SV_caller_long(SV_caller):
         binSizes = [self.confDict['maxEventDist'], 1000, 10000, 100000, 1000000]
 
         ## Create bins
-        eventsBinDb = structures.create_bin_database(ref, beg, end, eventsDict, binSizes)
+        eventsBinDb = structures.create_bin_database_interval(ref, beg, end, eventsDict, binSizes)
 
         ## 3. Group events into SV metaclusters ##
         metaclustersBinDb = clusters.create_metaclusters(eventsBinDb, self.confDict)
@@ -153,12 +152,22 @@ class SV_caller_short(SV_caller):
         '''
         Search for structural variants (SV) genome wide or in a set of target genomic regions
         '''
-        ### 1. Create and index reference databases prior SV calling ##
+        ### 1. Create, index and load reference databases prior SV calling ##
         dbDir = self.outDir + '/databases'
         unix.mkdir(dbDir)
 
-        self.viralDb, self.viralDbIndex = databases.buildVirusDb(self.refDir, dbDir)
+        ## 1.1 Load annotated retrotransposons into a bin database
+        ## Read bed
+        rtAnnotBed = self.refDir + '/retrotransposons_repeatMasker.bed'
+        rtAnnot = formats.BED(rtAnnotBed, 'nestedDict')
 
+        ## Create bin database
+        refLengths = bamtools.get_ref_lengths(self.bam)
+        self.repeatsBinDb = structures.create_bin_database(refLengths, rtAnnot.lines)
+        
+        ## 1.2 Create and index viral database
+        #self.viralDb, self.viralDbIndex = databases.buildVirusDb(self.refDir, dbDir)
+        
         ### 2. Define genomic bins to search for SV ##
         bins = bamtools.binning(self.confDict['targetBins'], self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
 
@@ -166,25 +175,12 @@ class SV_caller_short(SV_caller):
         # Genomic bins will be distributed into X processes
         # TODO: mirar que pasa cuando tienes 2 dictionarios
         pool = mp.Pool(processes=self.confDict['processes'])
-        metaclustersList = pool.map(self.make_clusters_bin, bins)
+        discordantClusters = pool.map(self.make_clusters_bin, bins)
         pool.close()
         pool.join()
-
-        '''
-        for dictMetacluster in metaclustersList:
-            for metacluster,d2 in dictMetacluster.items():
-                print('METACLUSTER: ', str(metacluster) +' '+ str(len(metacluster.events)) +' '+ str(metacluster.ref) +' '+ str(metacluster.beg) +' '+ str(metacluster.end) +' '+ str(metacluster.intOrigin))
-                for event in metacluster.events:
-                        if event.type == 'DISCORDANT':
-                            print (str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.identity) + ' ' + str(event.side) + ' ' + str(event.sample))
-                        else:
-                            print (str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' None ' + str(event.clippedSide) + ' ' + str(event.sample))
-                for k,v in d2.items():
-                    print (str(k) + ' = ' + str(v))   
-                    '''     
     
-        # Write metaclusters
-        output.writeMetaclusters(metaclustersList, self.outDir)
+        # Report SV calls into output files
+        output.write_DISCORDANT(discordantClusters, self.outDir)
 
         ### 5. Do cleanup
         unix.rm([dbDir])
@@ -206,234 +202,95 @@ class SV_caller_short(SV_caller):
         ## 1. Search for SV candidate events in the bam file/s ##
         # a) Single sample mode
         if self.mode == "SINGLE":
-            discordantEventsDict = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, None)
+            discordantDict = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, None)
 
         # b) Paired sample mode (tumour & matched normal)
         else:
-            discordantEventsDict = bamtools.collectSV_paired(ref, beg, end, self.bam, self.normalBam, self.confDict)
+            discordantDict = bamtools.collectSV_paired(ref, beg, end, self.bam, self.normalBam, self.confDict)
 
         step = 'COLLECT'
-        SV_types = sorted(discordantEventsDict.keys())
-
-        counts = [str(len(discordantEventsDict[SV_type])) for SV_type in SV_types]
-        msg = '[COLLECT] Number of SV events in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
-        log.subHeader(msg)
-
-        if counts == []:
-            unix.rm([binDir])
-            return None
-
-        '''
-        ## PRINT 
-        for events in discordantEventsDict.values():
-            for event in events:
-                print (str(event.type) +' '+ str(event.ref) +' '+ str(event.beg) +' '+ str(event.end) +' '+ str(event.mateSeq))
-                DISCORDANT 19 33770596 33770697 None
-                '''
-
-        ## 2. Mark those discordant events corresponding to a RT insertion ##
-        ## TODO
-
-        ## 3. Mark those discordant events corresponding to a viral insertion ##
-
-        # Create a list containing all discordant events:
-        discordantEvents = []
-        for eventType in discordantEventsDict.keys():
-            discordantEvents.extend(discordantEventsDict[eventType])
-
-        # TODO: ADD RT!!!!
-
-        # Initialize dictionary
-        discordantEventsIdent = {}
-
-        # a) Single sample mode
-        if self.mode == "SINGLE":
-            discordantEventsIdent = virus.is_virusSR(discordantEvents, self.bam, None, binDir, self.viralDbIndex)
-
-        # b) Paired sample mode (tumour & matched normal)
-        else:
-            discordantEventsIdent = virus.is_virusSR(discordantEvents, self.bam, self.normalBam, binDir, self.viralDbIndex)
-
-
-        step = 'IDENTIFY'
-        SV_types = sorted(discordantEventsIdent.keys())
-
-        counts = [str(len(discordantEventsIdent[SV_type])) for SV_type in SV_types]
-        msg = '[IDENTIFY] Number of SV events with identity in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
-        log.subHeader(msg)
+        SV_types = sorted(discordantDict.keys())
+        counts = [str(len(discordantDict[SV_type])) for SV_type in SV_types]
+        msg = 'Number of SV events in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
+        log.step(step, msg)
 
         if counts == []:
             unix.rm([binDir])
             return None
+                
+        ## 2. Discordant read pair identity ##
+        ## Create a list containing all discordant read pair events:
+        allDiscordant = []
+        for eventType in discordantDict.keys():
+            allDiscordant.extend(discordantDict[eventType])   
 
-        ## 4. Organize identified events into genomic bins prior clustering ##
+        ## Determine identity
+        discordantsIdentity = events.determine_discordant_identity(allDiscordant, self.repeatsBinDb)
+
+        step = 'IDENTITY'
+        SV_types = sorted(discordantsIdentity.keys())
+        counts = [str(len(discordantsIdentity[SV_type])) for SV_type in SV_types]
+        msg = 'Number of SV events per identity in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
+        log.step(step, msg)
+
+        if counts == []:
+            unix.rm([binDir])
+            return None
+                
+        ## 3. Organize discordant read pairs into genomic bins prior clustering ##
         step = 'BINNING'
-        msg = '[BINNING] Organize all the SV events into genomic bins prior metaclustering'
-        log.subHeader(msg)
+        msg = 'Organize discordant read pairs into genomic bins prior clustering'
+        log.step(step, msg)
 
         ## Define bin database sizes 
-        ## Big window sizes are needed for SR (see comments)
-        binSizes = [self.confDict['maxEventDist'], 10000, 100000, 1000000]
+        ## Note: bigger window sizes are needed for SR (see comments, ask Eva where are the comments?)
+        binSizes = [1000, 10000, 100000, 1000000]
 
         ## Create bins
-        eventsBinDb = structures.create_bin_database(ref, beg, end, discordantEventsIdent, binSizes)
-
-        '''
+        discordantsBinDb = structures.create_bin_database_interval(ref, beg, end, discordantsIdentity, binSizes)
+        
         ## PRINT 
-        for a,b in eventsBinDb.data.items():
-            print ('1 '+str(a) +' 2 '+str(b))
-            for c,d in b.items():
-                print ('3 '+ str(c) +' 4 '+ str(d))
-                for e,f in d.items():
-                    print ('5 '+ str(e) +' 6 '+ str(f))
-                    
-                    Above print yields the following:
-                    1 100 2 {337718: {'PLUS-DISCORDANT-Hepatitis': <structures.events_bin object at 0x7f1b5060fc88>}}
-                    3 337718 4 {'PLUS-DISCORDANT-Hepatitis': <structures.events_bin object at 0x7f1b5060fc88>}
-                    5 PLUS-DISCORDANT-Hepatitis 6 <structures.events_bin object at 0x7f1b5060fc88>
-                    1 10000 2 {3377: {'PLUS-DISCORDANT-Cowpox': <structures.events_bin object at 0x7f1b5060f6d8>, 'PLUS-DISCORDANT-Hepatitis': <structures.events_bin object at 0x7f1b5060f9e8>, 'PLUS-DISCORDANT-UNVERIFIED:': <structures.events_bin object at 0x7f1b5060f908>}}
-                    3 3377 4 {'PLUS-DISCORDANT-Cowpox': <structures.events_bin object at 0x7f1b5060f6d8>, 'PLUS-DISCORDANT-Hepatitis': <structures.events_bin object at 0x7f1b5060f9e8>, 'PLUS-DISCORDANT-UNVERIFIED:': <structures.events_bin object at 0x7f1b5060f908>}
-                    5 PLUS-DISCORDANT-Cowpox 6 <structures.events_bin object at 0x7f1b5060f6d8>
-                    5 PLUS-DISCORDANT-Hepatitis 6 <structures.events_bin object at 0x7f1b5060f9e8>
-                    5 PLUS-DISCORDANT-UNVERIFIED: 6 <structures.events_bin object at 0x7f1b5060f908>
-                    '''
+        '''
+        for binSize, sizeDict in discordantsBinDb.data.items():
+            print('BIN_SIZE: ',  binSize)
+        
+            for binId, identityDict in sizeDict.items():
+                print('BIN_ID: ',  binId)
 
-        ## 5. Group discordant events into clusters based on their identity ##
-        discordantClustersDict = clusters.create_discordantClusters(eventsBinDb, self.confDict)
+                for identity, binObj in identityDict.items():
+                    print('DISCORDANTS: ',  identity, binObj.nbEvents(), [event.id for event in binObj.events])
+
+            print('***********************')
+        '''
+        ## 4. Group discordant read pairs into clusters based on their mate identity ##
+        discordantClustersDict = clusters.create_discordantClusters(discordantsBinDb, self.confDict['minClusterSize'])
+        
+        ## PRINT 
+        '''
+        for identity in discordantClustersDict:
+            print('IDENTITY: ', identity, len(discordantClustersDict[identity]))
+
+            for cluster in discordantClustersDict[identity]:
+                print('CLUSTER: ', cluster, identity, cluster.ref, cluster.beg, cluster.end, cluster.nbEvents(), [event.id for event in cluster.events])
+        '''
 
         step = 'DISCORDANT-CLUSTERING'
         SV_types = sorted(discordantClustersDict.keys())
-
         counts = [str(len(discordantClustersDict[SV_type])) for SV_type in SV_types]
-        msg = '[DISCORDANT-CLUSTERING] Number of created discordant clusters in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
-        log.subHeader(msg)
+        msg = 'Number of created discordant clusters in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
+        log.step(step, msg)
 
         if counts == []:
             unix.rm([binDir])
             return None
 
-        discordantClustersBinDb = structures.create_bin_database(ref, beg, end, discordantClustersDict, binSizes)
-        
-        '''
-        for a,b in discordantClustersBinDb.data.items():
-            print ('1 '+str(a) +' 2 '+str(b))
-            for c,d in b.items():
-                print ('3 '+ str(c) +' 4 '+ str(d))
-                for e,f in d.items():
-                    print ('5 '+ str(e) +' 6 '+ str(f))
-                    for cluster in f.events:
-                        print ('7 '+ str(cluster))
-                        for event in cluster.events:
-                            print ('8 '+ event.type)
-                            print ('9 '+ event.side)
-                            '''
-                            
+        ### Do cleanup
+        unix.rm([binDir])
 
-        '''                 
-        Above print yields the following:                    
-        1 100 2 {}
-        1 10000 2 {10545: {'PLUS-DISCORDANT-Hepatitis': <structures.events_bin object at 0x7f551ec92438>, 'PLUS-DISCORDANT-UNVERIFIED:': <structures.events_bin object at 0x7f551ec92390>, 'MINUS-DISCORDANT-Hepatitis': <structures.events_bin object at 0x7f551ec92128>, 'MINUS-DISCORDANT-UNVERIFIED:': <structures.events_bin object at 0x7f551ec92630>, 'MINUS-DISCORDANT-HBV': <structures.events_bin object at 0x7f551ec925f8>}}
-        3 10545 4 {'PLUS-DISCORDANT-Hepatitis': <structures.events_bin object at 0x7f551ec92438>, 'PLUS-DISCORDANT-UNVERIFIED:': <structures.events_bin object at 0x7f551ec92390>, 'MINUS-DISCORDANT-Hepatitis': <structures.events_bin object at 0x7f551ec92128>, 'MINUS-DISCORDANT-UNVERIFIED:': <structures.events_bin object at 0x7f551ec92630>, 'MINUS-DISCORDANT-HBV': <structures.events_bin object at 0x7f551ec925f8>}
-        5 PLUS-DISCORDANT-Hepatitis 6 <structures.events_bin object at 0x7f551ec92438>
-        7 <clusters.DISCORDANT_cluster object at 0x7f551ec92240>
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        7 <clusters.DISCORDANT_cluster object at 0x7f551ec92668>
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        7 <clusters.DISCORDANT_cluster object at 0x7f551ec92470>
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        7 <clusters.DISCORDANT_cluster object at 0x7f551ec924e0>
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        5 PLUS-DISCORDANT-UNVERIFIED: 6 <structures.events_bin object at 0x7f551ec92390>
-        7 <clusters.DISCORDANT_cluster object at 0x7f551ec926a0>
-        8 DISCORDANT
-        9 PLUS
-        8 DISCORDANT
-        9 PLUS
-        5 MINUS-DISCORDANT-Hepatitis 6 <structures.events_bin object at 0x7f551ec92128>
-        7 <clusters.DISCORDANT_cluster object at 0x7f551ec920b8>
-        8 DISCORDANT
-        9 MINUS
-        8 DISCORDANT
-        9 MINUS
-        8 DISCORDANT
-        9 MINUS
-        8 DISCORDANT
-        9 MINUS
-        8 DISCORDANT
-        9 MINUS
-        8 DISCORDANT
-        9 MINUS
-        8 DISCORDANT
-        9 MINUS
-        8 DISCORDANT
-        9 MINUS
-        8 DISCORDANT
-        9 MINUS
-        8 DISCORDANT
-        9 MINUS
-        8 DISCORDANT
-        9 MINUS
-        8 DISCORDANT
-        9 MINUS
-        8 DISCORDANT
-        9 MINUS
+        return discordantClustersDict
+
         '''
+        Eva will further polish next steps!
 
         ## 6. Filter discordant metaclusters ##
 
@@ -454,7 +311,7 @@ class SV_caller_short(SV_caller):
             return None
 
         # vuelvo a hacer la bindb que contiene ya solo los clusters que pasaron los filtros
-        discordantClustersBinDb = structures.create_bin_database(ref, beg, end, newDiscordantClustersDict, binSizes)
+        discordantClustersBinDb = structures.create_bin_database_interval(ref, beg, end, newDiscordantClustersDict, binSizes)
 
         ## 7. Making reciprocal clusters ##
         # TODO: AJUSTAR ESTOS PARAMETROS!!! (PASARLOS SI ESO COMO OPCION EN LOS ARGUMENTOS)
@@ -462,249 +319,9 @@ class SV_caller_short(SV_caller):
 
         ## 8. Put reciprocal and independent clusters into bins ##
 
-        reciprocalEventsBinDb = structures.create_bin_database(ref, beg, end, reciprocalEventsDict, binSizes)
+        reciprocalEventsBinDb = structures.create_bin_database_interval(ref, beg, end, reciprocalEventsDict, binSizes)
         '''
-        for a,b in reciprocalEventsBinDb.data.items():
-            print ('1 '+str(a) +' 2 '+str(b))
-            for c,d in b.items():
-                print ('3 '+ str(c) +' 4 '+ str(d))
-                for e,f in d.items():
-                    print ('5 '+ str(e) +' 6 '+ str(f))
-                    for event in f.events:
-                        print ('7 '+ str(event))
-                        print ('8 '+ event.side)
-                        print ('9 '+ event.type)
-                        print ('10 '+ event.identity)
-        1 100 2 {1054575: {'DISCORDANT-Hepatitis': <structures.events_bin object at 0x7fc20a58d2e8>}}
-        3 1054575 4 {'DISCORDANT-Hepatitis': <structures.events_bin object at 0x7fc20a58d2e8>}
-        5 DISCORDANT-Hepatitis 6 <structures.events_bin object at 0x7fc20a58d2e8>
-        7 <events.DISCORDANT object at 0x7fc20a582278>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        1 10000 2 {10545: {'DISCORDANT-UNVERIFIED:': <structures.events_bin object at 0x7fc20a58d710>, 'DISCORDANT-Hepatitis': <structures.events_bin object at 0x7fc20a58d208>, 'DISCORDANT-HBV': <structures.events_bin object at 0x7fc20a58d198>}}
-        3 10545 4 {'DISCORDANT-UNVERIFIED:': <structures.events_bin object at 0x7fc20a58d710>, 'DISCORDANT-Hepatitis': <structures.events_bin object at 0x7fc20a58d208>, 'DISCORDANT-HBV': <structures.events_bin object at 0x7fc20a58d198>}
-        5 DISCORDANT-UNVERIFIED: 6 <structures.events_bin object at 0x7fc20a58d710>
-        7 <events.DISCORDANT object at 0x7fc20a57ca20>
-        8 PLUS
-        9 DISCORDANT
-        10 UNVERIFIED:
-        7 <events.DISCORDANT object at 0x7fc20a57ccf8>
-        8 PLUS
-        9 DISCORDANT
-        10 UNVERIFIED:
-        7 <events.DISCORDANT object at 0x7fc20a5824a8>
-        8 MINUS
-        9 DISCORDANT
-        10 UNVERIFIED:
-        7 <events.DISCORDANT object at 0x7fc20a582a20>
-        8 MINUS
-        9 DISCORDANT
-        10 UNVERIFIED:
-        5 DISCORDANT-Hepatitis 6 <structures.events_bin object at 0x7fc20a58d208>
-        7 <events.DISCORDANT object at 0x7fc20a57c940>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a57c940>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a57c978>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a57c9e8>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a57cac8>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a57cb00>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a57cb38>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a57cba8>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a57cc50>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a57ccc0>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a57cd30>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a57cda0>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a57cdd8>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a57ce10>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a57ceb8>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a57cef0>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a57cf28>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a57cf60>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a57cf98>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a582048>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a5820f0>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a582128>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a582160>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a582240>
-        8 PLUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a582320>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a5822e8>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a582320>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a582358>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a582390>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a5823c8>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a582438>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a582518>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a5824e0>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a582550>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a5825c0>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a582630>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a5826a0>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a5826d8>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a582710>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a582780>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a582828>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a582860>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a5828d0>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a5829b0>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a582a58>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a582b00>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a582ba8>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        7 <events.DISCORDANT object at 0x7fc20a582c88>
-        8 MINUS
-        9 DISCORDANT
-        10 Hepatitis
-        5 DISCORDANT-HBV 6 <structures.events_bin object at 0x7fc20a58d198>
-        7 <events.DISCORDANT object at 0x7fc20a582588>
-        8 MINUS
-        9 DISCORDANT
-        10 HBV
-        7 <events.DISCORDANT object at 0x7fc20a582588>
-        8 MINUS
-        9 DISCORDANT
-        10 HBV
-        1 100000 2 {}
-        1 1000000 2 {}
+      
         '''
         # HASTA AQUI YO CREO QUE ESTA TODO BIEN!!!! A PARTIR DE AQUI HAY QUE REPASAR!!
 
@@ -715,7 +332,7 @@ class SV_caller_short(SV_caller):
         step = 'META-CLUSTERING'
         msg = '[META-CLUSTERING] Number of created metaclusters: ' + str(metaclustersBinDb.nbEvents()[0])
         log.subHeader(msg)
-
+        '''
         '''
         LO ULTIMO QUE HICE FUE RETORNAR EVENTS DE LA RECIPROCAL EN VEZ DE CLUSTERS, Y FUNCIONA, PERO HAY EN ALGUN MOMENTO QUE SE MEZCLAN LOS DE DISTINTO TIPO AL HACER LA RECIPROCAL, ASI QUE TENGO QUE REPASARLO!
         
@@ -761,12 +378,12 @@ class SV_caller_short(SV_caller):
         print ('RIGHT')
         print (dictMetaclustersRIGHT)
         '''
-
+        '''
         dictMetaclusters = bkp.analyzeMetaclusters(metaclustersBinDb, self.confDict, self.bam, self.normalBam, self.mode, self.viralDb, self.viralDbIndex, binDir)
 
         ### Do cleanup
         unix.rm([binDir])
 
         return dictMetaclusters
-
+        '''
 
