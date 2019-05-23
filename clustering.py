@@ -17,7 +17,18 @@ import structures
 ## FUNCTIONS ##
 def distance_clustering(binDb, binSize, eventTypes, clusterType, maxDist, minClusterSize):
     '''
+    Group events located at a given bin size level based on position distance into clusters
+    
+    Input:
+        1. binDb: data structure containing a set of events organized in genomic bins  
+        2. binSize: bin size level to do the clustering
+        3. eventTypes: target event types to be clustered together
+        4. clusterType: type of clusters to be created
+        5. maxDist: maximum distance between two events to be clustered together
+        6. minClusterSize: minimum number of events clustering together for creating a cluster
 
+    Output:
+        1. clustersList: list of created clusters
     '''
     clustersList = []
     binsInClusters = []
@@ -96,22 +107,34 @@ def distance_clustering(binDb, binSize, eventTypes, clusterType, maxDist, minClu
     
     return clustersList
 
-## SR CHANGE
-def reciprocal_clustering(eventsBinDb, minPercOverlap, minClusterSize, eventType, buffer, clusterType):
+
+def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventType, buffer, clusterType):
     '''
+    Group events based on reciprocal overlap into clusters 
+
+    Input:
+        1. binDb: data structure containing a set of events organized in genomic bins  
+        2. minPercOverlap: minimum percentage of reciprocal overlap to cluster two events together
+        3. minClusterSize: minimum number of events clustering together for creating a cluster
+        4. eventType: target event type for clustering
+        5. buffer: number of nucleotides used to extend cluster begin and end coordinates prior evaluating reciprocal overlap 
+        6. clusterType: type of clusters to be created
+
+    Output:
+        1. clustersList: list of created clusters
     '''
     eventsInClusters = []
     clustersDict = {}
 
     # For each window size/level
-    for windowSize in eventsBinDb.binSizes:
+    for windowSize in binDb.binSizes:
 
         # For each bin in the current window size
-        for index in eventsBinDb.data[windowSize]:
+        for index in binDb.data[windowSize]:
 
             ### 1. Collect all the events in the current bin and 
             # in bins located at higher levels of the hierarchy
-            events = eventsBinDb.traverse(index, windowSize, [eventType])
+            events = binDb.traverse(index, windowSize, [eventType])
 
             ### 2. Cluster events based on reciprocal overlap
             ## For each event A
@@ -127,7 +150,6 @@ def reciprocal_clustering(eventsBinDb, minPercOverlap, minClusterSize, eventType
                 clustersOverlapA = [] 
                 eventsOverlapA = []
 
-                ## [SR CHANGE]: Look at the previous event in order to not split a cluster
                 ## Identify events overlapping A (skip A itself and event pairs already assessed)
                 for eventB in events[idx + 1:]:
 
@@ -166,7 +188,11 @@ def reciprocal_clustering(eventsBinDb, minPercOverlap, minClusterSize, eventType
 
                     # Add events to the cluster
                     clusterId = clustersOverlapA[0]
-                    clustersDict[clusterId].add(events2Cluster, None)
+                    clustersDict[clusterId].add(events2Cluster)
+
+                    # Update cluster id for each event
+                    for event in events2Cluster:
+                        event.clusterId = clustersDict[clusterId].id
 
                 # B) Multiple clusters overlap A -> Merge clusters and add A and its overlapping events into the merged cluster
                 elif len(clustersOverlapA) > 1:
@@ -182,15 +208,19 @@ def reciprocal_clustering(eventsBinDb, minPercOverlap, minClusterSize, eventType
                     mergedCluster = clusters.mergeClusters(clusters2merge, eventType)
 
                     ## Add events to the merged cluster
-                    mergedCluster.add(events2Cluster, None)
+                    mergedCluster.add(events2Cluster)
 
                     ## Add merged cluster to the clusters dictionary
                     clustersDict[mergedCluster.id] = mergedCluster
 
-                    ## Remove events composing the merged cluster from the clusters dictionary
+                    ## Remove clusters that were merged from the clusters dictionary
                     for cluster in clusters2merge:
                         clustersDict.pop(cluster.id, None)
                     
+                    # Update cluster id for each event
+                    for event in events2Cluster:
+                        event.clusterId = mergedCluster.id
+
                 # C) No cluster overlaps A -> attempt to create a new cluster composed by A and its overlapping events
                 else:
                     events2Cluster = [eventA] + eventsOverlapA 
@@ -198,14 +228,17 @@ def reciprocal_clustering(eventsBinDb, minPercOverlap, minClusterSize, eventType
 
                     # D) Cluster composed by >= X events:
                     if clusterSize >= minClusterSize:
-                    
+
                         # Add events to the list of events already included into clusters
                         eventsInClusters += [ event.id for event in events2Cluster]
 
-                        # [SR CHANGE]
                         # Create cluster                        
                         cluster = clusters.create_cluster(events2Cluster, clusterType)
                         clustersDict[cluster.id] = cluster
+
+                        # Update cluster id for each event
+                        for event in events2Cluster:
+                            event.clusterId = cluster.id
 
                     # Cluster not composed by enough number of events
     
@@ -213,8 +246,7 @@ def reciprocal_clustering(eventsBinDb, minPercOverlap, minClusterSize, eventType
 
     return clustersList
 
-
-def reciprocal(eventsBinDb, minPercOverlap, minClusterSize, buffer):
+def reciprocal(binDb, minPercOverlap, minClusterSize, buffer):
     '''
     '''
     eventsMinusDict = {} 
@@ -222,13 +254,13 @@ def reciprocal(eventsBinDb, minPercOverlap, minClusterSize, buffer):
     reciprocalDict = {}
 
     # For each window size/level
-    for windowSize in eventsBinDb.binSizes:
+    for windowSize in binDb.binSizes:
 
         # For each bin in the current window size
-        for index in eventsBinDb.data[windowSize]:
+        for index in binDb.data[windowSize]:
 
             # Collect all event types present in the binDb
-            commonEventTypes = set([i.split('-', 1)[1] for i in eventsBinDb.eventTypes])
+            commonEventTypes = set([i.split('-', 1)[1] for i in binDb.eventTypes])
 
             for commonEventType in commonEventTypes:
                 # cogo solo las partes comunes de los eventTypes
@@ -238,7 +270,7 @@ def reciprocal(eventsBinDb, minPercOverlap, minClusterSize, buffer):
                 plusEventType =  'PLUS-' + commonEventType
                 minusEventType =  'MINUS-' + commonEventType
 
-                #for actualEventType in eventsBinDb.data[windowSize][index]:
+                #for actualEventType in binDb.data[windowSize][index]:
                 # cogo solo las partes comunes de los eventTypes
                 #actualCommonEventType =  '-'.join(actualEventType.split('-')[1:])
                 #print (actualCommonEventType)
@@ -246,18 +278,18 @@ def reciprocal(eventsBinDb, minPercOverlap, minClusterSize, buffer):
                 #minusEvents = []
 
                 #if actualCommonEventType == commonEventType:
-                plusEvents = eventsBinDb.traverse(index, windowSize, [plusEventType])
+                plusEvents = binDb.traverse(index, windowSize, [plusEventType])
                 # Append events from the adjacent left bin
-                plusEvents.extend(eventsBinDb.collect_bin(windowSize, index-1, plusEventType))
+                plusEvents.extend(binDb.collect_bin(windowSize, index-1, plusEventType))
                 # Append events from the adjacent right bin
-                plusEvents.extend(eventsBinDb.collect_bin(windowSize, index+1, plusEventType))
+                plusEvents.extend(binDb.collect_bin(windowSize, index+1, plusEventType))
 
                 #if actualCommonEventType == commonEventType:
-                minusEvents = eventsBinDb.traverse(index, windowSize, [minusEventType])
+                minusEvents = binDb.traverse(index, windowSize, [minusEventType])
                 # Append events from the adjacent left bin
-                minusEvents.extend(eventsBinDb.collect_bin(windowSize, index-1, minusEventType))
+                minusEvents.extend(binDb.collect_bin(windowSize, index-1, minusEventType))
                 # Append events from the adjacent right bin
-                minusEvents.extend(eventsBinDb.collect_bin(windowSize, index+1, minusEventType))
+                minusEvents.extend(binDb.collect_bin(windowSize, index+1, minusEventType))
 
                 # si ninguna de las dos listas esta vacia:
                 if len(plusEvents) > 0 and len(minusEvents) > 0:

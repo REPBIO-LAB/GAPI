@@ -70,6 +70,7 @@ def create_cluster(events, clusterType):
 
     return cluster
 
+
 def merge_clusters(clusters, clusterType):
     '''
     Merge a set of clusters into a single cluster instance
@@ -89,21 +90,34 @@ def merge_clusters(clusters, clusterType):
 
     return mergedCluster
 
-def create_discordantClusters(eventsBinDb, confDict):
+
+def create_discordantClusters(discordantBinDb, minClusterSize):
     '''
+    Group discordant read pairs according to identity and reciprocal overlap into clusters 
+
+    Input:
+        1. discordantBinDb: data structure containing a set of discordant read pairs organized in genomic bins  
+        2. minClusterSize: minimum cluster size
+
+    Output:
+        1. discordantClustersDict: dictionary containing for each possible discordant read pair identity (keys) a list of clusters (values)
     '''
     discordantClustersDict = {}
 
-    if 'DISCORDANT' in confDict['targetSV']:
-        eventTypes = eventsBinDb.eventTypes
-        for eventType in eventTypes:
-            discordantClustersDict[eventType] = clustering.reciprocal_clustering(eventsBinDb, 1, confDict['minClusterSize'], eventType, 0, eventType)
+    # For each discordant read pair identity
+    for identity in discordantBinDb.eventTypes:
+        
+        # Do clustering based on reciprocal overlap
+        buffer = 0
+        discordantClustersDict[identity] = clustering.reciprocal_overlap_clustering(discordantBinDb, 1, minClusterSize, identity, buffer, identity)
 
     return discordantClustersDict
 
+
 def create_metaclusters(eventsBinDb, confDict):
     '''
-    
+    Group different types of SV events into metaclusters 
+
     Input:
         1. eventsBinDb: Data structure containing a set of events organized in genomic bins
         2. confDict: 
@@ -151,7 +165,7 @@ def create_metaclusters(eventsBinDb, confDict):
     if 'DEL' in confDict['targetSV']:
         eventTypes = ['DEL']
         # TO DO  
-        # metaclusters = clustering.reciprocal_clustering()   
+        # metaclusters = clustering.reciprocal_overlap_clustering()   
         # allMetaclusters = allMetaclusters + metaclusters
 
     # 2.5) Create DISCORDANT metaclusters
@@ -160,8 +174,13 @@ def create_metaclusters(eventsBinDb, confDict):
         
         for eventType in eventTypes:
             
-            metaclusters = clustering.reciprocal_clustering(eventsBinDb, 1, confDict['minClusterSize'], eventType, 0, 'META')
+            metaclusters = clustering.reciprocal_overlap_clustering(eventsBinDb, 1, confDict['minClusterSize'], eventType, 0, 'META')
             allMetaclusters = allMetaclusters + metaclusters
+
+    if 'DISCORDANT' in confDict['targetSV']:
+        eventTypes = eventsBinDb.eventTypes
+        for eventType in eventTypes:
+            discordantClustersDict[eventType] = clustering.reciprocal_overlap_clustering(eventsBinDb, 1, confDict['minClusterSize'], eventType, 0, eventType)
 
     ## 3. Organize metaclusters into bins ##    
     binSizes = [100, 1000, 10000, 100000, 1000000]
@@ -217,6 +236,7 @@ def make_consensus(clustersBinDb, confDict, reference, clusterType, rootOutDir):
     consensusBinDb = structures.create_bin_database_interval(clustersBinDb.ref, clustersBinDb.beg, clustersBinDb.end, consensusDict, binSizes)
 
     return consensusBinDb
+
 
 def find_chimeric_alignments(clusterA, clusterB):
     '''
