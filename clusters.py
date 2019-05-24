@@ -878,11 +878,13 @@ class META_cluster():
         Input: 
             1. confDict: 
                 * technology     -> sequencing technology (NANOPORE, PACBIO or ILLUMINA)
+                * rounds         -> number of polishing rounds to be attempled. 0 means no polishing
                 * targetSV       -> list with target SV (INS: insertion; DEL: deletion; CLIPPING: left and right clippings)
                 * minMAPQ        -> minimum mapping quality
                 * minCLIPPINGlen -> minimum clipping lenght
                 * minINDELlen    -> minimum INS and DEL lenght
                 * overhang       -> Number of flanking base pairs around the INDEL events to be collected from the supporting read. If 'None' the complete read sequence will be collected)            2. outDir: output directory
+            
             2. reference: path to reference genome in fasta format    
             3. outDir: Output directory
         
@@ -899,14 +901,14 @@ class META_cluster():
         if templateFile is None:
             return None, None
             
-        template = formats.FASTA()
-        template.read(templateFile)
-        templateReadName = list(template.seqDict.keys())[0]
-
         ## 2. Collect metacluster supporting reads 
         supportingReads = self.collect_reads()
 
         ## Remove template from FASTA
+        template = formats.FASTA()
+        template.read(templateFile)
+        templateReadName = list(template.seqDict.keys())[0]
+
         if templateReadName in supportingReads.seqDict:
             del supportingReads.seqDict[templateReadName]
 
@@ -915,9 +917,9 @@ class META_cluster():
         supportingReads.write(supportingReadsFile)
             
         ## 3. Template polishing to generate consensus
-        consensusFile = assembly.polish_racon(templateFile, supportingReadsFile, confDict['technology'], 2, outDir)
+        consensusFile = assembly.polish_racon(templateFile, supportingReadsFile, confDict['technology'], confDict['rounds'], outDir)
 
-        ## If polishing failed use directly the template as consensus
+        ## If no polished sequence obtained use directly the template as consensus
         if consensusFile == None:
             consensusFile = templateFile
 

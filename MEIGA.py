@@ -30,6 +30,7 @@ parser.add_argument('refDir', help='Directory containing reference databases (co
 ## General
 parser.add_argument('--normalBam', default=None, dest='normalBam', help='Matched normal bam file. If provided MEIGA will run in PAIRED mode')
 parser.add_argument('--transduction-search', action="store_true", default=False, dest='transductionSearch', help='Enable transduction search. If not enabled only solo events will be identified')
+parser.add_argument('--polishing-rounds', default=2, dest='rounds', type=int, help='Number of polishing rounds to be attempted. Default: 2')
 parser.add_argument('-p', '--processes', default=1, dest='processes', type=int, help='Number of processes. Default: 1')
 parser.add_argument('-o', '--outDir', default=os.getcwd(), dest='outDir', help='Output directory. Default: current working directory')
 
@@ -40,7 +41,6 @@ parser.add_argument('--refs', default="ALL", dest='refs', type=str, help='Comma 
 parser.add_argument('--SV', default="INS,CLIPPING", dest='SV', type=str, help='Comma separated list of SV event types to collect (INS, DEL and CLIPPING). Default: INS,CLIPPING')
 parser.add_argument('--readFilters', default="SMS", dest='readFilters', type=str, help='Comma separated list of read filters to apply (SMS)')
 parser.add_argument('--readOverhang', default=5000, dest='overhang', type=int, help='Number of flanking base pairs around the SV event to be collected from the supporting read sequence. Default: 10000')
-
 
 ## Filtering thresholds
 parser.add_argument('--minMAPQ', default=20, dest='minMAPQ', type=int, help='Minimum mapping quality required for each read. Default: 20')
@@ -69,6 +69,7 @@ normalBam = args.normalBam
 reference = args.reference
 refDir = args.refDir
 transductionSearch = args.transductionSearch
+rounds = args.rounds
 processes = args.processes
 outDir = args.outDir
 
@@ -96,7 +97,6 @@ maxOutliers = args.maxOutliers
 minReadsRegionMQ = args.minReadsRegionMQ
 maxRegionlowMQ = args.maxRegionlowMQ
 maxRegionSMS = args.maxRegionSMS
-#overlapBuffer = args.overlapBuffer
 
 # If no reference is specified, get all that are present in the bam file.
 if refs == "ALL":
@@ -132,6 +132,7 @@ print('reference: ', reference)
 print('databases: ', refDir)
 print('processes: ', processes)
 print('transduction-search: ', transductionSearch)
+print('polishing-rounds: ', rounds)
 print('outDir: ', outDir, "\n")
 
 print('** BAM processing **')
@@ -168,6 +169,7 @@ confDict = {}
 confDict['processes'] = processes
 confDict['technology'] = technology
 confDict['transductionSearch'] = transductionSearch
+confDict['rounds'] = rounds
 
 ## BAM processing
 confDict['targetBins'] = targetBins
@@ -195,7 +197,6 @@ confDict['maxOutliers'] = maxOutliers
 confDict['minReadsRegionMQ'] = minReadsRegionMQ
 confDict['maxRegionlowMQ'] = maxRegionlowMQ
 confDict['maxRegionSMS'] = maxRegionSMS
-#confDict['overlapBuffer'] = overlapBuffer
 
 ## 2. Execute structural variation caller
 ###########################################

@@ -142,9 +142,12 @@ def polish_racon(templates, sequences, technology, nbRounds, outDir):
     ## Set preset according to the technology
     preset = alignment.minimap2_presets(technology)
 
+    ## Start with polished set as None
+    polished = None            
+
     ## For each polishing round
     for roundId in range(1, nbRounds + 1):
-
+        
         ## 1. Align reads against the template ##
         PAF = outDir + '/alignments_' + str(roundId) + '.paf'
         err = open(logDir + '/minimap2_' + str(roundId) + '.err', 'w') 
