@@ -7,8 +7,16 @@ Module 'gRanges' - Contains functions to do operations with genomic ranger or co
 ## FUNCTIONS ##
 def overlap(begA, endA, begB, endB):
     '''
-    Check if two ranges overlap and return the number of overlapping bases. 
-    Coordinate ranges are expected to be 1-based
+    Check if two ranges overlap    
+
+    Input:
+        1. begA: interval A begin position
+        2. endA: interval A end position
+        3. begB: interval B begin position
+        4. endB: interval B end position
+    Output:
+        1. boolean: True (overlap) and False (no overlap)
+        2. overlapLen: number of overlapping base pairs
     '''    
     maxBeg = max([begA, begB])
     minEnd = min([endA, endB])
@@ -27,7 +35,18 @@ def overlap(begA, endA, begB, endB):
         
 def rcplOverlap(begA, endA, begB, endB, minPercOverlap):
     '''
-    Check if two ranges overlap with a minimum percentage of reciprocal overlap. 
+    Check if two ranges overlap with a minimum percentage of reciprocal overlap
+
+    Input:
+        1. begA: interval A begin position
+        2. endA: interval A end position
+        3. begB: interval B begin position
+        4. endB: interval B end position
+        5. minPercOverlap: minimum percentage of reciprocal overlap between A and B
+
+    Output:
+        1. boolean: True (overlap) and False (no overlap)
+        2. overlapLen: number of overlapping base pairs
     '''    
     overlapLen = overlap(begA, endA, begB, endB)[1]
     lenA = (endA - begA)
@@ -43,7 +62,6 @@ def rcplOverlap(begA, endA, begB, endB, minPercOverlap):
     else:
         boolean = False
 
-    ## [SR CHANGE]
     return boolean, overlapLen
 
 
