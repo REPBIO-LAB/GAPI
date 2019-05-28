@@ -91,25 +91,26 @@ def merge_clusters(clusters, clusterType):
     return mergedCluster
 
 
-def create_discordantClusters(discordantBinDb, minClusterSize):
+def create_discordantClusters(discordantBinDb, minClusterSize, buffer):
     '''
-    Group discordant read pairs according to identity and reciprocal overlap into clusters 
+    Group discordant read pairs according to cluster type and reciprocal overlap into clusters 
 
     Input:
         1. discordantBinDb: data structure containing a set of discordant read pairs organized in genomic bins  
         2. minClusterSize: minimum cluster size
+        3. buffer: number of base pairs to extend begin and end coordinates for each discordant prior clustering
+
 
     Output:
-        1. discordantClustersDict: dictionary containing for each possible discordant read pair identity (keys) a list of clusters (values)
+        1. discordantClustersDict: dictionary containing for each possible discordant cluster type (keys) a list of clusters (values)
     '''
     discordantClustersDict = {}
 
-    # For each discordant read pair identity
-    for identity in discordantBinDb.eventTypes:
+    # For each discordant read pair cluster type
+    for clusterType in discordantBinDb.eventTypes:
         
         # Do clustering based on reciprocal overlap
-        buffer = 0
-        discordantClustersDict[identity] = clustering.reciprocal_overlap_clustering(discordantBinDb, 1, minClusterSize, identity, buffer, identity)
+        discordantClustersDict[clusterType] = clustering.reciprocal_overlap_clustering(discordantBinDb, 1, minClusterSize, clusterType, buffer, clusterType)
 
     return discordantClustersDict
 
