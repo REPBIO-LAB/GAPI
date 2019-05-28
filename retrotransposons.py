@@ -63,6 +63,9 @@ def is_mate_retrotransposon(discordants, repeatsDb):
         else:
             family = 'None'
 
+        ## Set discordant identity
+        discordant.identity = family
+
         ## Add discordant read pair to the dictionary
         identity = discordant.side + '-DISCORDANT-' + family
 
