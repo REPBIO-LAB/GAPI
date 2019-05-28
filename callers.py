@@ -17,6 +17,7 @@ import structures
 import events
 import clusters
 import output
+import annotation
 import bkp
 
 ## FUNCTIONS ##
@@ -219,13 +220,8 @@ class SV_caller_short(SV_caller):
             return None
                 
         ## 2. Discordant read pair identity ##
-        ## Create a list containing all discordant read pair events:
-        allDiscordant = []
-        for eventType in discordantDict.keys():
-            allDiscordant.extend(discordantDict[eventType])   
-
         ## Determine identity
-        discordantsIdentity = events.determine_discordant_identity(allDiscordant, self.repeatsBinDb)
+        discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], self.repeatsBinDb)
 
         step = 'IDENTITY'
         SV_types = sorted(discordantsIdentity.keys())
@@ -263,7 +259,8 @@ class SV_caller_short(SV_caller):
             print('***********************')
         '''
         ## 4. Group discordant read pairs into clusters based on their mate identity ##
-        discordantClustersDict = clusters.create_discordantClusters(discordantsBinDb, self.confDict['minClusterSize'])
+        buffer = 100
+        discordantClustersDict = clusters.create_discordantClusters(discordantsBinDb, self.confDict['minClusterSize'], buffer)
         
         ## PRINT 
         '''
@@ -284,6 +281,21 @@ class SV_caller_short(SV_caller):
             unix.rm([binDir])
             return None
 
+        ## 5. Check if annotated retrotransposon on the reference genome at cluster intervals ##
+        # COMMENT: This is temporary and will be incorporated into the filtering function at one point
+        step = 'ANNOTATE'
+        msg = 'Check if annotated retrotransposon on the reference genome at cluster intervals'
+        log.step(step, msg)
+
+        ## Create a list containing all discordant read pair events:
+        allDiscordantClusters = []
+        for eventType in discordantClustersDict.keys():
+            allDiscordantClusters.extend(discordantClustersDict[eventType])
+
+        ## Annotate
+        buffer = 100
+        annotation.annotate_repeats(allDiscordantClusters, self.repeatsBinDb, buffer)
+        
         ### Do cleanup
         unix.rm([binDir])
 
