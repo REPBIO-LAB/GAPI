@@ -52,7 +52,7 @@ def write_DISCORDANT(discordantClusters, outDir):
     outFile = open(outFilePath, 'w')
 
     ## 2. Write header 
-    row = "#ref \t beg \t end \t clusterType \t family \t nbTotal \t nbTumour \t nbNormal \n"
+    row = "#ref \t beg \t end \t clusterType \t family \t nbTotal \t nbTumour \t nbNormal \t repeats \n"
     outFile.write(row)
 
     ## 3. Write clusters 
@@ -70,13 +70,11 @@ def write_DISCORDANT(discordantClusters, outDir):
                 nbTotal, nbTumour, nbNormal = DISCORDANT.nbEvents()
 
                 ## TEMPORARY: Only report discordant clusters that:
-                # - Are supported by at least 4 reads in the tumour
-                # - Are supported by less than 4 reads in the normal (so they can be considered as somatic)
                 # - Mate do not aligns on a retrotransposon
-                if (nbTumour >= 4) and (nbNormal < 4) and (family != 'None'):
+                if (family != 'None'):
 
                     # Write DISCORDANT cluster into output file
-                    row = "\t".join([DISCORDANT.ref, str(DISCORDANT.beg), str(DISCORDANT.end), clusterType, family, str(nbTotal), str(nbTumour), str(nbNormal), "\n"])
+                    row = "\t".join([DISCORDANT.ref, str(DISCORDANT.beg), str(DISCORDANT.end), clusterType, family, str(nbTotal), str(nbTumour), str(nbNormal), str(DISCORDANT.repeats), "\n"])
                     outFile.write(row)
 
 def writeMetaclusters(metaclustersList, outDir):
