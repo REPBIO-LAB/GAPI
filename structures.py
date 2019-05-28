@@ -224,7 +224,7 @@ class bin_database():
             3. eventTypes: list containing target event types. If 'ALL' all event types stored in the target bins will be retrieved
 
          Output:
-            2. events. List of tuples containing events within the input interval (first element) and the number of bases overlapping the with interval (second element)
+            2. events. List of tuples containing events within the input interval (first element) and the number of bases overlapping the interval (second element)
         '''  
         ## 1. Determine genomic bins spanned by the input interval
         minBinSize = self.binSizes[0]
