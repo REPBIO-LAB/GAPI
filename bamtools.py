@@ -287,6 +287,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             * DEL -> list of DEL objects
             * LEFT-CLIPPING -> list of left CLIPPING objects
             * RIGHT-CLIPPING -> list of right CLIPPING objects
+            * DISCORDANT -> list of DISCORDANT objects  
         Note: * include secondary alignment filter???
     '''
     # Define target interval
@@ -298,8 +299,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
     eventsDict['DEL'] = []
     eventsDict['LEFT-CLIPPING'] = []
     eventsDict['RIGHT-CLIPPING'] = []
-    eventsDict['PLUS-DISCORDANT'] = []
-    eventsDict['MINUS-DISCORDANT'] = []
+    eventsDict['DISCORDANT'] = []
 
     ## Open BAM file for reading
     bamFile = pysam.AlignmentFile(bam, "rb")
@@ -361,16 +361,11 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             ## 3. Collect DISCORDANT
             if 'DISCORDANT' in confDict['targetSV']:
 
-                minus_DISCORDANT, plus_DISCORDANT = collectDISCORDANT(alignmentObj, sample)
+                DISCORDANTS = collectDISCORDANT(alignmentObj, sample)
 
-                # Minus DISCORDANT found
-                if minus_DISCORDANT != None:
-                    eventsDict['MINUS-DISCORDANT'].append(minus_DISCORDANT)
+                ## Add discordant events
+                eventsDict['DISCORDANT'] = eventsDict['DISCORDANT'] + DISCORDANTS
         
-                # Plus DISCORDANT found
-                if plus_DISCORDANT != None:
-                    eventsDict['PLUS-DISCORDANT'].append(plus_DISCORDANT)
-
     ## Close 
     bamFile.close()
 
@@ -511,6 +506,8 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang,
         # Do not do anything
 
     return INS_events, DEL_events
+
+
 def collectDISCORDANT(alignmentObj, sample):
     '''
     For a read alignment check if the read is discordant (not proper in pair) and return the corresponding discordant objects
@@ -520,24 +517,66 @@ def collectDISCORDANT(alignmentObj, sample):
         2. sample: type of sample (TUMOUR, NORMAL or None).
 
     Output:
-        1. minus_DISCORDANT: minus DISCORDANT object (None if no discordant found)
-        2. plus_DISCORDANT: plus DISCORDANT object (None if no discordant found)
+        1. DISCORDANTS: list of discordant read pair events
 
     '''
-    # Initialize as None
-    minus_DISCORDANT, plus_DISCORDANT = [None, None]
+    # Initialize discordant events list
+    DISCORDANTS = []
 
-    # If not proper pair (=discordant)
+    # If not proper pair (== discordant)
     if not alignmentObj.is_proper_pair:
 
-        # Collect discordant even they are also CLIPPING
+        ## 1. Determine discordant orientation
+        # a) Minus
         if alignmentObj.is_reverse:
-            minus_DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, 'MINUS', alignmentObj.query_name, alignmentObj, sample)
+            orientation = 'MINUS'
 
+        # b) Plus
         else:
-            plus_DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, 'PLUS', alignmentObj.query_name, alignmentObj, sample)
+            orientation = 'PLUS'
 
-    return minus_DISCORDANT, plus_DISCORDANT
+        ## 2. Determine number of alignment blocks
+        operations = [t[0] for t in alignmentObj.cigartuples]
+        nbBlocks = operations.count(3) + 1 
+
+        ## 3. Create discordant event
+        # A) Read aligning in a single block (WG or RNA-seq read no spanning a splice junction)
+        if nbBlocks == 1:
+            DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, orientation, alignmentObj.query_name, alignmentObj, sample)
+            DISCORDANTS.append(DISCORDANT)
+
+        # B) Read alignning in multiple blocks (RNA-seq read spanning one or multiple splice junctions) -> Create one discordant event per block
+        else:
+
+            blockBeg = alignmentObj.reference_start
+            blockEnd = blockBeg
+
+            # For each operation
+            for cigarTuple in alignmentObj.cigartuples:
+
+                operation = int(cigarTuple[0])
+                length = int(cigarTuple[1])
+
+                # a) End of the block -> End current block by creating a discordant event and Initiate a new block
+                if operation == 3:
+                    
+                    # Create discordant event for the block
+                    DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, blockBeg, blockEnd, orientation, alignmentObj.query_name, alignmentObj, sample)
+                    DISCORDANTS.append(DISCORDANT)
+
+                    # Initialize new block
+                    blockBeg = blockEnd + length
+                    blockEnd = blockEnd + length
+
+                # b) Extend current block
+                else:
+                    blockEnd = blockEnd + length   
+
+            ## End last block by creating a discordant
+            DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, blockBeg, blockEnd, orientation, alignmentObj.query_name, alignmentObj, sample)
+            DISCORDANTS.append(DISCORDANT)
+
+    return DISCORDANTS
 
 def collectMatesSeq(events, tumourBam, normalBam, checkUnmapped, maxMAPQ):
     '''
