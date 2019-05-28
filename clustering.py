@@ -107,7 +107,6 @@ def distance_clustering(binDb, binSize, eventTypes, clusterType, maxDist, minClu
     
     return clustersList
 
-
 def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventType, buffer, clusterType):
     '''
     Group events based on reciprocal overlap into clusters 
@@ -163,7 +162,7 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
                     begB = eventB.beg - buffer
                     endB = eventB.end + buffer
                     
-                    overlap = gRanges.rcplOverlap(begA, endA, begB, endB, minPercOverlap)
+                    overlap, overlapLen = gRanges.rcplOverlap(begA, endA, begB, endB, minPercOverlap)
 
                     # A) Event B overlap A. 
                     if overlap:
@@ -177,7 +176,7 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
                             eventsOverlapA.append(eventB)
 
                     # B) Event B NOT overlap A                        
-                
+
                 ## 2.3. Finish by adding A and its overlapping events to a cluster or creating a cluster 
                 # A) One cluster overlaps A -> Add A and its overlapping events into the cluster
                 if len(clustersOverlapA) == 1:
@@ -205,7 +204,7 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
                     clusters2merge = [ clustersDict[clusterId] for clusterId in clustersOverlapA ]
 
                     ## Create merged cluster
-                    mergedCluster = clusters.mergeClusters(clusters2merge, eventType)
+                    mergedCluster = clusters.merge_clusters(clusters2merge, eventType)
 
                     ## Add events to the merged cluster
                     mergedCluster.add(events2Cluster)
