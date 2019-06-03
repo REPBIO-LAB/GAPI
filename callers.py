@@ -160,7 +160,8 @@ class SV_caller_short(SV_caller):
         ## 1.1 Load annotated retrotransposons into a bin database
         ## Read bed
         rtAnnotBed = self.refDir + '/retrotransposons_repeatMasker.bed'
-        rtAnnot = formats.BED(rtAnnotBed, 'nestedDict')
+        rtAnnot = formats.BED()
+        rtAnnot.read(rtAnnotBed, 'nestedDict')
 
         ## Create bin database
         refLengths = bamtools.get_ref_lengths(self.bam)
@@ -245,32 +246,10 @@ class SV_caller_short(SV_caller):
         ## Create bins
         discordantsBinDb = structures.create_bin_database_interval(ref, beg, end, discordantsIdentity, binSizes)
         
-        ## PRINT 
-        '''
-        for binSize, sizeDict in discordantsBinDb.data.items():
-            print('BIN_SIZE: ',  binSize)
-        
-            for binId, identityDict in sizeDict.items():
-                print('BIN_ID: ',  binId)
-
-                for identity, binObj in identityDict.items():
-                    print('DISCORDANTS: ',  identity, binObj.nbEvents(), [event.id for event in binObj.events])
-
-            print('***********************')
-        '''
         ## 4. Group discordant read pairs into clusters based on their mate identity ##
         buffer = 100
         discordantClustersDict = clusters.create_discordantClusters(discordantsBinDb, self.confDict['minClusterSize'], buffer)
-        
-        ## PRINT 
-        '''
-        for identity in discordantClustersDict:
-            print('IDENTITY: ', identity, len(discordantClustersDict[identity]))
-
-            for cluster in discordantClustersDict[identity]:
-                print('CLUSTER: ', cluster, identity, cluster.ref, cluster.beg, cluster.end, cluster.nbEvents(), [event.id for event in cluster.events])
-        '''
-
+    
         step = 'DISCORDANT-CLUSTERING'
         SV_types = sorted(discordantClustersDict.keys())
         counts = [str(len(discordantClustersDict[SV_type])) for SV_type in SV_types]
@@ -283,19 +262,29 @@ class SV_caller_short(SV_caller):
 
         ## 5. Check if annotated retrotransposon on the reference genome at cluster intervals ##
         # COMMENT: This is temporary and will be incorporated into the filtering function at one point
-        step = 'ANNOTATE'
+        step = 'ANNOTATE-REPEATS'
         msg = 'Check if annotated retrotransposon on the reference genome at cluster intervals'
         log.step(step, msg)
 
         ## Create a list containing all discordant read pair events:
         allDiscordantClusters = []
+
         for eventType in discordantClustersDict.keys():
             allDiscordantClusters.extend(discordantClustersDict[eventType])
 
         ## Annotate
         buffer = 100
-        annotation.annotate_repeats(allDiscordantClusters, self.repeatsBinDb, buffer)
+        annotation.repeats_annotation(allDiscordantClusters, self.repeatsBinDb, buffer)
         
+        ## 6. Perform gene-based annotation with ANNOVAR of discordant read pair clusters ##
+        step = 'ANNOTATE'
+        msg = 'Perform gene-based annotation with ANNOVAR of discordant read-pair clusters'
+        log.step(step, msg)
+
+        ## Annotate
+        annotDir = binDir + '/ANNOT/' 
+        annotation.gene_annotation(allDiscordantClusters, self.confDict['annovarDir'], annotDir)
+
         ### Do cleanup
         unix.rm([binDir])
 
