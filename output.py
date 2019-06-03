@@ -67,14 +67,16 @@ def write_DISCORDANT(discordantClusters, outDir):
             # For each cluster from a given cluster type
             for DISCORDANT in clusterList:
 
+                ## Collect info
                 nbTotal, nbTumour, nbNormal = DISCORDANT.nbEvents()
+                region, gene = DISCORDANT.geneAnnot
 
                 ## TEMPORARY: Only report discordant clusters that:
                 # - Mate do not aligns on a retrotransposon
                 if (family != 'None'):
 
                     # Write DISCORDANT cluster into output file
-                    row = "\t".join([DISCORDANT.ref, str(DISCORDANT.beg), str(DISCORDANT.end), clusterType, family, str(nbTotal), str(nbTumour), str(nbNormal), str(DISCORDANT.repeats), "\n"])
+                    row = "\t".join([DISCORDANT.ref, str(DISCORDANT.beg), str(DISCORDANT.end), clusterType, family, str(nbTotal), str(nbTumour), str(nbNormal), str(DISCORDANT.repeatAnnot), region, gene, "\n"])
                     outFile.write(row)
 
 def writeMetaclusters(metaclustersList, outDir):
