@@ -30,6 +30,7 @@ parser.add_argument('refDir', help='Directory containing reference databases (co
 ## General
 parser.add_argument('--normalBam', default=None, dest='normalBam', help='Matched normal bam file. If provided MEIGA will run in PAIRED mode')
 parser.add_argument('--transduction-search', action="store_true", default=False, dest='transductionSearch', help='Enable transduction search. If not enabled only solo events will be identified')
+parser.add_argument('--gene-annot-dir', default=None, dest='annovarDir', help='Directory containing annovar reference files for gene-based annotation of MEI breakpoints. If not provided gene annotation step will be skipped')
 parser.add_argument('--polishing-rounds', default=2, dest='rounds', type=int, help='Number of polishing rounds to be attempted. Default: 2')
 parser.add_argument('-p', '--processes', default=1, dest='processes', type=int, help='Number of processes. Default: 1')
 parser.add_argument('-o', '--outDir', default=os.getcwd(), dest='outDir', help='Output directory. Default: current working directory')
@@ -69,6 +70,7 @@ normalBam = args.normalBam
 reference = args.reference
 refDir = args.refDir
 transductionSearch = args.transductionSearch
+annovarDir = args.annovarDir
 rounds = args.rounds
 processes = args.processes
 outDir = args.outDir
@@ -119,7 +121,7 @@ if technology not in ['NANOPORE', 'PACBIO', 'ILLUMINA']:
 ##############################################
 scriptName = os.path.basename(sys.argv[0])
 scriptName = os.path.splitext(scriptName)[0]
-version='0.2.0'
+version='0.2.2'
 
 print()
 print('***** ', scriptName, version, 'configuration *****')
@@ -132,6 +134,7 @@ print('reference: ', reference)
 print('databases: ', refDir)
 print('processes: ', processes)
 print('transduction-search: ', transductionSearch)
+print('gene-annot-dir: ', annovarDir)
 print('polishing-rounds: ', rounds)
 print('outDir: ', outDir, "\n")
 
@@ -157,6 +160,7 @@ print('maxOutliers: ', maxOutliers, "\n")
 
 print('***** Executing ', scriptName, '.... *****', "\n")
 
+
 ##########
 ## CORE ## 
 ##########
@@ -169,6 +173,7 @@ confDict = {}
 confDict['processes'] = processes
 confDict['technology'] = technology
 confDict['transductionSearch'] = transductionSearch
+confDict['annovarDir'] = annovarDir
 confDict['rounds'] = rounds
 
 ## BAM processing
