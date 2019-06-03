@@ -105,7 +105,7 @@ class FASTA():
 
         # Close output fasta file
         fastaFile.close()
-
+        
 
 class FASTQ():
     '''
@@ -139,7 +139,6 @@ class FASTQ():
         # Close output fasta file
         fastqFile.close()
 
-
     def add(self, fastqLine):
         '''
         Add sequence to the fastq object
@@ -166,41 +165,13 @@ class BED():
     Class for dealing with files in BED format. 
     '''
 
-    def __init__(self, filePath, structure):
+    def __init__(self):
         '''
         Initialize empty class instance
         '''
         self.lines = None
-        self.read(filePath, structure)
-        self.structure =  structure
-
-    def read(self, filePath, structure):
-        '''
-        BED file reader. Read and store bed lines into a data structure
-
-        Input:
-            1) filePath: path to bed file
-            2) structure: data structure where BED lines will be stored. 3 Possible structures:
-                - 'List': lines saved in a list
-                - 'Dict': lines saved in a dictionary where each key will correspond to a reference and the corresponding value will be the list of lines in that reference
-                - 'nestedDict': lines saved in a nested dictionary where first level keys correspond to the references and second level keys to bed entry names  
-        
-        Update lines attribute as output
-        '''
-
-        if (structure == 'List'):
-            self.lines = self.organize_list(filePath)
-
-        elif (structure == 'Dict'):
-            self.lines = self.organize_dict(filePath)
-
-        elif (structure == 'nestedDict'):
-            self.lines = self.organize_nestedDict(filePath)
-
-        else:
-            print('[ERROR] Bed file reader. Unknown structure provided: ', structure)
-            sys.exit(1)
-
+        self.structure =  None
+                        
     def organize_list(self, filePath):
         '''
         Organize bed file lines in a list
@@ -226,7 +197,105 @@ class BED():
             lines.append(line)
         
         return lines
-        
+
+    def read(self, filePath, structure):
+        '''
+        BED file reader. Read and store bed lines into a data structure
+
+        Input:
+            1) filePath: path to bed file
+            2) structure: data structure where BED lines will be stored. 3 Possible structures:
+                - 'List': lines saved in a list
+                - 'Dict': lines saved in a dictionary where each key will correspond to a reference and the corresponding value will be the list of lines in that reference
+                - 'nestedDict': lines saved in a nested dictionary where first level keys correspond to the references and second level keys to bed entry names
+
+        Initialize lines attribute as output
+        '''
+        self.structure = structure
+
+        # a) Organize BED entries into a list
+        if (self.structure == 'List'):
+            self.lines = self.organize_list(filePath)
+
+        # b) Organize BED entries into a dict
+        elif (self.structure == 'Dict'):
+            self.lines = self.organize_dict(filePath)
+
+        # c) Organize BED entries into a nested dict
+        elif (self.structure == 'nestedDict'):
+            self.lines = self.organize_nestedDict(filePath)
+
+        # d) Unkown data type structure provided
+        else:
+            print('[ERROR] Bed file reader. Unknown structure provided: ', structure)
+            sys.exit(1)
+
+    def write(self, outPath):
+        '''
+        BED file writer. Write bed entries into bed file
+
+        Input:
+            1) outPath: path to output bed file
+        '''
+        ## Collect all the entries into a list
+        # a) Entries organized into a list
+        if (self.structure == 'List'):
+            outEntries = self.lines
+
+        # b) Entries organized into a dict (TO TEST LATER)
+        elif (self.structure == 'Dict'):
+            outEntries = [line for line in self.lines.values()]
+
+        # c) Entries organized into a nested dict (TO IMPLEMENT LATER)
+        #elif (self.structure == 'nestedDict'):
+
+        ## Write entries into output bed file
+        with open(outPath, 'w') as outFile:
+            for entry in outEntries:
+
+                fields = [entry.ref, str(entry.beg), str(entry.end)]
+
+                # Add name if available
+                if hasattr(entry, 'name'):
+                    fields.append(entry.name)
+
+                # Create row
+                row = "\t".join(fields)
+                outFile.write(row + '\n')
+
+    def write_annovar(self, outPath):
+        '''
+        BED file writer. Write bed entries into a file format that can be used as input for annovar
+
+        Input:
+            1) outPath: path to output bed file
+        '''
+        ## Collect all the entries into a list
+        # a) Entries organized into a list
+        if (self.structure == 'List'):
+            outEntries = self.lines
+
+        # b) Entries organized into a dict (TO TEST LATER)
+        elif (self.structure == 'Dict'):
+            outEntries = [line for line in self.lines.values()]
+
+        # c) Entries organized into a nested dict (TO IMPLEMENT LATER)
+        #elif (self.structure == 'nestedDict'):
+
+        ## Write entries into output bed file
+        with open(outPath, 'w') as outFile:
+            for entry in outEntries:
+
+                fields = [entry.ref, str(entry.beg), str(entry.end), '0', '0']
+
+                # Add name if available
+                if hasattr(entry, 'name'):
+                    fields.append('comments: ' + entry.name)
+
+                # Create row
+                row = "\t".join(fields)
+                outFile.write(row + '\n')
+                    
     def organize_dict(self, filePath):
         '''
         Organize bed file lines in a dictionary where each key will correspond to a reference and the corresponding value will be the list of lines in that reference
