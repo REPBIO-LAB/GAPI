@@ -66,6 +66,7 @@ def buildRetrotransposonDb(fastaDir, includeTransduced, outDir):
 
     return retrotransposonDb, index
 
+
 def buildVirusDb(fastaDir, outDir):
     '''
     Build database containing retrotransposon related sequences (consensus sequences, transduced regions, ...)
@@ -147,5 +148,58 @@ def buildIdentityDb(metacluster, db, outDir):
         msg = 'Database indexing failed' 
         log.step(step, msg)
         
-
     return indexDbSpecificIdentity
+
+def create_transduced_bed(sourceBed, size, outDir):
+    '''
+    Create bed file containing regions frequently transduced by source elements
+
+    Input:
+        1. sourceBed: Bed file source elements coordinates, cytoband identifier and orientation. Following fields required:
+                      1) chrom
+                      2) beg
+                      3) end
+                      4) cytobandId
+                      5) score
+                      6) strand
+
+        2. size: transduced region size
+        3. outDir: Output directory
+
+    Output:
+        1. transducedPath: Bed file containing transduced region coordinates
+    '''
+
+    ## Open file handlers
+    sourceBed = open(sourceBed, 'r')
+    transducedPath = outDir + '/transduced_regions.bed'
+    transducedBed = open(transducedPath, 'w')
+
+    # Read bed with source elements annotation line by line
+    for line in sourceBed:
+        line = line.rstrip('\r\n')
+    
+        ## Discard header
+        if not line.startswith("#"):        
+            fieldsList = line.split("\t")
+            ref, beg, end, cytobandId, score, strand = fieldsList
+		
+            ## a) Element in plus
+            # ---------------> end ........transduced........ end + size
+            if (strand == '+'):
+
+                tdBeg = int(end)
+                tdEnd = int(end) + size
+
+		    ## b) Element in minus
+		    # beg - size ........transduced........ beg <--------------- end  
+            else:
+
+                tdBeg = int(beg) - size
+                tdEnd = int(beg)
+
+            ## Write into output file
+            row = "\t".join([ref, str(tdBeg), str(tdEnd), cytobandId, "\n"])
+            transducedBed.write(row)
+
+    return transducedPath
