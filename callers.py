@@ -170,6 +170,25 @@ class SV_caller_short(SV_caller):
         ## 1.2 Create and index viral database
         #self.viralDb, self.viralDbIndex = databases.buildVirusDb(self.refDir, dbDir)
         
+        ## 1.3 Create transduced regions database
+        # a) Create database if transduction search enabled
+        if self.confDict['transductionSearch']:
+
+            ## Create bed file
+            sourceBed = self.refDir + '/srcElements.bed'
+            transducedPath = databases.create_transduced_bed(sourceBed, 10000, dbDir)
+
+            ## Read bed
+            transducedBed = formats.BED()
+            transducedBed.read(transducedPath, 'nestedDict')
+
+            ## Create bin database
+            self.transducedBinDb = structures.create_bin_database(refLengths, transducedBed.lines)
+
+        # b) Skip database creation
+        else:
+            self.transducedBinDb = None
+
         ### 2. Define genomic bins to search for SV ##
         bins = bamtools.binning(self.confDict['targetBins'], self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
 
@@ -222,7 +241,7 @@ class SV_caller_short(SV_caller):
                 
         ## 2. Discordant read pair identity ##
         ## Determine identity
-        discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], self.repeatsBinDb)
+        discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], self.repeatsBinDb, self.transducedBinDb)
 
         step = 'IDENTITY'
         SV_types = sorted(discordantsIdentity.keys())
@@ -277,19 +296,22 @@ class SV_caller_short(SV_caller):
         annotation.repeats_annotation(allDiscordantClusters, self.repeatsBinDb, buffer)
         
         ## 6. Perform gene-based annotation with ANNOVAR of discordant read pair clusters ##
-        step = 'ANNOTATE'
-        msg = 'Perform gene-based annotation with ANNOVAR of discordant read-pair clusters'
-        log.step(step, msg)
+        # Do gene-based annotation step if enabled
+        if self.confDict['annovarDir'] is not None:
 
-        ## Annotate
-        annotDir = binDir + '/ANNOT/' 
-        annotation.gene_annotation(allDiscordantClusters, self.confDict['annovarDir'], annotDir)
+            step = 'ANNOTATE'
+            msg = 'Perform gene-based annotation with ANNOVAR of discordant read-pair clusters'
+            log.step(step, msg)
+
+            ## Annotate
+            annotDir = binDir + '/ANNOT/' 
+            annotation.gene_annotation(allDiscordantClusters, self.confDict['annovarDir'], annotDir)
 
         ### Do cleanup
         unix.rm([binDir])
 
         return discordantClustersDict
-
+        
         '''
         Eva will further polish next steps!
 
