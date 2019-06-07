@@ -5,7 +5,6 @@ Module 'retrotransposons' - Contains functions for the identification and charac
 ## DEPENDENCIES ##
 # External
 import subprocess
-from operator import itemgetter
 
 # Internal
 import log
@@ -15,71 +14,6 @@ import alignment
 import sequences
 
 ## FUNCTIONS ##
-def is_mate_retrotransposon(discordants, repeatsDb):
-    '''
-    For each input anchor read assess if the mate aligns in a retrotransposon located elsewhere in the reference genome
-
-    Input: 
-        1) discordants: list containing input discordant read pair events
-        2) repeatsDb: dictionary containing annotated retrotransposons organized per chromosome (keys) into genomic bins (values)
-
-    Output:
-        1) discordantsIdentity: dictionary containing lists of discordant read pairs organized taking into account their orientation and if the mate aligns in an annotated retrotransposon 
-                               This info is encoded in the dictionary keys as follows. Keys composed by 3 elements separated by '-':
-                                
-                                    - Orientation: read orientation (PLUS or MINUS)
-                                    - Event type: DISCORDANT   
-                                    - Family: Retrotransposon family or 'None' if mate does not align in a retrotransposon
-    '''
-    discordantsIdentity = {}
-
-    ## Assess for each anchor read if mate aligns over an annotated retrotransposon
-    for discordant in discordants:
-
-        # A) Annotated repeat in the same ref where the mate aligns
-        if discordant.mateRef in repeatsDb:
-
-            ## Select repeats bin database for the corresponding reference 
-            repeatsBinDb = repeatsDb[discordant.mateRef]        
-
-            ## Retrieve all the annotated repeats overlapping with the mate alignment interval
-            overlappingRepeats = repeatsBinDb.collect_interval(discordant.mateStart, discordant.mateStart + 100, 'ALL')    
-
-            ## Determine mate status 
-            # a) Mate does not align within an annotated repeat
-            if len(overlappingRepeats) == 0:
-                family = 'None'
-
-            # b) Mate aligns within a single repeat
-            elif len(overlappingRepeats) == 1:
-                family = overlappingRepeats[0][0].name
-
-            # c) Mate overlaps multiple repeats
-            else:
-                overlappingRepeats = sorted(overlappingRepeats,key=itemgetter(1), reverse=True)
-                family = overlappingRepeats[0][0].name
-
-        # B) No repeat in the same ref as mate
-        else:
-            family = 'None'
-
-        ## Set discordant identity
-        discordant.identity = family
-
-        ## Add discordant read pair to the dictionary
-        identity = discordant.side + '-DISCORDANT-' + family
-
-        # a) There are already discordant read pairs with this identity
-        if identity in discordantsIdentity:
-            discordantsIdentity[identity].append(discordant)
-
-        # b) First discordant read pair with this identity
-        else:
-            discordantsIdentity[identity] = [ discordant ] 
-    
-    return discordantsIdentity
-
-
 def is_retrotransposition(FASTA_file, index, outDir):
     '''
     Determine if an input sequence correspond to a retrotransposition event (solo, partnered or orphan transduction from a known source element). 

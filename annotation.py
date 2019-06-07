@@ -6,10 +6,12 @@ Module 'annotation' - Contains functions for the annotation of genomic intervals
 # External
 import os
 import subprocess
+from operator import itemgetter
 
 # Internal
 import unix
 import formats
+
 
 def repeats_annotation(events, repeatsDb, buffer):
     '''
@@ -51,6 +53,7 @@ def repeats_annotation(events, repeatsDb, buffer):
         # B) Event NOT overlapping repeat
         else:    
             event.repeatAnnot = None
+
 
 def gene_annotation(events, annovarDir, outDir):
     '''
@@ -154,6 +157,7 @@ def read_annovar_out1(out1):
 
     return out1Dict
             
+
 def run_annovar(inputFile, annovarDir, outDir):
     '''
     For each input entry perform gene-based annotation with Annovar
@@ -186,3 +190,70 @@ def run_annovar(inputFile, annovarDir, outDir):
     out2 = outDir + '/annovar.exonic_variant_function'
 
     return out1, out2
+
+
+def intersect_mate_annotation(discordants, annotation):
+    '''
+    For each input read assess if the mate aligns in a retrotransposon located elsewhere in the reference genome
+
+    Input: 
+        1) discordants: list containing input discordant read pair events
+        2) annotation: dictionary containing annotated features organized per chromosome (keys) into genomic bins (values)
+
+    Output:
+        1) matesIdentity: dictionary containing lists of discordant read pairs organized taking into account their orientation and if the mate aligns in an annotated feature 
+                               This info is encoded in the dictionary keys as follows. Keys composed by 3 elements separated by '-':
+                                
+                                    - Orientation: read orientation (PLUS or MINUS)
+                                    - Event type: DISCORDANT   
+                                    - featureType: Feature type or 'None' if mate does not align in a retrotransposon
+    '''
+    matesIdentity = {}
+
+    ##  For each input discordant intersect mate alignment coordinates with the provided annotation 
+    for discordant in discordants:
+
+        # A) Annotated repeat in the same ref where the mate aligns
+        if discordant.mateRef in annotation:
+
+            ## Select features bin database for the corresponding reference 
+            featureBinDb = annotation[discordant.mateRef]        
+
+            ## Retrieve all the annotated features overlapping with the mate alignment interval
+            overlappingFeatures = featureBinDb.collect_interval(discordant.mateStart, discordant.mateStart + 100, 'ALL')    
+
+            ## Determine mate status 
+            # a) Mate does not align within an annotated repeat
+            if len(overlappingFeatures) == 0:
+                featureType = 'None'
+
+            # b) Mate aligns within a single repeat
+            elif len(overlappingFeatures) == 1:
+                featureType = overlappingFeatures[0][0].name
+
+            # c) Mate overlaps multiple repeats
+            else:
+                overlappingFeatures = sorted(overlappingFeatures,key=itemgetter(1), reverse=True)
+                featureType = overlappingFeatures[0][0].name
+
+        # B) No repeat in the same ref as mate
+        else:
+            featureType = 'None'
+
+        ## Set discordant identity
+        discordant.identity = featureType
+
+        ## Add discordant read pair to the dictionary
+        identity = discordant.side + '_DISCORDANT_' + featureType
+
+        # a) There are already discordant read pairs with this identity
+        if identity in matesIdentity:
+            matesIdentity[identity].append(discordant)
+
+        # b) First discordant read pair with this identity
+        else:
+            matesIdentity[identity] = [ discordant ] 
+    
+    return matesIdentity
+
+
