@@ -6,7 +6,7 @@ Module 'events' - Contains classes for dealing with structural variation events 
 # External
 
 # Internal
-import retrotransposons
+import annotation
 import virus
 
 
@@ -163,25 +163,35 @@ def determine_clippingType(alignmentObj, clippedSide):
 
     return clippingType
 
-def determine_discordant_identity(discordants, repeatsBinDb):
+def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb):
     '''
     Determine discortant read pair identity based on the mapping position of anchor´s mate
 
     Input:
         1. discordants: list containing input discordant read pair events
         2. repeatsBinDb: dictionary containing annotated retrotransposons organized per chromosome (keys) into genomic bins (values)
+        3. transducedBinDb: dictionary containing source element transduced regions (keys) into genomic bins (values)
 
     Output:
         1) discordantsIdentity: dictionary containing lists of discordant read pairs organized taking into account their orientation and if the mate aligns in an annotated retrotransposon 
-                               This info is encoded in the dictionary keys as follows. Keys composed by 3 elements separated by '-':
+                               This info is encoded in the dictionary keys as follows. Keys composed by 3 elements separated by '_':
                                 
                                     - Orientation: read orientation (PLUS or MINUS)
                                     - Event type: DISCORDANT   
-                                    - Type: 
+                                    - Type: identity type. It can be retrotransposon family (L1, Alu, ...), source element (22q, 5p, ...), viral strain (HPV, ...)
     '''
+    ## 1. Assess if discordant read pairs support transduction insertion RT insertion 
+    discordantsTd = annotation.intersect_mate_annotation(discordants, transducedBinDb)
 
-    ## 1. Assess if discordant read pairs support RT insertion 
-    discordantsIdentity = retrotransposons.is_mate_retrotransposon(discordants, repeatsBinDb)
+    ## 2. Assess if discordant read pairs support transduction insertion
+    discordants = discordantsTd['PLUS_DISCORDANT_None'] + discordantsTd['MINUS_DISCORDANT_None']
+    discordantsTd.pop('PLUS_DISCORDANT_None', None)
+    discordantsTd.pop('MINUS_DISCORDANT_None', None)
+
+    discordantsRt= annotation.intersect_mate_annotation(discordants, repeatsBinDb)
+
+    ## 3. Merge discordant read pairs supporting RT and transduction insertions
+    discordantsIdentity = {**discordantsTd, **discordantsRt}
 
     '''
     ## 2. Assess if discordant read pairs support viral insertion
