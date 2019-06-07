@@ -52,7 +52,7 @@ def write_DISCORDANT(discordantClusters, outDir):
     outFile = open(outFilePath, 'w')
 
     ## 2. Write header 
-    row = "#ref \t beg \t end \t clusterType \t family \t nbTotal \t nbTumour \t nbNormal \t repeats \n"
+    row = "#ref \t beg \t end \t clusterType \t family \t nbTotal \t nbTumour \t nbNormal \t repeats \t region \t gene \n"
     outFile.write(row)
 
     ## 3. Write clusters 
@@ -61,16 +61,16 @@ def write_DISCORDANT(discordantClusters, outDir):
 
         # Iterate over the cluster types
         for key, clusterList in discordantDict.items():
-            orientation, clusterType, family = key.split('-')
-            clusterType = orientation + '-' + clusterType
+            orientation, clusterType, family = key.split('_')
+            clusterType = orientation + '_' + clusterType
 
             # For each cluster from a given cluster type
             for DISCORDANT in clusterList:
 
                 ## Collect info
                 nbTotal, nbTumour, nbNormal = DISCORDANT.nbEvents()
-                region, gene = DISCORDANT.geneAnnot
-
+                region, gene = DISCORDANT.geneAnnot if hasattr(DISCORDANT, 'geneAnnot') else ("None", "None")
+            
                 ## TEMPORARY: Only report discordant clusters that:
                 # - Mate do not aligns on a retrotransposon
                 if (family != 'None'):
