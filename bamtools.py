@@ -330,26 +330,17 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             ## 1. Collect CLIPPINGS
             if 'CLIPPING' in confDict['targetSV']:
 
-                leftAdded = "N"
-
                 left_CLIPPING, right_CLIPPING = collectCLIPPING(alignmentObj, confDict['minCLIPPINGlen'], targetInterval, sample)
 
                 # Left CLIPPING found
                 if left_CLIPPING != None:
                     eventsDict['LEFT-CLIPPING'].append(left_CLIPPING)
-                    leftAdded = "Y"
         
                 # Right CLIPPING found
                 if right_CLIPPING != None:
                     
-                    # a) Filter activated
-                    if leftAdded != "Y" and 'SMS' in confDict['readFilters']: 
-                        eventsDict['RIGHT-CLIPPING'].append(right_CLIPPING)
+                    eventsDict['RIGHT-CLIPPING'].append(right_CLIPPING)
                     
-                    # b) Filter not activated -> pick read without checking if read clipped on the left as well
-                    elif 'SMS' not in confDict['readFilters']: 
-                        eventsDict['RIGHT-CLIPPING'].append(right_CLIPPING)
-
             ## 2. Collect INDELS
             if ('INS' in confDict['targetSV']) or ('DEL' in confDict['targetSV']):
 
@@ -449,7 +440,7 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang,
 
         operation = int(cigarTuple[0])
         length = int(cigarTuple[1])
-
+        
         ## a) INSERTION to the reference >= Xbp
         if ('INS' in targetSV) and (operation == 1) and (length >= minINDELlen):
 
@@ -460,7 +451,7 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang,
 
                 # Collect piece of sequence flanking the INS event
                 flankingSeq, bkpPos = (alignmentObj.query_sequence, posQuery) if overhang == None else events.pick_flanking_seq_INS(alignmentObj.query_sequence, posQuery, length, overhang)
-
+                
                 # Create INS object
                 INS = events.INS(alignmentObj.reference_name, posRef, posRef, length, alignmentObj.query_name, flankingSeq, bkpPos, alignmentObj, sample)
                 INS_events.append(INS)
