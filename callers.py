@@ -121,14 +121,21 @@ class SV_caller_long(SV_caller):
         msg = 'Number of created metaclusters: ' + str(metaclustersBinDb.nbEvents()[0])
         log.step(step, msg)
 
-        ## 4. Create consensus sequence for each SV metacluster
+        ## 4. Identify and merge fragmented alignments over INDELs
+        step = 'INDEL-FRAGMENTATION'
+        msg = 'Identify and merge fragmented alignments over INDELs' 
+        log.step(step, msg)
+
+        clusters.merge_fragmented_INDELS(metaclustersBinDb.collect(['METACLUSTERS']))
+
+        ## 5. Create consensus sequence for each SV metacluster
         step = 'CONSENSUS'
         msg = 'Create consensus sequence for each SV metacluster' 
         log.step(step, msg)
 
         consensusBinDb = clusters.make_consensus(metaclustersBinDb, self.confDict, self.reference, 'METACLUSTERS', binDir)
         
-        ##  5. For each metacluster supporting an insertion determine what has been inserted (INS TYPE)
+        ## 6. For each metacluster supporting an insertion determine what has been inserted (INS TYPE)
         step = 'INS-TYPE'
         msg = 'Determine the insertion type for each metacluster supporting an insertion'
         log.step(step, msg)
