@@ -173,7 +173,7 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb):
         3. transducedBinDb: dictionary containing source element transduced regions (keys) into genomic bins (values)
 
     Output:
-        1) discordantsIdentity: dictionary containing lists of discordant read pairs organized taking into account their orientation and if the mate aligns in an annotated retrotransposon 
+        1. discordantsIdentity: dictionary containing lists of discordant read pairs organized taking into account their orientation and if the mate aligns in an annotated retrotransposon 
                                This info is encoded in the dictionary keys as follows. Keys composed by 3 elements separated by '_':
                                 
                                     - Orientation: read orientation (PLUS or MINUS)
@@ -213,6 +213,37 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb):
     return discordantsIdentity
 
 
+def merge_INS(INS_list):
+    '''
+    Merge a set of adjacent INS events supported by the same read into a single one
+
+    Input:
+        1. INS_list: list of INS events to be merged 
+
+    Output:
+        1. merged: INS event resulting from merging input events
+    '''
+
+    ## 1. Sort INS by begin position
+    INS_list.sort(key=lambda event: event.beg)
+
+    ## 2. Define merged INS length
+    first = INS_list[0]
+    last = INS_list[-1]
+    
+    ## Temporary (remove if condition with normal bams. Needed here since testing bams have duplicated reads due to an error during the processing)
+    if first.beg == last.beg:
+        length = first.length 
+
+    # Keep once error fixed
+    else:
+        dist = last.end - first.beg
+        length = dist + first.length + last.length
+
+    ## 3. Create merged INS
+    merged = INS(first.ref, first.beg, first.end, length, first.readName, first.readSeq, first.readBkp, None, first.sample)
+
+    return merged
 
 #############
 ## CLASSES ##
