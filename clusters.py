@@ -345,6 +345,22 @@ def determine_INS_type(metaclusters, index, confDict, rootOutDir):
         metacluster.determine_INS_type(index, confDict, outDir)
 
 
+def merge_fragmented_INDELS(metaclusters):
+    '''
+    Identify and merge fragmented alignments over INDELs
+
+    Input:
+        1. metaclusters: list of metaclusters  
+
+    Output:
+        1. Modify metacluster instances 
+    '''
+
+    ## For each metacluster in the list
+    for metacluster in metaclusters:
+        metacluster.merge_fragmented_INDELS()
+
+
 #############
 ## CLASSES ##
 #############
@@ -496,6 +512,59 @@ class INS_cluster(cluster):
         self.consensusLen = None
         self.isConsensus = None
         self.insertSeq = None
+
+    def correct_fragmentation(self):
+        '''
+        Identify and merge fragmented alignments over INS
+        
+        Before merging:
+        ############<<<INS>>>##<<INS>>###<<<INS>>>##############
+        
+        After merging:
+        ############<<<<<<<<INS>>>>>>>>##############
+        
+        Output:
+            1. Modify INS cluster instance 
+            2. merged_list: list of merged INS objects
+            3. fragmented_list: list of fragmented INS events that has been merged
+        '''
+        ## 1. Organize INS events into a dictionary according to their supporting read
+        eventsByReads =  {}
+
+        for INS in self.events:
+        
+            # a) First event supported by that read
+            if INS.readName not in eventsByReads:
+                eventsByReads[INS.readName] = [INS]
+
+            # b) There are previous events supported by that read
+            else:
+                eventsByReads[INS.readName].append(INS)
+        
+        ## 2. Merge INS events supported by the same read
+        merged_list = []
+        fragmented_list = []
+
+        # For each read
+        for readId, INS_list in eventsByReads.items():
+            
+            ## Read supporting multiple INS events
+            if len(INS_list) > 1:
+
+                ## 2.1 Do merging of fragmented INS
+                merged = events.merge_INS(INS_list)
+
+                ## 2.2 Delete INS that have been merged 
+                self.events = [INS for INS in self.events if INS not in INS_list]
+
+                ## 2.3 Add merged INS
+                merged_list.append(merged)
+                self.events.append(merged)             
+
+                ## 2.4 Update fragmented alignments list
+                fragmented_list = fragmented_list + INS_list
+    
+        return merged_list, fragmented_list
 
 class DEL_cluster(cluster):
     '''
@@ -654,6 +723,36 @@ class META_cluster():
                     FASTA.seqDict[event.readName] = event.readSeq 
      
         return FASTA
+
+    def merge_fragmented_INDELS(self):
+        '''
+        Identify and merge fragmented alignments over INDELs
+        
+        **** DEL fragmentation ****
+        Before merging:
+        ############---DEL---##--DEL--###---DEL---##############
+        
+        After merging:
+        ############----------DEL----------##############
+        '''
+        ## Metacluster contains an INS cluster
+        if 'INS' in self.subclusters:
+
+            ## 1) Correct INS fragmentation at cluster level
+            merged, fragmented = self.subclusters['INS'].correct_fragmentation()
+
+            ## 2) Remove fragmented INS events from metacluster
+            self.events = [event for event in self.events if event not in fragmented]
+
+            ## 3) Add merged INS events to the metacluster
+            self.events = self.events + merged
+
+        ## MEtacluster contains a DEL cluster
+        #if 'DEL' in self.subclusters:
+            #self.subclusters['DEL'].correct_fragmentation()
+
+        # Sort events from lower to upper beg coordinates
+        self.sort()  
 
     def nbEvents(self):
         '''
