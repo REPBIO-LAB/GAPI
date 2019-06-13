@@ -231,7 +231,10 @@ def make_consensus(clustersBinDb, confDict, reference, clusterType, rootOutDir):
 
             # Add cluster 
             consensusDict[cluster.SV_type].append(cluster)
-    
+            
+        else:
+            print('UNKNOWN_TYPE: ', cluster)
+
     ## 3. Organize metaclusters into bins according to their SV type    
     binSizes = [100, 1000, 10000, 100000, 1000000]
     consensusBinDb = structures.create_bin_database_interval(clustersBinDb.ref, clustersBinDb.beg, clustersBinDb.end, consensusDict, binSizes)
@@ -337,6 +340,7 @@ def determine_INS_type(metaclusters, index, confDict, rootOutDir):
         3. confDict: ...
         4: rootOutDir: root directory to write files and directories
     '''
+
     ## For each metacluster in the list
     for metacluster in metaclusters:
 
@@ -900,8 +904,6 @@ class META_cluster():
         # A) Metacluster contains an INS cluster
         if ('INS' in self.subclusters):
 
-            # print('A) Metacluster contains an insertion cluster')
-
             ## Select INS event with median length as template
             templateEvent = self.subclusters['INS'].pick_median_length()
 
@@ -914,8 +916,6 @@ class META_cluster():
         # B) Metacluster contains a DEL cluster
         elif ('DEL' in self.subclusters):
 
-            #print('B) Metacluster contains a deletion cluster')
-
             ## Select DEL event with median length as template
             templateEvent = self.subclusters['DEL'].pick_median_length()
 
@@ -927,16 +927,12 @@ class META_cluster():
 
         # C) Metacluster composed by only two CLIPPING clusters (left and right) 
         elif all (clusterType in self.subclusters for clusterType in ['LEFT-CLIPPING', 'RIGHT-CLIPPING']):
-            
-            #print('C) Metacluster composed by only two clipping clusters (left and right)')
-        
+                    
             ## Search for chimeric alignment spanning the SV event
             templateEvent, supplementary, chimeric = find_chimeric_alignments(self.subclusters['RIGHT-CLIPPING'], self.subclusters['LEFT-CLIPPING'])
 
             # a) Chimeric alignment found -> Write template into output file 
             if (templateEvent != None): 
-
-                #print('C.a) Chimeric alignment found')
 
                 templateFasta = formats.FASTA()
                 templateFasta.seqDict[templateEvent.readName] = templateEvent.readSeq
@@ -958,9 +954,6 @@ class META_cluster():
 
                 ## Assemble clippings based on overlap 
                 templateFile = assembly.assemble_overlap(readsA_file, readsB_file, technology, outDir)
-
-                #if (templateFile is not None): 
-                #    print('C.b) complementary clippings found')
 
         # D) Metacluster composed by a single CLIPPING cluster. 
         # For now set the template as None, but at one point I should set a criteria for picking a template
@@ -992,6 +985,7 @@ class META_cluster():
             1. SV_type: Structural variation type (INS, DEL, BKP or None)
             2. consensus: Consensus SV event object
         '''
+
         ## 0. Create directory 
         unix.mkdir(outDir)
 
@@ -1000,7 +994,7 @@ class META_cluster():
 
         if templateFile is None:
             return None, None
-            
+        
         ## 2. Collect metacluster supporting reads 
         supportingReads = self.collect_reads()
 
@@ -1056,52 +1050,39 @@ class META_cluster():
         ## 5. Define metacluster type based on events collected from consensus sequence realignment
         # A) Single INS event
         if len(eventsDict['INS']) == 1:
-            #print('CONSENSUS!! A) Single INS event')
 
             ## Set metacluster type
             SV_type = 'INS'
                 
             ## Convert coordinates
-            event = eventsDict['INS'][0]
-            event = alignment.targetered2genomic_coord(event, self.ref, intervalBeg)
+            consensus = alignment.targetered2genomic_coord(eventsDict['INS'][0], self.ref, intervalBeg)
 
-            ## Incorporate INS in the metacluster as consensus  
-            consensus = event
-            
         # B) Multiple INS events 
         # Raw alignment    -------------[INS]-[INS]---[INS]-------------
         # Consensus        -------------[       INS       ]-------------
         # This is consequence of fragmented alignments. So Merge events into a single consensus INS
         elif len(eventsDict['INS']) > 1:
-            #print('CONSENSUS!! B) Multiple INS events')
 
             ## Set metacluster type
-            SV_type = None
+            SV_type = 'INS'
 
             ## Do merging
+            merged = events.merge_INS(eventsDict['INS'])
 
             ## Convert coordinates
-
-            ## Incorporate merged INS in the metacluster as consensus  
-            consensus = None
+            consensus = alignment.targetered2genomic_coord(merged, self.ref, intervalBeg)
 
         # C) Single DEL event
-        elif len(eventsDict['DEL']) == 1:
-            #print('CONSENSUS!! C) Single DEL event')
+        elif (len(eventsDict['DEL']) == 1) and ('DEL' in self.subclusters):
 
             ## Set metacluster type
             SV_type = 'DEL'
                 
             ## Convert coordinates
-            event = eventsDict['DEL'][0]
-            event = alignment.targetered2genomic_coord(event, self.ref, intervalBeg)
+            consensus = alignment.targetered2genomic_coord(eventsDict['DEL'][0], self.ref, intervalBeg)
 
-            ## Incorporate DEL in the metacluster as consensus  
-            consensus = event
-
-        # D) Multiple DEL events (same scenario as B) 
-        elif len(eventsDict['DEL']) > 1:
-            #print('CONSENSUS!! D) Multiple DEL events (same scenario as B)')
+        # D) Multiple DEL events 
+        elif (len(eventsDict['DEL']) > 1) and ('DEL' in self.subclusters):
 
             ## Set metacluster type
             SV_type = None
@@ -1109,13 +1090,10 @@ class META_cluster():
             ## Do merging
 
             ## Convert coordinates
-
-            ## Incorporate merged DEL in the metacluster as consensus 
             consensus = None
 
-        # E) One left and one right CLIPPING (NEXT TO DO)
+        # E) One left and one right CLIPPING 
         elif (len(eventsDict['LEFT-CLIPPING']) == 1) and (len(eventsDict['RIGHT-CLIPPING']) == 1):
-            #print('CONSENSUS!! E) One left and one right CLIPPING')
 
             ## Set metacluster type
             SV_type = 'INS'
@@ -1125,7 +1103,7 @@ class META_cluster():
             leftClipping = eventsDict['LEFT-CLIPPING'][0]
             length = leftClipping.readBkp - rightClipping.readBkp
 
-            # a) Missalignment leading to aberrant clipping 
+            # a) Misalignment leading to aberrant clipping 
             # (rarely happens, at one point investigate further)
             if length <= 0:
                 SV_type = None
@@ -1136,30 +1114,25 @@ class META_cluster():
                 event = events.INS(rightClipping.ref, rightClipping.beg, rightClipping.end, length, rightClipping.readName, rightClipping.readSeq, rightClipping.readBkp, None, None)
         
                 ## Convert coordinates
-                event = alignment.targetered2genomic_coord(event, self.ref, intervalBeg)
+                consensus = alignment.targetered2genomic_coord(event, self.ref, intervalBeg)
 
-                ## Incorporate INS in the metacluster as consensus  
-                consensus = event
-
-        # F) Single left CLIPPING
-        elif (len(eventsDict['LEFT-CLIPPING']) == 1): 
-            #print('CONSENSUS!! F) Single left CLIPPING')
-            SV_type = None
-            consensus = None
-
-        # G) Single right CLIPPING
-        elif (len(eventsDict['RIGHT-CLIPPING']) == 1): 
-            #print('CONSENSUS!! G) Single right CLIPPING')
-            SV_type = None
-            consensus = None
-
-        # H) Another possibility
+        # F) Another possibility 
         else:
-            #print('CONSENSUS!! H) Another possibility')
-            SV_type = None
-            consensus = None
+
+            # a) Metacluster contains an INS cluster
+            if ('INS' in self.subclusters):
+
+                ## Set metacluster type
+                SV_type = 'INS'
+
+                ## Select INS event with median length as consensus
+                consensus = self.subclusters['INS'].pick_median_length()
+
+            # b) No INS cluster composing the metacluster
+            else:
+                SV_type = None
+                consensus = None
     
-         
         ## Cleanup
         unix.rm([outDir])
 
