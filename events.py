@@ -237,8 +237,18 @@ def merge_INS(INS_list):
 
     # Keep once error fixed
     else:
-        dist = last.end - first.beg
-        length = dist + first.length + last.length
+
+        ## 2.1 Compute fragmented alignment length on the reference genome 
+        # INS_1----ref_1----INS_2--ref_2--INS_3
+        # dist == ref_1 + ref_2 == INS_3.end - INS_1.beg
+        dist = last.end - first.beg 
+        
+        ## 2.2 Compute total INS fragments length
+        # INS_1----ref_1----INS_2--ref_2--INS_3
+        fragmentsLen = sum([INS.length for INS in INS_list])
+
+        ## 2.3 Compute total insertion length
+        length = dist + fragmentsLen
 
     ## 3. Create merged INS
     merged = INS(first.ref, first.beg, first.end, length, first.readName, first.readSeq, first.readBkp, None, first.sample)
