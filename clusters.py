@@ -422,19 +422,34 @@ class cluster():
         
         return ref, beg, end
 
-    def add(self, events):
+    def add(self, events2add):
         '''
         Incorporate events into the cluster and redefine cluster beg and end
         positions accordingly
 
         Input:
-            1. events: List of events to be added to the cluster
+            1. events2add: List of events to be added to the cluster
         '''
         # Add events to the cluster  
-        self.events = self.events + events
+        self.events = self.events + events2add
 
         # Resort and redefine cluster begin and end coordinates
         self.ref, self.beg, self.end = self.coordinates() 
+
+    def remove(self, events2remove):
+        '''
+        Remove list of events from the cluster and redefine cluster beg and end
+        positions accordingly
+
+        Input:
+            1. events2remove: List of events to be removed 
+        '''
+        ## 1. Remove events from the metacluster ##
+        self.events = [event for event in self.events if event not in events2remove]
+
+        ## 2. Resort and redefine metacluster begin and end coordinates ##
+        self.ref, self.beg, self.end = self.coordinates()
+
 
     def pick_median_length(self):
         '''
@@ -517,9 +532,9 @@ class INS_cluster(cluster):
         self.isConsensus = None
         self.insertSeq = None
 
-    def correct_fragmentation(self):
+    def find_fragmentation(self):
         '''
-        Identify and merge fragmented alignments over INS
+        Identify fragmented alignments over INS
         
         Before merging:
         ############<<<INS>>>##<<INS>>###<<<INS>>>##############
@@ -528,9 +543,8 @@ class INS_cluster(cluster):
         ############<<<<<<<<INS>>>>>>>>##############
         
         Output:
-            1. Modify INS cluster instance 
-            2. merged_list: list of merged INS objects
-            3. fragmented_list: list of fragmented INS events that has been merged
+            1. merged_list: list of merged INS objects
+            2. fragmented_list: list of fragmented INS events that has been merged
         '''
         ## 1. Organize INS events into a dictionary according to their supporting read
         eventsByReads =  {}
@@ -558,14 +572,10 @@ class INS_cluster(cluster):
                 ## 2.1 Do merging of fragmented INS
                 merged = events.merge_INS(INS_list)
 
-                ## 2.2 Delete INS that have been merged 
-                self.events = [INS for INS in self.events if INS not in INS_list]
-
-                ## 2.3 Add merged INS
+                ## 2.2 Add merged INS
                 merged_list.append(merged)
-                self.events.append(merged)             
 
-                ## 2.4 Update fragmented alignments list
+                ## 2.3 Update fragmented alignments list
                 fragmented_list = fragmented_list + INS_list
     
         return merged_list, fragmented_list
@@ -670,21 +680,21 @@ class META_cluster():
 
         return subclusters
 
-    def add(self, eventsList):
+    def add(self, events2add):
         '''
+        Add a list of events to the metacluster and corresponding subclusters
 
         Input:
-            1. events: List of events to be added to the metacluster
+            1. events2add: List of events to be added 
         '''
-        ## 1. Add events to the cluster ##
-        previous = self.events
-        self.events = self.events + eventsList
+        ## 1. Add events to the metacluster ##
+        self.events = self.events + events2add
 
-        ## 2. Resort and redefine cluster begin and end coordinates ##
+        ## 2. Resort and redefine metacluster begin and end coordinates ##
         self.ref, self.beg, self.end = self.coordinates()
 
         ## 3. Separate events according to their type into multiple lists ##
-        eventTypes = events.separate(eventsList)
+        eventTypes = events.separate(events2add)
 
         ## 4. Add events to the subclusters ##
         for eventType, eventList in eventTypes.items():
@@ -701,7 +711,32 @@ class META_cluster():
             # b) Add events to pre-existing subcluster
             else:
                 self.subclusters[eventType].add(eventList)
+
+    def remove(self, events2remove):
+        '''
+        Remove a list of events from the metacluster and corresponding subclusters
+
+        Input:
+            1. events2remove: List of events to be removed 
+        '''
+        ## 1. Remove events from the metacluster ##
+        self.events = [event for event in self.events if event not in events2remove]
+
+        ## 2. Resort and redefine metacluster begin and end coordinates ##
+        self.ref, self.beg, self.end = self.coordinates()
+
+        ## 3. Separate events according to their type into multiple lists ##
+        eventTypes = events.separate(events2remove)
+
+        ## 4. Remove events from the subclusters ##
+        for eventType, eventList in eventTypes.items():
+
+            if eventType in self.subclusters:
+                self.subclusters[eventType].remove(eventList)
                 
+            else:
+                log.info('WARNING at remove method from META_cluster class. Event with unkown type')
+
     def collect_reads(self):
         '''
         Create FASTA object containing metacluster supporting reads.
@@ -743,17 +778,17 @@ class META_cluster():
         if 'INS' in self.subclusters:
 
             ## 1) Correct INS fragmentation at cluster level
-            merged, fragmented = self.subclusters['INS'].correct_fragmentation()
+            merged, fragmented = self.subclusters['INS'].find_fragmentation()
 
-            ## 2) Remove fragmented INS events from metacluster
-            self.events = [event for event in self.events if event not in fragmented]
+            ## 2) Add merged INS events to the metacluster
+            self.add(merged)
 
-            ## 3) Add merged INS events to the metacluster
-            self.events = self.events + merged
+            ## 3) Remove fragmented INS events from metacluster
+            self.remove(fragmented)
 
         ## MEtacluster contains a DEL cluster
         #if 'DEL' in self.subclusters:
-            #self.subclusters['DEL'].correct_fragmentation()
+            #self.subclusters['DEL'].find_fragmentation()
 
         # Sort events from lower to upper beg coordinates
         self.sort()  

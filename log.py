@@ -7,7 +7,6 @@ Module 'log' - Contains functions to report log information
 import time
 
 ## FUNCTIONS ##
-
 def subHeader(string):
     '''
         Display  subheader
