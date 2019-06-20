@@ -232,15 +232,94 @@ def make_consensus(clustersBinDb, confDict, reference, clusterType, rootOutDir):
             # Add cluster 
             consensusDict[cluster.SV_type].append(cluster)
             
-        else:
-            print('UNKNOWN_TYPE: ', cluster)
-
     ## 3. Organize metaclusters into bins according to their SV type    
     binSizes = [100, 1000, 10000, 100000, 1000000]
     consensusBinDb = structures.create_bin_database_interval(clustersBinDb.ref, clustersBinDb.beg, clustersBinDb.end, consensusDict, binSizes)
 
     return consensusBinDb
 
+
+def merge_fragmented_INDELS(metaclusters):
+    '''
+    Identify and merge fragmented alignments over INDELs
+
+    Input:
+        1. metaclusters: list of metaclusters  
+
+    Output:
+        1. Modify metacluster instances 
+    '''
+
+    ## For each metacluster in the list
+    for metacluster in metaclusters:
+
+        metacluster.merge_fragmented_INDELS()
+
+
+def polish_metaclusters(binDb, minClusterSize):
+    '''
+    Function to polish a set of metacluster objects. It does not produce any output just modify cluster objects through the polishing procedure
+
+    Input:
+        1. binDb: Data structure containing a set of metaclusters organized in genomic bins
+        2. minClusterSize: minimum size to create a subcluster
+
+    '''
+    ## For each metacluster in the bin database
+    for metacluster in binDb.collect(['METACLUSTERS']):
+
+        if 'INS' in metacluster.subclusters:
+            
+            INS_cluster = metacluster.subclusters['INS']
+            INS_events = INS_cluster.events
+
+            ## Compute metrics based on events length
+            meanLen, cv = INS_cluster.cv_len()
+
+            ## A) Cluster with heterogeneous lengths  
+            if cv > 15:
+
+                ## 1. Search for subclusters according to length
+                subclusters = clustering.KMeans_clustering(INS_events, None, 'length')
+
+                ## 2. Filter out subclusters supported by less than X events
+                filtered = []
+
+                for subcluster in subclusters.values():
+
+                    if len(subcluster) >= minClusterSize:
+                        filtered.append(subcluster)
+
+                ## 3. Abort subclustering if:
+                # a) Cluster no fragmented into any subcluster passing support filter
+                # b) Cluster fragmented in more than 2 subclusters passing support filter (indicative of noisy region)
+                if len(filtered) not in [1, 2]:
+                    continue
+
+                ## 4. Remove input metacluster from bin database
+                binDb.remove([metacluster], 'METACLUSTERS')
+                
+                ## 5. Create metaclusters from subclusters 
+                ## 5.1 Collect all events that are not INS
+                otherEvents = []
+                
+                for clusterType, cluster in metacluster.subclusters.items():
+
+                    if clusterType != 'INS':
+                        otherEvents = otherEvents + cluster.events
+
+                ## 5.2 For each subcluster create a metacluster
+                new_metaclusters = []
+
+                for subcluster_INS in filtered:
+
+                    allEvents = otherEvents + subcluster_INS
+
+                    new_metacluster = META_cluster(allEvents)
+                    new_metaclusters.append(new_metacluster)
+
+                ## 6. Add newly created metaclusters to bin database
+                binDb.add(new_metaclusters, 'METACLUSTERS')
 
 def find_chimeric_alignments(clusterA, clusterB):
     '''
@@ -348,23 +427,6 @@ def determine_INS_type(metaclusters, index, confDict, rootOutDir):
         outDir = rootOutDir + '/INS_type/' + str(metacluster.id)
         metacluster.determine_INS_type(index, confDict, outDir)
 
-
-def merge_fragmented_INDELS(metaclusters):
-    '''
-    Identify and merge fragmented alignments over INDELs
-
-    Input:
-        1. metaclusters: list of metaclusters  
-
-    Output:
-        1. Modify metacluster instances 
-    '''
-
-    ## For each metacluster in the list
-    for metacluster in metaclusters:
-        metacluster.merge_fragmented_INDELS()
-
-
 #############
 ## CLASSES ##
 #############
@@ -450,7 +512,6 @@ class cluster():
         ## 2. Resort and redefine metacluster begin and end coordinates ##
         self.ref, self.beg, self.end = self.coordinates()
 
-
     def pick_median_length(self):
         '''
         Return event whose length is at the median amongst all cluster supporting events
@@ -464,6 +525,21 @@ class cluster():
 
         ## Pick event located at the median 
         return sortedEvents[medianIndex]
+
+    def cv_len(self):
+        '''
+        Compute mean length and coefficient of variation (cv)
+
+        Output:
+            1. meanLen: Mean length
+            2. cv: Coefficient of variation 
+        '''
+        lengths = [ event.length for event in self.events]
+        meanLen = np.mean(lengths)
+        std = np.std(lengths)
+        cv = std / meanLen * 100 
+
+        return meanLen, cv
 
     def collect_reads(self):
         '''
@@ -821,8 +897,7 @@ class META_cluster():
             else:
                 nbTumour = None
                 nbNormal = None
-                break
-            
+                            
             ## Event type counts
             # a) INS event
             if event.type == 'INS':
@@ -840,7 +915,6 @@ class META_cluster():
 
         return nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING
         
-    
     def supportingCLIPPING(self, buffer, confDict, bam, normalBam, mode):
         # Note: This function works but you have to allow duplicates in the clipping 
 
@@ -922,8 +996,7 @@ class META_cluster():
             self.intOrigin = 'somatic'
 
         return nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING
-
-           
+ 
     def select_template(self, technology, outDir):
         '''
         Select one metacluster supporting read as template to be used in the metacluster consensus generation step
@@ -998,7 +1071,6 @@ class META_cluster():
         
         return templateFile
 
-
     def make_consensus(self, confDict, reference, outDir):
         '''
         Make consensus supporting sequence and event for the metacluster
@@ -1020,7 +1092,6 @@ class META_cluster():
             1. SV_type: Structural variation type (INS, DEL, BKP or None)
             2. consensus: Consensus SV event object
         '''
-
         ## 0. Create directory 
         unix.mkdir(outDir)
 
