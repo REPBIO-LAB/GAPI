@@ -128,14 +128,21 @@ class SV_caller_long(SV_caller):
 
         clusters.merge_fragmented_INDELS(metaclustersBinDb.collect(['METACLUSTERS']))
 
-        ## 5. Create consensus sequence for each SV metacluster
+        ## 5. Cluster polishing
+        step = 'POLISH'
+        msg = 'Polish metaclusters' 
+        log.step(step, msg)
+
+        clusters.polish_metaclusters(metaclustersBinDb, self.confDict['minClusterSize'])
+
+        ## 6. Create consensus sequence for each SV metacluster
         step = 'CONSENSUS'
         msg = 'Create consensus sequence for each SV metacluster' 
         log.step(step, msg)
 
         consensusBinDb = clusters.make_consensus(metaclustersBinDb, self.confDict, self.reference, 'METACLUSTERS', binDir)
         
-        ## 6. For each metacluster supporting an insertion determine what has been inserted (INS TYPE)
+        ## 7. For each metacluster supporting an insertion determine what has been inserted (INS TYPE)
         step = 'INS-TYPE'
         msg = 'Determine the insertion type for each metacluster supporting an insertion'
         log.step(step, msg)
