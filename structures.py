@@ -72,7 +72,7 @@ def create_bin_database_interval(ref, beg, end, eventsDict, binSizes):
     for eventType, events in eventsDict.items():
 
         # Add all the events from the given event type to the bin database
-        binDb.add_events(events, eventType)
+        binDb.add(events, eventType)
 
     return binDb
 
@@ -99,7 +99,7 @@ class bin_database():
         for binSize in self.binSizes:
             self.data[binSize] = {}
 
-    def add_events(self, events, eventType):
+    def add(self, events, eventType):
         '''
         Add events into a hierarchy of genomic bins
 
@@ -142,13 +142,52 @@ class bin_database():
                     break
 
                 ## B) Event spans several bins. Try with the next bin size 
+                else:
+                    continue
 
         ## 3. For each bin sort the events in increasing coordinates order
         for binSize in self.data.keys():
             for binIndex in self.data[binSize].keys():
                 if eventType in self.data[binSize][binIndex]:
                     self.data[binSize][binIndex][eventType].sort()
+    
+    def remove(self, events, eventType):
+        '''
+        Remove events from a hierarchy of genomic bins
+
+        Input:
+            1. events: list of objects
+            2. eventType: type of events (DEL, INS, CLIPPING, ...)
+        '''        
+
+        # For each event
+        for event in events:
         
+            # For each bin size (from smaller to bigger bin sizes)
+            for binSize in self.binSizes:
+    
+                # Determine to what bin index the event belongs
+                binIndexBeg = int(event.beg / binSize)
+                binIndexEnd = int(event.end / binSize)
+
+                ## A) Target bin found if:
+                # - Event fits in a single bin using current bin size
+                # - Bin index available AND
+                # - There are events of the target event type in the target bin 
+                if (binIndexBeg == binIndexEnd) and (binIndexBeg in self.data[binSize]) and (eventType in self.data[binSize][binIndexBeg]):
+
+                    binObj = self.data[binSize][binIndexBeg][eventType]
+                    
+                    # Remove event from bin
+                    binObj.remove([event])
+
+                    # Do not check other bin sizes once event has been removed
+                    break
+
+                ## B) Event does not fit. Try with the next bin size 
+                else:
+                    continue
+
     def collect(self, eventTypes):
         '''
         Collect all the events of target event types that are stored 
@@ -340,7 +379,25 @@ class events_bin():
             1. events: List of events to add to the bin 
         '''
         self.events = self.events + events
-        
+
+    def remove(self, events):
+        '''
+        Remove input events from the bin´s list of events
+
+        Input:
+            1. events: List of events to remove from the bin 
+        '''
+
+        ## Make list with event id´s to remove
+        ids = []
+
+        for event in events:
+
+            ids.append(event.id)
+
+        ## Remove events with matching ids from the bin
+        self.events = [ event for event in self.events if event.id not in ids ]
+            
     def nbEvents(self):
         '''
         Compute the number of events composing the bin
