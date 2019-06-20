@@ -20,7 +20,7 @@ import bamtools
 ######################
 
 ## 1. Define parser ##
-parser = argparse.ArgumentParser(description= "Call mobile element insertions (MEI) and viral integrations from second and third generation sequencing data. Two running modes: 1) SINGLE: individual sample; 2) PAIRED: tumour and matched normal sample")
+parser = argparse.ArgumentParser(description='Call mobile element insertions (MEI) and viral integrations from second and third generation sequencing data. Two running modes: 1) SINGLE: individual sample; 2) PAIRED: tumour and matched normal sample')
 parser.add_argument('bam', help='Input bam file. Will correspond to the tumour sample in the PAIRED mode')
 parser.add_argument('technology', help='Sequencing technology used to generate the data (NANOPORE, PACBIO or ILLUMINA)')
 parser.add_argument('reference', help='Reference genome in fasta format. An index of the reference generated with samtools faidx must be located in the same directory')
@@ -31,7 +31,7 @@ parser.add_argument('refDir', help='Directory containing reference databases (co
 parser.add_argument('--normalBam', default=None, dest='normalBam', help='Matched normal bam file. If provided MEIGA will run in PAIRED mode')
 parser.add_argument('--transduction-search', action="store_true", default=False, dest='transductionSearch', help='Enable transduction search. If not enabled only solo events will be identified')
 parser.add_argument('--gene-annot-dir', default=None, dest='annovarDir', help='Directory containing annovar reference files for gene-based annotation of MEI breakpoints. If not provided gene annotation step will be skipped')
-parser.add_argument('--polishing-rounds', default=2, dest='rounds', type=int, help='Number of polishing rounds to be attempted. Default: 2')
+parser.add_argument('--polishing-rounds', default=1, dest='rounds', type=int, help='Number of polishing rounds to be attempted. Default: 1')
 parser.add_argument('-p', '--processes', default=1, dest='processes', type=int, help='Number of processes. Default: 1')
 parser.add_argument('-o', '--outDir', default=os.getcwd(), dest='outDir', help='Output directory. Default: current working directory')
 
@@ -41,15 +41,15 @@ parser.add_argument('-bS', '--binSize', default=1000000, dest='binSize', type=in
 parser.add_argument('--refs', default="ALL", dest='refs', type=str, help='Comma separated list of target references to call SV (i.e. 1,2,3,X). Default: All references included in the bam file')
 parser.add_argument('--SV', default="INS,CLIPPING", dest='SV', type=str, help='Comma separated list of SV event types to collect (INS, DEL and CLIPPING). Default: INS,CLIPPING')
 parser.add_argument('--readFilters', default="SMS", dest='readFilters', type=str, help='Comma separated list of read filters to apply (SMS)')
-parser.add_argument('--readOverhang', default=5000, dest='overhang', type=int, help='Number of flanking base pairs around the SV event to be collected from the supporting read sequence. Default: 10000')
+parser.add_argument('--readOverhang', default=5000, dest='overhang', type=int, help='Number of flanking base pairs around the SV event to be collected from the supporting read sequence. Default: 5000')
 
 ## Filtering thresholds
-parser.add_argument('--minMAPQ', default=20, dest='minMAPQ', type=int, help='Minimum mapping quality required for each read. Default: 20')
-parser.add_argument('--minINDELlen', default=50, dest='minINDELlen', type=int, help='Minimum indel length. Default: 50')
+parser.add_argument('--minMAPQ', default=1, dest='minMAPQ', type=int, help='Minimum mapping quality required for each read. Default: 1')
+parser.add_argument('--minINDELlen', default=25, dest='minINDELlen', type=int, help='Minimum indel length. Default: 25')
 parser.add_argument('--minCLIPPINGlen', default=500, dest='minCLIPPINGlen', type=int, help='Minimum clipped sequence length for each read. Default: 500')
-parser.add_argument('--maxEventDist', default=100, dest='maxEventDist', type=int, help='Maximum distance bewteen two adjacent breakpoints for INS and CLIPPING clustering (Between 0-999). Default: 100')
-parser.add_argument('--minPercOverlap', default=70, dest='minPercRcplOverlap', type=int, help='Minimum percentage of reciprocal overlap for DEL clustering. Default: 50')
-parser.add_argument('--clusterFilters', default="MIN-NBREADS,MAX-NBREADS,CV,OUTLIERS", dest='clusterFilters', type=str, help='Comma separated list of cluster filters to apply (minimum number of reads, max number of reads, minimum Coefficient of Variation and minimum percentage of outliers). Default: MIN-NBREADS,MAX-NBREADS,CV,OUTLIERS')
+parser.add_argument('--maxEventDist', default=250, dest='maxEventDist', type=int, help='Maximum distance bewteen two adjacent breakpoints for INS and CLIPPING clustering (Between 0-999). Default: 250')
+parser.add_argument('--minPercOverlap', default=70, dest='minPercRcplOverlap', type=int, help='Minimum percentage of reciprocal overlap for DEL clustering. Default: 70')
+parser.add_argument('--clusterFilters', default='MIN-NBREADS,MAX-NBREADS,CV,OUTLIERS', dest='clusterFilters', type=str, help='Comma separated list of cluster filters to apply (minimum number of reads, max number of reads, minimum Coefficient of Variation and minimum percentage of outliers). Default: MIN-NBREADS,MAX-NBREADS,CV,OUTLIERS')
 parser.add_argument('--minClusterSize', default=2, dest='minClusterSize', type=int, help='Minimum number of reads composing a cluster. Default: 2')
 parser.add_argument('--maxClusterSize', default=500, dest='maxClusterSize', type=int, help='Maximum number of reads composing a cluster. Default: 500')
 parser.add_argument('--maxClusterCV', default=15, dest='maxClusterCV', type=int, help='Maximum Coefficient of Variation of a cluster. Default: 15')
@@ -121,7 +121,7 @@ if technology not in ['NANOPORE', 'PACBIO', 'ILLUMINA']:
 ##############################################
 scriptName = os.path.basename(sys.argv[0])
 scriptName = os.path.splitext(scriptName)[0]
-version='0.3.1'
+version='0.4.0'
 
 print()
 print('***** ', scriptName, version, 'configuration *****')
