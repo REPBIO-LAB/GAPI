@@ -1,5 +1,5 @@
 '''
-Module 'clustering' - Contains functions for clustering sets of objects based on coordinates
+Module 'clustering' - Contains functions for clustering sets of objects based on different criteria
 '''
 
 ## DEPENDENCIES ##
@@ -7,12 +7,15 @@ Module 'clustering' - Contains functions for clustering sets of objects based on
 import time
 import sys
 import operator
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
 
 # Internal
 import log
 import clusters
 import gRanges
 import structures
+
 
 ## FUNCTIONS ##
 def distance_clustering(binDb, binSize, eventTypes, clusterType, maxDist, minClusterSize):
@@ -244,6 +247,115 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
     clustersList = list(clustersDict.values())
 
     return clustersList
+
+
+
+def KMeans_clustering(events, x, y):
+    '''
+    Group events into clusters through K-means and one or two attributes 
+
+    Input:
+        1. events: List of events to be clustered
+        2. x: Attribute used for clustering. If None, the X-axis will not be taken into account for clustering
+        3. y: Attribute used for clustering. If None, the Y-axis will not be taken into account for clustering
+        4. offset_x: Substract offset to x attribute value (TO DO)
+        5. offset_y: Substract offset to y attribute value (TO DO)
+
+    Output:
+        1. groups: Dictionary containing grouped events according to K-means clusters (keys)
+
+    NOTE: To transform genomic coordinates into cluster interval coordinates I can use an offset variable for x and y
+    KMeans_clustering(events, x, y, x_offset, y_offset) * then I would make the division x-x_offset and/or y-y_offset
+    '''
+    ## 1. Exit if not enough number of events for clustering
+    nbEvents = len(events)
+
+    if nbEvents < 3:
+        return {}
+
+    ## 2. Generate nested list with event´s attribute values that will be used for clustering
+    data = []
+
+    for event in events:
+
+        ## Define X
+        if x is None:
+            x_value = 1
+        else:
+            x_value = getattr(event, x)
+
+        ## Define Y
+        if y is None:
+            y_value = 1
+        else:
+            y_value = getattr(event, y)
+
+        ## Add to list
+        data.append([x_value, y_value])
+
+    ## 3. Define K values to be tried
+    Ks = [k for k in range(2, nbEvents)]
+
+    ## 4. Perform clustering with K-means
+    max_coefficient, max_labels = KMeans_multiK(data, Ks)
+
+    if max_coefficient < 0.60:
+        return {}
+
+    ## 5. Group events according to K-means clusters
+    groups = {}
+
+    for index, label in enumerate(max_labels):
+
+        event = events[index]
+
+        if label not in groups:
+            groups[label] = [event]
+            
+        else:
+            groups[label].append(event)
+
+    return groups
+
+
+def KMeans_multiK(data, Ks):
+    '''
+    Perform K-means clustering with multiple K-values and return clustering results for the K that maximizes the average silhouette coefficient
+
+    Input:
+        1. data: Nested list composed by a single list containing a two elements list per sample with features used for clustering
+        2. Ks: List of K values to be used
+        
+    Output:
+        1. max_coefficient: Maximum average Silhouette coefficient obtained with an input K value
+        2. max_labels: List containing cluster labels (0, 1, ...) for the samples provided in the input 'data' variable
+    '''
+
+    ## Apply K-means clustering for each input K value 
+    max_coefficient = 0
+    max_labels = []
+
+    for k in Ks:
+
+        ## 1. Do K-means
+        kmeans = KMeans(n_clusters=k, random_state=10)
+        labels = kmeans.fit_predict(data) 
+                    
+        ## 2. Compute average silhouette coefficient
+        coefficient = silhouette_score(data, labels)
+
+        # a) Coefficient increases with current K value 
+        if coefficient > max_coefficient:
+            max_coefficient = coefficient
+            max_labels = labels
+
+        # b) Stop iterating as silhouette coefficient does not increase
+        else:
+            break
+
+    return max_coefficient, max_labels
+
+
 
 def reciprocal(binDb, minPercOverlap, minClusterSize, buffer):
     '''
