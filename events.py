@@ -347,7 +347,7 @@ class CLIPPING():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, clippedSide, readName, readSeq, readBkp, alignmentObj, sample):
+    def __init__(self, ref, beg, end, length, clippedSide, readName, readSeq, readBkp, alignmentObj, sample):
         '''
         '''
         CLIPPING.number += 1 # Update instances counter
@@ -356,7 +356,7 @@ class CLIPPING():
         self.ref = str(ref)
         self.beg = int(beg) # beg==end. 0-based CLIPPING breakpoint
         self.end = int(end)
-        self.length = 0
+        self.length = length
         self.clippedSide = clippedSide
         self.clippingType = determine_clippingType(alignmentObj, self.clippedSide)
         self.readName = readName
