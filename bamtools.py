@@ -31,6 +31,7 @@ def get_refs(bam):
     refs  = ','.join(bamFile.references)
     return refs
 
+
 def get_ref_lengths(bam):
     '''
     Make dictionary containing the length for each reference
@@ -154,6 +155,7 @@ def BAM2FASTQ_entry(alignmentObj):
     FASTQ_entry = formats.FASTQ_entry(alignmentObj.query_name, seq, '', qual)
     return FASTQ_entry
 
+
 def binning(targetBins, bam, binSize, targetRefs):
     '''
     Split the genome into a set of genomic bins. Two possible binning approaches:
@@ -265,6 +267,7 @@ def collectSV_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict):
 
     return eventsDict
 
+
 def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
     '''
     Collect structural variant (SV) events in a genomic bin from a bam file
@@ -353,11 +356,11 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             ## 2. Collect INDELS
             if ('INS' in confDict['targetSV']) or ('DEL' in confDict['targetSV']):
 
-                INS_events, DEL_events = collectINDELS(alignmentObj, confDict['targetSV'], confDict['minINDELlen'], targetInterval, confDict['overhang'], sample)
-                
-                # Add events to the pre-existing lists
-                eventsDict['INS'] = eventsDict['INS'] + INS_events
-                eventsDict['DEL'] = eventsDict['DEL'] + DEL_events
+                INDEL_events = collectINDELS(alignmentObj, confDict['targetSV'], confDict['minINDELlen'], targetInterval, confDict['overhang'], sample)
+
+                # Add events to the pre-existing lists                
+                for INDEL_type, events in INDEL_events.items():
+                    eventsDict[INDEL_type] = eventsDict[INDEL_type] + events
 
             ## 3. Collect DISCORDANT
             if 'DISCORDANT' in confDict['targetSV']:
@@ -434,11 +437,18 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang,
         6. sample: type of sample (TUMOUR, NORMAL or None). 
 
     Output:
-        1. INS_events: list of INS objects
-        2. DEL_events: list of DEL objects
+        1. INDEL_events: dictionary containing list of SV events grouped according to the type of INDEL (only those types included in targetSV):
+            * INS -> list of INS objects
+            * DEL -> list of DEL objects
     '''
-    INS_events = []
-    DEL_events = []
+    ## Initialize dict
+    INDEL_events = {}
+
+    if ('INS' in targetSV):
+        INDEL_events['INS'] = []
+
+    if ('DEL' in targetSV):   
+        INDEL_events['DEL'] = []
 
     ## Initialize positions at query and ref
     posQuery = 0
@@ -463,7 +473,7 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang,
                 
                 # Create INS object
                 INS = events.INS(alignmentObj.reference_name, posRef, posRef, length, alignmentObj.query_name, flankingSeq, bkpPos, alignmentObj, sample)
-                INS_events.append(INS)
+                INDEL_events['INS'].append(INS)
 
         ## b) DELETION to the reference >= Xbp
         if ('DEL' in targetSV) and (operation == 2) and (length >= minINDELlen):
@@ -478,7 +488,7 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang,
 
                 # Create DEL object
                 DEL = events.DEL(alignmentObj.reference_name, posRef, posRef + length, length, alignmentObj.query_name, flankingSeq, bkpPos, alignmentObj, sample)
-                DEL_events.append(DEL)
+                INDEL_events['DEL'].append(DEL)
                 
         #### Update position over reference and read sequence
         ### a) Operations consuming query and reference
@@ -506,7 +516,7 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang,
         # - Op P, tag 6, padding (silent deletion from padded reference)
         # Do not do anything
 
-    return INS_events, DEL_events
+    return INDEL_events
 
 
 def collectDISCORDANT(alignmentObj, sample):
@@ -579,6 +589,7 @@ def collectDISCORDANT(alignmentObj, sample):
 
     return DISCORDANTS
 
+
 def collectMatesSeq(events, tumourBam, normalBam, checkUnmapped, maxMAPQ):
     '''
     From a list of events, get the mate sequence for each event.
@@ -612,6 +623,7 @@ def collectMatesSeq(events, tumourBam, normalBam, checkUnmapped, maxMAPQ):
 
     msg = '[COUNTER OF collectMatesSeq LOOP] '+ str(counter)
     log.subHeader(msg)
+
 
 def collectMateSeq(event, bamFile, checkUnmapped, maxMAPQ):
     '''
