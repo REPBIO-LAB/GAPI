@@ -224,7 +224,6 @@ def makeGenomicBins(bam, binSize, targetRefs):
                 window = (ref, beg, end)
                 bins.append(window)
 
-
     return bins
 
 
@@ -245,11 +244,12 @@ def collectSV_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict):
             * minINDELlen    -> minimum INS and DEL lenght
 
     Output:
-        1. eventsDict: dictionary containing list of SV events grouped according to the SV type:
+        1. eventsDict: dictionary containing list of SV events grouped according to the SV type (only those types included in confDict[targetSV]):
             * INS -> list of INS objects
             * DEL -> list of DEL objects
             * LEFT-CLIPPING -> list of left CLIPPING objects
             * RIGHT-CLIPPING -> list of right CLIPPING objects
+            * DISCORDANT -> list of DISCORDANT objects  
     '''
     ## Search for SV events in the tumour
     eventsDict_T = collectSV(ref, binBeg, binEnd, tumourBam, confDict, 'TUMOUR')
@@ -283,24 +283,33 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
         6. sample: type of sample (TUMOUR, NORMAL or None)
 
     Output:
-        1. eventsDict: dictionary containing list of SV events grouped according to the SV type:
+        1. eventsDict: dictionary containing list of SV events grouped according to the SV type (only those types included in confDict[targetSV]):
             * INS -> list of INS objects
             * DEL -> list of DEL objects
             * LEFT-CLIPPING -> list of left CLIPPING objects
             * RIGHT-CLIPPING -> list of right CLIPPING objects
             * DISCORDANT -> list of DISCORDANT objects  
-        Note: * include secondary alignment filter???
+    
+    NOTE: * include secondary alignment filter???
     '''
     # Define target interval
     targetInterval = (binBeg, binEnd)
 
     ## Initialize dictionary to store SV events
     eventsDict = {}
-    eventsDict['INS'] = []
-    eventsDict['DEL'] = []
-    eventsDict['LEFT-CLIPPING'] = []
-    eventsDict['RIGHT-CLIPPING'] = []
-    eventsDict['DISCORDANT'] = []
+
+    if 'INS' in confDict['targetSV']:
+        eventsDict['INS'] = []
+
+    if 'DEL' in confDict['targetSV']:
+        eventsDict['DEL'] = []
+
+    if 'CLIPPING' in confDict['targetSV']:
+        eventsDict['LEFT-CLIPPING'] = []
+        eventsDict['RIGHT-CLIPPING'] = []
+    
+    if 'DISCORDANT' in confDict['targetSV']:
+        eventsDict['DISCORDANT'] = []
 
     ## Open BAM file for reading
     bamFile = pysam.AlignmentFile(bam, "rb")
