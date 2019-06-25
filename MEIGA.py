@@ -20,6 +20,7 @@ import bamtools
 ######################
 
 ## 1. Define parser ##
+### Mandatory arguments
 parser = argparse.ArgumentParser(description='Call mobile element insertions (MEI) and viral integrations from second and third generation sequencing data. Two running modes: 1) SINGLE: individual sample; 2) PAIRED: tumour and matched normal sample')
 parser.add_argument('bam', help='Input bam file. Will correspond to the tumour sample in the PAIRED mode')
 parser.add_argument('technology', help='Sequencing technology used to generate the data (NANOPORE, PACBIO or ILLUMINA)')
@@ -40,22 +41,24 @@ parser.add_argument('--targetBins', default=None, dest='targetBins', type=str, h
 parser.add_argument('-bS', '--binSize', default=1000000, dest='binSize', type=int, help='Input bams will be analised in genomic bins of this size. Default: 1000000')
 parser.add_argument('--refs', default="ALL", dest='refs', type=str, help='Comma separated list of target references to call SV (i.e. 1,2,3,X). Default: All references included in the bam file')
 parser.add_argument('--SV', default="INS,CLIPPING", dest='SV', type=str, help='Comma separated list of SV event types to collect (INS, DEL and CLIPPING). Default: INS,CLIPPING')
+parser.add_argument('--minMAPQ', default=1, dest='minMAPQ', type=int, help='Minimum mapping quality required for each read. Default: 1')
 parser.add_argument('--readFilters', default="SMS", dest='readFilters', type=str, help='Comma separated list of read filters to apply (SMS)')
 parser.add_argument('--readOverhang', default=5000, dest='overhang', type=int, help='Number of flanking base pairs around the SV event to be collected from the supporting read sequence. Default: 5000')
-
-## Filtering thresholds
-parser.add_argument('--minMAPQ', default=1, dest='minMAPQ', type=int, help='Minimum mapping quality required for each read. Default: 1')
 parser.add_argument('--minINDELlen', default=25, dest='minINDELlen', type=int, help='Minimum indel length. Default: 25')
 parser.add_argument('--minCLIPPINGlen', default=500, dest='minCLIPPINGlen', type=int, help='Minimum clipped sequence length for each read. Default: 500')
-parser.add_argument('--maxEventDist', default=250, dest='maxEventDist', type=int, help='Maximum distance bewteen two adjacent breakpoints for INS and CLIPPING clustering (Between 0-999). Default: 250')
+
+## Clustering
+parser.add_argument('--INSdist', default=250, dest='maxInsDist', type=int, help='Maximum distance bewteen two adjacent INS to be clustered together (Between 0-999). Default: 250')
+parser.add_argument('--BKPdist', default=50, dest='maxBkpDist', type=int, help='Maximum distance bewteen two adjacent breakpoints for CLIPPING clustering (Between 0-999). Default: 250')
 parser.add_argument('--minPercOverlap', default=70, dest='minPercRcplOverlap', type=int, help='Minimum percentage of reciprocal overlap for DEL clustering. Default: 70')
-parser.add_argument('--clusterFilters', default='MIN-NBREADS,MAX-NBREADS,CV,OUTLIERS', dest='clusterFilters', type=str, help='Comma separated list of cluster filters to apply (minimum number of reads, max number of reads, minimum Coefficient of Variation and minimum percentage of outliers). Default: MIN-NBREADS,MAX-NBREADS,CV,OUTLIERS')
+
+## Filtering
+# Long
+parser.add_argument('--clusterFilters', default='MIN_READS,MAX_READS,CV', dest='clusterFilters', type=str, help='Comma separated list of cluster filters to apply (minimum number of reads, max number of reads, minimum Coefficient of Variation and minimum percentage of outliers). Default: MIN-NBREADS,MAX-NBREADS,CV,OUTLIERS')
 parser.add_argument('--minClusterSize', default=2, dest='minClusterSize', type=int, help='Minimum number of reads composing a cluster. Default: 2')
 parser.add_argument('--maxClusterSize', default=500, dest='maxClusterSize', type=int, help='Maximum number of reads composing a cluster. Default: 500')
-parser.add_argument('--maxClusterCV', default=15, dest='maxClusterCV', type=int, help='Maximum Coefficient of Variation of a cluster. Default: 15')
-parser.add_argument('--maxOutliers', default=0.5, dest='maxOutliers', type=int, help='Maximum percentage of events supporting a cluster that have been removed during the polish step. Default: 0.5')
 
-## Filtering thresholds short reads
+# Short
 parser.add_argument('--minReadsRegionMQ', default=10, dest='minReadsRegionMQ', type=int, help='Surrounding reads above this MQ are considered low MQ reads. Default: 10')
 parser.add_argument('--maxRegionlowMQ', default=0.3, dest='maxRegionlowMQ', type=int, help='Maximum percentage of lowMAPQ/nbReads in cluster´s region. Default: 0.3')
 parser.add_argument('--maxRegionSMS', default=0.15, dest='maxRegionSMS', type=int, help='Maximum percentage of SMS clipping reads in cluster´s region. Default: 0.15')
@@ -63,12 +66,15 @@ parser.add_argument('--maxRegionSMS', default=0.15, dest='maxRegionSMS', type=in
 ## 2. Parse user´s input and initialize variables ##
 args = parser.parse_args()
 
-## General
-technology = args.technology
+### Mandatory arguments
 bam = args.bam
-normalBam = args.normalBam
+technology = args.technology
 reference = args.reference
 refDir = args.refDir
+
+### Optional arguments
+## General
+normalBam = args.normalBam
 transductionSearch = args.transductionSearch
 annovarDir = args.annovarDir
 rounds = args.rounds
@@ -80,22 +86,24 @@ targetBins = args.targetBins
 binSize = args.binSize
 refs = args.refs
 SV = args.SV
-overhang = args.overhang
-readFilters = args.readFilters
-
-## Filtering thresholds
 minMAPQ = args.minMAPQ
+readFilters = args.readFilters
+overhang = args.overhang
 minINDELlen = args.minINDELlen
 minCLIPPINGlen = args.minCLIPPINGlen
-minClusterSize = args.minClusterSize
-maxEventDist = args.maxEventDist
-minPercRcplOverlap = args.minPercRcplOverlap
-clusterFilters = args.clusterFilters
-maxClusterSize = args.maxClusterSize
-maxClusterCV = args.maxClusterCV
-maxOutliers = args.maxOutliers
 
-## Filtering thresholds short reads
+## Clustering
+maxInsDist = args.maxInsDist
+maxBkpDist = args.maxBkpDist
+minPercRcplOverlap = args.minPercRcplOverlap
+
+## Filtering thresholds
+# Long
+clusterFilters = args.clusterFilters
+minClusterSize = args.minClusterSize
+maxClusterSize = args.maxClusterSize
+
+# Short
 minReadsRegionMQ = args.minReadsRegionMQ
 maxRegionlowMQ = args.maxRegionlowMQ
 maxRegionSMS = args.maxRegionSMS
@@ -121,21 +129,24 @@ if technology not in ['NANOPORE', 'PACBIO', 'ILLUMINA']:
 ##############################################
 scriptName = os.path.basename(sys.argv[0])
 scriptName = os.path.splitext(scriptName)[0]
-version='0.4.0'
+version='0.5.0'
 
 print()
 print('***** ', scriptName, version, 'configuration *****')
+print('*** Mandatory arguments ***')
+print('bam: ', bam)
+print('technology: ', technology)
+print('reference: ', reference)
+print('refDir: ', refDir, "\n")
+
+print('*** Optional arguments ***')
 print('** General **')
 print('mode: ', mode)
-print('technology: ', technology)
-print('bam: ', bam)
 print('normalBam: ', normalBam)
-print('reference: ', reference)
-print('databases: ', refDir)
-print('processes: ', processes)
 print('transduction-search: ', transductionSearch)
 print('gene-annot-dir: ', annovarDir)
 print('polishing-rounds: ', rounds)
+print('processes: ', processes)
 print('outDir: ', outDir, "\n")
 
 print('** BAM processing **')
@@ -143,20 +154,24 @@ print('targetBins: ', targetBins)
 print('binSize: ', binSize)
 print('targetRefs: ', refs)
 print('targetSVs: ', SV)
-print('overhang: ', overhang)
-print('readFilters: ', readFilters, "\n")
-
-print('** Filtering thresholds **')
 print('minMAPQ: ', minMAPQ)
+print('readFilters: ', readFilters)
+print('overhang: ', overhang)
 print('minINDELlength: ', minINDELlen)
-print('minCLIPPINGlength: ', minCLIPPINGlen)
-print('maxEventDistance: ', maxEventDist)
-print('minPercOverlap: ', minPercRcplOverlap)
+print('minCLIPPINGlength: ', minCLIPPINGlen, "\n")
+
+print('** Clustering **')
+print('maxInsDist: ', maxInsDist)
+print('maxBkpDist: ', maxBkpDist)
+print('minPercOverlap: ', minPercRcplOverlap, "\n")
+
+print('** Filtering **')
 print('clusterFilters: ', clusterFilters)
 print('minClusterSize: ', minClusterSize)
 print('maxClusterSize: ', maxClusterSize)
-print('maxClusterCV: ', maxClusterCV)
-print('maxOutliers: ', maxOutliers, "\n")
+print('minReadsRegionMQ: ', minReadsRegionMQ)
+print('maxRegionlowMQ: ', maxRegionlowMQ)
+print('maxRegionSMS: ', maxRegionSMS, "\n")
 
 print('***** Executing ', scriptName, '.... *****', "\n")
 
@@ -169,12 +184,14 @@ print('***** Executing ', scriptName, '.... *****', "\n")
 #######################################
 confDict = {}
 
-## General
-confDict['processes'] = processes
+## Mandatory
 confDict['technology'] = technology
+
+## General
 confDict['transductionSearch'] = transductionSearch
 confDict['annovarDir'] = annovarDir
 confDict['rounds'] = rounds
+confDict['processes'] = processes
 
 ## BAM processing
 confDict['targetBins'] = targetBins
@@ -182,21 +199,21 @@ confDict['binSize'] = binSize
 confDict['targetRefs'] = targetRefs
 confDict['targetSV'] = targetSV
 confDict['readFilters'] = readFilters
-
-## ...
 confDict['overhang'] = overhang
-
-## Filtering thresholds
 confDict['minMAPQ'] = minMAPQ
 confDict['minINDELlen'] = minINDELlen
 confDict['minCLIPPINGlen'] = minCLIPPINGlen
-confDict['maxEventDist'] = maxEventDist
+
+## Clustering
+confDict['maxInsDist'] = maxInsDist
+confDict['maxBkpDist'] = maxBkpDist
 confDict['minPercRcplOverlap'] = minPercRcplOverlap
+
+## Filtering thresholds
+# Long
 confDict['clusterFilters'] = clusterFilters
 confDict['minClusterSize'] = minClusterSize
 confDict['maxClusterSize'] = maxClusterSize
-confDict['maxClusterCV'] = maxClusterCV
-confDict['maxOutliers'] = maxOutliers
 
 ## Filtering thresholds short reads
 confDict['minReadsRegionMQ'] = minReadsRegionMQ
