@@ -9,6 +9,7 @@ import numpy as np
 import collections 
 import pysam
 import math
+import itertools
 
 # Internal
 import log
@@ -112,7 +113,7 @@ def create_discordantClusters(discordantBinDb, minClusterSize, buffer):
     for clusterType in discordantBinDb.eventTypes:
         
         # Do clustering based on reciprocal overlap
-        discordantClustersDict[clusterType] = clustering.reciprocal_overlap_clustering(discordantBinDb, 1, minClusterSize, clusterType, buffer, clusterType)
+        discordantClustersDict[clusterType] = clustering.reciprocal_overlap_clustering(discordantBinDb, 1, minClusterSize, [clusterType], buffer, clusterType)
 
     return discordantClustersDict
 
@@ -199,6 +200,20 @@ def polish_clusters(clustersBinDb, minClusterSize):
 
     ## 3. Polish CLIPPING clusters (TO DO)
 
+def create_metaclusters(clustersBinDb):
+    '''    
+    Group SV cluster events into metaclusters
+
+    Input:
+        1. clustersBinDb: Data structure containing a set of clusters organized in genomic bins  
+
+    Output:
+        1. metaclusters: list containing newly created metaclusters
+    '''
+
+    metaclusters = clustering.reciprocal_overlap_clustering(clustersBinDb, 1, 1, clustersBinDb.eventTypes, 50, 'META')
+
+    return metaclusters
 
 def make_consensus(clustersBinDb, confDict, reference, clusterType, rootOutDir):
     '''
@@ -371,6 +386,8 @@ class cluster():
         '''
         cluster.number += 1 # Update instances counter
         self.id = cluster.number
+        self.clusterId = None
+
 
         # Define list of events composing the cluster and cluster type
         self.events = events
@@ -656,14 +673,14 @@ class META_cluster():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, events):
+    def __init__(self, clusters):
         '''
         '''
         META_cluster.number += 1 # Update instances counter
         self.id = META_cluster.number
 
         # Define list of events composing the cluster 
-        self.events = events
+        self.events = list(itertools.chain(*[cluster.events for cluster in clusters]))
 
         # Set cluster's reference, begin and end position
         self.ref, self.beg, self.end = self.coordinates() 
