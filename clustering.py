@@ -25,7 +25,7 @@ def distance_clustering(binDb, binSize, eventTypes, clusterType, maxDist, minClu
     Input:
         1. binDb: data structure containing a set of events organized in genomic bins  
         2. binSize: bin size level to do the clustering
-        3. eventTypes: target event types to be clustered together
+        3. eventTypes: list with target event types to be clustered together
         4. clusterType: type of clusters to be created
         5. maxDist: maximum distance between two events to be clustered together
         6. minClusterSize: minimum number of events clustering together for creating a cluster
@@ -110,7 +110,7 @@ def distance_clustering(binDb, binSize, eventTypes, clusterType, maxDist, minClu
     
     return clustersList
 
-def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventType, buffer, clusterType):
+def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTypes, buffer, clusterType):
     '''
     Group events based on reciprocal overlap into clusters 
 
@@ -118,7 +118,7 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
         1. binDb: data structure containing a set of events organized in genomic bins  
         2. minPercOverlap: minimum percentage of reciprocal overlap to cluster two events together
         3. minClusterSize: minimum number of events clustering together for creating a cluster
-        4. eventType: target event type for clustering
+        4. eventTypes: list with target event types to be clustered together
         5. buffer: number of nucleotides used to extend cluster begin and end coordinates prior evaluating reciprocal overlap 
         6. clusterType: type of clusters to be created
 
@@ -136,7 +136,7 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
 
             ### 1. Collect all the events in the current bin and 
             # in bins located at higher levels of the hierarchy
-            events = binDb.traverse(index, windowSize, [eventType])
+            events = binDb.traverse(index, windowSize, eventTypes)
 
             ### 2. Cluster events based on reciprocal overlap
             ## For each event A
