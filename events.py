@@ -279,6 +279,7 @@ class INS():
         self.readSeq = readSeq
         self.readBkp = readBkp        
         self.sample = sample
+        self.clusterId = None
 
         # Supporting read alignment properties:
         if alignmentObj is None:
@@ -325,6 +326,7 @@ class DEL():
         self.readSeq = readSeq
         self.readBkp = readBkp        
         self.sample = sample
+        self.clusterId = None
     
         # Supporting read alignment properties:
         if alignmentObj is None:
@@ -363,6 +365,7 @@ class CLIPPING():
         self.readSeq = readSeq
         self.readBkp = readBkp        
         self.sample = sample
+        self.clusterId = None
 
         # Supporting read alignment properties:
         if alignmentObj is None:
@@ -398,6 +401,7 @@ class DISCORDANT():
         self.sample = sample
         self.clusterId = None
         self.identity = None
+        
         ## Set supporting read id
         mate = '/1' if side == 'MINUS' else '/2'  ### Comment from Berni: I think this assumption is not ok. MINUS are not always mate1 and PLUS mate_2. Orientation do not have to do with mate relative position
         self.readName = alignmentObj.query_name + mate
