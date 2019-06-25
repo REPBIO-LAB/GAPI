@@ -103,6 +103,8 @@ def create_discordantClusters(discordantBinDb, minClusterSize, buffer):
 
     Output:
         1. discordantClustersDict: dictionary containing for each possible discordant cluster type (keys) a list of clusters (values)
+    
+    NOTE: this function should be removed and integrated into the more generic one: 'create_clusters'
     '''
     discordantClustersDict = {}
 
@@ -115,81 +117,87 @@ def create_discordantClusters(discordantBinDb, minClusterSize, buffer):
     return discordantClustersDict
 
 
-def create_metaclusters(eventsBinDb, confDict):
+def create_clusters(eventsBinDb, confDict):
     '''
-    Group different types of SV events into metaclusters 
-
+    Group SV events into distinct clusters according to their SV type
+    
     Input:
         1. eventsBinDb: Data structure containing a set of events organized in genomic bins
         2. confDict: 
-            * targetSV            -> list with types of SV events included in the bin database provided as input 
-            * maxEventDist          -> Maximum distance bewteen two adjacent breakpoints for INS and CLIPPING clustering
-            * minClusterSize  -> minimum number of reads composing a root cluster
+            * maxInsDist: Maximum distance bewteen two adjacent INS to be clustered together
+            * maxBkpDist: Maximum distance bewteen two adjacent breakpoints for CLIPPING clustering    
+            * minClusterSize: minimum number of reads composing a root cluster
+            * minPercOverlap: minimum percentage of reciprocal overlap for DEL clustering 
 
     Output:
-        1. metaclustersBinDb: bin database structure containing metaclusters
+        1. clustersBinDb: bin database structure containing SV clusters
     ''' 
-    ## 1. Abort metaclustering if smallest bin longer than maxEventDist ##
-    binSize = eventsBinDb.binSizes[0]
-    
-    if (binSize > confDict['maxEventDist']):
-        step = 'ERROR'
-        msg = 'Smallest bin can not be longer than maxEventDist'
-        log.step(step, msg)
-        sys.exit()
 
-    allMetaclusters = []
-    clusterType = 'META'
+    ## 1. Create clusters ##
+    clustersDict = {}
 
-    ## 2. Do metaclustering ##
-    # 2.1) Create INS + CLIPPING metaclusters
-    if all(event_type in confDict['targetSV'] for event_type in ['INS', 'CLIPPING']):
-        eventTypes = ['INS', 'LEFT-CLIPPING', 'RIGHT-CLIPPING']
-        metaclusters = clustering.distance_clustering(eventsBinDb, binSize, eventTypes, clusterType, confDict['maxEventDist'], confDict['minClusterSize'])         
-        allMetaclusters = allMetaclusters + metaclusters
+    ## For each event type, group events into clusters 
+    for SV_type in eventsBinDb.eventTypes:
 
-    else:
+        ## A) Perfom clustering for INS events
+        if SV_type in ['INS']:
 
-        # 2.2) Create INS metaclusters
-        if 'INS' in confDict['targetSV']:
-            eventTypes = ['INS']
-            metaclusters = clustering.distance_clustering(eventsBinDb, binSize, eventTypes, clusterType, confDict['maxEventDist'], confDict['minClusterSize'])         
-            allMetaclusters = allMetaclusters + metaclusters
+            binLevel = eventsBinDb.binSizes[0]
+            clustersDict[SV_type] = clustering.distance_clustering(eventsBinDb, binLevel, [SV_type], SV_type, confDict['maxInsDist'], confDict['minClusterSize'])      
 
-        # 2.3) Create CLIPPING metaclusters
-        if 'CLIPPING' in confDict['targetSV']:
-            eventTypes = ['LEFT-CLIPPING', 'RIGHT-CLIPPING']
-            metaclusters = clustering.distance_clustering(eventsBinDb, binSize, eventTypes, clusterType, confDict['maxEventDist'], confDict['minClusterSize'])         
-            allMetaclusters = allMetaclusters + metaclusters
+        ## B) Perform clustering for CLIPPING events
+        elif SV_type in ['CLIPPING', 'RIGHT-CLIPPING', 'LEFT-CLIPPING']:
 
-    # 2.4) Create DEL metaclusters 
-    if 'DEL' in confDict['targetSV']:
-        eventTypes = ['DEL']
-        # TO DO  
-        # metaclusters = clustering.reciprocal_overlap_clustering()   
-        # allMetaclusters = allMetaclusters + metaclusters
+            binLevel = eventsBinDb.binSizes[0]
+            clustersDict[SV_type] = clustering.distance_clustering(eventsBinDb, binLevel, [SV_type], SV_type, confDict['maxBkpDist'], confDict['minClusterSize'])      
 
-    # 2.5) Create DISCORDANT metaclusters
-    if 'DISCORDANT' in confDict['targetSV']:
-        eventTypes = eventsBinDb.eventTypes
-        
-        for eventType in eventTypes:
-            
-            metaclusters = clustering.reciprocal_overlap_clustering(eventsBinDb, 1, confDict['minClusterSize'], eventType, 0, 'META')
-            allMetaclusters = allMetaclusters + metaclusters
+        ## C) Perform clustering based on reciprocal overlap for DEL and DISCORDANT events (TO DO)
+        else:
+            continue
 
-    if 'DISCORDANT' in confDict['targetSV']:
-        eventTypes = eventsBinDb.eventTypes
-        for eventType in eventTypes:
-            discordantClustersDict[eventType] = clustering.reciprocal_overlap_clustering(eventsBinDb, 1, confDict['minClusterSize'], eventType, 0, eventType)
-
-    ## 3. Organize metaclusters into bins ##    
+    ## 2. Organize clusters into bins ##    
     binSizes = [100, 1000, 10000, 100000, 1000000]
-    metaclustersDict = {}
-    metaclustersDict['METACLUSTERS'] = allMetaclusters 
+    clustersBinDb = structures.create_bin_database_interval(eventsBinDb.ref, eventsBinDb.beg, eventsBinDb.end, clustersDict, binSizes)
 
-    metaclustersBinDb = structures.create_bin_database_interval(eventsBinDb.ref, eventsBinDb.beg, eventsBinDb.end, metaclustersDict, binSizes)
-    return metaclustersBinDb
+    return clustersBinDb
+
+
+def polish_clusters(clustersBinDb, minClusterSize):
+    '''
+    Apply set of steps for refining clusters of SV events
+
+    Input:
+        1. clustersBinDb: Data structure containing a set of clusters organized in genomic bins  
+        2. minClusterSize: minimum cluster size
+
+    Output: 
+        It does not return variables as output. Just modify the bin database
+    '''
+    ## 1. Polish INS clusters
+    if 'INS' in clustersBinDb.eventTypes:
+        
+        # Collect all clusters
+        INS_clusters = clustersBinDb.collect(['INS'])
+
+        # Correct INS fragmentation
+        for cluster in INS_clusters:    
+
+            cluster.correct_fragmentation()
+
+        # Search for subclusters and remove outliers
+        for cluster in INS_clusters:
+
+            subclusters = cluster.identify_subclusters(minClusterSize)
+
+            # Replace cluster by newly created subclusters in the bin database
+            if subclusters:
+
+                clustersBinDb.remove([cluster], 'INS')
+                clustersBinDb.add(subclusters, 'INS')
+
+    ## 2. Polish DEL clusters (TO DO) 
+
+    ## 3. Polish CLIPPING clusters (TO DO)
 
 
 def make_consensus(clustersBinDb, confDict, reference, clusterType, rootOutDir):
@@ -238,88 +246,6 @@ def make_consensus(clustersBinDb, confDict, reference, clusterType, rootOutDir):
 
     return consensusBinDb
 
-
-def merge_fragmented_INDELS(metaclusters):
-    '''
-    Identify and merge fragmented alignments over INDELs
-
-    Input:
-        1. metaclusters: list of metaclusters  
-
-    Output:
-        1. Modify metacluster instances 
-    '''
-
-    ## For each metacluster in the list
-    for metacluster in metaclusters:
-
-        metacluster.merge_fragmented_INDELS()
-
-
-def polish_metaclusters(binDb, minClusterSize):
-    '''
-    Function to polish a set of metacluster objects. It does not produce any output just modify cluster objects through the polishing procedure
-
-    Input:
-        1. binDb: Data structure containing a set of metaclusters organized in genomic bins
-        2. minClusterSize: minimum size to create a subcluster
-
-    '''
-    ## For each metacluster in the bin database
-    for metacluster in binDb.collect(['METACLUSTERS']):
-
-        if 'INS' in metacluster.subclusters:
-            
-            INS_cluster = metacluster.subclusters['INS']
-            INS_events = INS_cluster.events
-
-            ## Compute metrics based on events length
-            meanLen, cv = INS_cluster.cv_len()
-
-            ## A) Cluster with heterogeneous lengths  
-            if cv > 15:
-
-                ## 1. Search for subclusters according to length
-                subclusters = clustering.KMeans_clustering(INS_events, None, 'length')
-
-                ## 2. Filter out subclusters supported by less than X events
-                filtered = []
-
-                for subcluster in subclusters.values():
-
-                    if len(subcluster) >= minClusterSize:
-                        filtered.append(subcluster)
-
-                ## 3. Abort subclustering if:
-                # a) Cluster no fragmented into any subcluster passing support filter
-                # b) Cluster fragmented in more than 2 subclusters passing support filter (indicative of noisy region)
-                if len(filtered) not in [1, 2]:
-                    continue
-
-                ## 4. Remove input metacluster from bin database
-                binDb.remove([metacluster], 'METACLUSTERS')
-                
-                ## 5. Create metaclusters from subclusters 
-                ## 5.1 Collect all events that are not INS
-                otherEvents = []
-                
-                for clusterType, cluster in metacluster.subclusters.items():
-
-                    if clusterType != 'INS':
-                        otherEvents = otherEvents + cluster.events
-
-                ## 5.2 For each subcluster create a metacluster
-                new_metaclusters = []
-
-                for subcluster_INS in filtered:
-
-                    allEvents = otherEvents + subcluster_INS
-
-                    new_metacluster = META_cluster(allEvents)
-                    new_metaclusters.append(new_metacluster)
-
-                ## 6. Add newly created metaclusters to bin database
-                binDb.add(new_metaclusters, 'METACLUSTERS')
 
 def find_chimeric_alignments(clusterA, clusterB):
     '''
@@ -426,6 +352,7 @@ def determine_INS_type(metaclusters, index, confDict, rootOutDir):
         ## Determine the insertion type
         outDir = rootOutDir + '/INS_type/' + str(metacluster.id)
         metacluster.determine_INS_type(index, confDict, outDir)
+
 
 #############
 ## CLASSES ##
@@ -608,19 +535,15 @@ class INS_cluster(cluster):
         self.isConsensus = None
         self.insertSeq = None
 
-    def find_fragmentation(self):
+    def correct_fragmentation(self):
         '''
-        Identify fragmented alignments over INS
+        Correct fragmented alignments over INS
         
         Before merging:
         ############<<<INS>>>##<<INS>>###<<<INS>>>##############
         
         After merging:
-        ############<<<<<<<<INS>>>>>>>>##############
-        
-        Output:
-            1. merged_list: list of merged INS objects
-            2. fragmented_list: list of fragmented INS events that has been merged
+        ############<<<<<<<<INS>>>>>>>>##############        
         '''
         ## 1. Organize INS events into a dictionary according to their supporting read
         eventsByReads =  {}
@@ -654,7 +577,52 @@ class INS_cluster(cluster):
                 ## 2.3 Update fragmented alignments list
                 fragmented_list = fragmented_list + INS_list
     
-        return merged_list, fragmented_list
+        ## 3. Update cluster
+        self.add(merged_list)
+        self.remove(fragmented_list)
+
+    def identify_subclusters(self, minClusterSize):
+        '''
+        Identify subclusters of INS with similar lengths
+
+        Input:
+            1. minClusterSize: minimum size to create a subcluster
+
+        Output:
+            1. subclusters: list of subclusters
+        '''
+
+        subclusters = []
+
+        ## Compute metrics based on events length
+        meanLen, cv = self.cv_len()
+
+        ## A) Cluster with heterogeneous lengths  
+        if cv > 15:
+
+            ## 1. Cluster events according to their length
+            clustered = clustering.KMeans_clustering(self.events, None, 'length')
+
+            ## 2. Filter out subclusters supported by less than X events
+            clusteredFiltered = []
+
+            for cluster in clustered.values():
+
+                if len(cluster) >= minClusterSize:
+                    clusteredFiltered.append(cluster)
+
+            ## 3. Create subclusters
+            # NOTE: Don´t create subclusters if:
+            #   a) Cluster no fragmented into any subcluster passing support filter OR
+            #   b) Cluster fragmented in more than 2 subclusters passing support filter (indicative of noisy region)
+            if len(clusteredFiltered) in [1, 2]:
+
+                for events in clusteredFiltered:
+
+                    subcluster = INS_cluster(events)
+                    subclusters.append(subcluster)
+
+        return subclusters     
 
 class DEL_cluster(cluster):
     '''
@@ -672,6 +640,7 @@ class CLIPPING_cluster(cluster):
     def __init__(self, events):
 
         cluster.__init__(self, events, 'CLIPPING')
+
 
 class DISCORDANT_cluster(cluster):
     '''
@@ -838,36 +807,6 @@ class META_cluster():
                     FASTA.seqDict[event.readName] = event.readSeq 
      
         return FASTA
-
-    def merge_fragmented_INDELS(self):
-        '''
-        Identify and merge fragmented alignments over INDELs
-        
-        **** DEL fragmentation ****
-        Before merging:
-        ############---DEL---##--DEL--###---DEL---##############
-        
-        After merging:
-        ############----------DEL----------##############
-        '''
-        ## Metacluster contains an INS cluster
-        if 'INS' in self.subclusters:
-
-            ## 1) Correct INS fragmentation at cluster level
-            merged, fragmented = self.subclusters['INS'].find_fragmentation()
-
-            ## 2) Add merged INS events to the metacluster
-            self.add(merged)
-
-            ## 3) Remove fragmented INS events from metacluster
-            self.remove(fragmented)
-
-        ## MEtacluster contains a DEL cluster
-        #if 'DEL' in self.subclusters:
-            #self.subclusters['DEL'].find_fragmentation()
-
-        # Sort events from lower to upper beg coordinates
-        self.sort()  
 
     def nbEvents(self):
         '''
@@ -1155,7 +1094,7 @@ class META_cluster():
 
         ## 5. Define metacluster type based on events collected from consensus sequence realignment
         # A) Single INS event
-        if len(eventsDict['INS']) == 1:
+        if ('INS' in eventsDict) and len(eventsDict['INS']) == 1:
 
             ## Set metacluster type
             SV_type = 'INS'
@@ -1167,7 +1106,7 @@ class META_cluster():
         # Raw alignment    -------------[INS]-[INS]---[INS]-------------
         # Consensus        -------------[       INS       ]-------------
         # This is consequence of fragmented alignments. So Merge events into a single consensus INS
-        elif len(eventsDict['INS']) > 1:
+        elif ('INS' in eventsDict) and (len(eventsDict['INS']) > 1):
 
             ## Set metacluster type
             SV_type = 'INS'
@@ -1179,7 +1118,7 @@ class META_cluster():
             consensus = alignment.targetered2genomic_coord(merged, self.ref, intervalBeg)
 
         # C) Single DEL event
-        elif (len(eventsDict['DEL']) == 1) and ('DEL' in self.subclusters):
+        elif ('DEL' in eventsDict) and (len(eventsDict['DEL']) == 1) and ('DEL' in self.subclusters):
 
             ## Set metacluster type
             SV_type = 'DEL'
@@ -1188,7 +1127,7 @@ class META_cluster():
             consensus = alignment.targetered2genomic_coord(eventsDict['DEL'][0], self.ref, intervalBeg)
 
         # D) Multiple DEL events 
-        elif (len(eventsDict['DEL']) > 1) and ('DEL' in self.subclusters):
+        elif ('DEL' in eventsDict) and (len(eventsDict['DEL']) > 1) and ('DEL' in self.subclusters):
 
             ## Set metacluster type
             SV_type = None
@@ -1199,7 +1138,7 @@ class META_cluster():
             consensus = None
 
         # E) One left and one right CLIPPING 
-        elif (len(eventsDict['LEFT-CLIPPING']) == 1) and (len(eventsDict['RIGHT-CLIPPING']) == 1):
+        elif ('LEFT-CLIPPING' in eventsDict) and ('RIGHT-CLIPPING' in eventsDict) and (len(eventsDict['LEFT-CLIPPING']) == 1) and (len(eventsDict['RIGHT-CLIPPING']) == 1):
 
             ## Set metacluster type
             SV_type = 'INS'
