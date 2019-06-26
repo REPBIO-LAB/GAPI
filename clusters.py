@@ -36,7 +36,7 @@ def create_cluster(events, clusterType):
     Function to create a cluster object instance
 
     Input:
-        1. events: list of events that will compose the cluster
+        1. events: list of events/clusters that will compose the cluster
         2. clusterType: type of cluster (META: metacluster; INS: insertion; DEL: deletion; CLIPPING: clipping; DISCORDANT: discordant paired-end)
 
     Output:
@@ -45,6 +45,7 @@ def create_cluster(events, clusterType):
     cluster = ''
 
     ## a) Create META cluster
+    # Note: events should correspond to a list of clusters 
     if (clusterType == 'META'):
         cluster = META_cluster(events)
 
@@ -74,20 +75,32 @@ def create_cluster(events, clusterType):
 
 def merge_clusters(clusters, clusterType):
     '''
-    Merge a set of clusters into a single cluster instance
+    Merge a set of clusters/metaclusters into a single cluster/metacluster instance
 
     Input:
-        1. clusters: list of clusters that will be merged
-        2. clusterType: type of cluster (INS: insertion; DEL: deletion; CLIPPING: clipping)
+        1. clusters: list of clusters/metaclusters that will be merged
+        2. clusterType: type of cluster to be merged (INS: insertion; DEL: deletion; CLIPPING: clipping; META: metacluster)
 
     Output:
-        1. cluster: merged cluster instance
+        1. cluster: merged cluster/metacluster instance
     '''
-    events = []
-    for cluster in clusters:
-        events = events + cluster.events
+    # A) Merge metaclusters
+    if clusterType == 'META':
+        subclusters = []
+         
+        for metacluster in clusters:
+            subclusters = subclusters + list(metacluster.subclusters.values())
 
-    mergedCluster = create_cluster(events, clusterType)
+        mergedCluster = create_cluster(subclusters, clusterType)
+
+    # B) Merge standard clusters
+    else:
+
+        events = []
+        for cluster in clusters:
+            events = events + cluster.events
+
+        mergedCluster = create_cluster(events, clusterType)
 
     return mergedCluster
 
@@ -141,7 +154,7 @@ def create_clusters(eventsBinDb, confDict):
     for SV_type in eventsBinDb.eventTypes:
 
         ## A) Perfom clustering for INS events
-        if SV_type in ['INS']:
+        if SV_type == 'INS':
 
             binLevel = eventsBinDb.binSizes[0]
             clustersDict[SV_type] = clustering.distance_clustering(eventsBinDb, binLevel, [SV_type], SV_type, confDict['maxInsDist'], confDict['minClusterSize'])      
@@ -152,9 +165,16 @@ def create_clusters(eventsBinDb, confDict):
             binLevel = eventsBinDb.binSizes[0]
             clustersDict[SV_type] = clustering.distance_clustering(eventsBinDb, binLevel, [SV_type], SV_type, confDict['maxBkpDist'], confDict['minClusterSize'])      
 
-        ## C) Perform clustering based on reciprocal overlap for DEL and DISCORDANT events (TO DO)
-        else:
-            continue
+        ## C) Perform clustering based on reciprocal overlap for DEL 
+        elif SV_type == 'DEL':
+
+            clustersDict[SV_type] = clustering.reciprocal_overlap_clustering(eventsBinDb, 20, confDict['minClusterSize'], [SV_type], 0, SV_type)
+
+        ## D) Perform clustering based on reciprocal overlap for DISCORDANT
+        elif SV_type == 'DISCORDANT':
+
+            clustersDict[SV_type] = clustering.reciprocal_overlap_clustering(eventsBinDb, 1, confDict['minClusterSize'], [SV_type], 100, SV_type)    
+
 
     ## 2. Organize clusters into bins ##    
     binSizes = [100, 1000, 10000, 100000, 1000000]
@@ -210,10 +230,22 @@ def create_metaclusters(clustersBinDb):
     Output:
         1. metaclusters: list containing newly created metaclusters
     '''
-
     metaclusters = clustering.reciprocal_overlap_clustering(clustersBinDb, 1, 1, clustersBinDb.eventTypes, 50, 'META')
 
     return metaclusters
+
+def SV_type_metaclusters(metaclusters):
+    '''
+    Infer the SV type supported by each metacluster
+
+    Input:
+        1. metaclusters: list of metaclusters
+
+    Output:
+    '''
+    for metacluster in metaclusters:
+        metacluster.determine_SV_type()
+
 
 def make_consensus(clustersBinDb, confDict, reference, clusterType, rootOutDir):
     '''
@@ -385,9 +417,8 @@ class cluster():
         '''
         '''
         cluster.number += 1 # Update instances counter
-        self.id = cluster.number
+        self.id = 'CLUSTER_' + str(cluster.number)
         self.clusterId = None
-
 
         # Define list of events composing the cluster and cluster type
         self.events = events
@@ -399,6 +430,10 @@ class cluster():
         # Cluster filtering
         self.filters = None
         self.nbOutliers = 0
+
+        # Update event's clusterId attribute
+        for event in events:
+            event.clusterId = self.id        
 
     def sort(self):
         '''
@@ -441,6 +476,10 @@ class cluster():
 
         # Resort and redefine cluster begin and end coordinates
         self.ref, self.beg, self.end = self.coordinates() 
+
+        # Update event's clusterId attribute
+        for event in events2add:
+            event.clusterId = self.id
 
     def remove(self, events2remove):
         '''
@@ -677,7 +716,7 @@ class META_cluster():
         '''
         '''
         META_cluster.number += 1 # Update instances counter
-        self.id = META_cluster.number
+        self.id = 'META_' + str(META_cluster.number)
 
         # Define list of events composing the cluster 
         self.events = list(itertools.chain(*[cluster.events for cluster in clusters]))
@@ -700,6 +739,11 @@ class META_cluster():
         self.INS_features = {}
         self.DEL_features = {}
         self.BKP_features = {}
+
+
+        # Update input cluster's clusterId attribute
+        for cluster in clusters:
+            cluster.clusterId = self.id
 
     def sort(self):
         '''
@@ -737,19 +781,23 @@ class META_cluster():
             ## Create subcluster
             subcluster = create_cluster(eventList, eventType) 
 
+            ## Set subcluster metacluster id attribute:
+            subcluster.clusterId = self.id
+
             ## Add subcluster to the dict
             subclusters[eventType] = subcluster 
 
         return subclusters
 
-    def add(self, events2add):
+    def add(self, clusters2add):
         '''
-        Add a list of events to the metacluster and corresponding subclusters
+        Add a list of clusters to the metacluster 
 
         Input:
-            1. events2add: List of events to be added 
+            1. clusters2add: List of clusters to be added 
         '''
-        ## 1. Add events to the metacluster ##
+        ## 1. Add events within the input cluster to the metacluster ##
+        events2add = list(itertools.chain(*[cluster.events for cluster in clusters2add]))
         self.events = self.events + events2add
 
         ## 2. Resort and redefine metacluster begin and end coordinates ##
@@ -767,12 +815,19 @@ class META_cluster():
                 ## Create subcluster
                 subcluster = create_cluster(eventList, eventType) 
             
+                ## Set subcluster metacluster id attribute:
+                subcluster.clusterId = self.id
+
                 ## Add subcluster to the dict
                 self.subclusters[eventType] = subcluster 
 
             # b) Add events to pre-existing subcluster
             else:
                 self.subclusters[eventType].add(eventList)
+
+        # Update input cluster's clusterId attribute
+        for cluster in clusters2add:
+            cluster.clusterId = self.id
 
     def remove(self, events2remove):
         '''
@@ -871,6 +926,7 @@ class META_cluster():
 
         return nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING
         
+
     def supportingCLIPPING(self, buffer, confDict, bam, normalBam, mode):
         # Note: This function works but you have to allow duplicates in the clipping 
 
@@ -1199,6 +1255,15 @@ class META_cluster():
         unix.rm([outDir])
 
         return SV_type, consensus
+
+    def determine_SV_type(self): 
+        '''
+        Determine the type of SV supported by the metacluster
+        '''
+        subClusterTypes = list(self.subclusters.keys())
+
+        #print('SV_type: ', len(subClusterTypes), subClusterTypes)
+
 
     def determine_INS_type(self, index, confDict, outDir): 
         '''

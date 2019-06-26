@@ -269,7 +269,7 @@ class INS():
         '''
         '''
         INS.number += 1 # Update instances counter
-        self.id = INS.number
+        self.id = 'INS_' + str(INS.number)
         self.type = 'INS'
         self.ref = str(ref)
         self.beg = int(beg) # beg==end. 0-based INS breakpoint
@@ -316,7 +316,7 @@ class DEL():
         '''
         '''
         DEL.number += 1 # Update instances counter
-        self.id = DEL.number
+        self.id = 'DEL_' + str(DEL.number)
         self.type = 'DEL'
         self.ref = str(ref)
         self.beg = int(beg)
@@ -353,7 +353,7 @@ class CLIPPING():
         '''
         '''
         CLIPPING.number += 1 # Update instances counter
-        self.id = CLIPPING.number
+        self.id = 'CLIPPING_' + str(CLIPPING.number)
         self.type = 'CLIPPING'
         self.ref = str(ref)
         self.beg = int(beg) # beg==end. 0-based CLIPPING breakpoint
@@ -391,7 +391,7 @@ class DISCORDANT():
 
     def __init__(self, ref, beg, end, side, readName, alignmentObj, sample):
         DISCORDANT.number += 1 # Update instances counter
-        self.id = DISCORDANT.number
+        self.id = 'DISCORDANT_' + str(DISCORDANT.number)
         self.type = 'DISCORDANT'
         self.ref = str(ref)
         self.beg = int(beg)
@@ -400,7 +400,6 @@ class DISCORDANT():
         self.readName = readName
         self.sample = sample
         self.clusterId = None
-        self.identity = None
         
         ## Set supporting read id
         mate = '/1' if side == 'MINUS' else '/2'  ### Comment from Berni: I think this assumption is not ok. MINUS are not always mate1 and PLUS mate_2. Orientation do not have to do with mate relative position
