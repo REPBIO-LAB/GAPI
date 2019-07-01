@@ -215,8 +215,8 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
                     for cluster in clusters2merge:
                         clustersDict.pop(cluster.id, None)
 
-                # C) No cluster overlaps A, but there are events overlapping A
-                elif eventsOverlapA:
+                # C) No cluster overlaps A
+                else:
 
                     events2Cluster = [eventA] + eventsOverlapA 
 
