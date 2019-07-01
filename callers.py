@@ -64,6 +64,9 @@ class SV_caller_long(SV_caller):
         ### 3. Search for SV clusters in each bin ##
         # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
+        pool.map(self.make_clusters_bin, bins)
+
+        '''
         metaclustersBinDb = pool.map(self.make_clusters_bin, bins)
         pool.close()
         pool.join()
@@ -73,7 +76,8 @@ class SV_caller_long(SV_caller):
 
         ### 5. Do cleanup
         unix.rm([dbDir])
-
+        '''
+        
     def make_clusters_bin(self, window):
         '''
         Search for structural variant (SV) clusters in a genomic bin/window
@@ -109,12 +113,63 @@ class SV_caller_long(SV_caller):
         log.step(step, msg)
 
         ## Define bin database sizes 
-        binSizes = [self.confDict['maxEventDist'], 1000, 10000, 100000, 1000000]
+        minBinSize = min([self.confDict['maxInsDist'], self.confDict['maxBkpDist']])
+        binSizes = [minBinSize, 1000, 10000, 100000, 1000000]
 
         ## Create bins
         eventsBinDb = structures.create_bin_database_interval(ref, beg, end, eventsDict, binSizes)
 
-        ## 3. Group events into SV metaclusters ##
+        ## 3. Group events into clusters ##
+        step = 'CLUSTERING'
+        msg = 'Group events into clusters' 
+        log.step(step, msg)
+
+        clustersBinDb = clusters.create_clusters(eventsBinDb, self.confDict)
+        
+        msg = 'Number of created clusters: ' + str(clustersBinDb.nbEvents()[0])
+        log.step(step, msg)
+
+        ## 4. Polish clusters ##
+        step = 'POLISH'
+        msg = 'Polish SV clusters' 
+        log.step(step, msg)
+        clusters.polish_clusters(clustersBinDb, self.confDict['minClusterSize'])
+
+        ## 5. Group events into metaclusters ##
+        step = 'META-CLUSTERING'
+        msg = 'Group events into metaclusters' 
+        log.step(step, msg)
+
+        metaclusters = clusters.create_metaclusters(clustersBinDb)
+        
+        msg = 'Number of created metaclusters: ' + str(len(metaclusters)) 
+        log.step(step, msg)
+
+        ## 6. Infer structural variant type ##
+        #step = 'SV-TYPE'
+        #msg = 'Infer structural variant type' 
+        #log.step(step, msg)
+
+        #clusters.SV_type_metaclusters(metaclusters, self.confDict['technology'], binDir)
+        
+        #msg = 'Number of created metaclusters: ' + str(len(metaclusters))
+        #log.step(step, msg)
+
+        ## 6. Filter metaclusters ##
+        #step = 'FILTER'
+        #msg = 'Filter out metaclusters' 
+        #log.step(step, msg)
+        #metaclusters = clusters.filter_metaclusters(clustersBinDb)
+        
+
+        ## 7. Create consensus sequence for metaclusters #
+        
+        ### Do cleanup
+        unix.rm([binDir])
+
+        '''
+        ## 3. Group events into metaclusters ##
+
         metaclustersBinDb = clusters.create_metaclusters(eventsBinDb, self.confDict)
         
         step = 'META-CLUSTERING'
@@ -127,13 +182,6 @@ class SV_caller_long(SV_caller):
         log.step(step, msg)
 
         clusters.merge_fragmented_INDELS(metaclustersBinDb.collect(['METACLUSTERS']))
-
-        ## 5. Cluster polishing
-        step = 'POLISH'
-        msg = 'Polish metaclusters' 
-        log.step(step, msg)
-
-        clusters.polish_metaclusters(metaclustersBinDb, self.confDict['minClusterSize'])
 
         ## 6. Create consensus sequence for each SV metacluster
         step = 'CONSENSUS'
@@ -149,11 +197,10 @@ class SV_caller_long(SV_caller):
 
         clusters.determine_INS_type(consensusBinDb.collect(['INS']), self.retrotransposonDbIndex, self.confDict, binDir)
 
-        ### Do cleanup
-        unix.rm([binDir])
+
 
         return consensusBinDb
-
+        '''
 
 class SV_caller_short(SV_caller):
     '''
