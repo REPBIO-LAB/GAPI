@@ -112,18 +112,18 @@ def distance_clustering(binDb, binSize, eventTypes, clusterType, maxDist, minClu
 
 def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTypes, buffer, clusterType):
     '''
-    Group events based on reciprocal overlap into clusters 
+    Group events/clusters based on reciprocal overlap into clusters/metaclusters
 
     Input:
-        1. binDb: data structure containing a set of events organized in genomic bins  
+        1. binDb: data structure containing a set of events/clusters organized in genomic bins  
         2. minPercOverlap: minimum percentage of reciprocal overlap to cluster two events together
         3. minClusterSize: minimum number of events clustering together for creating a cluster
         4. eventTypes: list with target event types to be clustered together
         5. buffer: number of nucleotides used to extend cluster begin and end coordinates prior evaluating reciprocal overlap 
-        6. clusterType: type of clusters to be created
+        6. clusterType: type of clusters to be created (If "META", metaclustering will be performed)
 
     Output:
-        1. clustersList: list of created clusters
+        1. clustersList: list of created clusters/metaclusters
     '''
     eventsInClusters = []
     clustersDict = {}
@@ -192,22 +192,18 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
                     clusterId = clustersOverlapA[0]
                     clustersDict[clusterId].add(events2Cluster)
 
-                    # Update cluster id for each event
-                    for event in events2Cluster:
-                        event.clusterId = clustersDict[clusterId].id
-
                 # B) Multiple clusters overlap A -> Merge clusters and add A and its overlapping events into the merged cluster
                 elif len(clustersOverlapA) > 1:
-
-                    ## Add events to the list of events already included into clusters
-                    events2Cluster = [eventA] + eventsOverlapA 
-                    eventsInClusters += [ event.id for event in events2Cluster]
 
                     ## Make list of clusters overlapping A
                     clusters2merge = [ clustersDict[clusterId] for clusterId in clustersOverlapA ]
 
-                    ## Create merged cluster
-                    mergedCluster = clusters.merge_clusters(clusters2merge, eventType)
+                    ## Create merged cluster                    
+                    mergedCluster = clusters.merge_clusters(clusters2merge, clusterType)
+
+                    ## Add events to the list of events already included into clusters
+                    events2Cluster = [eventA] + eventsOverlapA 
+                    eventsInClusters += [ event.id for event in events2Cluster]
 
                     ## Add events to the merged cluster
                     mergedCluster.add(events2Cluster)
@@ -218,36 +214,29 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
                     ## Remove clusters that were merged from the clusters dictionary
                     for cluster in clusters2merge:
                         clustersDict.pop(cluster.id, None)
-                    
-                    # Update cluster id for each event
-                    for event in events2Cluster:
-                        event.clusterId = mergedCluster.id
 
-                # C) No cluster overlaps A -> attempt to create a new cluster composed by A and its overlapping events
-                else:
+                # C) No cluster overlaps A, but there are events overlapping A
+                elif eventsOverlapA:
+
                     events2Cluster = [eventA] + eventsOverlapA 
-                    clusterSize = len(events2Cluster)
 
-                    # D) Cluster composed by >= X events:
-                    if clusterSize >= minClusterSize:
+                    # D) A + overlapping events would make a cluster composed by >= minClusterSize:
+                    if len(events2Cluster) >= minClusterSize:
 
                         # Add events to the list of events already included into clusters
                         eventsInClusters += [ event.id for event in events2Cluster]
 
                         # Create cluster                        
                         cluster = clusters.create_cluster(events2Cluster, clusterType)
-                        clustersDict[cluster.id] = cluster
 
-                        # Update cluster id for each event
-                        for event in events2Cluster:
-                            event.clusterId = cluster.id
+                        # Add cluster to the dict
+                        clustersDict[cluster.id] = cluster
 
                     # Cluster not composed by enough number of events
     
     clustersList = list(clustersDict.values())
-
+    
     return clustersList
-
 
 
 def KMeans_clustering(events, x, y):
