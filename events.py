@@ -180,18 +180,30 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb):
                                     - Event type: DISCORDANT   
                                     - Type: identity type. It can be retrotransposon family (L1, Alu, ...), source element (22q, 5p, ...), viral strain (HPV, ...)
     '''
-    ## 1. Assess if discordant read pairs support transduction insertion RT insertion 
-    discordantsTd = annotation.intersect_mate_annotation(discordants, transducedBinDb)
+    ## 1. Assess if discordant read pairs support transduction insertion if transduction database provided
+    if transducedBinDb is not None:
+        discordantsTd = annotation.intersect_mate_annotation(discordants, transducedBinDb)
+
+        ## Separate discordants matching from those not matching source elements
+        discordants = []
+
+        if 'PLUS_DISCORDANT_None':
+            discordants = discordants + discordantsTd['PLUS_DISCORDANT_None']
+            discordantsTd.pop('PLUS_DISCORDANT_None', None)
+
+        if 'MINUS_DISCORDANT_None':
+            discordants = discordants + discordantsTd['MINUS_DISCORDANT_None']
+            discordantsTd.pop('MINUS_DISCORDANT_None', None)
+        
 
     ## 2. Assess if discordant read pairs support transduction insertion
-    discordants = discordantsTd['PLUS_DISCORDANT_None'] + discordantsTd['MINUS_DISCORDANT_None']
-    discordantsTd.pop('PLUS_DISCORDANT_None', None)
-    discordantsTd.pop('MINUS_DISCORDANT_None', None)
+    discordantsRt = annotation.intersect_mate_annotation(discordants, repeatsBinDb)
 
-    discordantsRt= annotation.intersect_mate_annotation(discordants, repeatsBinDb)
-
-    ## 3. Merge discordant read pairs supporting RT and transduction insertions
-    discordantsIdentity = {**discordantsTd, **discordantsRt}
+    ## 3. Merge discordant read pairs supporting RT and transduction insertions if transduction database provided
+    if transducedBinDb is not None:
+        discordantsIdentity = {**discordantsTd, **discordantsRt}
+    else:
+        discordantsIdentity = discordantsRt
 
     '''
     ## 2. Assess if discordant read pairs support viral insertion
