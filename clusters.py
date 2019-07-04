@@ -826,6 +826,12 @@ class META_cluster():
         # Organize events into subclusters
         self.subclusters = self.create_subclusters()
 
+        # Tag germline or somatic
+        self.mutOrigin = None
+
+        # Set some metacluster properties as None
+        self.failedFilters = None
+        
         # Update input cluster's clusterId attribute
         for cluster in clusters:
             cluster.clusterId = self.id

@@ -54,9 +54,13 @@ parser.add_argument('--minPercOverlap', default=70, dest='minPercRcplOverlap', t
 
 ## Filtering
 # Long
-parser.add_argument('--clusterFilters', default='MIN_READS,MAX_READS,CV', dest='clusterFilters', type=str, help='Comma separated list of cluster filters to apply (minimum number of reads, max number of reads, minimum Coefficient of Variation and minimum percentage of outliers). Default: MIN-NBREADS,MAX-NBREADS,CV,OUTLIERS')
+parser.add_argument('--clusterFilters', default='MIN-NBREADS,MAX-NBREADS,CV,SVTypeFilter', dest='clusterFilters', type=str, help='Comma separated list of cluster filters to apply (minimum number of reads, max number of reads, minimum Coefficient of Variation and minimum percentage of outliers). Default: MIN-NBREADS,MAX-NBREADS,CV,SVTypeFilter')
 parser.add_argument('--minClusterSize', default=2, dest='minClusterSize', type=int, help='Minimum number of reads composing a cluster. Default: 2')
-parser.add_argument('--maxClusterSize', default=500, dest='maxClusterSize', type=int, help='Maximum number of reads composing a cluster. Default: 500')
+parser.add_argument('--maxClusterSize', default=500, dest='maxClusterSize', type=int, help='Maximum number of reads composing a metacluster. Default: 500')
+parser.add_argument('--maxClusterCV', default=20, dest='maxClusterCV', type=int, help='Maximum coefficient of variation of a metacluster. Default: 20')
+parser.add_argument('--minSupportingReads', default=3, dest='minSupportingReads', type=int, help='Minimum number of reads supporting a SV. Default: 3')
+parser.add_argument('--minNormalSupportingReads', default=2, dest='minNormalSupportingReads', type=int, help='Minimum number of reads supporting a SV in normal sample. Default: 2')
+
 
 # Short
 parser.add_argument('--minReadsRegionMQ', default=10, dest='minReadsRegionMQ', type=int, help='Surrounding reads above this MQ are considered low MQ reads. Default: 10')
@@ -102,6 +106,9 @@ minPercRcplOverlap = args.minPercRcplOverlap
 clusterFilters = args.clusterFilters
 minClusterSize = args.minClusterSize
 maxClusterSize = args.maxClusterSize
+maxClusterCV = args.maxClusterCV
+minSupportingReads = args.minSupportingReads
+minNormalSupportingReads = args.minNormalSupportingReads
 
 # Short
 minReadsRegionMQ = args.minReadsRegionMQ
@@ -169,6 +176,9 @@ print('** Filtering **')
 print('clusterFilters: ', clusterFilters)
 print('minClusterSize: ', minClusterSize)
 print('maxClusterSize: ', maxClusterSize)
+print ('maxClusterCV: ', maxClusterCV)
+print ('minSupportingReads: ', minSupportingReads)
+print ('minNormalSupportingReads: ', minNormalSupportingReads)
 print('minReadsRegionMQ: ', minReadsRegionMQ)
 print('maxRegionlowMQ: ', maxRegionlowMQ)
 print('maxRegionSMS: ', maxRegionSMS, "\n")
@@ -214,6 +224,9 @@ confDict['minPercRcplOverlap'] = minPercRcplOverlap
 confDict['clusterFilters'] = clusterFilters
 confDict['minClusterSize'] = minClusterSize
 confDict['maxClusterSize'] = maxClusterSize
+confDict['maxClusterCV'] = maxClusterCV
+confDict['minSupportingReads'] = minSupportingReads
+confDict['minNormalSupportingReads'] = minNormalSupportingReads
 
 ## Filtering thresholds short reads
 confDict['minReadsRegionMQ'] = minReadsRegionMQ
