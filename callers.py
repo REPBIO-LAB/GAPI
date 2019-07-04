@@ -19,6 +19,7 @@ import clusters
 import output
 import annotation
 import bkp
+import filters
 
 ## FUNCTIONS ##
 
@@ -150,10 +151,10 @@ class SV_caller_long(SV_caller):
         metaclustersSVType = clusters.SV_type_metaclusters(metaclusters, self.confDict['minINDELlen'], self.confDict['technology'], binDir)
         
         ## 7. Filter metaclusters ##
-        #step = 'FILTER-ROUND_1'
-        #msg = 'Filter out metaclusters' 
-        #log.step(step, msg)
-        #metaclusters = clusters.filter_metaclusters(clustersBinDb)
+        step = 'FILTER-ROUND_1'
+        msg = 'Filter out metaclusters' 
+        log.step(step, msg)
+        metaclustersSVType, metaclustersSVTypeFailed = filters.filter_metaclusters(metaclustersSVType, self.confDict)
         
         ## 8. Generate consensus event for SV metaclusters ##
         step = 'CONSENSUS'

@@ -47,10 +47,6 @@ def analyzeMetaclusters(clustersBinDb, confDict, bam, normalBam, mode, db, index
         leftIntConsensusSeq = None
         rightIntConsensusSeq = None
 
-        # Set origin
-        if mode == 'PAIRED':
-            metacluster.setIntOrigin()
-
         dictMetaclusters[metacluster] = {}
 
         bkpDir = outDir + '/' + metacluster.ref + '_' + str(metacluster.beg) + '_' + str(metacluster.end)

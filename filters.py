@@ -11,47 +11,41 @@ import pysam
 
 ## [SR CHANGE]: bam files added as argument
 ## TODO: ADD NORMAL BAM!!!
-def filterClusters(clusters, clusterType, confDict, tumourBam):
+def filter_metaclusters(META_clustersDict, confDict):
     '''
-    Function to apply filters to each cluster according to its type. It does not produce any output just modify cluster's attribute filters.
+    Function to apply filters all metaclusters. 
 
     Input:
-        1. clusters: bin database containing a set of cluster objects
-        2. clusterType: type of cluster (INS-CLUSTER: insertion; DEL-CLUSTER: deletion; LEFT-CLIPPING-CLUSTER: left clipping; RIGHT-CLIPPING-CLUSTER: right clipping)
-        3. confDict
+        1. META_clustersDict: keys -> SV_type, value -> list of metaclusters corresponding to this SV_type.
+        2. confDict
+    Output:
+        1. META_clustersDict: Same dictionary as input without those metaclusters that failed one or more filters.
+        2. META_clustersFailedDict: Dictionary with same structure as the input one, containig those metaclusters that failed one or more filters.
     '''
 
     ## Get a list containing the filters to apply
     filters2Apply = confDict['clusterFilters'].split(',')
 
-    ## [SR CHANGE] collect cluster types
-    clusterTypes = clusters.eventTypes
+    META_clustersFailedDict = {}
+    
+    ## Interrogate seleted filters for each metacluster and keep it in the dictionary or move it to the failed metaclusters dictionary.
+    for SV_type, META_clustersList in META_clustersDict.items():
 
-    ## For each cluster
-    for cluster in clusters.collect(clusterTypes):
-        
-        ## a) Filter INS cluster
-        if (clusterType == 'INS-CLUSTER'):
-            cluster.filters = filterINS(cluster, filters2Apply, confDict)
+        META_clustersFailedList = []
 
-        ## b) Filter DEL cluster
-        elif (clusterType == 'DEL-CLUSTER'):
-            cluster.filters = filterDEL(cluster, filters2Apply, confDict)
+        for META_cluster in META_clustersList:
 
-        ## c) Filter CLIPPING cluster
-        elif (clusterType == 'LEFT-CLIPPING-CLUSTER') or (clusterType == 'RIGHT-CLIPPING-CLUSTER'):
-            cluster.filters = filterCLIPPING(cluster, filters2Apply, confDict)
+            META_cluster.failedFilters = filter_METAcluster(META_cluster, filters2Apply, confDict)
 
-        ## [SR CHANGE]
-        ## TODO: CHANGE THIS EVENTYPE!!!!!!
-        ## c) Filter DISCORDANT cluster
-        elif 'DISCORDANT' in clusterType:
-            cluster.filters = filterDISCORDANT(cluster, filters2Apply, confDict, tumourBam)
+            if META_cluster.failedFilters != []:
+                META_clustersList.remove(META_cluster)
+                META_clustersFailedList.append(META_cluster)
+                META_clustersFailedDict[SV_type] = META_clustersFailedList
+    
+    return META_clustersDict, META_clustersFailedDict
 
-        ## d) Unexpected cluster type
-        else:
-            log.info('Error at \'filterClusters\'. Unexpected cluster type')
-            sys.exit(1)
+
+# HACER OTRA PARECIDA A LA QUE ESTABA PARA SHORT READS
 
 ## [SR CHANGE]
 def applyFilters(clusters):
@@ -71,92 +65,43 @@ def applyFilters(clusters):
 
     return newClusterDict
 
-def filterINS(cluster, filters2Apply, confDict):
+
+def filter_METAcluster(META_cluster, filters2Apply, confDict):
     '''
-    Apply appropriate filters to each INS-CLUSTER.
+    Apply selected filters to one metacluster.
 
     Input:
-        1. cluster: cluster object
+        1. META_cluster: META_cluster object
         2. filters2Apply: list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
         3. confDict
     Output:
-        1. filterInsResults -> keys: name of filters; values: True if the cluster pass the filter, False if it doesn't pass.
+        1. failedFilters -> list containing those filters that the metacluster doesn't pass.
     '''
-    filterInsResults = {}
+    failedFilters = []
 
     ## 1. FILTER 1: Minimum number of reads per cluster
     if 'MIN-NBREADS' in filters2Apply: # check if the filter is selected
-        filterInsResults['MIN-NBREADS'] = minNbEventsFilter(cluster,  confDict['minClusterSize'])
+        if not minNbEventsFilter(META_cluster,  confDict['minSupportingReads'], confDict['minNormalSupportingReads']):
+            failedFilters.append('MIN-NBREADS')
+
 
     ## 2. FILTER 2: Maximum number of reads per cluster
     if 'MAX-NBREADS' in filters2Apply: # check if the filter is selected
-        filterInsResults['MAX-NBREADS'] = maxNbEventsFilter(cluster,  confDict['maxClusterSize'])
+        if not maxNbEventsFilter(META_cluster,  confDict['maxClusterSize']):
+            failedFilters.append('MAX-NBREADS')
+
 
     ## 3. FILTER 3: Maximum Coefficient of Variance per cluster
-    if 'CV' in filters2Apply: # check if the filter is selected
-        filterInsResults['CV'] = maxCvFilter(cluster, confDict['maxClusterCV'])
+    if 'INS' in META_cluster.subclusters and 'CV' in filters2Apply: # check if the filter is selected
+        if not maxCvFilter(META_cluster, confDict['maxClusterCV']):
+            failedFilters.append('CV')
 
-    ## 4. FILTER 4: Maximum percentage of removed outliers per cluster
-    if 'OUTLIERS' in filters2Apply: # check if the filter is selected
-        filterInsResults['OUTLIERS'] = maxPercOutliers(cluster, confDict['maxOutliers'])
+    ## 4. FILTER 4: Whether a metacluster has a SV_type assigned or not
+    if 'SVTypeFilter' in filters2Apply: # check if the filter is selected
+        if not SVTypeFilter(META_cluster):
+            failedFilters.append('SVTypeFilter')
 
-    return filterInsResults
-
-def filterDEL(cluster, filters2Apply, confDict):
-    '''
-    Apply appropriate filters to each DEL-CLUSTER.
-
-    Input:
-        1. cluster: cluster object
-        2. filters2Apply: list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
-        3. confDict
-    Output:
-        1. filterDelResults -> keys: name of filters; values: True if the cluster pass the filter, False if it doesn't pass.
-    '''
-
-    filterDelResults = {}
-
-    ## 1. FILTER 1: Minimum number of reads per cluster
-    if 'MIN-NBREADS' in filters2Apply: # check if the filter is selected
-        filterDelResults['MIN-NBREADS'] = minNbEventsFilter(cluster, confDict['minClusterSize'])
-
-    ## 2. FILTER 2: Maximum number of reads per cluster
-    if 'MAX-NBREADS' in filters2Apply: # check if the filter is selected
-        filterDelResults['MAX-NBREADS'] = maxNbEventsFilter(cluster, confDict['maxClusterSize'])
-
-    ## 3. FILTER 3: Maximum Coefficient of Variance per cluster
-    if 'CV' in filters2Apply: # check if the filter is selected
-        filterDelResults['CV'] = maxCvFilter(cluster, confDict['maxClusterCV'])
-
-    ## 4. FILTER 4: Maximum number of removed outliers per cluster
-    if 'OUTLIERS' in filters2Apply: # check if the filter is selected
-        filterDelResults['OUTLIERS'] = maxPercOutliers(cluster, confDict['maxOutliers'])
-
-    return filterDelResults
-
-def filterCLIPPING(cluster, filters2Apply, confDict):
-    '''
-    Apply appropriate filters to each CLIPPING-CLUSTER.
-
-    Input:
-        1. cluster: cluster object
-        2. filters2Apply: list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
-        3. confDict
-    Output:
-        1. filterClippingResults -> keys: name of filters; values: True if the cluster pass the filter, False if it doesn't pass.
-    '''
-
-    filterClippingResults = {}
-
-    ## 1. FILTER 1: Minimum number of reads per cluster
-    if 'MIN-NBREADS' in filters2Apply: # check if the filter is selected
-        filterClippingResults['MIN-NBREADS'] = minNbEventsFilter(cluster, confDict['minClusterSize'])
-
-    ## 2. FILTER 2: Maximum number of reads per cluster
-    if 'MAX-NBREADS' in filters2Apply: # check if the filter is selected
-        filterClippingResults['MAX-NBREADS'] = maxNbEventsFilter(cluster, confDict['maxClusterSize'])
-
-    return filterClippingResults
+    return failedFilters
 
 ## [SR CHANGE]
 def filterDISCORDANT(cluster, filters2Apply, confDict, bam):
@@ -190,6 +135,112 @@ def filterDISCORDANT(cluster, filters2Apply, confDict, bam):
         filterDiscordantResults["AREASMS"] = area(cluster,confDict,bam)[1]
 
     return filterDiscordantResults
+
+
+def minNbEventsFilter(META_cluster, minSupportingReads, minNormalSupportingReads):
+    '''
+    Filter metacluster by comparing the number of supporting events with a minimum treshold
+
+    Input:
+        1. META_cluster: META_cluster object
+        2. minSupportingReads: min number of events threshold
+        3. minSupportingReads: min number of events threshold for normal sample
+
+    Output:
+        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
+    '''
+
+    ## 1. Compute number of events supporting the cluster 
+    nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING = META_cluster.nbEvents()
+
+    ## 2. Compare the number of events supporting the cluster against the minimum required
+    # 2.1 Paired mode:
+    if nbTumour != None:
+        if nbTumour >= minSupportingReads and nbNormal >= minNormalSupportingReads:
+            META_cluster.mutOrigin = 'germline'
+            PASS = True
+        elif nbTumour >= minSupportingReads and not nbNormal >= minNormalSupportingReads:
+            META_cluster.mutOrigin = 'somatic-tumour'
+            PASS = True
+        elif not nbTumour >= minSupportingReads and nbNormal >= minNormalSupportingReads:
+            META_cluster.mutOrigin = 'somatic-NORMAL'
+            PASS = True
+        else:
+            PASS = False
+
+    # 2.1 Single mode:
+    else:
+        # If running in single mode (do no set mutation origin because it sdoesn't make sense)
+        if nbTotal >= minSupportingReads:
+            PASS = True
+        else:
+            PASS = False
+    
+    return PASS
+
+def maxNbEventsFilter(META_cluster, maxNbEvents):
+    '''
+    Filter metacluster by comparing the number of cluster supporting events with a maximum treshold
+
+    Input:
+        1. META_cluster: META_cluster object
+        2. maxNbEvents: maximum number of events threshold
+    Output:
+        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
+    '''
+
+    ## 1. Compute number of events supporting the cluster 
+    nbTotal = META_cluster.nbEvents()[0]
+
+    ## 2. Compare the number of events supporting the cluster against the maximum required
+    if nbTotal <= maxNbEvents:
+        PASS = True
+    else:
+        PASS = False
+    
+    return PASS
+
+
+def maxCvFilter(META_cluster, maxClusterCV):
+    '''
+    Filter metacluster by comparing its Coefficient of Variation with a maximum threshold.
+
+    Input:
+        1. META_cluster: META_cluster object
+        2. maxClusterCV: maximum Coefficient of Variation threshold
+    Output:
+        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
+    '''
+
+    ## 1. Compute CV of the cluster 
+    cv = META_cluster.subclusters['INS'].cv_len()[1]
+
+    ## 2. Compare the cluster CV against the maximum required
+    if cv <= maxClusterCV:
+        PASS = True
+    else:
+        PASS = False
+
+    return PASS
+
+def SVTypeFilter(META_cluster):
+    '''
+    Filter metacluster by checking if it has a SV type assigned.
+
+    Input:
+        1. META_cluster: META_cluster object
+    Output:
+        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
+    '''
+
+    ## 2. Compare the percentage of outliers against the maximum required
+    if META_cluster.SV_type != None:
+        PASS = True 
+    else:
+        PASS = False
+
+    return PASS
+
 
 # [SR CHANGE]
 def area(cluster,confDict,bam):
@@ -334,94 +385,3 @@ def fraction(counts, total):
         perc = 0
     
     return perc
-
-def minNbEventsFilter(cluster, minNbEvents):
-    '''
-    Filter cluster by comparing the number of cluster supporting events with a minimum treshold
-
-    Input:
-        1. cluster: cluster object
-        2. minNbEvents: min number of events threshold
-    Output:
-        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
-    '''
-
-    ## 1. Compute number of events supporting the cluster 
-    nbEvents = cluster.nbEvents()[0]
-
-    ## 2. Compare the number of events supporting the cluster against the minimum required
-    if nbEvents >= minNbEvents:
-        PASS = True
-    else:
-        PASS = False
-    
-    return PASS
-
-def maxNbEventsFilter(cluster, maxNbEvents):
-    '''
-    Filter cluster by comparing the number of cluster supporting events with a maximum treshold
-
-    Input:
-        1. cluster: cluster object
-        2. maxNbEvents: maximum number of events threshold
-    Output:
-        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
-    '''
-
-    ## 1. Compute number of events supporting the cluster 
-    nbEvents = cluster.nbEvents()[0]
-
-    ## 2. Compare the number of events supporting the cluster against the maximum required
-    if nbEvents <= maxNbEvents:
-        PASS = True
-    else:
-        PASS = False
-    
-    return PASS
-
-
-def maxCvFilter(cluster, maxClusterCV):
-    '''
-    Filter cluster by comparing its Coefficient of Variation with a maximum threshold.
-
-    Input:
-        1. cluster: cluster object
-        2. maxClusterCV: maximum Coefficient of Variation threshold
-    Output:
-        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
-    '''
-
-    ## 1. Compute CV of the cluster 
-    mean, std, cv = cluster.meanLen()
-
-    ## 2. Compare the cluster CV against the maximum required
-    if cv <= maxClusterCV:
-        PASS = True
-    else:
-        PASS = False
-
-    return PASS
-
-def maxPercOutliers(cluster, maxOutliers):
-    '''
-    Filter cluster by comparing its percentage of outliers with a maximum threshold.
-
-    Input:
-        1. cluster: cluster object
-        2. maxOutliers: maximum percentage of outlier events threshold
-    Output:
-        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
-    '''
-
-    ## 1. Compute the percentage of outliers: nbOutliers / nb events before polishing the cluster
-    nbEventsUnpolished = cluster.nbOutliers + cluster.nbEvents()[0]
-    percOutliers = cluster.nbOutliers / nbEventsUnpolished
-
-    ## 2. Compare the percentage of outliers against the maximum required
-    if percOutliers <= maxOutliers:
-        PASS = True
-        
-    else:
-        PASS = False
-
-    return PASS
