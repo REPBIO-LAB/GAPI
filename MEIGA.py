@@ -44,7 +44,7 @@ parser.add_argument('--SV', default="INS,CLIPPING", dest='SV', type=str, help='C
 parser.add_argument('--minMAPQ', default=1, dest='minMAPQ', type=int, help='Minimum mapping quality required for each read. Default: 1')
 parser.add_argument('--readFilters', default="SMS", dest='readFilters', type=str, help='Comma separated list of read filters to apply (SMS)')
 parser.add_argument('--readOverhang', default=5000, dest='overhang', type=int, help='Number of flanking base pairs around the SV event to be collected from the supporting read sequence. Default: 5000')
-parser.add_argument('--minINDELlen', default=25, dest='minINDELlen', type=int, help='Minimum indel length. Default: 25')
+parser.add_argument('--minINDELlen', default=50, dest='minINDELlen', type=int, help='Minimum indel length. Default: 50')
 parser.add_argument('--minCLIPPINGlen', default=500, dest='minCLIPPINGlen', type=int, help='Minimum clipped sequence length for each read. Default: 500')
 
 ## Clustering
