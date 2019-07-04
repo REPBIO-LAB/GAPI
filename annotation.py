@@ -212,7 +212,7 @@ def intersect_mate_annotation(discordants, annotation):
 
     ##  For each input discordant intersect mate alignment coordinates with the provided annotation 
     for discordant in discordants:
-
+        
         # A) Annotated repeat in the same ref where the mate aligns
         if discordant.mateRef in annotation:
 

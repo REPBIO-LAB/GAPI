@@ -220,6 +220,7 @@ def polish_clusters(clustersBinDb, minClusterSize):
 
     ## 3. Polish CLIPPING clusters (TO DO)
 
+
 def create_metaclusters(clustersBinDb):
     '''    
     Group SV cluster events into metaclusters
@@ -234,69 +235,151 @@ def create_metaclusters(clustersBinDb):
 
     return metaclusters
 
-def SV_type_metaclusters(metaclusters):
+
+def SV_type_metaclusters(metaclusters, minINDELlen, technology, rootOutDir):
     '''
     Infer the SV type supported by each metacluster
 
     Input:
         1. metaclusters: list of metaclusters
+        2. minINDELlen: minimum INS and DEL lenght
+        3. technology: sequencing technology (NANOPORE, PACBIO or ILLUMINA)
+        4. rootOutDir: root output directory
 
     Output:
+        1. metaclustersSVType: dictionary containing one key per SV type and the list of metaclusters identified as value
     '''
+    metaclustersSVType = {}
+
     for metacluster in metaclusters:
-        metacluster.determine_SV_type()
+
+        outDir = rootOutDir + '/SV_type/' + str(metacluster.id)
+        metacluster.determine_SV_type(minINDELlen, technology, outDir)
+
+        # A) Initialize list containing metaclusters of a given SV type
+        if metacluster.SV_type not in metaclustersSVType:
+            metaclustersSVType[metacluster.SV_type] = [metacluster]
+
+        # B) Add metacluster to the list        
+        else:
+            metaclustersSVType[metacluster.SV_type].append(metacluster)
+
+    return metaclustersSVType
 
 
-def make_consensus(clustersBinDb, confDict, reference, clusterType, rootOutDir):
+def create_consensus(metaclusters, confDict, reference, targetSV, rootOutDir):
     '''
-    Make consensus supporting sequence and event for a set of cluster objects
+    Generate consensus events for a set of metacluster objects
 
     Input:
-        1. clustersBinDb: Data structure containing a set of clusters organized in genomic bins
+        1. metaclusters: Dictionary containing one key per SV type and the list of metaclusters identified as value
         2. confDict: 
             * technology     -> sequencing technology (NANOPORE, PACBIO or ILLUMINA)
+            * rounds         -> number of polishing rounds to be attempled. 0 means no polishing
             * targetSV       -> list with target SV (INS: insertion; DEL: deletion; CLIPPING: left and right clippings)
             * minMAPQ        -> minimum mapping quality
             * minCLIPPINGlen -> minimum clipping lenght
             * minINDELlen    -> minimum INS and DEL lenght
             * overhang       -> Number of flanking base pairs around the INDEL events to be collected from the supporting read. If 'None' the complete read sequence will be collected)
 
-        3. reference: path to reference genome in fasta format    
-        4. clusterType: target cluster type to generate consensus
-        5. rootOutDir: root output directory
+        3. reference: Path to reference genome in fasta format    
+        4. targetSV: Target SV types to generate consensus
+        5. rootOutDir: Root output directory
 
     Output:
-        1. consensusBinDb: bin database structure containing metaclusters for which consensus sequences and events have been generated
     ''' 
-    consensusDict = {}
 
-    ## For each cluster in the database
-    for cluster in clustersBinDb.collect([clusterType]):
+    ## For each type of SV 
+    for SV in targetSV:
 
-        outDir = rootOutDir + '/Consensus/' + str(cluster.id)
+        ## Abort if no metacluster from this SV type has been identified
+        if SV not in metaclusters:
+            continue
 
-        cluster.SV_type, cluster.consensus = cluster.make_consensus(confDict, reference, outDir)
+        ## For each metacluster
+        for metacluster in metaclusters[SV]:
 
-        # Discard clusters without known SV type
-        if cluster.SV_type is not None:
+            outDir = rootOutDir + '/consensus/' + str(metacluster.id)
 
-            # Initialize SV type at the dictionary
-            if cluster.SV_type not in consensusDict:
-                consensusDict[cluster.SV_type] = []
+            ## 1. Polish metacluster´s consensus sequence
+            metacluster.polish(confDict, reference, outDir)
 
-            # Add cluster 
-            consensusDict[cluster.SV_type].append(cluster)
+            ## 2. Obtain consensus metacluster´s event
+            metacluster.consensus_event(confDict, reference, 10000, outDir)
+
+            ## Cleanup
+            #unix.rm([outDir])
+
+def double_clipping_supports_INS(clusterA, clusterB, minINDELlen, technology, outDir):
+    '''
+    Assess if two clipping clusters support an insertion event.
+
+    Input:
+        1. clusterA: clipping cluster A
+        2. clusterB: clipping cluster B
+        3. minINDELlen: minimum INS and DEL lenght
+        4. technology: sequencing technology (NANOPORE, PACBIO or ILLUMINA)
+        5. outDir: output file
+    
+    Output:
+        1. boolean: clippings support an INS event (True) or not (False) 
+        2. consensusFasta: fasta containing consensus read sequence spanning the insertion event. None if no insertion supporting evidences found 
+    '''
+    ## Search for chimeric alignments completely spanning the INS fragment
+    primary, supplementary, chimeric, percSameStrand = find_chimeric_alignments(clusterA, clusterB)
+
+    ## A) Chimeric alignment found with both pieces aligning in the same orientation
+    if (primary is not None) and (percSameStrand >= 75):
+
+        ## Search for inserted sequence at clipped clusters breakpoints
+        insert = find_insertion_at_clipping_bkp(primary, supplementary)
+
+        ## a) Inserted sequence longer than threshold
+        if len(insert) >= minINDELlen:
+            boolean = True            
+            consensusFasta = formats.FASTA()
+            consensusFasta.seqDict[primary.readName] = primary.readSeq
             
-    ## 3. Organize metaclusters into bins according to their SV type    
-    binSizes = [100, 1000, 10000, 100000, 1000000]
-    consensusBinDb = structures.create_bin_database_interval(clustersBinDb.ref, clustersBinDb.beg, clustersBinDb.end, consensusDict, binSizes)
+        ## b) No inserted sequence or shorter than threshold
+        else:
+            boolean = False
+            consensusFasta = None
 
-    return consensusBinDb
+    ## B) Chimeric alignment NOT found -> search for complementary clippings
+    else:
 
+        ## Generate fasta files containing clusters supporting reads:
+        readsA = clusterA.collect_reads() 
+        readsB = clusterB.collect_reads()
+
+        readsA_file = outDir + '/seqA.fa'
+        readsB_file = outDir + '/seqB.fa'
+
+        readsA.write(readsA_file)
+        readsB.write(readsB_file)
+
+        ## Assemble clippings based on overlap 
+        contigFile = assembly.assemble_overlap(readsA_file, readsB_file, technology, outDir)
+        
+        ## a) Reciprocal overlap found 
+        if contigFile is not None:
+
+            boolean = True
+            
+            ## Read fasta with contig
+            consensusFasta = formats.FASTA()
+            consensusFasta.read(contigFile)             
+
+        ## b) Reciprocal overlap not found
+        else:
+            boolean = False
+            consensusFasta = None
+
+    return boolean, consensusFasta
 
 def find_chimeric_alignments(clusterA, clusterB):
     '''
-    Search for chimeric read alignments connecting two clipping clusters. Select one as representative if multiple are identified. 
+    Search for chimeric read alignments connecting two clipping clusters. Select one as consensus if multiple are identified. 
 
     Input:
         1. clusterA: Clipping cluster object
@@ -306,9 +389,12 @@ def find_chimeric_alignments(clusterA, clusterB):
         1. primary: clipping event for representative primary alignment
         2. supplementary: clipping event for representative supplementary alignment
         3. chimericSorted: list of tuples. Each tuple is composed by two clipping events corresponding to primary and supplementary alignments, respectively. 
+        4. percSameStrand: percentage of chimeric alignments with both fragments having the same orientation
     ''' 
     ### 1. Identify chimeric read alignments connecting both clipping clusters
     chimeric = []
+    sameStrand = 0
+    oppositeStrand = 0
 
     # For each clipping event composing cluster A        
     for clippingA in clusterA.events:
@@ -316,33 +402,46 @@ def find_chimeric_alignments(clusterA, clusterB):
         # For each clipping event composing cluster B
         for clippingB in clusterB.events:
 
-            # Clipping events from the same read
+            # Clipping events supported by the same read (chimeric alignments)
             if (clippingA.readName == clippingB.readName):
-                        
-                # a) Clipping A primary while clipping B supplementary
+                
+                ## Determine if fragments in chimeric alignments have the same or opposite orientations
+                # A) Same
+                if (clippingA.reverse == clippingB.reverse):
+                    sameStrand += 1
+
+                # B) Opposite
+                else:
+                    oppositeStrand += 1
+
+                ## Determine which clipping is primary and supplementary
+                # A) Clipping A primary; clipping B supplementary
                 if (clippingA.supplementary == False) and (clippingB.supplementary == True):
                     primary = clippingA
                     supplementary = clippingB
                     chimeric.append((primary, supplementary))
 
-                # b) Left clipping supplementary while right clipping primary
+                # B) Clipping A supplementary; clipping B primary
                 elif (clippingA.supplementary == True) and (clippingB.supplementary == False):
                     primary = clippingB
                     supplementary = clippingA
                     chimeric.append((primary, supplementary))
 
-                # c) Both clippings supplementary (Discard! These cases are not informative as supplementary alignments are hardclipped so don´t allow to pick the inserted fragment)
+                # C) Both clippings supplementary (Discard! These cases are not informative as supplementary alignments are hardclipped so don´t allow to pick the inserted fragment)
                 
     # Exit if not chimeric alignments found
     if not chimeric:
-        return None, None, None
+        return None, None, None, None
 
     ### 2. Select the clipping events with the longest supplementary alignment as representative
     chimericSorted = sorted(chimeric, key=lambda alignments: alignments[1].refLen, reverse=True)
     primary = chimericSorted[0][0]
     supplementary = chimericSorted[0][1]
 
-    return primary, supplementary, chimericSorted
+    ### 3. Compute fraction of chimeric alignments with same orientation
+    percSameStrand = float(sameStrand) / (sameStrand + oppositeStrand) * 100
+
+    return primary, supplementary, chimericSorted, percSameStrand
 
 
 def find_insertion_at_clipping_bkp(primary, supplementary):
@@ -727,23 +826,12 @@ class META_cluster():
         # Organize events into subclusters
         self.subclusters = self.create_subclusters()
 
-        # Tag germline or somatic
-        self.intOrigin = None
-
-        # Set some metacluster properties as None
-        self.filters = None
-        self.consensus = None
-        self.SV_type = None
-
-        # Metacluster SV features
-        self.INS_features = {}
-        self.DEL_features = {}
-        self.BKP_features = {}
-
-
         # Update input cluster's clusterId attribute
         for cluster in clusters:
             cluster.clusterId = self.id
+
+        # Initialize dictionary containing SV features
+        self.SV_features = {}
 
     def sort(self):
         '''
@@ -1009,88 +1097,60 @@ class META_cluster():
 
         return nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING
  
-    def select_template(self, technology, outDir):
+
+    def polish(self, confDict, reference, outDir):
         '''
-        Select one metacluster supporting read as template to be used in the metacluster consensus generation step
-
-        Input: 
-            1. technology: sequencing technology (NANOPORE, PACBIO or ILLUMINA)
-            2. outDir: output directory
-
-        Output:
-            1. templateFile: Path to FASTA file containing the template or 'None' if no template was found
-        '''
-
-        # A) Metacluster contains an INS cluster
-        if ('INS' in self.subclusters):
-
-            ## Select INS event with median length as template
-            templateEvent = self.subclusters['INS'].pick_median_length()
-
-            ## Write template into output file 
-            templateFasta = formats.FASTA()
-            templateFasta.seqDict[templateEvent.readName] = templateEvent.readSeq
-            templateFile = outDir + '/template.fa'
-            templateFasta.write(templateFile)   
-
-        # B) Metacluster contains a DEL cluster
-        elif ('DEL' in self.subclusters):
-
-            ## Select DEL event with median length as template
-            templateEvent = self.subclusters['DEL'].pick_median_length()
-
-            ## Write template into output file 
-            templateFasta = formats.FASTA()
-            templateFasta.seqDict[templateEvent.readName] = templateEvent.readSeq
-            templateFile = outDir + '/template.fa'
-            templateFasta.write(templateFile)   
-
-        # C) Metacluster composed by only two CLIPPING clusters (left and right) 
-        elif all (clusterType in self.subclusters for clusterType in ['LEFT-CLIPPING', 'RIGHT-CLIPPING']):
-                    
-            ## Search for chimeric alignment spanning the SV event
-            templateEvent, supplementary, chimeric = find_chimeric_alignments(self.subclusters['RIGHT-CLIPPING'], self.subclusters['LEFT-CLIPPING'])
-
-            # a) Chimeric alignment found -> Write template into output file 
-            if (templateEvent != None): 
-
-                templateFasta = formats.FASTA()
-                templateFasta.seqDict[templateEvent.readName] = templateEvent.readSeq
-                templateFile = outDir + '/template.fa'
-                templateFasta.write(templateFile)   
-
-            # b) Chimeric alignment NOT found -> search for complementary clippings
-            else:
-
-                ## Generate fasta files containing clusters supporting reads:
-                readsA = self.subclusters['RIGHT-CLIPPING'].collect_reads() 
-                readsB = self.subclusters['LEFT-CLIPPING'].collect_reads()
-
-                readsA_file = outDir + '/seqA.fa'
-                readsB_file = outDir + '/seqB.fa'
-
-                readsA.write(readsA_file)
-                readsB.write(readsB_file)
-
-                ## Assemble clippings based on overlap 
-                templateFile = assembly.assemble_overlap(readsA_file, readsB_file, technology, outDir)
-
-        # D) Metacluster composed by a single CLIPPING cluster. 
-        # For now set the template as None, but at one point I should set a criteria for picking a template
-        # in these cases. I think the template will be the read with the longest piece of clipped sequence
-        else:
-            templateFile = None
-        
-        return templateFile
-
-    def make_consensus(self, confDict, reference, outDir):
-        '''
-        Make consensus supporting sequence and event for the metacluster
+        Polish metacluster consensus sequence
 
         Input: 
             1. confDict: 
                 * technology     -> sequencing technology (NANOPORE, PACBIO or ILLUMINA)
                 * rounds         -> number of polishing rounds to be attempled. 0 means no polishing
+            
+            2. reference: path to reference genome in fasta format    
+            3. outDir: Output directory
+        
+        Output: Update 'consensusFasta' attribute with the polished sequence
+        '''
+        ## 0. Create directory 
+        unix.mkdir(outDir)        
+
+        ## 1. Use cluster supporting reads to polish metacluster consensus sequence ##
+        ## 1.1 Write raw consensus sequence
+        unpolishedFasta = outDir + '/raw_consensus.fa'
+        self.consensusFasta.write(unpolishedFasta)
+
+        ## 1.2 Collect reads that will be used to polish the consensus sequence        
+        supportingReads = self.collect_reads()
+
+        ## Remove consensus from FASTA
+        consensusReadName = list(self.consensusFasta.seqDict.keys())[0]
+
+        if consensusReadName in supportingReads.seqDict:
+            del supportingReads.seqDict[consensusReadName]
+
+        ## Write supporting reads FASTA 
+        supportingReadsFasta = outDir + '/supportingReads.fa'
+        supportingReads.write(supportingReadsFasta)
+            
+        ## 2. Consensus polishing 
+        polishedFasta = assembly.polish_racon(unpolishedFasta, supportingReadsFasta, confDict['technology'], confDict['rounds'], outDir)
+
+        ## If polishing is successful replace consensus by new polished sequence
+        if polishedFasta is not None:
+            polished = formats.FASTA()
+            polished.read(polishedFasta)     
+            self.consensusFasta = polished
+
+        return 
+
+
+    def consensus_event(self, confDict, reference, offset, outDir):
+        '''
+        Define metacluster´s consensus event based on consensus sequence realignment
+
+        Input: 
+            1. confDict: 
                 * targetSV       -> list with target SV (INS: insertion; DEL: deletion; CLIPPING: left and right clippings)
                 * minMAPQ        -> minimum mapping quality
                 * minCLIPPINGlen -> minimum clipping lenght
@@ -1098,172 +1158,163 @@ class META_cluster():
                 * overhang       -> Number of flanking base pairs around the INDEL events to be collected from the supporting read. If 'None' the complete read sequence will be collected)            2. outDir: output directory
             
             2. reference: path to reference genome in fasta format    
-            3. outDir: Output directory
+            3. offset: number of base pairs to extend cluster begin and end coordinates when defining target region for consensus sequence realignment
+            4. outDir: Output directory
         
-        Output:
-            1. SV_type: Structural variation type (INS, DEL, BKP or None)
-            2. consensus: Consensus SV event object
+        Output: Update 'consensusEvent' attribute in the metacluster class
         '''
-        ## 0. Create directory 
-        unix.mkdir(outDir)
 
-        ## 1. Define template
-        templateFile = self.select_template(confDict['technology'], outDir)
+        ## 1. Local realignment of the consensus sequence into the SV genomic interval ##
+        ## 1.1 Write consensus sequence into a fasta file 
+        consensusFile = outDir + '/consensus.fa'
+        self.consensusFasta.write(consensusFile)
 
-        if templateFile is None:
-            return None, None
-        
-        ## 2. Collect metacluster supporting reads 
-        supportingReads = self.collect_reads()
-
-        ## Remove template from FASTA
-        template = formats.FASTA()
-        template.read(templateFile)
-        templateReadName = list(template.seqDict.keys())[0]
-
-        if templateReadName in supportingReads.seqDict:
-            del supportingReads.seqDict[templateReadName]
-
-        ## Write supporting reads FASTA 
-        supportingReadsFile = outDir + '/supportingReads.fa'
-        supportingReads.write(supportingReadsFile)
-            
-        ## 3. Template polishing to generate consensus
-        consensusFile = assembly.polish_racon(templateFile, supportingReadsFile, confDict['technology'], confDict['rounds'], outDir)
-
-        ## If no polished sequence obtained use directly the template as consensus
-        if consensusFile == None:
-            consensusFile = templateFile
-
-        ## 4. Realign consensus sequence into the SV event genomic region
-        ##  Define SV cluster surrounding region
+        ## 1.2 Define SV cluster genomic interval
         # ------------------<***SV_cluster***>-----------------
-        # <--nbFlankingBp-->                  <--nbFlankingBp-->
-        nbFlankingBp = 10000
-        intervalBeg = self.beg - nbFlankingBp
+        #       <--offset-->                  <--offset-->
+        intervalBeg = self.beg - offset
         intervalBeg = intervalBeg if intervalBeg >= 0 else 0 ## Set lower bound
-        intervalEnd = self.end + nbFlankingBp
+        intervalEnd = self.end + offset
         intervalCoord = self.ref + ':' + str(intervalBeg) + '-' + str(intervalEnd)
             
-        ## Do realignment
+        ## 1.3 Do realignment
         # ------------------<***SV_cluster***>-----------------
         #         -------------consensus_seq-------------
         BAM = alignment.targeted_alignment_minimap2(consensusFile, intervalCoord, reference, outDir)
+ 
+        ## Continue if realignment is succesfull 
+        if BAM is not None:
             
-        ## Consensus realignment failed
-        if BAM is None:
-            return None, None
+            ## 2. Search for metacluster´s consensus event  ##
+            ## 2.1 Extract events from consensus sequence realignment
+            # ------------------<***SV_cluster***>-----------------
+            #        -------------consensus_seq-------------
+            #               <--->----------------<---> overhang (100 bp)
+            #                   event_search_space         
+            overhang = 100
+            clusterIntervalLen = self.end - self.beg
+            targetBeg = offset - overhang
+            targetEnd = offset + clusterIntervalLen + overhang            
+            eventsDict = bamtools.collectSV(intervalCoord, targetBeg, targetEnd, BAM, confDict, None)
 
-        ## Extract events from consensus sequence realignment
-        # ------------------<***SV_cluster***>-----------------
-        #        -------------consensus_seq-------------
-        #               <--->----------------<---> overhang (100 bp)
-        #                   event_search_space         
-        overhang = 100
-        clusterIntervalLen = self.end - self.beg
-        targetBeg = nbFlankingBp - overhang
-        targetEnd = nbFlankingBp + clusterIntervalLen + overhang            
-        eventsDict = bamtools.collectSV(intervalCoord, targetBeg, targetEnd, BAM, confDict, None)
+            ## 2.2 Define consensus event based on the events resulting from consensus sequence realignment
+            ## A) Metacluster supports an INS and realignment leads to one INS event 
+            if (self.SV_type == 'INS') and (len(eventsDict['INS']) == 1):
 
-        ## 5. Define metacluster type based on events collected from consensus sequence realignment
-        # A) Single INS event
-        if ('INS' in eventsDict) and len(eventsDict['INS']) == 1:
-
-            ## Set metacluster type
-            SV_type = 'INS'
-                
-            ## Convert coordinates
-            consensus = alignment.targetered2genomic_coord(eventsDict['INS'][0], self.ref, intervalBeg)
-
-        # B) Multiple INS events 
-        # Raw alignment    -------------[INS]-[INS]---[INS]-------------
-        # Consensus        -------------[       INS       ]-------------
-        # This is consequence of fragmented alignments. So Merge events into a single consensus INS
-        elif ('INS' in eventsDict) and (len(eventsDict['INS']) > 1):
-
-            ## Set metacluster type
-            SV_type = 'INS'
-
-            ## Do merging
-            merged = events.merge_INS(eventsDict['INS'])
-
-            ## Convert coordinates
-            consensus = alignment.targetered2genomic_coord(merged, self.ref, intervalBeg)
-
-        # C) Single DEL event
-        elif ('DEL' in eventsDict) and (len(eventsDict['DEL']) == 1) and ('DEL' in self.subclusters):
-
-            ## Set metacluster type
-            SV_type = 'DEL'
-                
-            ## Convert coordinates
-            consensus = alignment.targetered2genomic_coord(eventsDict['DEL'][0], self.ref, intervalBeg)
-
-        # D) Multiple DEL events 
-        elif ('DEL' in eventsDict) and (len(eventsDict['DEL']) > 1) and ('DEL' in self.subclusters):
-
-            ## Set metacluster type
-            SV_type = None
-
-            ## Do merging
-
-            ## Convert coordinates
-            consensus = None
-
-        # E) One left and one right CLIPPING 
-        elif ('LEFT-CLIPPING' in eventsDict) and ('RIGHT-CLIPPING' in eventsDict) and (len(eventsDict['LEFT-CLIPPING']) == 1) and (len(eventsDict['RIGHT-CLIPPING']) == 1):
-
-            ## Set metacluster type
-            SV_type = 'INS'
-
-            ## Create INS event
-            rightClipping = eventsDict['RIGHT-CLIPPING'][0]
-            leftClipping = eventsDict['LEFT-CLIPPING'][0]
-            length = leftClipping.readBkp - rightClipping.readBkp
-
-            # a) Misalignment leading to aberrant clipping 
-            # (rarely happens, at one point investigate further)
-            if length <= 0:
-                SV_type = None
-                consensus = None
-
-            # b) Correct clipping
-            else:
-                event = events.INS(rightClipping.ref, rightClipping.beg, rightClipping.end, length, rightClipping.readName, rightClipping.readSeq, rightClipping.readBkp, None, None)
-        
                 ## Convert coordinates
-                consensus = alignment.targetered2genomic_coord(event, self.ref, intervalBeg)
+                self.consensusEvent = alignment.targetered2genomic_coord(eventsDict['INS'][0], self.ref, intervalBeg)
 
-        # F) Another possibility 
-        else:
+            ## B) Metacluster supports an INS and realignment leads to multiple INS events
+            elif (self.SV_type == 'INS') and (len(eventsDict['INS']) > 1):
 
-            # a) Metacluster contains an INS cluster
-            if ('INS' in self.subclusters):
+                ## Do merging
+                merged = events.merge_INS(eventsDict['INS'])
 
-                ## Set metacluster type
-                SV_type = 'INS'
+                ## Convert coordinates
+                self.consensusEvent = alignment.targetered2genomic_coord(merged, self.ref, intervalBeg)
 
-                ## Select INS event with median length as consensus
-                consensus = self.subclusters['INS'].pick_median_length()
+            ## C) Metacluster supports a DEL and realignment leads to one DEL event 
+            elif (self.SV_type == 'DEL') and (len(eventsDict['DEL']) == 1):
 
-            # b) No INS cluster composing the metacluster
-            else:
-                SV_type = None
-                consensus = None
+                ## Convert coordinates
+                self.consensusEvent = alignment.targetered2genomic_coord(eventsDict['DEL'][0], self.ref, intervalBeg)
+
+            ## D) Metacluster supports a DEL and realignment leads to multiple DEL events (TO DO)
+            #elif (self.SV_type == 'DEL') and (len(eventsDict['DEL']) > 1):
+                    ## Do merging
+                    ## Convert coordinates
+                        
+            # E) Metacluster supports an INS and realignment leads to one left and one right CLIPPING 
+            elif (self.SV_type == 'INS') and ('LEFT-CLIPPING' in eventsDict) and ('RIGHT-CLIPPING' in eventsDict) and (len(eventsDict['RIGHT-CLIPPING']) == 1) and (len(eventsDict['LEFT-CLIPPING']) == 1):
+
+                ## Compute the inserted sequence length as the difference between both clipping breakpoints in the long sequence 
+                rightClipping = eventsDict['RIGHT-CLIPPING'][0]
+                leftClipping = eventsDict['LEFT-CLIPPING'][0]
+                length = leftClipping.readBkp - rightClipping.readBkp
+
+                ## Create consensus INS from clipping alignments if inserted sequence found
+                if length >= confDict['minINDELlen']:
+
+                    event = events.INS(rightClipping.ref, rightClipping.beg, rightClipping.end, length, rightClipping.readName, rightClipping.readSeq, rightClipping.readBkp, None, None)
+        
+                    ## Convert coordinates
+                    self.consensusEvent = alignment.targetered2genomic_coord(event, self.ref, intervalBeg)
     
-        ## Cleanup
-        unix.rm([outDir])
+            # F) Another possibility (Don´t do anything, leave previous. Later we may need to include new conditions)
 
-        return SV_type, consensus
 
-    def determine_SV_type(self): 
+    def determine_SV_type(self, minINDELlen, technology, outDir): 
         '''
-        Determine the type of SV supported by the metacluster
+        Determine the type of structural variant (SV) supported by the metacluster and select a consensus metacluster supporting sequence and event
+
+        SV types:
+            INSERTION: 
+                        >>>>>>>>>>>>>/////INS/////>>>>>>>>>>>    * Completely spanned insertion
+                        >>>>>>>>>>>>>/////INS///                 * Insertion partially spanned
+                                      ////INS/////>>>>>>>>>>>
+            DELETION:   >>>>>>>>>>>>>-----DEL----->>>>>>>>>>>    
+
+            DUPLICATION (TO DO) 
+            INVERSION (TO DO)
+            BREAK END (TO DO)      
+
+        Input:
+            1. minINDELlen: minimum INS and DEL lenght
+            2. technology: sequencing technology (NANOPORE, PACBIO or ILLUMINA)
+            3. outDir: Output directory
+
+        Output, set the following object attributes:
+            
+            1. SV_type: structural variant type supported by the metacluster. None if sv type 
+            2. consensusEvent: consensus event attribute 
+            3. consensusFasta: fasta file containing consensus metacluster supporting sequence 
         '''
+        ## Create output directory 
+        unix.mkdir(outDir)
         subClusterTypes = list(self.subclusters.keys())
 
-        #print('SV_type: ', len(subClusterTypes), subClusterTypes)
+        ## A) Metacluster supports an insertion:
+        if ('INS' in subClusterTypes) and ('DEL' not in subClusterTypes):
+            self.SV_type = 'INS'
 
+            ## Select consensus INS event and sequence
+            self.consensusEvent = self.subclusters['INS'].pick_median_length()
+            
+            self.consensusFasta = formats.FASTA()
+            self.consensusFasta.seqDict[self.consensusEvent.readName] = self.consensusEvent.readSeq
+
+        ## B) Metacluster supports a deletion:
+        elif ('DEL' in subClusterTypes) and ('INS' not in subClusterTypes):
+            self.SV_type = 'DEL'
+
+            ## Select consensus DEL event and sequence
+            self.consensusEvent = self.subclusters['DEL'].pick_median_length()
+
+            self.consensusFasta = formats.FASTA()
+            self.consensusFasta.seqDict[self.consensusEvent.readName] = self.consensusEvent.readSeq
+                        
+        ## C) Metacluster only composed by double clipping -> Long insertion candidate
+        elif (len(subClusterTypes) == 2) and ('RIGHT-CLIPPING' in subClusterTypes) and ('LEFT-CLIPPING' in subClusterTypes):
+
+            self.consensusEvent = None                
+
+            ## Assess if clipping clusters support an insertion
+            is_INS, self.consensusFasta = double_clipping_supports_INS(self.subclusters['RIGHT-CLIPPING'], self.subclusters['LEFT-CLIPPING'], minINDELlen, technology, outDir)
+
+            ## a) Double clippings support an INS
+            if is_INS:
+                self.SV_type = 'INS'
+
+            ## b) Double clippings not support an INS
+            else: 
+                self.SV_type = None
+
+        ## D) Other combination -> Unknown SV type (Temporal, extend later)
+        else:
+            self.SV_type = None
+            self.consensusEvent = None                
+            self.consensusFasta = None
+     
 
     def determine_INS_type(self, index, confDict, outDir): 
         '''
@@ -1279,7 +1330,7 @@ class META_cluster():
         unix.mkdir(outDir)
 
         ## 1. Pick inserted sequence
-        insert = self.consensus.pick_insert()
+        insert = self.consensusEvent.pick_insert()
 
         ## 2. Write target seq into file 
         FASTA = formats.FASTA()
@@ -1291,17 +1342,17 @@ class META_cluster():
         ## 3. Determine to what corresponds the insertion
         # A) Tandem repeat/simple repeat expansion? 
         minPercSimple = 70
-        self.INS_features['insType'], self.INS_features['status'], self.INS_features['percResolved'] = repeats.is_simple_repeat(FASTA_file, minPercSimple, outDir)
+        self.SV_features['insType'], self.SV_features['status'], self.SV_features['percResolved'] = repeats.is_simple_repeat(FASTA_file, minPercSimple, outDir)
 
         ## Stop if insertion classified as simple repeat
-        if self.INS_features['status'] == 'resolved':
+        if self.SV_features['status'] == 'resolved':
             return
 
         # B) Retrotransposon insertion? 
-        self.INS_features['insType'], self.INS_features['family'], self.INS_features['srcId'], self.INS_features['status'], self.INS_features['percResolved'], self.INS_features['strand'], self.INS_features['hits'] = retrotransposons.is_retrotransposition(FASTA_file, index, outDir)
+        self.SV_features['insType'], self.SV_features['family'], self.SV_features['srcId'], self.SV_features['status'], self.SV_features['percResolved'], self.SV_features['strand'], self.SV_features['hits'] = retrotransposons.is_retrotransposition(FASTA_file, index, outDir)
         
         ## Stop if insertion classified as retrotransposon
-        if (self.INS_features['status'] == 'resolved') or (self.INS_features['status'] == 'partially_resolved'):
+        if (self.SV_features['status'] == 'resolved') or (self.SV_features['status'] == 'partially_resolved'):
             return
        
         # C) Viral insertion? 
