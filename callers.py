@@ -123,7 +123,6 @@ class SV_caller_long(SV_caller):
         step = 'CLUSTERING'
         msg = 'Group events into clusters' 
         log.step(step, msg)
-
         clustersBinDb = clusters.create_clusters(eventsBinDb, self.confDict)
         
         msg = 'Number of created clusters: ' + str(clustersBinDb.nbEvents()[0])
@@ -140,67 +139,49 @@ class SV_caller_long(SV_caller):
         msg = 'Group events into metaclusters' 
         log.step(step, msg)
 
-        metaclusters = clusters.create_metaclusters(clustersBinDb)
-        
+        metaclusters = clusters.create_metaclusters(clustersBinDb)        
         msg = 'Number of created metaclusters: ' + str(len(metaclusters)) 
         log.step(step, msg)
 
         ## 6. Infer structural variant type ##
-        #step = 'SV-TYPE'
-        #msg = 'Infer structural variant type' 
-        #log.step(step, msg)
-
-        #clusters.SV_type_metaclusters(metaclusters, self.confDict['technology'], binDir)
+        step = 'SV-TYPE'
+        msg = 'Infer structural variant type' 
+        log.step(step, msg)
+        metaclustersSVType = clusters.SV_type_metaclusters(metaclusters, self.confDict['minINDELlen'], self.confDict['technology'], binDir)
         
-        #msg = 'Number of created metaclusters: ' + str(len(metaclusters))
-        #log.step(step, msg)
-
-        ## 6. Filter metaclusters ##
-        #step = 'FILTER'
+        ## 7. Filter metaclusters ##
+        #step = 'FILTER-ROUND_1'
         #msg = 'Filter out metaclusters' 
         #log.step(step, msg)
         #metaclusters = clusters.filter_metaclusters(clustersBinDb)
         
-
-        ## 7. Create consensus sequence for metaclusters #
-        
-        ### Do cleanup
-        unix.rm([binDir])
-
-        '''
-        ## 3. Group events into metaclusters ##
-
-        metaclustersBinDb = clusters.create_metaclusters(eventsBinDb, self.confDict)
-        
-        step = 'META-CLUSTERING'
-        msg = 'Number of created metaclusters: ' + str(metaclustersBinDb.nbEvents()[0])
-        log.step(step, msg)
-
-        ## 4. Identify and merge fragmented alignments over INDELs
-        step = 'INDEL-FRAGMENTATION'
-        msg = 'Identify and merge fragmented alignments over INDELs' 
-        log.step(step, msg)
-
-        clusters.merge_fragmented_INDELS(metaclustersBinDb.collect(['METACLUSTERS']))
-
-        ## 6. Create consensus sequence for each SV metacluster
+        ## 8. Generate consensus event for SV metaclusters ##
         step = 'CONSENSUS'
-        msg = 'Create consensus sequence for each SV metacluster' 
+        msg = 'Generate consensus event for SV metaclusters' 
         log.step(step, msg)
 
-        consensusBinDb = clusters.make_consensus(metaclustersBinDb, self.confDict, self.reference, 'METACLUSTERS', binDir)
-        
-        ## 7. For each metacluster supporting an insertion determine what has been inserted (INS TYPE)
+        targetSV = ['INS']
+        clusters.create_consensus(metaclustersSVType, self.confDict, self.reference, targetSV, binDir)       
+
+        ## 9. For each metacluster supporting an insertion determine what has been inserted (INS-TYPE)
         step = 'INS-TYPE'
         msg = 'Determine the insertion type for each metacluster supporting an insertion'
         log.step(step, msg)
 
-        clusters.determine_INS_type(consensusBinDb.collect(['INS']), self.retrotransposonDbIndex, self.confDict, binDir)
+        if 'INS' in metaclustersSVType:
+            clusters.determine_INS_type(metaclustersSVType['INS'], self.retrotransposonDbIndex, self.confDict, binDir) 
 
+        ## 10. Apply additional filters to the metaclusters ##
+        #step = 'FILTER-ROUND_2'
+        #msg = 'Filter out metaclusters' 
+        #log.step(step, msg)
+        #clusters.filter_metaclusters(consensusBinDb.collect(['INS']), self.retrotransposonDbIndex, self.confDict, binDir)
 
+        ### Do cleanup
+        unix.rm([binDir])
 
-        return consensusBinDb
-        '''
+        return metaclustersSVType
+
 
 class SV_caller_short(SV_caller):
     '''
