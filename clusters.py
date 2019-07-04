@@ -1224,7 +1224,7 @@ class META_cluster():
                     ## Do merging
                     ## Convert coordinates
                         
-            # E) Metacluster supports an INS and realignment leads to one left and one right CLIPPING 
+            ## E) Metacluster supports an INS and realignment leads to one left and one right CLIPPING 
             elif (self.SV_type == 'INS') and ('LEFT-CLIPPING' in eventsDict) and ('RIGHT-CLIPPING' in eventsDict) and (len(eventsDict['RIGHT-CLIPPING']) == 1) and (len(eventsDict['LEFT-CLIPPING']) == 1):
 
                 ## Compute the inserted sequence length as the difference between both clipping breakpoints in the long sequence 
@@ -1240,7 +1240,7 @@ class META_cluster():
                     ## Convert coordinates
                     self.consensusEvent = alignment.targetered2genomic_coord(event, self.ref, intervalBeg)
     
-            # F) Another possibility (Don´t do anything, leave previous. Later we may need to include new conditions)
+            ## F) Another possibility (Don´t do anything, leave previous. Later we may need to include new conditions)
 
 
     def determine_SV_type(self, minINDELlen, technology, outDir): 
