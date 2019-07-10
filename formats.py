@@ -377,10 +377,15 @@ class BED_line():
     '''
     BED line class 
     '''
+    number = 0 # Number of instances
+
     def __init__(self, fields):
         '''
         Initialize bed line
         '''
+        BED_line.number += 1 # Update instances counter
+        self.id = 'BED_line_' + str(BED_line.number)
+
         self.ref = str(fields[0])
         self.beg = int(fields[1])
         self.end = int(fields[2])
@@ -498,10 +503,14 @@ class PAF_line():
     '''
     PAF line class 
     '''
+    number = 0 # Number of instances
+
     def __init__(self, fields):
         '''
         Initialize paf line
         '''
+        PAF_line.number += 1 # Update instances counter
+        self.id = 'PAF_line_' + str(PAF_line.number)
         self.qName = str(fields[0])
         self.qLen = int(fields[1])
         self.qBeg = int(fields[2])
