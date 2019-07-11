@@ -389,6 +389,7 @@ class BED_line():
         self.ref = str(fields[0])
         self.beg = int(fields[1])
         self.end = int(fields[2])
+        self.clusterId = None
 
         if len(fields) > 3:
             self.name = str(fields[3])
