@@ -9,64 +9,55 @@ import pysam
 ## FUNCTIONS ##
 ###############
 
-## [SR CHANGE]: bam files added as argument
-## TODO: ADD NORMAL BAM!!!
-def filter_metaclusters(META_clustersDict, confDict):
+def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
     '''
     Function to apply filters all metaclusters. 
 
     Input:
-        1. META_clustersDict: keys -> SV_type, value -> list of metaclusters corresponding to this SV_type.
-        2. confDict
+        1. metaclustersDict: dictionary with the following structure: keys -> SV_type, value -> list of metaclusters corresponding to this SV_type.
+        2. filters2Apply: list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
+        3. confDict
+
     Output:
-        1. META_clustersDict: Same dictionary as input without those metaclusters that failed one or more filters.
-        2. META_clustersFailedDict: Dictionary with same structure as the input one, containig those metaclusters that failed one or more filters.
+        1. metaclustersPassDict: Dictionary with same structure as the input one, containing those metaclusters that passed all the filters.
+        2. metaclustersFailDict: Dictionary with same structure as the input one, containig those metaclusters that failed one or more filters.
     '''
+    metaclustersPassDict = {}
+    metaclustersFailDict = {}
 
-    ## Get a list containing the filters to apply
-    filters2Apply = confDict['clusterFilters'].split(',')
+    ## For each type of SV
+    for SV_type, metaclusters in metaclustersDict.items():
 
-    META_clustersFailedDict = {}
-    
-    ## Interrogate seleted filters for each metacluster and keep it in the dictionary or move it to the failed metaclusters dictionary.
-    for SV_type, META_clustersList in META_clustersDict.items():
+        metaclustersPassDict[SV_type] = []
+        metaclustersFailDict[SV_type] = []
 
-        META_clustersFailedList = []
+        ## 1. Make list with the indexes of the metaclusters do not passing some filter
+        filteredIndexes = []
 
-        for META_cluster in META_clustersList:
+        ## For each metacluster
+        for index, metacluster in enumerate(metaclusters):
 
-            META_cluster.failedFilters = filter_METAcluster(META_cluster, filters2Apply, confDict)
+            ## Apply filters
+            metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply, confDict)
 
-            if META_cluster.failedFilters != []:
-                META_clustersList.remove(META_cluster)
-                META_clustersFailedList.append(META_cluster)
-                META_clustersFailedDict[SV_type] = META_clustersFailedList
-    
-    return META_clustersDict, META_clustersFailedDict
+            # Metacluster fails some filter
+            if metacluster.failedFilters:
+                filteredIndexes.append(index)
 
+        ## 2. Divide metaclusters in those passing and failing filtering
+        for index, metacluster in enumerate(metaclusters):
+            
+            ## a) Filtered
+            if index in filteredIndexes:
+                metaclustersFailDict[SV_type].append(metacluster)
 
-# HACER OTRA PARECIDA A LA QUE ESTABA PARA SHORT READS
+            ## b) Pass
+            else:
+                metaclustersPassDict[SV_type].append(metacluster)
 
-## [SR CHANGE]
-def applyFilters(clusters):
-    '''
-    Remove those clusters that fail in one or more filters
-    '''
-    newClusterDict = {}
-    clusterTypes = clusters.eventTypes
+    return metaclustersPassDict, metaclustersFailDict
 
-    ## TODO: aqui seria mejor qitarlo de la lista en vez de hacer una nueva
-    ## TODO: aqui mirar de coger el clusterType de otra manera sin tener que hacer dos loops:
-    for clusterType in clusterTypes:
-        for cluster in clusters.collect([clusterType]):
-            newClusterDict[clusterType]=[]
-            if False not in [value for value in cluster.filters.values()]:
-                newClusterDict[clusterType].append(cluster)
-
-    return newClusterDict
-
-
-def filter_METAcluster(META_cluster, filters2Apply, confDict):
+def filter_metacluster(META_cluster, filters2Apply, confDict):
     '''
     Apply selected filters to one metacluster.
 
@@ -76,7 +67,7 @@ def filter_METAcluster(META_cluster, filters2Apply, confDict):
         3. confDict
     Output:
         1. failedFilters -> list containing those filters that the metacluster doesn't pass.
-    '''
+    '''    
     failedFilters = []
 
     ## 1. FILTER 1: Minimum number of reads per cluster
@@ -84,12 +75,10 @@ def filter_METAcluster(META_cluster, filters2Apply, confDict):
         if not minNbEventsFilter(META_cluster,  confDict['minSupportingReads'], confDict['minNormalSupportingReads']):
             failedFilters.append('MIN-NBREADS')
 
-
     ## 2. FILTER 2: Maximum number of reads per cluster
     if 'MAX-NBREADS' in filters2Apply: # check if the filter is selected
         if not maxNbEventsFilter(META_cluster,  confDict['maxClusterSize']):
             failedFilters.append('MAX-NBREADS')
-
 
     ## 3. FILTER 3: Maximum Coefficient of Variance per cluster
     if 'INS' in META_cluster.subclusters and 'CV' in filters2Apply: # check if the filter is selected
@@ -102,40 +91,6 @@ def filter_METAcluster(META_cluster, filters2Apply, confDict):
             failedFilters.append('SVTypeFilter')
 
     return failedFilters
-
-## [SR CHANGE]
-def filterDISCORDANT(cluster, filters2Apply, confDict, bam):
-    '''
-    Apply appropriate filters to each DISCORDANT-CLUSTER.
-
-    Input:
-        1. cluster: cluster object
-        2. filters2Apply: list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
-        3. confDict
-    Output:
-        1. filterDiscordantResults -> keys: name of filters; values: True if the cluster pass the filter, False if it doesn't pass.
-    '''
-
-    filterDiscordantResults = {}
-
-    ## 1. FILTER 1: Minimum number of reads per cluster
-    if 'MIN-NBREADS' in filters2Apply: # check if the filter is selected
-        filterDiscordantResults['MIN-NBREADS'] = minNbEventsFilter(cluster, confDict['minClusterSize'])
-
-    ## 2. FILTER 2: Maximum number of reads per cluster
-    if 'MAX-NBREADS' in filters2Apply: # check if the filter is selected
-        filterDiscordantResults['MAX-NBREADS'] = maxNbEventsFilter(cluster, confDict['maxClusterSize'])
-
-    ## 3. FILTER 3: Area mapping quality
-    if "AREAMAPQ" in filters2Apply:
-        filterDiscordantResults["AREAMAPQ"] = area(cluster,confDict,bam)[0]
-
-    ## 4. FILTER 4: Area clipping SMS
-    if "AREASMS" in filters2Apply:
-        filterDiscordantResults["AREASMS"] = area(cluster,confDict,bam)[1]
-
-    return filterDiscordantResults
-
 
 def minNbEventsFilter(META_cluster, minSupportingReads, minNormalSupportingReads):
     '''
@@ -241,6 +196,60 @@ def SVTypeFilter(META_cluster):
 
     return PASS
 
+# --------------- SHORT READS -----------------------
+# HACER OTRA PARECIDA A LA QUE ESTABA PARA SHORT READS
+
+## [SR CHANGE]
+def applyFilters(clusters):
+    '''
+    Remove those clusters that fail in one or more filters
+    '''
+    newClusterDict = {}
+    clusterTypes = clusters.eventTypes
+
+    ## TODO: aqui seria mejor qitarlo de la lista en vez de hacer una nueva
+    ## TODO: aqui mirar de coger el clusterType de otra manera sin tener que hacer dos loops:
+    for clusterType in clusterTypes:
+        for cluster in clusters.collect([clusterType]):
+            newClusterDict[clusterType]=[]
+            if False not in [value for value in cluster.filters.values()]:
+                newClusterDict[clusterType].append(cluster)
+
+    return newClusterDict
+
+
+## [SR CHANGE]
+def filterDISCORDANT(cluster, filters2Apply, confDict, bam):
+    '''
+    Apply appropriate filters to each DISCORDANT-CLUSTER.
+
+    Input:
+        1. cluster: cluster object
+        2. filters2Apply: list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
+        3. confDict
+    Output:
+        1. filterDiscordantResults -> keys: name of filters; values: True if the cluster pass the filter, False if it doesn't pass.
+    '''
+
+    filterDiscordantResults = {}
+
+    ## 1. FILTER 1: Minimum number of reads per cluster
+    if 'MIN-NBREADS' in filters2Apply: # check if the filter is selected
+        filterDiscordantResults['MIN-NBREADS'] = minNbEventsFilter(cluster, confDict['minClusterSize'])
+
+    ## 2. FILTER 2: Maximum number of reads per cluster
+    if 'MAX-NBREADS' in filters2Apply: # check if the filter is selected
+        filterDiscordantResults['MAX-NBREADS'] = maxNbEventsFilter(cluster, confDict['maxClusterSize'])
+
+    ## 3. FILTER 3: Area mapping quality
+    if "AREAMAPQ" in filters2Apply:
+        filterDiscordantResults["AREAMAPQ"] = area(cluster,confDict,bam)[0]
+
+    ## 4. FILTER 4: Area clipping SMS
+    if "AREASMS" in filters2Apply:
+        filterDiscordantResults["AREASMS"] = area(cluster,confDict,bam)[1]
+
+    return filterDiscordantResults
 
 # [SR CHANGE]
 def area(cluster,confDict,bam):
