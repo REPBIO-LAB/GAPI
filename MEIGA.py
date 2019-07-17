@@ -54,13 +54,12 @@ parser.add_argument('--minPercOverlap', default=70, dest='minPercRcplOverlap', t
 
 ## Filtering
 # Long
-parser.add_argument('--clusterFilters', default='MIN-NBREADS,MAX-NBREADS,CV,SVTypeFilter', dest='clusterFilters', type=str, help='Comma separated list of cluster filters to apply (minimum number of reads, max number of reads, minimum Coefficient of Variation and minimum percentage of outliers). Default: MIN-NBREADS,MAX-NBREADS,CV,SVTypeFilter')
 parser.add_argument('--minClusterSize', default=2, dest='minClusterSize', type=int, help='Minimum number of reads composing a cluster. Default: 2')
 parser.add_argument('--maxClusterSize', default=500, dest='maxClusterSize', type=int, help='Maximum number of reads composing a metacluster. Default: 500')
-parser.add_argument('--maxClusterCV', default=20, dest='maxClusterCV', type=int, help='Maximum coefficient of variation of a metacluster. Default: 20')
+parser.add_argument('--maxClusterCV', default=30, dest='maxClusterCV', type=int, help='Maximum coefficient of variation of a metacluster. Default: 30')
 parser.add_argument('--minSupportingReads', default=3, dest='minSupportingReads', type=int, help='Minimum number of reads supporting a SV. Default: 3')
 parser.add_argument('--minNormalSupportingReads', default=2, dest='minNormalSupportingReads', type=int, help='Minimum number of reads supporting a SV in normal sample. Default: 2')
-
+parser.add_argument('--targetStatus', default='resolved,partially_resolved', dest='targetStatus', type=str, help='Filter out those insertions with an status not included in the list. Default: resolved,partially_resolved')
 
 # Short
 parser.add_argument('--minReadsRegionMQ', default=10, dest='minReadsRegionMQ', type=int, help='Surrounding reads above this MQ are considered low MQ reads. Default: 10')
@@ -103,12 +102,12 @@ minPercRcplOverlap = args.minPercRcplOverlap
 
 ## Filtering thresholds
 # Long
-clusterFilters = args.clusterFilters
 minClusterSize = args.minClusterSize
 maxClusterSize = args.maxClusterSize
 maxClusterCV = args.maxClusterCV
 minSupportingReads = args.minSupportingReads
 minNormalSupportingReads = args.minNormalSupportingReads
+targetStatus = args.targetStatus
 
 # Short
 minReadsRegionMQ = args.minReadsRegionMQ
@@ -116,7 +115,7 @@ maxRegionlowMQ = args.maxRegionlowMQ
 maxRegionSMS = args.maxRegionSMS
 
 # If no reference is specified, get all that are present in the bam file.
-if refs == "ALL":
+if refs == 'ALL':
 	refs = bamtools.get_refs(bam)
 
 # Convert comma-separated string inputs into lists:
@@ -124,7 +123,7 @@ targetSV = SV.split(',')
 targetRefs = refs.split(',')
 
 ## Determine running mode:
-mode = "SINGLE" if normalBam == None else "PAIRED"
+mode = 'SINGLE' if normalBam == None else 'PAIRED'
 
 ## If unknown technology provided raise an error and exit 
 if technology not in ['NANOPORE', 'PACBIO', 'ILLUMINA']:
@@ -173,12 +172,12 @@ print('maxBkpDist: ', maxBkpDist)
 print('minPercOverlap: ', minPercRcplOverlap, "\n")
 
 print('** Filtering **')
-print('clusterFilters: ', clusterFilters)
 print('minClusterSize: ', minClusterSize)
 print('maxClusterSize: ', maxClusterSize)
-print ('maxClusterCV: ', maxClusterCV)
-print ('minSupportingReads: ', minSupportingReads)
-print ('minNormalSupportingReads: ', minNormalSupportingReads)
+print('maxClusterCV: ', maxClusterCV)
+print('minSupportingReads: ', minSupportingReads)
+print('minNormalSupportingReads: ', minNormalSupportingReads)
+print('targetStatus: ', targetStatus)
 print('minReadsRegionMQ: ', minReadsRegionMQ)
 print('maxRegionlowMQ: ', maxRegionlowMQ)
 print('maxRegionSMS: ', maxRegionSMS, "\n")
@@ -221,12 +220,12 @@ confDict['minPercRcplOverlap'] = minPercRcplOverlap
 
 ## Filtering thresholds
 # Long
-confDict['clusterFilters'] = clusterFilters
 confDict['minClusterSize'] = minClusterSize
 confDict['maxClusterSize'] = maxClusterSize
 confDict['maxClusterCV'] = maxClusterCV
 confDict['minSupportingReads'] = minSupportingReads
 confDict['minNormalSupportingReads'] = minNormalSupportingReads
+confDict['targetStatus'] = targetStatus.split(',')
 
 ## Filtering thresholds short reads
 confDict['minReadsRegionMQ'] = minReadsRegionMQ
