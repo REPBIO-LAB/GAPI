@@ -67,17 +67,28 @@ class SV_caller_long(SV_caller):
         pool = mp.Pool(processes=self.confDict['processes'])
         pool.map(self.make_clusters_bin, bins)
 
-        '''
-        metaclustersBinDb = pool.map(self.make_clusters_bin, bins)
+        metaclustersPassList, metaclustersFailedList = zip(*pool.map(self.make_clusters_bin, bins))
+
         pool.close()
         pool.join()
 
-        ### 4. Report SV calls into output files
-        output.write_INS(metaclustersBinDb, self.outDir)
+        ### 4. Collapse metaclusters in a single dict
+        metaclustersPass = structures.merge_dictionaries(metaclustersPassList)
+        metaclustersFailed = structures.merge_dictionaries(metaclustersFailedList)
 
-        ### 5. Do cleanup
+        ### 5. Report SV calls into output files
+        ##  5.1 Report INS
+        if 'INS' in metaclustersPass:
+            outFileName = 'INS_MEIGA.PASS.tsv'
+            output.write_INS(metaclustersPass['INS'], outFileName, self.outDir)
+
+        if 'INS' in metaclustersFailed:
+            outFileName = 'INS_MEIGA.FAILED.tsv'
+            output.write_INS(metaclustersFailed['INS'], outFileName, self.outDir)
+
+        ### 6. Do cleanup
         unix.rm([dbDir])
-        '''
+        
         
     def make_clusters_bin(self, window):
         '''
@@ -151,11 +162,12 @@ class SV_caller_long(SV_caller):
         metaclustersSVType = clusters.SV_type_metaclusters(metaclusters, self.confDict['minINDELlen'], self.confDict['technology'], binDir)
         
         ## 7. Filter metaclusters ##
-        step = 'FILTER-ROUND_1'
+        step = 'FILTER'
         msg = 'Filter out metaclusters' 
         log.step(step, msg)
-        metaclustersSVType, metaclustersSVTypeFailed = filters.filter_metaclusters(metaclustersSVType, self.confDict)
-        
+        filters2Apply = ['MIN-NBREADS', 'MAX-NBREADS', 'CV', 'SV-TYPE']
+        metaclustersSVType, metaclustersSVTypeFailed = filters.filter_metaclusters(metaclustersSVType, filters2Apply, self.confDict)
+
         ## 8. Generate consensus event for SV metaclusters ##
         step = 'CONSENSUS'
         msg = 'Generate consensus event for SV metaclusters' 
@@ -172,16 +184,10 @@ class SV_caller_long(SV_caller):
         if 'INS' in metaclustersSVType:
             clusters.determine_INS_type(metaclustersSVType['INS'], self.retrotransposonDbIndex, self.confDict, binDir) 
 
-        ## 10. Apply additional filters to the metaclusters ##
-        #step = 'FILTER-ROUND_2'
-        #msg = 'Filter out metaclusters' 
-        #log.step(step, msg)
-        #clusters.filter_metaclusters(consensusBinDb.collect(['INS']), self.retrotransposonDbIndex, self.confDict, binDir)
-
         ### Do cleanup
         unix.rm([binDir])
 
-        return metaclustersSVType
+        return metaclustersSVType, metaclustersSVTypeFailed
 
 
 class SV_caller_short(SV_caller):
