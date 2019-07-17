@@ -409,3 +409,28 @@ class events_bin():
         Sort events in increasing coordinates order
         '''
         self.events.sort(key=lambda event: event.beg)
+
+
+def merge_dictionaries(dictionaries):
+    '''
+    Takes as input a list of dictionaries and merge them by their keys into a single dictionary. 
+    Dictionary values must be lists
+    '''
+    ## 1. Generate set containing all possible dictionary keys
+    keys = set().union(*(dictionary.keys() for dictionary in dictionaries))
+
+    ## 2. Initialize empty dictionary
+    outDict = {} 
+
+    for key in keys:
+        outDict[key] = []   
+
+    ## 3. Fill dictionary 
+    # For each input dict
+    for dictionary in dictionaries:
+
+        # For each key and list
+        for key, elements in dictionary.items():
+            outDict[key] = outDict[key] + elements
+
+    return outDict
