@@ -1,43 +1,45 @@
 import structures
 
 
-def write_INS(metaclustersBinDb, outDir):
+def write_INS(INS_metaclusters, outFileName, outDir):
     '''
     Write INS calls into a tsv file
+
+    Input:
+        1. INS_metaclusters: list containing list of INS metaclusters
+        2. outFileName: Output file name
+        3. outDir: Output directory
+    Output: tsv file containing identified metaclusters
     '''
     ## 1. Open output file 
-    fileName = "INS_MEIGA.tsv"
-    outFilePath = outDir + '/' + fileName
+    outFilePath = outDir + '/' + outFileName
     outFile = open(outFilePath, 'w')
 
     ## 2. Write header 
-    row = "#ref \t beg \t end \t binId \t insType \t family \t srcId \t status \t percResolved \t strand \t hits \t nbTotal \t nbTumour \t nbNormal \t nbINS \t nbDEL \t nbCLIPPING \t length \t cv \t insertSeq \n"
+    row = "#ref \t beg \t end \t filters \t insType \t family \t srcId \t status \t percResolved \t strand \t hits \t nbTotal \t nbTumour \t nbNormal \t nbINS \t nbDEL \t nbCLIPPING \t length \t cv \t insertSeq \n"
     outFile.write(row)
 
-    ## 3. Write clusters 
-    # For each binDb
-    for binDb in metaclustersBinDb:
+    ## 3. Write INS metaclusters 
+    # For each metacluster
+    for metacluster in INS_metaclusters:
             
-        binId = binDb.ref + ':' + str(binDb.beg) + '-' + str(binDb.end) 
+        # Collect INS features
+        filters = 'PASS' if not metacluster.failedFilters else ','.join(metacluster.failedFilters)
+        insType = metacluster.SV_features['insType'] if 'insType' in metacluster.SV_features else None
+        family = metacluster.SV_features['family'] if 'family' in metacluster.SV_features else None
+        srcId = metacluster.SV_features['srcId'] if 'srcId' in metacluster.SV_features else None
+        status = metacluster.SV_features['status'] if 'status' in metacluster.SV_features else None
+        percResolved = metacluster.SV_features['percResolved'] if 'percResolved' in metacluster.SV_features else None
+        strand = metacluster.SV_features['strand'] if 'strand' in metacluster.SV_features else None
+        hits = metacluster.SV_features['hits'] if 'hits' in metacluster.SV_features else None
+        nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING = metacluster.nbEvents()        
+        meanLen, cv = metacluster.subclusters['INS'].cv_len() if 'INS' in metacluster.subclusters else (None, None)
+        length = metacluster.consensusEvent.length if metacluster.consensusEvent is not None else None
+        insert = metacluster.consensusEvent.pick_insert() if metacluster.consensusEvent is not None else None
 
-        # For each metacluster in the binDb
-        for metacluster in binDb.collect(['INS']):
-
-            # Collect INS features
-            nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING = metacluster.nbEvents()
-
-            insType = metacluster.INS_features['insType'] if 'insType' in metacluster.INS_features else None
-            family = metacluster.INS_features['family'] if 'family' in metacluster.INS_features else None
-            srcId = metacluster.INS_features['srcId'] if 'srcId' in metacluster.INS_features else None
-            status = metacluster.INS_features['status'] if 'status' in metacluster.INS_features else None
-            percResolved = metacluster.INS_features['percResolved'] if 'percResolved' in metacluster.INS_features else None
-            strand = metacluster.INS_features['strand'] if 'strand' in metacluster.INS_features else None
-            hits = metacluster.INS_features['hits'] if 'hits' in metacluster.INS_features else None
-            meanLen, cv = metacluster.subclusters['INS'].cv_len() if 'INS' in metacluster.subclusters else (None, None)
-
-            # Write INS call into output file
-            row = "\t".join([metacluster.ref, str(metacluster.beg), str(metacluster.end), binId, str(insType), str(family), str(srcId), str(status), str(percResolved), str(strand), str(hits), str(nbTotal), str(nbTumour), str(nbNormal), str(nbINS), str(nbDEL), str(nbCLIPPING), str(metacluster.consensus.length), str(cv), metacluster.consensus.pick_insert(), "\n"])
-            outFile.write(row)
+        # Write INS call into output file
+        row = "\t".join([metacluster.ref, str(metacluster.beg), str(metacluster.end), str(filters), str(insType), str(family), str(srcId), str(status), str(percResolved), str(strand), str(hits), str(nbTotal), str(nbTumour), str(nbNormal), str(nbINS), str(nbDEL), str(nbCLIPPING), str(length), str(cv), str(insert), "\n"])
+        outFile.write(row)
 
     ## Close output file ##
     outFile.close()
