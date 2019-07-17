@@ -676,7 +676,6 @@ class INS_cluster(cluster):
         cluster.__init__(self, events, 'INS')
 
         # Insertion features
-        self.status = None
         self.insType = None
         self.family = None 
         self.srcId = None
@@ -831,6 +830,7 @@ class META_cluster():
 
         # Set some metacluster properties as None
         self.failedFilters = None
+        self.consensusEvent = None                
         
         # Update input cluster's clusterId attribute
         for cluster in clusters:
@@ -890,6 +890,10 @@ class META_cluster():
         Input:
             1. clusters2add: List of clusters to be added 
         '''
+        ## 0. Update metacluster's id attribute
+        for cluster in clusters2add:
+            cluster.clusterId = self.id
+
         ## 1. Add events within the input cluster to the metacluster ##
         events2add = list(itertools.chain(*[cluster.events for cluster in clusters2add]))
         self.events = self.events + events2add
@@ -1246,8 +1250,10 @@ class META_cluster():
                     ## Convert coordinates
                     self.consensusEvent = alignment.targetered2genomic_coord(event, self.ref, intervalBeg)
     
-            ## F) Another possibility (Don´t do anything, leave previous. Later we may need to include new conditions)
+                else:
+                    print('INS_NOT_FOUND!')
 
+            ## F) Another possibility (Don´t do anything, leave previous. Later we may need to include new conditions)
 
     def determine_SV_type(self, minINDELlen, technology, outDir): 
         '''
@@ -1331,6 +1337,9 @@ class META_cluster():
             2. confDict: Configuration dictionary 
             3. outDir: Output directory
         '''
+        ## Abort if consensus event not available:
+        if self.consensusEvent is None:
+            return
 
         ## 0. Create output directory 
         unix.mkdir(outDir)

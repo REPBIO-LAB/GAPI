@@ -124,7 +124,7 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
 
     Output:
         1. clustersList: list of created clusters/metaclusters
-    '''
+    '''    
     eventsInClusters = []
     clustersDict = {}
 
