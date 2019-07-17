@@ -28,9 +28,6 @@ def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
     ## For each type of SV
     for SV_type, metaclusters in metaclustersDict.items():
 
-        metaclustersPassDict[SV_type] = []
-        metaclustersFailDict[SV_type] = []
-
         ## 1. Make list with the indexes of the metaclusters do not passing some filter
         filteredIndexes = []
 
@@ -47,22 +44,32 @@ def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
         ## 2. Divide metaclusters in those passing and failing filtering
         for index, metacluster in enumerate(metaclusters):
             
-            ## a) Filtered
+            ## a) Failing some filter
             if index in filteredIndexes:
+
+                ## Initialize list
+                if SV_type not in metaclustersFailDict:
+                    metaclustersFailDict[SV_type] = []
+                
                 metaclustersFailDict[SV_type].append(metacluster)
 
-            ## b) Pass
+            ## b) Passing all the filters
             else:
+
+                ## Initialize list
+                if SV_type not in metaclustersPassDict:
+                    metaclustersPassDict[SV_type] = []
+
                 metaclustersPassDict[SV_type].append(metacluster)
 
     return metaclustersPassDict, metaclustersFailDict
 
-def filter_metacluster(META_cluster, filters2Apply, confDict):
+def filter_metacluster(metacluster, filters2Apply, confDict):
     '''
     Apply selected filters to one metacluster.
 
     Input:
-        1. META_cluster: META_cluster object
+        1. metacluster: metacluster object
         2. filters2Apply: list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
         3. confDict
     Output:
@@ -72,32 +79,39 @@ def filter_metacluster(META_cluster, filters2Apply, confDict):
 
     ## 1. FILTER 1: Minimum number of reads per cluster
     if 'MIN-NBREADS' in filters2Apply: # check if the filter is selected
-        if not minNbEventsFilter(META_cluster,  confDict['minSupportingReads'], confDict['minNormalSupportingReads']):
+        if not minNbEventsFilter(metacluster, confDict['minSupportingReads'], confDict['minNormalSupportingReads']):
             failedFilters.append('MIN-NBREADS')
 
     ## 2. FILTER 2: Maximum number of reads per cluster
     if 'MAX-NBREADS' in filters2Apply: # check if the filter is selected
-        if not maxNbEventsFilter(META_cluster,  confDict['maxClusterSize']):
+        if not maxNbEventsFilter(metacluster, confDict['maxClusterSize']):
             failedFilters.append('MAX-NBREADS')
 
     ## 3. FILTER 3: Maximum Coefficient of Variance per cluster
-    if 'INS' in META_cluster.subclusters and 'CV' in filters2Apply: # check if the filter is selected
-        if not maxCvFilter(META_cluster, confDict['maxClusterCV']):
+    if ('CV' in filters2Apply) and ('INS' in metacluster.subclusters): # check if the filter is selected
+        if not maxCvFilter(metacluster, confDict['maxClusterCV']):
             failedFilters.append('CV')
 
     ## 4. FILTER 4: Whether a metacluster has a SV_type assigned or not
-    if 'SVTypeFilter' in filters2Apply: # check if the filter is selected
-        if not SVTypeFilter(META_cluster):
-            failedFilters.append('SVTypeFilter')
+    if 'SV-TYPE' in filters2Apply: # check if the filter is selected
+        if not SVTypeFilter(metacluster):
+            failedFilters.append('SV-TYPE')
+
+    ## 5. FILTER 5: Wheter if insertion has an status not included in the list (TO DO)
+    #if ('STATUS' in filters2Apply) and ('INS' in metacluster.subclusters) and ('status' in metacluster.SV_features): 
+
+        # statusFilter(metacluster, confDict['targetStatus']
+        #if not statusFilter(metacluster, confDict['targetStatus'])
+        #    failedFilters.append('STATUS')
 
     return failedFilters
 
-def minNbEventsFilter(META_cluster, minSupportingReads, minNormalSupportingReads):
+def minNbEventsFilter(metacluster, minSupportingReads, minNormalSupportingReads):
     '''
     Filter metacluster by comparing the number of supporting events with a minimum treshold
 
     Input:
-        1. META_cluster: META_cluster object
+        1. metacluster: metacluster object
         2. minSupportingReads: min number of events threshold
         3. minSupportingReads: min number of events threshold for normal sample
 
@@ -106,20 +120,24 @@ def minNbEventsFilter(META_cluster, minSupportingReads, minNormalSupportingReads
     '''
 
     ## 1. Compute number of events supporting the cluster 
-    nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING = META_cluster.nbEvents()
+    nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING = metacluster.nbEvents()
 
     ## 2. Compare the number of events supporting the cluster against the minimum required
     # 2.1 Paired mode:
     if nbTumour != None:
+
         if nbTumour >= minSupportingReads and nbNormal >= minNormalSupportingReads:
-            META_cluster.mutOrigin = 'germline'
+            metacluster.mutOrigin = 'germline'
             PASS = True
+
         elif nbTumour >= minSupportingReads and not nbNormal >= minNormalSupportingReads:
-            META_cluster.mutOrigin = 'somatic-tumour'
+            metacluster.mutOrigin = 'somatic-tumour'
             PASS = True
+
         elif not nbTumour >= minSupportingReads and nbNormal >= minNormalSupportingReads:
-            META_cluster.mutOrigin = 'somatic-NORMAL'
+            metacluster.mutOrigin = 'somatic-NORMAL'
             PASS = True
+
         else:
             PASS = False
 
@@ -133,19 +151,19 @@ def minNbEventsFilter(META_cluster, minSupportingReads, minNormalSupportingReads
     
     return PASS
 
-def maxNbEventsFilter(META_cluster, maxNbEvents):
+def maxNbEventsFilter(metacluster, maxNbEvents):
     '''
     Filter metacluster by comparing the number of cluster supporting events with a maximum treshold
 
     Input:
-        1. META_cluster: META_cluster object
+        1. metacluster: metacluster object
         2. maxNbEvents: maximum number of events threshold
     Output:
         1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
     '''
 
     ## 1. Compute number of events supporting the cluster 
-    nbTotal = META_cluster.nbEvents()[0]
+    nbTotal = metacluster.nbEvents()[0]
 
     ## 2. Compare the number of events supporting the cluster against the maximum required
     if nbTotal <= maxNbEvents:
@@ -155,20 +173,19 @@ def maxNbEventsFilter(META_cluster, maxNbEvents):
     
     return PASS
 
-
-def maxCvFilter(META_cluster, maxClusterCV):
+def maxCvFilter(metacluster, maxClusterCV):
     '''
     Filter metacluster by comparing its Coefficient of Variation with a maximum threshold.
 
     Input:
-        1. META_cluster: META_cluster object
+        1. metacluster: metacluster object
         2. maxClusterCV: maximum Coefficient of Variation threshold
     Output:
         1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
     '''
 
     ## 1. Compute CV of the cluster 
-    cv = META_cluster.subclusters['INS'].cv_len()[1]
+    cv = metacluster.subclusters['INS'].cv_len()[1]
 
     ## 2. Compare the cluster CV against the maximum required
     if cv <= maxClusterCV:
@@ -178,23 +195,42 @@ def maxCvFilter(META_cluster, maxClusterCV):
 
     return PASS
 
-def SVTypeFilter(META_cluster):
+def statusFilter(metacluster):
     '''
     Filter metacluster by checking if it has a SV type assigned.
 
     Input:
-        1. META_cluster: META_cluster object
+        1. metacluster: metacluster object
     Output:
         1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
     '''
 
     ## 2. Compare the percentage of outliers against the maximum required
-    if META_cluster.SV_type != None:
+    if metacluster.SV_type != None:
         PASS = True 
     else:
         PASS = False
 
     return PASS
+
+def SVTypeFilter(metacluster):
+    '''
+    Filter metacluster by checking if it has a SV type assigned.
+
+    Input:
+        1. metacluster: metacluster object
+    Output:
+        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
+    '''
+
+    ## 2. Compare the percentage of outliers against the maximum required
+    if metacluster.SV_type != None:
+        PASS = True 
+    else:
+        PASS = False
+
+    return PASS
+
 
 # --------------- SHORT READS -----------------------
 # HACER OTRA PARECIDA A LA QUE ESTABA PARA SHORT READS
