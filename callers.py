@@ -4,8 +4,11 @@ Module 'callers' - Contains classes and functions for calling variants from next
 
 ## DEPENDENCIES ##
 # External
-import multiprocessing as mp
 import sys
+import multiprocessing as mp
+import subprocess
+import os
+import pysam
 
 # Internal
 import log
@@ -20,6 +23,8 @@ import output
 import annotation
 import bkp
 import filters
+import alignment
+
 
 ## FUNCTIONS ##
 
@@ -65,8 +70,6 @@ class SV_caller_long(SV_caller):
         ### 3. Search for SV clusters in each bin ##
         # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
-        pool.map(self.make_clusters_bin, bins)
-
         metaclustersPassList, metaclustersFailedList = zip(*pool.map(self.make_clusters_bin, bins))
 
         pool.close()
@@ -76,20 +79,52 @@ class SV_caller_long(SV_caller):
         metaclustersPass = structures.merge_dictionaries(metaclustersPassList)
         metaclustersFailed = structures.merge_dictionaries(metaclustersFailedList)
 
-        ### 5. Report SV calls into output files
-        ##  5.1 Report INS
+        ### 5. Determine what type of sequence has been inserted for INS metaclusters
         if 'INS' in metaclustersPass:
-            outFileName = 'INS_MEIGA.PASS.tsv'
-            output.write_INS(metaclustersPass['INS'], outFileName, self.outDir)
+            self.determine_ins_type(metaclustersPass['INS'])
 
-        if 'INS' in metaclustersFailed:
-            outFileName = 'INS_MEIGA.FAILED.tsv'
-            output.write_INS(metaclustersFailed['INS'], outFileName, self.outDir)
+        ### 6. Report SV calls into output files
+        ##  6.1 Report INS
+        #if 'INS' in metaclustersPass:
+        #    outFileName = 'INS_MEIGA.PASS.tsv'
+        #    output.write_INS(metaclustersPass['INS'], outFileName, self.outDir)
+
+        #if 'INS' in metaclustersFailed:
+        #    outFileName = 'INS_MEIGA.FAILED.tsv'
+        #    output.write_INS(metaclustersFailed['INS'], outFileName, self.outDir)
 
         ### 6. Do cleanup
         unix.rm([dbDir])
+
+    def determine_ins_type(self, metaclusters):
+        '''
+        For each metacluster provided as input determine the type of insertion
+
+        Input:
+            1. metaclusters: list of metaclusters supporting insertion events
+        '''        
         
-        
+        ## 1. Create fasta containing all consensus inserted sequences ##
+        outDir = self.outDir + '/insType/'
+        fastaPath = clusters.insertedSeq2fasta(metaclusters, outDir)
+
+        ## 2. Align consensus inserted sequences into the reference genome ##
+        index = os.path.splitext(self.reference)[0] + '.mmi'
+        BAM = alignment.alignment_minimap2(fastaPath, index, outDir)
+
+        ## 3. Asign alignments to their corresponding metacluster ##
+        tupleList = clusters.assignAligments2metaclusters(metaclusters, BAM)
+
+        ## 4. For each metacluster determine insertion type
+        # metaclusters will be distributed into X processes
+        pool = mp.Pool(processes=self.confDict['processes'])
+        pool.map(clusters.determine_ins_type, tupleList)
+
+        # metaclustersPassList, metaclustersFailedList = zip(*pool.map(self.make_clusters_bin, bins))
+
+        pool.close()
+        pool.join()
+
     def make_clusters_bin(self, window):
         '''
         Search for structural variant (SV) clusters in a genomic bin/window
@@ -177,12 +212,12 @@ class SV_caller_long(SV_caller):
         clusters.create_consensus(metaclustersSVType, self.confDict, self.reference, targetSV, binDir)       
 
         ## 9. For each metacluster supporting an insertion determine what has been inserted (INS-TYPE)
-        step = 'INS-TYPE'
-        msg = 'Determine the insertion type for each metacluster supporting an insertion'
-        log.step(step, msg)
+        #step = 'INS-TYPE'
+        #msg = 'Determine the insertion type for each metacluster supporting an insertion'
+        #log.step(step, msg)
 
-        if 'INS' in metaclustersSVType:
-            clusters.determine_INS_type(metaclustersSVType['INS'], self.retrotransposonDbIndex, self.confDict, binDir) 
+        #if 'INS' in metaclustersSVType:
+        #    clusters.determine_INS_type(metaclustersSVType['INS'], self.retrotransposonDbIndex, self.confDict, binDir) 
 
         ### Do cleanup
         unix.rm([binDir])
