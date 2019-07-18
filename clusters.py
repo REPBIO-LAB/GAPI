@@ -541,7 +541,8 @@ def insertedSeq2fasta(metaclusters, outDir):
 
 def assignAligments2metaclusters(metaclusters, BAM):
     '''
-    
+    Map alignments to their corresponding metacluster. Organize the metaclusters and the alignments into a list of tuples
+
     Input:
         1. metaclusters: list of metaclusters
         2. BAM: Path to bam file containing alignments to asign
