@@ -480,7 +480,6 @@ def find_insertion_at_clipping_bkp(primary, supplementary):
 
     return insert
 
-
 def determine_INS_type(metaclusters, index, confDict, rootOutDir):
     '''
     Function to determine what has been inserted for each cluster. 
@@ -499,6 +498,77 @@ def determine_INS_type(metaclusters, index, confDict, rootOutDir):
         outDir = rootOutDir + '/INS_type/' + str(metacluster.id)
         metacluster.determine_INS_type(index, confDict, outDir)
 
+def determine_ins_type(data):
+    '''
+    '''
+    print('DETERMINE_INS_TYPE: ', data)
+
+
+
+def insertedSeq2fasta(metaclusters, outDir):
+    '''
+    Collect all the consensus inserted sequences from a list of metaclusters supporting INS and 
+    generate fasta file containing them 
+
+    Input:
+        1. metaclusters: list of metaclusters
+        2. outDir: output directory
+
+    Output:
+        1. fastaPath: fasta file containing all the consensus inserted sequences
+    '''
+    ## Initiate FASTA object
+    FASTA = formats.FASTA()
+
+    # For each metacluster
+    for metacluster in metaclusters:
+
+        ## Skip insertion type inference if consensus event not available
+        if metacluster.consensusEvent is None:
+            continue               
+
+        ## Retrieve inserted sequence and add to the FASTA
+        metaclusterId = metacluster.ref + ':' + str(metacluster.beg) + '-' + str(metacluster.end)
+        insert = metacluster.consensusEvent.pick_insert()
+
+        FASTA.seqDict[metaclusterId] = insert
+        
+    ## Write fasta         
+    fastaPath = outDir + '/inserted_sequences.fa'
+    FASTA.write(fastaPath)    
+
+    return fastaPath
+
+def assignAligments2metaclusters(metaclusters, BAM):
+    '''
+    
+    Input:
+        1. metaclusters: list of metaclusters
+        2. BAM: Path to bam file containing alignments to asign
+
+    Output:
+        1. tupleList: list of tuples. Each tuple is composed by two elements:
+                1) Metacluster object
+                2) List of alignment objects corresponding to that metacluster 
+    '''
+    ## 1. Create a dictionary to organize the data
+    hits = {}
+
+    for metacluster in metaclusters:
+        metaclusterId = metacluster.ref + ':' + str(metacluster.beg) + '-' + str(metacluster.end)
+        hits[metaclusterId] = (metacluster, [])
+
+    ## 2. Read bam file and add hits to the dictionary
+    ## Open BAM file for reading
+    bamFile = pysam.AlignmentFile(BAM, "rb")
+
+    # For each read alignment
+    for alignmentObj in bamFile.fetch():
+        hits[alignmentObj.query_name][1].append(alignmentObj)
+
+    ## 3. Generate tuple list from dictionary
+    tupleList = list(hits.values())
+    return tupleList
 
 #############
 ## CLASSES ##
@@ -674,20 +744,6 @@ class INS_cluster(cluster):
     def __init__(self, events):
 
         cluster.__init__(self, events, 'INS')
-
-        # Insertion features
-        self.insType = None
-        self.family = None 
-        self.srcId = None
-        self.percResolved = None
-        self.strand = None
-        self.hits = None
-    
-        # Inserted seq
-        self.consensus_FASTA = None
-        self.consensusLen = None
-        self.isConsensus = None
-        self.insertSeq = None
 
     def correct_fragmentation(self):
         '''
