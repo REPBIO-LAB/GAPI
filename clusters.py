@@ -5,8 +5,8 @@ Module 'clusters' - Contains classes for dealing with genomic variation
 ## DEPENDENCIES ##
 # External
 import sys
+import multiprocessing as mp
 import numpy as np
-import collections 
 import pysam
 import math
 import itertools
@@ -480,29 +480,43 @@ def find_insertion_at_clipping_bkp(primary, supplementary):
 
     return insert
 
-def determine_INS_type(metaclusters, index, confDict, rootOutDir):
+
+def INS_type_metaclusters(metaclusters, index, confDict, outDir):
     '''
-    Function to determine what has been inserted for each cluster. 
+    For each metacluster provided as input determine the type of insertion
 
     Input:
-        1. metaclusters: list containing metaclusters supporting INS events
-        2. index: Minimap2 index for fasta file containing retrotransposon related sequences 
-        3. confDict: ...
-        4: rootOutDir: root directory to write files and directories
+        1. metaclusters: list of metaclusters supporting insertion events
+        2. index: Path to the the index of the reference in .mmi format (generated with minimap2)
+        3. confDict: Configuration dictionary
+        4. outDir: Output directory
+    '''        
+        
+    ## 1. Create fasta containing all consensus inserted sequences ##
+    fastaPath = insertedSeq2fasta(metaclusters, outDir)
+
+    ## 2. Align consensus inserted sequences into the reference genome ##
+    PAF = alignment.alignment_minimap2(fastaPath, index, outDir)
+
+    ## 3. Asign alignments to their corresponding metacluster ##
+    tupleList = assignAligments2metaclusters(metaclusters, PAF)        
+
+    ## 4. For each metacluster determine insertion type
+    # metaclusters will be distributed into X processes
+    pool = mp.Pool(processes=confDict['processes'])
+    pool.map(INS_type_metacluster, tupleList)
+    pool.close()
+    pool.join()
+
+def INS_type_metacluster(data):
     '''
+    For each metacluster determine the type of insertion
 
-    ## For each metacluster in the list
-    for metacluster in metaclusters:
-
-        ## Determine the insertion type
-        outDir = rootOutDir + '/INS_type/' + str(metacluster.id)
-        metacluster.determine_INS_type(index, confDict, outDir)
-
-def determine_ins_type(data):
-    '''
-    '''
-    print('DETERMINE_INS_TYPE: ', data)
-
+    Input:
+        1. 
+    '''        
+    metacluster, PAF = data    
+    metacluster.determine_INS_type(PAF)
 
 
 def insertedSeq2fasta(metaclusters, outDir):
@@ -539,37 +553,40 @@ def insertedSeq2fasta(metaclusters, outDir):
 
     return fastaPath
 
-def assignAligments2metaclusters(metaclusters, BAM):
+def assignAligments2metaclusters(metaclusters, PAF_path):
     '''
-    Map alignments to their corresponding metacluster. Organize the metaclusters and the alignments into a list of tuples
+    Map alignments to their corresponding metacluster. 
 
     Input:
         1. metaclusters: list of metaclusters
-        2. BAM: Path to bam file containing alignments to asign
+        2. PAF_path: Path to path file containing alignments to asign
 
     Output:
-        1. tupleList: list of tuples. Each tuple is composed by two elements:
-                1) Metacluster object
-                2) List of alignment objects corresponding to that metacluster 
+        1. tupleList: List of tuples. Each tuple contain two elements: 
+            1) metacluster object  
+            2) PAF object containing the corresponding alignments for the metacluster consensus inserted sequence
     '''
     ## 1. Create a dictionary to organize the data
     hits = {}
 
     for metacluster in metaclusters:
         metaclusterId = metacluster.ref + ':' + str(metacluster.beg) + '-' + str(metacluster.end)
-        hits[metaclusterId] = (metacluster, [])
+        hits[metaclusterId] = (metacluster, formats.PAF())
 
-    ## 2. Read bam file and add hits to the dictionary
-    ## Open BAM file for reading
-    bamFile = pysam.AlignmentFile(BAM, "rb")
+    ## 2. Read PAF file and add hits to the metaclusters
+    ## Read PAF 
+    PAF = formats.PAF()
+    PAF.read(PAF_path)
 
-    # For each read alignment
-    for alignmentObj in bamFile.fetch():
-        hits[alignmentObj.query_name][1].append(alignmentObj)
-
-    ## 3. Generate tuple list from dictionary
+    # For each read alignment 
+    for alignment in PAF.lines:
+        hits[alignment.qName][1].lines.append(alignment)
+    
+    ## 3. Generate list of tuples
     tupleList = list(hits.values())
+
     return tupleList
+
 
 #############
 ## CLASSES ##
@@ -882,10 +899,8 @@ class META_cluster():
         # Organize events into subclusters
         self.subclusters = self.create_subclusters()
 
-        # Tag germline or somatic
-        self.mutOrigin = None
-
         # Set some metacluster properties as None
+        self.mutOrigin = None
         self.failedFilters = None
         self.consensusEvent = None                
         
@@ -893,7 +908,7 @@ class META_cluster():
         for cluster in clusters:
             cluster.clusterId = self.id
 
-        # Initialize dictionary containing SV features
+        # Initialize structures 
         self.SV_features = {}
 
     def sort(self):
@@ -1385,15 +1400,44 @@ class META_cluster():
             self.consensusFasta = None
      
 
-    def determine_INS_type(self, index, confDict, outDir): 
+    def determine_INS_type(self, PAF):
         '''
+        NEW FUNCTION TO DETERMINE INSERTION TYPE. I'LL REPLACE THE OTHER ONE EVENTUALLY
+        
+        Input:
+            PAF: PAF object containing metacluster consensus inserted sequence alignments on the reference
+        '''
+
+        ## 0. No hit on the reference
+        if not PAF.lines:
+            insType = None
+            return
+
+        ## 1. Search for complementary alignments 
+        chain = PAF.chain()
+
+        ## 2. Annotate alignment fragment intervals on the reference genome 
+            ## 2.1. Intersect with region downstream of source elements
+
+            ## 2.2 Intersect with repeat masker database
+
+            ## 2.3 Intersect with exons database
+
+    
+
+        print('determine_INS_type: ', PAF, len(PAF.lines), len(chain.alignments), chain.perc_query_covered(), [(alignment.qBeg, alignment.qEnd, alignment.strand, alignment.tName, alignment.tBeg, alignment.tEnd) for alignment in chain.alignments])
+
+
+    '''
+    def determine_INS_type(self, index, confDict, outDir): 
+        
         Determine the type of insertion (retrotransposon, simple repeat, virus, ...) and collect insertion information.
 
         Input: 
             1. index: Minimap2 index for fasta file containing retrotransposon related sequences 
             2. confDict: Configuration dictionary 
             3. outDir: Output directory
-        '''
+        
         ## Abort if consensus event not available:
         if self.consensusEvent is None:
             return
@@ -1437,3 +1481,4 @@ class META_cluster():
         
         ## Cleanup
         unix.rm([outDir])
+    '''
