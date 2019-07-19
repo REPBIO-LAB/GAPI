@@ -49,28 +49,22 @@ def alignment_minimap2(FASTA, index, outDir):
         3. outDir: Output directory
 
     Output:
-        1. BAM: Path to sorted BAM file containing input sequences alignments or 'None' if alignment failed 
+        1. PAF: Path to PAF file containing input sequences alignments or 'None' if alignment failed 
     '''
 
     ## 1. Align the sequences into the reference
     # Use -Y to get soft clippings for supplementary alignments
-    SAM = outDir + '/alignments.sam'
+    PAF = outDir + '/alignments.paf'
     err = open(outDir + '/align.err', 'w') 
-    command = 'minimap2 -Y -a -k15 -w10 ' + index + ' ' + FASTA + ' > ' + SAM
+    command = 'minimap2 -k15 -w10 ' + index + ' ' + FASTA + ' > ' + PAF
     status = subprocess.call(command, stderr=err, shell=True)
 
     if status != 0:
         step = 'ALIGN'
         msg = 'Local alignment failed' 
         log.step(step, msg)
-        
-    ## 2. Convert SAM to sorted BAM
-    BAM = bamtools.SAM2BAM(SAM, outDir)
 
-    ## 3. Do cleanup
-    unix.rm([SAM])
-
-    return BAM
+    return PAF
 
 
 def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir):
