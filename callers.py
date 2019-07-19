@@ -66,12 +66,12 @@ class SV_caller_long(SV_caller):
 
         ### 2. Define genomic bins to search for SV ##
         bins = bamtools.binning(self.confDict['targetBins'], self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
+        print('bins: ', bins)
 
         ### 3. Search for SV clusters in each bin ##
         # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
         metaclustersPassList, metaclustersFailedList = zip(*pool.map(self.make_clusters_bin, bins))
-
         pool.close()
         pool.join()
 
@@ -81,7 +81,9 @@ class SV_caller_long(SV_caller):
 
         ### 5. Determine what type of sequence has been inserted for INS metaclusters
         if 'INS' in metaclustersPass:
-            self.determine_ins_type(metaclustersPass['INS'])
+            index = os.path.splitext(self.reference)[0] + '.mmi'
+            outDir = self.outDir + '/insType/'
+            clusters.INS_type_metaclusters(metaclustersPass['INS'], index, self.confDict, outDir)
 
         ### 6. Report SV calls into output files
         ##  6.1 Report INS
@@ -96,34 +98,6 @@ class SV_caller_long(SV_caller):
         ### 6. Do cleanup
         unix.rm([dbDir])
 
-    def determine_ins_type(self, metaclusters):
-        '''
-        For each metacluster provided as input determine the type of insertion
-
-        Input:
-            1. metaclusters: list of metaclusters supporting insertion events
-        '''        
-        
-        ## 1. Create fasta containing all consensus inserted sequences ##
-        outDir = self.outDir + '/insType/'
-        fastaPath = clusters.insertedSeq2fasta(metaclusters, outDir)
-
-        ## 2. Align consensus inserted sequences into the reference genome ##
-        index = os.path.splitext(self.reference)[0] + '.mmi'
-        BAM = alignment.alignment_minimap2(fastaPath, index, outDir)
-
-        ## 3. Asign alignments to their corresponding metacluster ##
-        tupleList = clusters.assignAligments2metaclusters(metaclusters, BAM)
-
-        ## 4. For each metacluster determine insertion type
-        # metaclusters will be distributed into X processes
-        pool = mp.Pool(processes=self.confDict['processes'])
-        pool.map(clusters.determine_ins_type, tupleList)
-
-        # metaclustersPassList, metaclustersFailedList = zip(*pool.map(self.make_clusters_bin, bins))
-
-        pool.close()
-        pool.join()
 
     def make_clusters_bin(self, window):
         '''
