@@ -442,7 +442,7 @@ class PAF():
         Chain PAF alignments based on alignment complementariety
 
         Output:
-            1. chain
+            1. chain: PAF_chain object instance
         '''
         ## 1. Sort alignments by decreasing query alignment length 
         sortedAlignments = self.sortByLen()
