@@ -6,10 +6,12 @@ Module 'formats' - Contains classes for dealing with file formats such as fasta,
 # External
 import itertools
 import sys
+import formats
 
 # Internal
 import log
 import gRanges
+import structures
 
 ## FUNCTIONS ##
 def chrom_lengths_index(index):
@@ -55,6 +57,30 @@ def merge_FASTA(FASTA_list):
             FASTA_merged.seqDict[seqId] = seq 
 
     return FASTA_merged
+
+
+def bed2binDb(bedPath, refLengths):
+    '''
+    Organize features in a bed file into a whole genome bin database. 
+    
+    Bed file must contain at least 4 fields: ref, beg, end and name (feature name). Extra fields
+    will not be considered
+
+    Input:
+        1. bedPath: path to bed file
+        2. refLengths: Dictionary containing reference ids as keys and as values the length for each reference
+
+    Output:
+        1. wgBinDb: dictionary containing references as keys and the corresponding 'bin_database' as value
+    '''
+    ## Read bed
+    bed = formats.BED()
+    bed.read(bedPath, 'nestedDict')
+
+    ## Create bin database
+    wgBinDb = structures.create_bin_database(refLengths, bed.lines)
+
+    return wgBinDb
 
 ## CLASSES ##
 class FASTA():
@@ -368,7 +394,6 @@ class BED():
 
                 # b) Add to preexisting entry name
                 else:
-
                     lines[line.ref][line.name].append(line)
 
         return lines
