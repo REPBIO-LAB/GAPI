@@ -61,6 +61,13 @@ FASTA = formats.FASTA()
 index = mp.Aligner(index)  
 inputFile = open(inputFile, 'r')
 
+## Create output bed file with header
+outPath = outDir + '/transducedDb.bed'
+outFile = open(outPath, 'w') 
+
+row = 'chrom' + "\t" + 'tdBeg' + "\t" + 'tdEnd' + "\t" + 'cytobandId' + '\n'
+outFile.write(row)
+
 ## For each source element
 for line in inputFile:
 	line = line.rstrip('\r\n')
@@ -71,21 +78,21 @@ for line in inputFile:
 		chrom, beg, end, cytobandId, score, strand = fieldsList
 		
 		## a) Element in plus
-		# ---------------> end ........transduced........ end + 10000
+		# ---------------> end ........transduced........ end + 15000
 		if (strand == '+'):
 
 			# retrieve a subsequence from the index
 			tdBeg = int(end)
-			tdEnd = int(end) + 10000
+			tdEnd = int(end) + 15000
 
 			sequence = index.seq(chrom, tdBeg, tdEnd)     
 
 		## b) Element in minus
-		# beg - 10000 ........transduced........ beg <--------------- end  
+		# beg - 15000 ........transduced........ beg <--------------- end  
 		else:
 
 			# retrieve a subsequence from the index
-			tdBeg = int(beg) - 10000
+			tdBeg = int(beg) - 15000
 			tdEnd = int(beg)
 
 			sequence = index.seq(chrom, tdBeg, tdEnd) 
@@ -94,8 +101,12 @@ for line in inputFile:
 
 		## Add source element transduced region to the fasta
 		header = 'Transduced3prime|' + cytobandId + '|' + coord
-		FASTA.fastaDict[header] = sequence
+		FASTA.seqDict[header] = sequence
 
+		## Write transduced region coordinates into bed file
+		row = chrom + "\t" + str(tdBeg) + "\t" + str(tdEnd) + "\t" + cytobandId + '\n'
+		outFile.write(row)
+        
 ## 2. Write fasta file
 ########################
 filePath = outDir + '/transducedDb.fa'
