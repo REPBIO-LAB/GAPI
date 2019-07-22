@@ -263,7 +263,10 @@ class bin_database():
             3. eventTypes: list containing target event types. If 'ALL' all event types stored in the target bins will be retrieved
 
          Output:
-            2. events. List of tuples containing events within the input interval (first element) and the number of bases overlapping the interval (second element)
+            2. events. List of tuples. Each tuple corresponds to one overlapping event and is composed by 3 elements: 
+                1. Overlapping event
+                2. Number of overlapping base pairs
+                3. Percentage of base pairs of the input interval that are overlapping  
         '''  
         ## 1. Determine genomic bins spanned by the input interval
         minBinSize = self.binSizes[0]
@@ -292,9 +295,13 @@ class bin_database():
             # Assess if located within the interval
             overlap, overlapLen = gRanges.overlap(beg, end, event.beg, event.end)
 
+            # Compute percentage of overlap
+            intervalLen = end - beg + 1
+            overlapPerc = float(overlapLen) / intervalLen * 100
+            
             # Overlap found -> Add to the list the tuple
             if overlap:
-                events.append((event, overlapLen))
+                events.append((event, overlapLen, overlapPerc))
         
         return events
       
