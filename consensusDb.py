@@ -77,7 +77,7 @@ for line in subfamilies:
 FASTA_out = formats.FASTA()
 
 # For each consensus sequence in the repeatmasker database
-for sequenceId in FASTA.fastaDict:
+for sequenceId in FASTA.seqDict:
     subfamily = sequenceId.split('#')[0]
 
     # Consensus sequence is a target
@@ -85,23 +85,25 @@ for sequenceId in FASTA.fastaDict:
 
         family = targets[subfamily]
         newId = 'consensus|' + subfamily + '|' + family
-        sequence = FASTA.fastaDict[sequenceId]
+        sequence = FASTA.seqDict[sequenceId]
 
-        ## Remove trailing polyA from consensus sequence
+        ## Remove trailing polyA from consensus sequence (Include polyA trimming as option)
         nbTrimmedBp = 0
 
         for nucleotide in reversed(sequence):
             # Trailing A
             if (nucleotide == 'A') or (nucleotide == 'a'):
-                nbTrimmedBp += 1
+            	nbTrimmedBp += 1
             # Not A, stop trimming
             else:
-                break
+            	break
         
         index = len(sequence) - nbTrimmedBp
         trimmed = sequence[:index]
+        FASTA_out.seqDict[newId] = trimmed
 
-        FASTA_out.fastaDict[newId] = trimmed
+        #FASTA_out.seqDict[newId] = sequence
+
 
 
 ## 4. Write fasta file
