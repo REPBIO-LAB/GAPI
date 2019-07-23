@@ -263,7 +263,7 @@ class bin_database():
             3. eventTypes: list containing target event types. If 'ALL' all event types stored in the target bins will be retrieved
 
          Output:
-            2. events. List of tuples. Each tuple corresponds to one overlapping event and is composed by 3 elements: 
+            1. events. List of tuples. Each tuple corresponds to one overlapping event and is composed by 3 elements: 
                 1. Overlapping event
                 2. Number of overlapping base pairs
                 3. Percentage of base pairs of the input interval that are overlapping  

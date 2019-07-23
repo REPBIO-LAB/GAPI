@@ -59,15 +59,41 @@ class SV_caller_long(SV_caller):
         Search for structural variants (SV) genome wide or in a set of target genomic regions
         '''
         ### 1. Create, index and load reference databases prior SV calling ##
+        ## 1.1 Create output directory and compute ref lengths
         dbDir = self.outDir + '/databases'
         unix.mkdir(dbDir)
 
+        refLengths = bamtools.get_ref_lengths(self.bam)
+
+        ## 1.2 Load annotated repeats into a bin database
+        repeatsAnnotBed = self.refDir + '/repeats_repeatMasker.bed'
+        self.repeatsBinDb = formats.bed2binDb(repeatsAnnotBed, refLengths)
+
+        ## 1.3 Create transduced regions database
+        # a) Create database if transduction search enabled
+        if self.confDict['transductionSearch']:
+
+            ## Create bed file containing transduced regions
+            sourceBed = self.refDir + '/srcElements.bed'
+            transducedPath = databases.create_transduced_bed(sourceBed, 15000, dbDir)
+
+            ## Load transduced regions into a bin database
+            self.transducedBinDb = formats.bed2binDb(transducedPath, refLengths)
+
+        # b) Skip database creation
+        else:
+            self.transducedBinDb = None
+
+        ## 1.4 Create exons database
+        exonsAnnotBed = self.refDir + '/exons.bed'
+        self.exonsBinDb = formats.bed2binDb(exonsAnnotBed, refLengths)
+
+        ## 1.5 Create database containing retrotransposon consensus sequences
         self.retrotransposonDb, self.retrotransposonDbIndex = databases.buildRetrotransposonDb(self.refDir, self.confDict['transductionSearch'], dbDir)
 
         ### 2. Define genomic bins to search for SV ##
         bins = bamtools.binning(self.confDict['targetBins'], self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
-        print('bins: ', bins)
-
+        
         ### 3. Search for SV clusters in each bin ##
         # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
@@ -83,7 +109,7 @@ class SV_caller_long(SV_caller):
         if 'INS' in metaclustersPass:
             index = os.path.splitext(self.reference)[0] + '.mmi'
             outDir = self.outDir + '/insType/'
-            clusters.INS_type_metaclusters(metaclustersPass['INS'], index, self.confDict, outDir)
+            clusters.INS_type_metaclusters(metaclustersPass['INS'], index, self.repeatsBinDb, self.transducedBinDb, self.exonsBinDb, self.confDict, outDir)
 
         ### 6. Report SV calls into output files
         ##  6.1 Report INS
@@ -234,7 +260,7 @@ class SV_caller_short(SV_caller):
 
             ## Create bed file
             sourceBed = self.refDir + '/srcElements.bed'
-            transducedPath = databases.create_transduced_bed(sourceBed, 10000, dbDir)
+            transducedPath = databases.create_transduced_bed(sourceBed, 15000, dbDir)
 
             ## Read bed
             transducedBed = formats.BED()
