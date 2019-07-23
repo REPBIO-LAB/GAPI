@@ -25,6 +25,7 @@ import repeats
 import retrotransposons
 import filters
 import bkp
+import annotation
 
 
 ###############
@@ -481,17 +482,19 @@ def find_insertion_at_clipping_bkp(primary, supplementary):
     return insert
 
 
-def INS_type_metaclusters(metaclusters, index, confDict, outDir):
+def INS_type_metaclusters(metaclusters, index, repeats, transduced, exons, confDict, outDir):
     '''
     For each metacluster provided as input determine the type of insertion
 
     Input:
         1. metaclusters: list of metaclusters supporting insertion events
         2. index: Path to the the index of the reference in .mmi format (generated with minimap2)
-        3. confDict: Configuration dictionary
-        4. outDir: Output directory
-    '''        
-        
+        3. repeats: bin database containing annotated repeats in the reference. None if not available
+        4. transduced: bin database containing regions transduced by source elements. None if not available
+        5. exons: bin database containing annotated exons in the reference. None if not available
+        6. confDict: Configuration dictionary
+        7. outDir: Output directory
+    '''      
     ## 1. Create fasta containing all consensus inserted sequences ##
     fastaPath = insertedSeq2fasta(metaclusters, outDir)
 
@@ -501,22 +504,38 @@ def INS_type_metaclusters(metaclusters, index, confDict, outDir):
     ## 3. Asign alignments to their corresponding metacluster ##
     tupleList = assignAligments2metaclusters(metaclusters, PAF)        
 
-    ## 4. For each metacluster determine insertion type
+    ## 4. Add to each tuple a third element with the list of arguments
+    args = ([repeats, transduced, exons, confDict, outDir], )
+    tupleList= [element + args for element in tupleList]
+        
+    ## 5. For each metacluster determine insertion type
     # metaclusters will be distributed into X processes
     pool = mp.Pool(processes=confDict['processes'])
     pool.map(INS_type_metacluster, tupleList)
     pool.close()
     pool.join()
 
-def INS_type_metacluster(data):
+def INS_type_metacluster(tupleList):
     '''
     For each metacluster determine the type of insertion
 
     Input:
-        1. 
-    '''        
-    metacluster, PAF = data    
-    metacluster.determine_INS_type(PAF)
+        1. tupleList: List of tuples. Each tuple contains three elements: 
+            1) metacluster object  
+            2) PAF object containing the corresponding alignments for the metacluster consensus inserted sequence
+            3) List with 5 variables: 
+                - repeats: Bin database containing annotated repeats in the reference. None if not available
+                - transduced: Bin database containing regions transduced by source elements. None if not available
+                - exons: Bin database containing annotated exons in the reference. None if not available
+                - confDict: Configuration dictionary
+                - outDir: Output directory
+    '''      
+    ## 1. Collect input arguments  
+    metacluster, PAF, args = tupleList  
+    repeats, transduced, exons, confDict, outDir = args  
+
+    ## 2. Determine metacluster´s insertion type
+    metacluster.determine_INS_type(PAF, repeats, transduced, exons, confDict, outDir)
 
 
 def insertedSeq2fasta(metaclusters, outDir):
@@ -1160,24 +1179,6 @@ class META_cluster():
 
             ## Remove events from discordant cluster that are higher (more to the right) than the clippingEnd
             # discordantCluster.removeDiscordant(clippingEnd, 'right')
-
-    def setIntOrigin(self):
-        '''
-        Set germline or somatic
-        '''
-        nbNormalEvents = 0
-
-        for event in self.events:
-            if event.sample == "NORMAL":
-                nbNormalEvents += 1
-                
-        # HACER ESTO ARGUMENTOO!!!
-        if nbNormalEvents > 3:
-            self.intOrigin = 'germline'
-        else:
-            self.intOrigin = 'somatic'
-
-        return nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING
  
 
     def polish(self, confDict, reference, outDir):
@@ -1225,7 +1226,6 @@ class META_cluster():
             self.consensusFasta = polished
 
         return 
-
 
     def consensus_event(self, confDict, reference, offset, outDir):
         '''
@@ -1400,14 +1400,17 @@ class META_cluster():
             self.consensusFasta = None
      
 
-    def determine_INS_type(self, PAF):
+    def determine_INS_type(self, PAF, repeatsDb, transducedDb, exonsDb, confDict, outDir):
         '''
-        NEW FUNCTION TO DETERMINE INSERTION TYPE. I'LL REPLACE THE OTHER ONE EVENTUALLY
         
         Input:
-            PAF: PAF object containing metacluster consensus inserted sequence alignments on the reference
+            1. PAF: PAF object containing metacluster consensus inserted sequence alignments on the reference
+            2. repeatsDb: bin database containing annotated repeats in the reference. None if not available
+            3. transducedDb: bin database containing regions transduced by source elements. None if not available
+            4. exonsDb: bin database containing annotated exons in the reference. None if not available
+            5. confDict: Configuration dictionary
+            6. outDir: Output directory
         '''
-
         ## 0. No hit on the reference
         if not PAF.lines:
             insType = None
@@ -1416,69 +1419,49 @@ class META_cluster():
         ## 1. Search for complementary alignments 
         chain = PAF.chain()
 
-        ## 2. Annotate alignment fragment intervals on the reference genome 
-            ## 2.1. Intersect with region downstream of source elements
+        ## 2. Make list of annotated features overlapping with alignment segments
+        overlappingFeatures = []
 
-            ## 2.2 Intersect with repeat masker database
+        # For each alignment
+        for alignment in chain.alignments:
+
+            ## 2.1. Intersect with repeats database
+            if repeatsDb is not None:
+
+                ## Do intersection
+                sortedOverlaps = annotation.annotate_interval(alignment.tName, alignment.tBeg, alignment.tEnd, repeatsDb)
+                
+                ## Select feature with maximum percentage of overlap
+                if sortedOverlaps: 
+                    overlappingFeatures.append(sortedOverlaps[0][0].name)
+
+            ## 2.2. Intersect with region downstream of source elements
+            if transducedDb is not None:
+
+                ## Do intersection
+                sortedOverlaps = annotation.annotate_interval(alignment.tName, alignment.tBeg, alignment.tEnd, transducedDb)
+
+                ## Select feature with maximum percentage of overlap
+                if sortedOverlaps: 
+                    overlappingFeatures.append(sortedOverlaps[0][0].name)
 
             ## 2.3 Intersect with exons database
+            if exonsDb is not None:
 
-    
+                ## Do intersection
+                sortedOverlaps = annotation.annotate_interval(alignment.tName, alignment.tBeg, alignment.tEnd, exonsDb)
 
-        print('determine_INS_type: ', PAF, len(PAF.lines), len(chain.alignments), chain.perc_query_covered(), [(alignment.qBeg, alignment.qEnd, alignment.strand, alignment.tName, alignment.tBeg, alignment.tEnd) for alignment in chain.alignments])
+                ## Select feature with maximum percentage of overlap
+                if sortedOverlaps: 
+                    overlappingFeatures.append(sortedOverlaps[0][0].name)
 
+        print('OVERLAPPING_FEATURES: ', self.ref, self.beg, self.end, self.mutOrigin, self.nbEvents(), chain.perc_query_covered(), overlappingFeatures, self.pick_insert())
 
-    '''
-    def determine_INS_type(self, index, confDict, outDir): 
-        
-        Determine the type of insertion (retrotransposon, simple repeat, virus, ...) and collect insertion information.
+        ## 4. Based on the hits annotation infer the candidate insertion type
+        # Possibilities:
+        #   - transduction: hit in transduced area
+        #   - pseudogene: hit in exons database and not in transduced area
+        #   - repeat: hit in repeats database and not in transduced area nor in annotated exons
+        #   - unnanotated: hit in unnanotated region of the reference
 
-        Input: 
-            1. index: Minimap2 index for fasta file containing retrotransposon related sequences 
-            2. confDict: Configuration dictionary 
-            3. outDir: Output directory
-        
-        ## Abort if consensus event not available:
-        if self.consensusEvent is None:
-            return
-
-        ## 0. Create output directory 
-        unix.mkdir(outDir)
-
-        ## 1. Pick inserted sequence
-        insert = self.consensusEvent.pick_insert()
-
-        ## 2. Write target seq into file 
-        FASTA = formats.FASTA()
-        FASTA.seqDict[str(self.id)] = insert
-
-        FASTA_file = outDir + '/insert.fa'
-        FASTA.write(FASTA_file)
-
-        ## 3. Determine to what corresponds the insertion
-        # A) Tandem repeat/simple repeat expansion? 
-        minPercSimple = 70
-        self.SV_features['insType'], self.SV_features['status'], self.SV_features['percResolved'] = repeats.is_simple_repeat(FASTA_file, minPercSimple, outDir)
-
-        ## Stop if insertion classified as simple repeat
-        if self.SV_features['status'] == 'resolved':
-            return
-
-        # B) Retrotransposon insertion? 
-        self.SV_features['insType'], self.SV_features['family'], self.SV_features['srcId'], self.SV_features['status'], self.SV_features['percResolved'], self.SV_features['strand'], self.SV_features['hits'] = retrotransposons.is_retrotransposition(FASTA_file, index, outDir)
-        
-        ## Stop if insertion classified as retrotransposon
-        if (self.SV_features['status'] == 'resolved') or (self.SV_features['status'] == 'partially_resolved'):
-            return
-       
-        # C) Viral insertion? 
-        #viruses.is_virus()
-
-        # D) Telomemric insertion? 
-
-        # E) Mitochondrial or rearranged DNA insert?
-        #¿¿¿rearrangements???.is_chromosomal_dna()
-        
-        ## Cleanup
-        unix.rm([outDir])
-    '''
+        # self.SV_features['INS_CANDIDATE'] = 
