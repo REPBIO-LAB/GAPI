@@ -12,6 +12,41 @@ from operator import itemgetter
 import unix
 import formats
 
+def annotate_interval(ref, beg, end, annotDb):
+    '''
+    Intersect input interval (ref:beg-end) with a given annotation 
+
+    Input: 
+        1. ref: reference id
+        2. beg: begin position
+        3. end: end position
+        4. annotDb: dictionary containing annotated features organized per chromosome (keys) into genomic bins (values)
+
+    Output:
+        1. sortedOverlaps. List of tuples sorted in decreasing percentage of overlap. Each tuple corresponds to one overlapping event and is composed by 3 elements: 
+            1. Overlapping event
+            2. Number of overlapping base pairs
+            3. Percentage of base pairs of the input interval that are overlapping  
+    '''
+
+    # a) Annotated features available in the same ref 
+    if ref in annotDb:
+            
+        ## Select features bin database for the corresponding reference 
+        binDb = annotDb[ref]        
+
+        ## Retrieve all the annotated features overlapping with the input interval
+        overlaps = binDb.collect_interval(beg, end, 'ALL')    
+
+        ## Order overlapping features in decreasing order of perc of overlap
+        sortedOverlaps = sorted(overlaps, key=lambda x: x[2], reverse=True)
+
+    # b) No feature in the same ref as the interval
+    else:
+        sortedOverlaps = []
+
+    return sortedOverlaps
+        
 
 def repeats_annotation(events, repeatsDb, buffer):
     '''
