@@ -495,6 +495,9 @@ def INS_type_metaclusters(metaclusters, index, repeats, transduced, exons, confD
         6. confDict: Configuration dictionary
         7. outDir: Output directory
     '''      
+    ## 0. Create output directory 
+    unix.mkdir(outDir)
+
     ## 1. Create fasta containing all consensus inserted sequences ##
     fastaPath = insertedSeq2fasta(metaclusters, outDir)
 
@@ -1455,7 +1458,7 @@ class META_cluster():
                 if sortedOverlaps: 
                     overlappingFeatures.append(sortedOverlaps[0][0].name)
 
-        print('OVERLAPPING_FEATURES: ', self.ref, self.beg, self.end, self.mutOrigin, self.nbEvents(), chain.perc_query_covered(), overlappingFeatures, self.pick_insert())
+        print('OVERLAPPING_FEATURES: ', self.ref, self.beg, self.end, self.mutOrigin, self.nbEvents(), chain.perc_query_covered(), overlappingFeatures, self.consensusEvent.pick_insert())
 
         ## 4. Based on the hits annotation infer the candidate insertion type
         # Possibilities:
