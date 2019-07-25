@@ -11,6 +11,53 @@ from operator import itemgetter
 # Internal
 import unix
 import formats
+import databases
+
+def load_annotations(annotations2load, refLengths, annotationsDir, outDir):
+    '''
+
+    Input:
+        1. annotations2load: list of annotations to load. Annotations available: 
+        2. refLengths: Dictionary containing reference ids as keys and as values the length for each reference  
+        3. annotationsDir: Directory containing annotation files
+        4. outDir: Output directory
+    
+    Output:
+        1. annotations: 
+    '''
+    
+    ## 0. Initialize dictionary
+    annotations = {}
+    annotations['REPEATS'] = None
+    annotations['TRANSDUCTIONS'] = None
+    annotations['EXONS'] = None
+
+    ## 1. Create output directory
+    unix.mkdir(outDir)
+
+    ## 2. Load annotated repeats into a bin database
+    if 'REPEATS' in annotations2load:
+
+        repeatsBed = annotationsDir + '/repeats_repeatMasker.bed'
+        annotations['REPEATS'] = formats.bed2binDb(repeatsBed, refLengths)
+
+    ## 3. Create transduced regions database
+    if 'TRANSDUCTIONS' in annotations2load:
+
+        ## Create bed file containing transduced regions
+        sourceBed = annotationsDir + '/srcElements.bed'
+        transducedPath = databases.create_transduced_bed(sourceBed, 15000, outDir)
+
+        ## Load transduced regions into a bin database
+        annotations['TRANSDUCTIONS'] = formats.bed2binDb(transducedPath, refLengths)
+
+    ## 4. Create exons database
+    if 'EXONS' in annotations2load:
+
+        exonsBed = annotationsDir + '/exons.bed'
+        annotations['EXONS'] = formats.bed2binDb(exonsBed, refLengths)
+
+    return annotations
 
 def annotate_interval(ref, beg, end, annotDb):
     '''
