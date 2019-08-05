@@ -4,13 +4,15 @@ Module 'structures' - Contains functions and classes to organize data into more 
 
 ## DEPENDENCIES ##
 # External
+import multiprocessing as mp
+
 # Internal
 import log
 import gRanges
 
 ## FUNCTIONS ##
 
-def create_bin_database(refLengths, eventsDict):
+def create_bin_database(refLengths, eventsDict, threads):
     '''
     Organize genome wide events into a set of bin databases, one per reference
 
@@ -24,26 +26,40 @@ def create_bin_database(refLengths, eventsDict):
                 * SECOND LEVEL KEYS:
                     - EVENT_TYPE_1 -> list of objects
                     - ...
-
+        3. threads: number of threads used to parallelize the bin database creation
+        
     Output:
         1. wgBinDb: dictionary containing references as keys and the corresponding 'bin_database' as value
     '''    
-    ## Initialize dict
-    wgBinDb = {}
+    ## Create list of tuples. Each tuple will contain all the variables needed for creating a bin database for a given chromosome
+    tupleList = []
 
-    ## For each ref
+    # For each reference
     for ref, refLen in refLengths.items():
-
-        ## Skip if no events in that particular ref
+        
+        # Skip if no events in that particular ref
         if ref not in eventsDict:
             continue
 
-        ## Create bin database
+        # Define bin sizes
+        #binSizes = [10000, 100000, 1000000, refLen]
         binSizes = [10000, 100000, 1000000, refLen]
-        binDb = create_bin_database_interval(ref, 0, refLen, eventsDict[ref], binSizes)
-        
-        ## Add bin database 
-        wgBinDb[ref] = binDb
+
+        # Add to the list of tuples
+        fields = (ref, 0, refLen, eventsDict[ref], binSizes)
+        tupleList.append(fields)
+
+    ## Create bin database per chromosome
+    pool = mp.Pool(processes=threads)
+    databases = pool.starmap(create_bin_database_interval, tupleList)
+    pool.close()
+    pool.join()
+
+    ## Organize bin databases into a dictionary
+    wgBinDb = {}
+
+    for binDb in databases:
+        wgBinDb[binDb.ref] = binDb
     
     return wgBinDb
 
@@ -74,6 +90,7 @@ def create_bin_database_interval(ref, beg, end, eventsDict, binSizes):
         # Add all the events from the given event type to the bin database
         binDb.add(events, eventType)
 
+    print('CREATED_BIN_DB_REF: ', binDb.ref)
     return binDb
 
 ## CLASSES ##
