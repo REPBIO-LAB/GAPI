@@ -12,20 +12,23 @@ from operator import itemgetter
 import unix
 import formats
 import databases
+import log
 
-def load_annotations(annotations2load, refLengths, annotationsDir, outDir):
+def load_annotations(annotations2load, refLengths, annotationsDir, threads, outDir):
     '''
+    Load a set of annotation files in bed formats into a bin database
 
     Input:
-        1. annotations2load: list of annotations to load. Annotations available: 
+        1. annotations2load: list of annotations to load. Annotations available: REPEATS, TRANSDUCTIONS and EXONS
         2. refLengths: Dictionary containing reference ids as keys and as values the length for each reference  
         3. annotationsDir: Directory containing annotation files
-        4. outDir: Output directory
+        4. threads: number of threads used to parallelize the bin database creation
+        5. outDir: Output directory
     
     Output:
-        1. annotations: 
+        1. annotations: directory containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
     '''
-    
+
     ## 0. Initialize dictionary
     annotations = {}
     annotations['REPEATS'] = None
@@ -37,25 +40,27 @@ def load_annotations(annotations2load, refLengths, annotationsDir, outDir):
 
     ## 2. Load annotated repeats into a bin database
     if 'REPEATS' in annotations2load:
-
-        repeatsBed = annotationsDir + '/repeats_repeatMasker.bed'
-        annotations['REPEATS'] = formats.bed2binDb(repeatsBed, refLengths)
+        log.info('2. Load annotated repeats into a bin database')
+        repeatsBed = annotationsDir + '/repeats_repeatMasker.test.bed'
+        annotations['REPEATS'] = formats.bed2binDb(repeatsBed, refLengths, threads)
 
     ## 3. Create transduced regions database
     if 'TRANSDUCTIONS' in annotations2load:
+        log.info('3. Create transduced regions database')
 
         ## Create bed file containing transduced regions
         sourceBed = annotationsDir + '/srcElements.bed'
         transducedPath = databases.create_transduced_bed(sourceBed, 15000, outDir)
 
         ## Load transduced regions into a bin database
-        annotations['TRANSDUCTIONS'] = formats.bed2binDb(transducedPath, refLengths)
+        annotations['TRANSDUCTIONS'] = formats.bed2binDb(transducedPath, refLengths, threads)
 
     ## 4. Create exons database
     if 'EXONS' in annotations2load:
 
-        exonsBed = annotationsDir + '/exons.bed'
-        annotations['EXONS'] = formats.bed2binDb(exonsBed, refLengths)
+        log.info('4. Create exons database')
+        exonsBed = annotationsDir + '/exons.all.test.bed'
+        annotations['EXONS'] = formats.bed2binDb(exonsBed, refLengths, threads)
 
     return annotations
 
@@ -300,7 +305,7 @@ def intersect_mate_annotation(discordants, annotation):
 
             ## Select features bin database for the corresponding reference 
             featureBinDb = annotation[discordant.mateRef]        
-
+ 
             ## Retrieve all the annotated features overlapping with the mate alignment interval
             overlappingFeatures = featureBinDb.collect_interval(discordant.mateStart, discordant.mateStart + 100, 'ALL')    
 
