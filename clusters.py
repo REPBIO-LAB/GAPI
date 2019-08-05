@@ -176,7 +176,6 @@ def create_clusters(eventsBinDb, confDict):
 
             clustersDict[SV_type] = clustering.reciprocal_overlap_clustering(eventsBinDb, 1, confDict['minClusterSize'], [SV_type], 100, SV_type)    
 
-
     ## 2. Organize clusters into bins ##    
     binSizes = [100, 1000, 10000, 100000, 1000000]
     clustersBinDb = structures.create_bin_database_interval(eventsBinDb.ref, eventsBinDb.beg, eventsBinDb.end, clustersDict, binSizes)
@@ -499,45 +498,65 @@ def INS_type_metaclusters(metaclusters, index, repeats, transduced, exons, confD
     unix.mkdir(outDir)
 
     ## 1. Create fasta containing all consensus inserted sequences ##
+    msg = '1. Create fasta containing all consensus inserted sequences'
+    log.subHeader(msg)    
     fastaPath = insertedSeq2fasta(metaclusters, outDir)
 
     ## 2. Align consensus inserted sequences into the reference genome ##
+    msg = '2. Align consensus inserted sequences into the reference genome'
+    log.subHeader(msg)    
     PAF = alignment.alignment_minimap2(fastaPath, index, outDir)
 
     ## 3. Asign alignments to their corresponding metacluster ##
+    msg = '3. Asign alignments to their corresponding metacluster'
+    log.subHeader(msg)    
     tupleList = assignAligments2metaclusters(metaclusters, PAF)        
 
     ## 4. Add to each tuple a third element with the list of arguments
+    msg = '4. Add to each tuple a third element with the list of arguments'
+    log.subHeader(msg)    
     args = ([repeats, transduced, exons, confDict, outDir], )
     tupleList= [element + args for element in tupleList]
         
-    ## 5. For each metacluster determine insertion type
+    ## 5. For each metacluster determine the insertion type
     # metaclusters will be distributed into X processes
+    msg = '5. For each metacluster determine the insertion type'
+    log.subHeader(msg)    
+    print('PARALLELIZE: ', tupleList, confDict['processes'])
+
+    #for element in tupleList:
+    #    print('TUPLE: ', element)
+    #    metacluster, PAF, args = element 
+    #    INS_type_metacluster(metacluster, PAF, args)
+
     pool = mp.Pool(processes=confDict['processes'])
-    pool.map(INS_type_metacluster, tupleList)
+    pool.starmap(INS_type_metacluster, tupleList)
     pool.close()
     pool.join()
 
-def INS_type_metacluster(tupleList):
+
+def INS_type_metacluster(metacluster, PAF, args):
     '''
     For each metacluster determine the type of insertion
 
     Input:
-        1. tupleList: List of tuples. Each tuple contains three elements: 
-            1) metacluster object  
-            2) PAF object containing the corresponding alignments for the metacluster consensus inserted sequence
-            3) List with 5 variables: 
+        1. metacluster: metacluster object  
+        2. PAF: PAF object containing the corresponding alignments for the metacluster consensus inserted sequence
+        3. args: List with 5 variables
                 - repeats: Bin database containing annotated repeats in the reference. None if not available
                 - transduced: Bin database containing regions transduced by source elements. None if not available
                 - exons: Bin database containing annotated exons in the reference. None if not available
                 - confDict: Configuration dictionary
                 - outDir: Output directory
     '''      
+    print('INS_type_metacluster_INPUT: ', metacluster, PAF, args)
+
     ## 1. Collect input arguments  
-    metacluster, PAF, args = tupleList  
+    print('1. Collect input arguments')
     repeats, transduced, exons, confDict, outDir = args  
 
     ## 2. Determine metacluster´s insertion type
+    print('2. Determine metacluster´s insertion type')
     metacluster.determine_INS_type(PAF, repeats, transduced, exons, confDict, outDir)
 
 
@@ -1414,15 +1433,21 @@ class META_cluster():
             5. confDict: Configuration dictionary
             6. outDir: Output directory
         '''
+        print('INS_TYPE_INFERENCE_INPUT: ', PAF, repeatsDb, transducedDb, exonsDb, confDict, outDir)
+
         ## 0. No hit on the reference
+        log.info('0. No hit on the reference')
+
         if not PAF.lines:
             insType = None
             return
 
         ## 1. Search for complementary alignments 
+        log.info('1. Search for complementary alignments')
         chain = PAF.chain()
 
         ## 2. Make list of annotated features overlapping with alignment segments
+        log.info('2. Make list of annotated features overlapping with alignment segments')
         overlappingFeatures = []
 
         # For each alignment
@@ -1430,6 +1455,8 @@ class META_cluster():
 
             ## 2.1. Intersect with repeats database
             if repeatsDb is not None:
+
+                log.info('2.1. Intersect with repeats database')
 
                 ## Do intersection
                 sortedOverlaps = annotation.annotate_interval(alignment.tName, alignment.tBeg, alignment.tEnd, repeatsDb)
@@ -1441,6 +1468,8 @@ class META_cluster():
             ## 2.2. Intersect with region downstream of source elements
             if transducedDb is not None:
 
+                log.info('2.2. Intersect with region downstream of source elements')
+
                 ## Do intersection
                 sortedOverlaps = annotation.annotate_interval(alignment.tName, alignment.tBeg, alignment.tEnd, transducedDb)
 
@@ -1450,6 +1479,8 @@ class META_cluster():
 
             ## 2.3 Intersect with exons database
             if exonsDb is not None:
+
+                log.info('2.3 Intersect with exons database')
 
                 ## Do intersection
                 sortedOverlaps = annotation.annotate_interval(alignment.tName, alignment.tBeg, alignment.tEnd, exonsDb)
