@@ -7,6 +7,13 @@ Module 'log' - Contains functions to report log information
 import time
 
 ## FUNCTIONS ##
+def header(string):
+    '''
+        Display  subheader
+    '''
+    timeInfo = time.strftime("%Y-%m-%d %H:%M")
+    print(timeInfo, '#########', string, '#########')
+
 def subHeader(string):
     '''
         Display  subheader
