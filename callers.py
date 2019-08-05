@@ -59,34 +59,53 @@ class SV_caller_long(SV_caller):
         Search for structural variants (SV) genome wide or in a set of target genomic regions
         '''
         ### 1. Define genomic bins to search for SV ##
+        msg = '1. Define genomic bins to search for SV'
+        log.header(msg)
+
         bins = bamtools.binning(self.confDict['targetBins'], self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
         
         ### 2. Search for SV clusters in each bin ##
         # Genomic bins will be distributed into X processes
+        msg = '2. Search for SV clusters in each bin'
+        log.header(msg)
+
         pool = mp.Pool(processes=self.confDict['processes'])
-        metaclustersPassList, metaclustersFailedList = zip(*pool.map(self.make_clusters_bin, bins))
+        metaclustersPassList, metaclustersFailedList = zip(*pool.starmap(self.make_clusters_bin, bins))
         pool.close()
         pool.join()
 
         ### 3. Collapse metaclusters in a single dict
+        msg = '3. Collapse metaclusters in a single dict'
+        log.header(msg)
+
         metaclustersPass = structures.merge_dictionaries(metaclustersPassList)
         metaclustersFailed = structures.merge_dictionaries(metaclustersFailedList)
-
-        print('metaclustersPass: ', metaclustersPass)
         
         ### 4. Determine what type of sequence has been inserted for INS metaclusters
+        msg = '4. Determine what type of sequence has been inserted for INS metaclusters'
+        log.header(msg)
+
         if 'INS' in metaclustersPass:
 
             ## 4.1. Load reference annotations and databases prior INS type inference ##
+            msg = '4.1. Load reference annotations and databases prior INS type inference'
+            log.header(msg)
+
             annotDir = self.outDir + '/annotDir'
             annotations2load = ['REPEATS', 'TRANSDUCTIONS', 'EXONS']
+            #annotations2load = ['REPEATS', 'TRANSDUCTIONS']            
             refLengths = bamtools.get_ref_lengths(self.bam)
-            annotations = annotation.load_annotations(annotations2load, refLengths, self.refDir, annotDir)
+            annotations = annotation.load_annotations(annotations2load, refLengths, self.refDir, self.confDict['processes'], annotDir)
 
             ## 4.2 Create database containing retrotransposon consensus sequences
+            msg = '4.2 Create database containing retrotransposon consensus sequences'
+            log.header(msg)
             #self.retrotransposonDb, self.retrotransposonDbIndex = databases.buildRetrotransposonDb(self.refDir, self.confDict['transductionSearch'], dbDir)
 
             ## 4.3 Insertion type inference
+            msg = '4.3 Insertion type inference'
+            log.header(msg)
+
             index = os.path.splitext(self.reference)[0] + '.mmi'
             outDir = self.outDir + '/insType/'
             clusters.INS_type_metaclusters(metaclustersPass['INS'], index, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'], self.confDict, outDir)
@@ -101,14 +120,11 @@ class SV_caller_long(SV_caller):
         #    outFileName = 'INS_MEIGA.FAILED.tsv'
         #    output.write_INS(metaclustersFailed['INS'], outFileName, self.outDir)
 
-
-
-    def make_clusters_bin(self, window):
+    def make_clusters_bin(self, ref, beg, end):
         '''
         Search for structural variant (SV) clusters in a genomic bin/window
         '''
         ## 0. Set bin id and create bin directory ##
-        ref, beg, end = window
         binId = '_'.join([str(ref), str(beg), str(end)])
         msg = 'SV calling in bin: ' + binId
         log.subHeader(msg)
@@ -227,7 +243,7 @@ class SV_caller_short(SV_caller):
 
         ## Create bin database
         refLengths = bamtools.get_ref_lengths(self.bam)
-        self.repeatsBinDb = structures.create_bin_database(refLengths, rtAnnot.lines)
+        self.repeatsBinDb = structures.create_bin_database(refLengths, rtAnnot.lines, 1)
         
         ## 1.2 Create and index viral database
         #self.viralDb, self.viralDbIndex = databases.buildVirusDb(self.refDir, dbDir)
@@ -245,7 +261,7 @@ class SV_caller_short(SV_caller):
             transducedBed.read(transducedPath, 'nestedDict')
 
             ## Create bin database
-            self.transducedBinDb = structures.create_bin_database(refLengths, transducedBed.lines)
+            self.transducedBinDb = structures.create_bin_database(refLengths, transducedBed.lines, 1)
 
         # b) Skip database creation
         else:
@@ -258,7 +274,7 @@ class SV_caller_short(SV_caller):
         # Genomic bins will be distributed into X processes
         # TODO: mirar que pasa cuando tienes 2 dictionarios
         pool = mp.Pool(processes=self.confDict['processes'])
-        discordantClusters = pool.map(self.make_clusters_bin, bins)
+        discordantClusters = pool.starmap(self.make_clusters_bin, bins)
         pool.close()
         pool.join()
     
@@ -268,13 +284,12 @@ class SV_caller_short(SV_caller):
         ### 5. Do cleanup
         unix.rm([dbDir])
 
-    def make_clusters_bin(self, window):
+    def make_clusters_bin(self, ref, beg, end):
         '''
         Search for structural variant (SV) clusters in a genomic bin/window
         '''
 
         ## 0. Set bin id and create bin directory ##
-        ref, beg, end = window
         binId = '_'.join([str(ref), str(beg), str(end)])
         msg = 'SV calling in bin: ' + binId
         log.subHeader(msg)
