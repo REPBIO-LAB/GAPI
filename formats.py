@@ -59,7 +59,7 @@ def merge_FASTA(FASTA_list):
     return FASTA_merged
 
 
-def bed2binDb(bedPath, refLengths):
+def bed2binDb(bedPath, refLengths, threads):
     '''
     Organize features in a bed file into a whole genome bin database. 
     
@@ -69,6 +69,7 @@ def bed2binDb(bedPath, refLengths):
     Input:
         1. bedPath: path to bed file
         2. refLengths: Dictionary containing reference ids as keys and as values the length for each reference
+        3. threads: number of threads used to parallelize the bin database creation
 
     Output:
         1. wgBinDb: dictionary containing references as keys and the corresponding 'bin_database' as value
@@ -78,7 +79,7 @@ def bed2binDb(bedPath, refLengths):
     bed.read(bedPath, 'nestedDict')
 
     ## Create bin database
-    wgBinDb = structures.create_bin_database(refLengths, bed.lines)
+    wgBinDb = structures.create_bin_database(refLengths, bed.lines, threads)
 
     return wgBinDb
 
@@ -198,32 +199,6 @@ class BED():
         self.lines = None
         self.structure =  None
                         
-    def organize_list(self, filePath):
-        '''
-        Organize bed file lines in a list
-
-        Input:
-            1) filePath: path to bed file
-
-        Output:
-            1) lines: list containing bed entries
-        '''
-        bedFile = open(filePath)
-        lines = []
-
-        # For line in the file
-        for line in bedFile:
-            
-            # Skip comments and blank lines
-            if line.startswith('#') or not line:
-                continue
-
-            fields = line.split() 
-            line = BED_line(fields)
-            lines.append(line)
-        
-        return lines
-
     def read(self, filePath, structure):
         '''
         BED file reader. Read and store bed lines into a data structure
@@ -321,7 +296,33 @@ class BED():
                 # Create row
                 row = "\t".join(fields)
                 outFile.write(row + '\n')
-                    
+
+    def organize_list(self, filePath):
+        '''
+        Organize bed file lines in a list
+
+        Input:
+            1) filePath: path to bed file
+
+        Output:
+            1) lines: list containing bed entries
+        '''
+        bedFile = open(filePath)
+        lines = []
+
+        # For line in the file
+        for line in bedFile:
+            
+            # Skip comments and blank lines
+            if line.startswith('#') or not line:
+                continue
+
+            fields = line.split() 
+            line = BED_line(fields)
+            lines.append(line)
+        
+        return lines
+
     def organize_dict(self, filePath):
         '''
         Organize bed file lines in a dictionary where each key will correspond to a reference and the corresponding value will be the list of lines in that reference
