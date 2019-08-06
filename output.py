@@ -16,29 +16,34 @@ def write_INS(INS_metaclusters, outFileName, outDir):
     outFile = open(outFilePath, 'w')
 
     ## 2. Write header 
-    row = "#ref \t beg \t end \t filters \t insType \t family \t srcId \t status \t percResolved \t strand \t hits \t nbTotal \t nbTumour \t nbNormal \t nbINS \t nbDEL \t nbCLIPPING \t length \t cv \t insertSeq \n"
+    row = "#ref \t beg \t end \t filters \t insType \t family \t subfamily \t cytobandId \t gnName \t biotype \t nbTotal \t nbTumour \t nbNormal \t nbINS \t nbDEL \t nbCLIPPING \t length \t cv \t insertSeq \n"
     outFile.write(row)
 
     ## 3. Write INS metaclusters 
     # For each metacluster
     for metacluster in INS_metaclusters:
             
-        # Collect INS features
+        ## General features 
         filters = 'PASS' if not metacluster.failedFilters else ','.join(metacluster.failedFilters)
-        insType = metacluster.SV_features['insType'] if 'insType' in metacluster.SV_features else None
-        family = metacluster.SV_features['family'] if 'family' in metacluster.SV_features else None
-        srcId = metacluster.SV_features['srcId'] if 'srcId' in metacluster.SV_features else None
-        status = metacluster.SV_features['status'] if 'status' in metacluster.SV_features else None
-        percResolved = metacluster.SV_features['percResolved'] if 'percResolved' in metacluster.SV_features else None
-        strand = metacluster.SV_features['strand'] if 'strand' in metacluster.SV_features else None
-        hits = metacluster.SV_features['hits'] if 'hits' in metacluster.SV_features else None
+        insType = metacluster.SV_features['INS_TYPE'] if 'INS_TYPE' in metacluster.SV_features else None
         nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING = metacluster.nbEvents()        
         meanLen, cv = metacluster.subclusters['INS'].cv_len() if 'INS' in metacluster.subclusters else (None, None)
         length = metacluster.consensusEvent.length if metacluster.consensusEvent is not None else None
         insert = metacluster.consensusEvent.pick_insert() if metacluster.consensusEvent is not None else None
+        
+        ## Repeat specific features
+        family = metacluster.SV_features['FAMILY'] if 'FAMILY' in metacluster.SV_features else None
+        subfamily = metacluster.SV_features['SUBFAMILY'] if 'SUBFAMILY' in metacluster.SV_features else None
 
+        ## Transduction specific features
+        cytobandId = metacluster.SV_features['CYTOBAND'] if 'CYTOBAND' in metacluster.SV_features else None
+
+        ## Exon specific features
+        gnName = metacluster.SV_features['GENE_NAME'] if 'GENE_NAME' in metacluster.SV_features else None
+        biotype = metacluster.SV_features['BIOTYPE'] if 'BIOTYPE' in metacluster.SV_features else None
+        
         # Write INS call into output file
-        row = "\t".join([metacluster.ref, str(metacluster.beg), str(metacluster.end), str(filters), str(insType), str(family), str(srcId), str(status), str(percResolved), str(strand), str(hits), str(nbTotal), str(nbTumour), str(nbNormal), str(nbINS), str(nbDEL), str(nbCLIPPING), str(length), str(cv), str(insert), "\n"])
+        row = "\t".join([metacluster.ref, str(metacluster.beg), str(metacluster.end), str(filters), str(insType), str(family), str(subfamily), str(cytobandId), str(gnName), str(biotype), str(nbTotal), str(nbTumour), str(nbNormal), str(nbINS), str(nbDEL), str(nbCLIPPING), str(length), str(cv), str(insert), "\n"])
         outFile.write(row)
 
     ## Close output file ##

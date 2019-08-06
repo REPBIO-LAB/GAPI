@@ -93,7 +93,6 @@ class SV_caller_long(SV_caller):
 
             annotDir = self.outDir + '/annotDir'
             annotations2load = ['REPEATS', 'TRANSDUCTIONS', 'EXONS']
-            #annotations2load = ['REPEATS', 'TRANSDUCTIONS']            
             refLengths = bamtools.get_ref_lengths(self.bam)
             annotations = annotation.load_annotations(annotations2load, refLengths, self.refDir, self.confDict['processes'], annotDir)
 
@@ -112,13 +111,13 @@ class SV_caller_long(SV_caller):
 
         ### 6. Report SV calls into output files
         ##  6.1 Report INS
-        #if 'INS' in metaclustersPass:
-        #    outFileName = 'INS_MEIGA.PASS.tsv'
-        #    output.write_INS(metaclustersPass['INS'], outFileName, self.outDir)
+        if 'INS' in metaclustersPass:
+            outFileName = 'INS_MEIGA.PASS.tsv'
+            output.write_INS(metaclustersPass['INS'], outFileName, self.outDir)
 
-        #if 'INS' in metaclustersFailed:
-        #    outFileName = 'INS_MEIGA.FAILED.tsv'
-        #    output.write_INS(metaclustersFailed['INS'], outFileName, self.outDir)
+        if 'INS' in metaclustersFailed:
+            outFileName = 'INS_MEIGA.FAILED.tsv'
+            output.write_INS(metaclustersFailed['INS'], outFileName, self.outDir)
 
     def make_clusters_bin(self, ref, beg, end):
         '''
