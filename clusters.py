@@ -505,7 +505,7 @@ def INS_type_metaclusters(metaclusters, index, repeats, transduced, exons, confD
     ## 2. Align consensus inserted sequences into the reference genome ##
     msg = '2. Align consensus inserted sequences into the reference genome'
     log.subHeader(msg)    
-    PAF = alignment.alignment_minimap2(fastaPath, index, outDir)
+    PAF = alignment.alignment_minimap2(fastaPath, index, confDict['processes'], outDir)
 
     ## 3. Asign alignments to their corresponding metacluster ##
     msg = '3. Asign alignments to their corresponding metacluster'
@@ -522,17 +522,15 @@ def INS_type_metaclusters(metaclusters, index, repeats, transduced, exons, confD
     # metaclusters will be distributed into X processes
     msg = '5. For each metacluster determine the insertion type'
     log.subHeader(msg)    
-    print('PARALLELIZE: ', tupleList, confDict['processes'])
 
-    #for element in tupleList:
-    #    print('TUPLE: ', element)
-    #    metacluster, PAF, args = element 
-    #    INS_type_metacluster(metacluster, PAF, args)
+    for element in tupleList:
+        metacluster, PAF, args = element 
+        INS_type_metacluster(metacluster, PAF, args)
 
-    pool = mp.Pool(processes=confDict['processes'])
-    pool.starmap(INS_type_metacluster, tupleList)
-    pool.close()
-    pool.join()
+    #pool = mp.Pool(processes=confDict['processes'])
+    #pool.starmap(INS_type_metacluster, tupleList)
+    #pool.close()
+    #pool.join()
 
 
 def INS_type_metacluster(metacluster, PAF, args):
@@ -549,14 +547,10 @@ def INS_type_metacluster(metacluster, PAF, args):
                 - confDict: Configuration dictionary
                 - outDir: Output directory
     '''      
-    print('INS_type_metacluster_INPUT: ', metacluster, PAF, args)
-
     ## 1. Collect input arguments  
-    print('1. Collect input arguments')
     repeats, transduced, exons, confDict, outDir = args  
 
     ## 2. Determine metacluster´s insertion type
-    print('2. Determine metacluster´s insertion type')
     metacluster.determine_INS_type(PAF, repeats, transduced, exons, confDict, outDir)
 
 
@@ -1433,12 +1427,12 @@ class META_cluster():
             5. confDict: Configuration dictionary
             6. outDir: Output directory
         '''
-        print('INS_TYPE_INFERENCE_INPUT: ', PAF, repeatsDb, transducedDb, exonsDb, confDict, outDir)
+        msg = 'INS type inference metacluster'
+        log.subHeader(msg)
 
         ## 0. No hit on the reference
-        log.info('0. No hit on the reference')
-
         if not PAF.lines:
+            log.info('0. No hit on the reference')
             insType = None
             return
 
@@ -1448,12 +1442,13 @@ class META_cluster():
 
         ## 2. Make list of annotated features overlapping with alignment segments
         log.info('2. Make list of annotated features overlapping with alignment segments')
-        overlappingFeatures = []
 
         # For each alignment
         for alignment in chain.alignments:
 
             ## 2.1. Intersect with repeats database
+            repeat = None
+
             if repeatsDb is not None:
 
                 log.info('2.1. Intersect with repeats database')
@@ -1461,23 +1456,27 @@ class META_cluster():
                 ## Do intersection
                 sortedOverlaps = annotation.annotate_interval(alignment.tName, alignment.tBeg, alignment.tEnd, repeatsDb)
                 
-                ## Select feature with maximum percentage of overlap
+                ## Select repeat with maximum percentage of overlap
                 if sortedOverlaps: 
-                    overlappingFeatures.append(sortedOverlaps[0][0].name)
+                    repeat = sortedOverlaps[0][0]
+                    
 
             ## 2.2. Intersect with region downstream of source elements
-            if transducedDb is not None:
+            transduced = None
 
+            if transducedDb is not None:
                 log.info('2.2. Intersect with region downstream of source elements')
 
                 ## Do intersection
                 sortedOverlaps = annotation.annotate_interval(alignment.tName, alignment.tBeg, alignment.tEnd, transducedDb)
 
-                ## Select feature with maximum percentage of overlap
+                ## Select transduced region with maximum percentage of overlap
                 if sortedOverlaps: 
-                    overlappingFeatures.append(sortedOverlaps[0][0].name)
+                    transduced = sortedOverlaps[0][0]
 
             ## 2.3 Intersect with exons database
+            exon = None
+
             if exonsDb is not None:
 
                 log.info('2.3 Intersect with exons database')
@@ -1485,17 +1484,33 @@ class META_cluster():
                 ## Do intersection
                 sortedOverlaps = annotation.annotate_interval(alignment.tName, alignment.tBeg, alignment.tEnd, exonsDb)
 
-                ## Select feature with maximum percentage of overlap
+                ## Select exon with maximum percentage of overlap
                 if sortedOverlaps: 
-                    overlappingFeatures.append(sortedOverlaps[0][0].name)
-
-        print('OVERLAPPING_FEATURES: ', self.ref, self.beg, self.end, self.mutOrigin, self.nbEvents(), chain.perc_query_covered(), overlappingFeatures, self.consensusEvent.pick_insert())
-
+                    exon = sortedOverlaps[0][0]
+             
         ## 4. Based on the hits annotation infer the candidate insertion type
         # Possibilities:
         #   - transduction: hit in transduced area
-        #   - pseudogene: hit in exons database and not in transduced area
+        #   - exon: hit in exons database and not in transduced area
         #   - repeat: hit in repeats database and not in transduced area nor in annotated exons
-        #   - unnanotated: hit in unnanotated region of the reference
+        #   - unknown: hit in unnanotated region of the reference
 
-        # self.SV_features['INS_CANDIDATE'] = 
+        if transduced is not None:
+            self.SV_features['INS_TYPE'] = 'transduction'
+            self.SV_features['CYTOBAND'] = transduced.optional['cytobandId']
+            self.SV_features['SCORE'] = transduced.optional['score']
+            self.SV_features['STRAND'] = transduced.optional['strand']
+        
+        elif exon is not None:
+            self.SV_features['INS_TYPE'] = 'exon'
+            self.SV_features['GENE_NAME'] = exon.optional['geneName']
+            self.SV_features['BIOTYPE'] = exon.optional['biotype']
+
+        elif repeat is not None:
+            self.SV_features['INS_TYPE'] = 'repeat'
+            self.SV_features['FAMILY'] = repeat.optional['family']
+            self.SV_features['SUBFAMILY'] = repeat.optional['subfamily']
+            self.SV_features['DIV'] = repeat.optional['milliDiv']
+        
+        else:
+            self.SV_features['INS_TYPE'] = 'unknown'
