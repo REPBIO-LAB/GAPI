@@ -39,24 +39,24 @@ def minimap2_presets(technology):
 
     return preset
 
-def alignment_minimap2(FASTA, index, outDir):
+def alignment_minimap2(FASTA, index, threads, outDir):
     '''
     Align a set of sequence into a reference with minimap2
 
     Input:
         1. FASTA: Path to FASTA file with sequences to align
         2. index: Path to the the index of the reference in .mmi format (generated with minimap2)
-        3. outDir: Output directory
+        3. threads: Number of threads used by minimap2
+        4. outDir: Output directory
 
     Output:
         1. PAF: Path to PAF file containing input sequences alignments or 'None' if alignment failed 
     '''
-
     ## 1. Align the sequences into the reference
     # Use -Y to get soft clippings for supplementary alignments
     PAF = outDir + '/alignments.paf'
     err = open(outDir + '/align.err', 'w') 
-    command = 'minimap2 -k15 -w10 ' + index + ' ' + FASTA + ' > ' + PAF
+    command = 'minimap2 -t ' + str(threads) + ' ' + index + ' ' + FASTA + ' > ' + PAF
     status = subprocess.call(command, stderr=err, shell=True)
 
     if status != 0:
@@ -102,7 +102,7 @@ def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir):
     # Use -Y to get soft clippings for supplementary alignments
     SAM = outDir + '/alignments.sam'
     err = open(logDir + '/align.err', 'w') 
-    command = 'minimap2 -Y -a -k15 -w10 ' + target + ' ' + FASTA + ' > ' + SAM
+    command = 'minimap2 -Y -a ' + target + ' ' + FASTA + ' > ' + SAM
     status = subprocess.call(command, stderr=err, shell=True)
 
     if status != 0:
