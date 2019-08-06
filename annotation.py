@@ -41,7 +41,7 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
     ## 2. Load annotated repeats into a bin database
     if 'REPEATS' in annotations2load:
         log.info('2. Load annotated repeats into a bin database')
-        repeatsBed = annotationsDir + '/repeats_repeatMasker.test.bed'
+        repeatsBed = annotationsDir + '/repeats_repeatMasker.bed'
         annotations['REPEATS'] = formats.bed2binDb(repeatsBed, refLengths, threads)
 
     ## 3. Create transduced regions database
@@ -50,6 +50,7 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
 
         ## Create bed file containing transduced regions
         sourceBed = annotationsDir + '/srcElements.bed'
+        print('SRC_BED: ', sourceBed)
         transducedPath = databases.create_transduced_bed(sourceBed, 15000, outDir)
 
         ## Load transduced regions into a bin database
@@ -59,7 +60,7 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
     if 'EXONS' in annotations2load:
 
         log.info('4. Create exons database')
-        exonsBed = annotationsDir + '/exons.all.test.bed'
+        exonsBed = annotationsDir + '/exons.bed'
         annotations['EXONS'] = formats.bed2binDb(exonsBed, refLengths, threads)
 
     return annotations
@@ -126,7 +127,7 @@ def repeats_annotation(events, repeatsDb, buffer):
             overlaps = repeatsBinDb.collect_interval(event.beg - buffer, event.end + buffer, 'ALL')    
 
             ## Make list of overlapping repeats
-            repeats = [overlap[0].name for overlap in overlaps]
+            repeats = [overlap[0].optional['family'] for overlap in overlaps]
 
         # B) No repeat in the same ref as the event
         else:
@@ -316,12 +317,12 @@ def intersect_mate_annotation(discordants, annotation):
 
             # b) Mate aligns within a single repeat
             elif len(overlappingFeatures) == 1:
-                featureType = overlappingFeatures[0][0].name
+                featureType = overlappingFeatures[0][0].optional['family']
 
             # c) Mate overlaps multiple repeats
             else:
                 overlappingFeatures = sorted(overlappingFeatures,key=itemgetter(1), reverse=True)
-                featureType = overlappingFeatures[0][0].name
+                featureType = overlappingFeatures[0][0].optional['family']
 
         # B) No repeat in the same ref as mate
         else:
