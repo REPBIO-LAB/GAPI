@@ -58,7 +58,6 @@ def merge_FASTA(FASTA_list):
 
     return FASTA_merged
 
-
 def bed2binDb(bedPath, refLengths, threads):
     '''
     Organize features in a bed file into a whole genome bin database. 
@@ -237,6 +236,8 @@ class BED():
 
         Input:
             1) outPath: path to output bed file
+
+        NOTE: Update to include optional fields
         '''
         ## Collect all the entries into a list
         # a) Entries organized into a list
@@ -297,6 +298,7 @@ class BED():
                 row = "\t".join(fields)
                 outFile.write(row + '\n')
 
+
     def organize_list(self, filePath):
         '''
         Organize bed file lines in a list
@@ -309,17 +311,26 @@ class BED():
         '''
         bedFile = open(filePath)
         lines = []
-
+        header = []
+        
         # For line in the file
         for line in bedFile:
             
-            # Skip comments and blank lines
-            if line.startswith('#') or not line:
+            # Skip blank lines
+            if not line:
                 continue
+            
+            # Split data line into fields
+            fields = line.split()                 
 
-            fields = line.split() 
-            line = BED_line(fields)
-            lines.append(line)
+            # A) Header
+            if line.startswith('#'):
+                header = fields
+
+            # B) Data line
+            else:
+                line = BED_line(fields, header)
+                lines.append(line)
         
         return lines
 
@@ -336,24 +347,33 @@ class BED():
 
         bedFile = open(filePath)
         lines = {}
+        header = []
 
         # For line in the file
         for line in bedFile:
             
-            # Skip comments and blank lines
-            if line.startswith('#') or not line:
+            # Skip blank lines
+            if not line:
                 continue
+            
+            # Split data line into fields
+            fields = line.split()       
 
-            fields = line.split() 
-            line = BED_line(fields)
+            # A) Header
+            if line.startswith('#'):
+                header = fields
 
-            # A) Initialize reference and add line
-            if line.ref not in lines:
-                lines[line.ref] = [line]
-
-            # B) Add to preexisting reference
+            # B) Data line
             else:
-                lines[line.ref].append(line)
+                line = BED_line(fields, header)
+
+                # a) Initialize reference and add line
+                if line.ref not in lines:
+                    lines[line.ref] = [line]
+
+                # b) Add to preexisting reference
+                else:
+                    lines[line.ref].append(line)
 
         return lines
 
@@ -366,36 +386,47 @@ class BED():
 
         Output:
             1) lines: nested dictionary containing bed entries
+
+        NOTE: I need to update the code to take into account the bed header and optional fields
         '''
 
         bedFile = open(filePath)
         lines = {}
+        header = []
 
         # For line in the file
         for line in bedFile:
             
-            # Skip comments and blank lines
-            if line.startswith('#') or not line:
+            # Skip blank lines
+            if not line:
                 continue
+            
+            # Split data line into fields
+            fields = line.split()       
 
-            fields = line.split() 
-            line = BED_line(fields)
+            # A) Header
+            if line.startswith('#'):
+                header = fields
 
-            # A) Initialize reference and add line
-            if line.ref not in lines:
-                lines[line.ref] = {}
-                lines[line.ref][line.name] = [line]
-
-            # B) Add to preexisting reference
+            # B) Data line
             else:
+                line = BED_line(fields, header)
+                
+                # A) Initialize reference and add line
+                if line.ref not in lines:
+                    lines[line.ref] = {}
+                    lines[line.ref][line.optional['name']] = [line]
 
-                # a) Initialize entry name
-                if line.name not in lines[line.ref]:
-                    lines[line.ref][line.name] = [line]
-
-                # b) Add to preexisting entry name
+                # B) Add to preexisting reference
                 else:
-                    lines[line.ref][line.name].append(line)
+
+                    # a) Initialize entry name
+                    if line.optional['name'] not in lines[line.ref]:
+                        lines[line.ref][line.optional['name']] = [line]
+
+                    # b) Add to preexisting entry name
+                    else:
+                        lines[line.ref][line.optional['name']].append(line)
 
         return lines
 
@@ -405,20 +436,29 @@ class BED_line():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, fields):
+    def __init__(self, fields, header):
         '''
         Initialize bed line
+
+        Input:
+            1. fields: list containing a bed feature (== data line)
+            2. header: list containing bed header (required for parsing optional fields)
         '''
         BED_line.number += 1 # Update instances counter
         self.id = 'BED_line_' + str(BED_line.number)
 
+        ## Mandatory fields
         self.ref = str(fields[0])
         self.beg = int(fields[1])
         self.end = int(fields[2])
         self.clusterId = None
 
-        if len(fields) > 3:
-            self.name = str(fields[3])
+        ## Optional fields dictionary (Optional fields only considered if header provided)
+        self.optional = {}
+
+        for i in range(3, len(header), 1):
+            self.optional[header[i]] = fields[i]
+        
 
 class PAF():
     '''
