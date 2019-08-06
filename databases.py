@@ -175,14 +175,19 @@ def create_transduced_bed(sourceBed, size, outDir):
     transducedPath = outDir + '/transduced_regions.bed'
     transducedBed = open(transducedPath, 'w')
 
-    # Read bed with source elements annotation line by line
+    ## Write header in outfile
+    row = "\t".join(['#ref', 'tdBeg', 'tdEnd', 'name', 'cytobandId', 'score', 'strand', "\n"])
+    transducedBed.write(row)
+
+    ## Read bed with source elements annotation line by line
     for line in sourceBed:
         line = line.rstrip('\r\n')
-    
+
         ## Discard header
-        if not line.startswith("#"):        
+        if not line.startswith("#"):   
+     
             fieldsList = line.split("\t")
-            ref, beg, end, cytobandId, score, strand = fieldsList
+            ref, beg, end, name, cytobandId, score, strand = fieldsList
 		
             ## a) Element in plus
             # ---------------> end ........transduced........ end + size
@@ -199,7 +204,7 @@ def create_transduced_bed(sourceBed, size, outDir):
                 tdEnd = int(beg)
 
             ## Write into output file
-            row = "\t".join([ref, str(tdBeg), str(tdEnd), cytobandId, "\n"])
+            row = "\t".join([ref, str(tdBeg), str(tdEnd), name, cytobandId, score, strand, "\n"])
             transducedBed.write(row)
 
     return transducedPath

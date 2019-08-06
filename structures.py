@@ -42,7 +42,6 @@ def create_bin_database(refLengths, eventsDict, threads):
             continue
 
         # Define bin sizes
-        #binSizes = [10000, 100000, 1000000, refLen]
         binSizes = [10000, 100000, 1000000, refLen]
 
         # Add to the list of tuples
