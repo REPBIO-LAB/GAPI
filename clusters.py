@@ -481,13 +481,13 @@ def find_insertion_at_clipping_bkp(primary, supplementary):
     return insert
 
 
-def INS_type_metaclusters(metaclusters, index, repeats, transduced, exons, confDict, outDir):
+def INS_type_metaclusters(metaclusters, reference, repeats, transduced, exons, confDict, outDir):
     '''
     For each metacluster provided as input determine the type of insertion
 
     Input:
         1. metaclusters: list of metaclusters supporting insertion events
-        2. index: Path to the the index of the reference in .mmi format (generated with minimap2)
+        2. reference: Path to the reference genome in fasta format (bwa mem index must be located in the same folder)
         3. repeats: bin database containing annotated repeats in the reference. None if not available
         4. transduced: bin database containing regions transduced by source elements. None if not available
         5. exons: bin database containing annotated exons in the reference. None if not available
@@ -505,12 +505,12 @@ def INS_type_metaclusters(metaclusters, index, repeats, transduced, exons, confD
     ## 2. Align consensus inserted sequences into the reference genome ##
     msg = '2. Align consensus inserted sequences into the reference genome'
     log.subHeader(msg)    
-    PAF = alignment.alignment_minimap2(fastaPath, index, confDict['processes'], outDir)
-
+    SAM = alignment.alignment_bwa(fastaPath, reference, confDict['processes'], outDir)
+    
     ## 3. Asign alignments to their corresponding metacluster ##
     msg = '3. Asign alignments to their corresponding metacluster'
     log.subHeader(msg)    
-    tupleList = assignAligments2metaclusters(metaclusters, PAF)        
+    tupleList = assignAligments2metaclusters_sam(metaclusters, SAM)        
 
     ## 4. Add to each tuple a third element with the list of arguments
     msg = '4. Add to each tuple a third element with the list of arguments'
@@ -523,14 +523,15 @@ def INS_type_metaclusters(metaclusters, index, repeats, transduced, exons, confD
     msg = '5. For each metacluster determine the insertion type'
     log.subHeader(msg)    
 
+    # For each metacluster
     for element in tupleList:
-        metacluster, PAF, args = element 
-        INS_type_metacluster(metacluster, PAF, args)
+        metacluster, alignments, args = element 
 
-    #pool = mp.Pool(processes=confDict['processes'])
-    #pool.starmap(INS_type_metacluster, tupleList)
-    #pool.close()
-    #pool.join()
+        # Convert sam aligned segments into a PAF object
+        PAF = bamtools.alignments2PAF(alignments)
+
+        # Infer metacluster ins type
+        INS_type_metacluster(metacluster, PAF, args)
 
 
 def INS_type_metacluster(metacluster, PAF, args):
@@ -551,7 +552,7 @@ def INS_type_metacluster(metacluster, PAF, args):
     repeats, transduced, exons, confDict, outDir = args  
 
     ## 2. Determine metacluster´s insertion type
-    metacluster.determine_INS_type(PAF, repeats, transduced, exons, confDict, outDir)
+    metacluster.INS_type_candidate(PAF, repeats, transduced, exons, confDict, outDir)
 
 
 def insertedSeq2fasta(metaclusters, outDir):
@@ -622,6 +623,38 @@ def assignAligments2metaclusters(metaclusters, PAF_path):
 
     return tupleList
 
+def assignAligments2metaclusters_sam(metaclusters, SAM_path):
+    '''
+    Map alignments to their corresponding metacluster. 
+
+    Input:
+        1. metaclusters: list of metaclusters
+        2. SAM_path: Path to SAM file containing alignments to asign
+
+    Output:
+        1. tupleList: List of tuples. Each tuple contain two elements: 
+            1) metacluster object  
+            2) List of aligned segment objects
+    '''
+    ## 1. Create a dictionary to organize the data
+    hits = {}
+
+    for metacluster in metaclusters:
+        metaclusterId = metacluster.ref + ':' + str(metacluster.beg) + '-' + str(metacluster.end)
+        hits[metaclusterId] = (metacluster, [])
+
+    ## 2. Read SAM file and add hits to the metaclusters
+    ## Read SAM 
+    SAM = pysam.AlignmentFile(SAM_path, "r")
+
+    # For each read alignment 
+    for alignment in SAM:
+        hits[alignment.query_name][1].append(alignment)
+    
+    ## 3. Generate list of tuples
+    tupleList = list(hits.values())
+
+    return tupleList
 
 #############
 ## CLASSES ##
@@ -1415,12 +1448,12 @@ class META_cluster():
             self.consensusEvent = None                
             self.consensusFasta = None
      
-
-    def determine_INS_type(self, PAF, repeatsDb, transducedDb, exonsDb, confDict, outDir):
+            
+    def INS_type_candidate(self, PAF, repeatsDb, transducedDb, exonsDb, confDict, outDir):
         '''
         
         Input:
-            1. PAF: PAF object containing metacluster consensus inserted sequence alignments on the reference
+            1. PAF: PAF object containing the corresponding alignments for the metacluster consensus inserted sequence
             2. repeatsDb: bin database containing annotated repeats in the reference. None if not available
             3. transducedDb: bin database containing regions transduced by source elements. None if not available
             4. exonsDb: bin database containing annotated exons in the reference. None if not available
@@ -1431,7 +1464,7 @@ class META_cluster():
         log.subHeader(msg)
 
         ## 0. No hit on the reference
-        if not PAF.lines:
+        if not PAF:
             log.info('0. No hit on the reference')
             insType = None
             return
@@ -1439,78 +1472,89 @@ class META_cluster():
         ## 1. Search for complementary alignments 
         log.info('1. Search for complementary alignments')
         chain = PAF.chain()
+    
+        ## 2. Intersect each hit with a set of annotated features
+        log.info('2. Intersect each hit with a set of annotated features')
+        
+        ## Initialize dictionary
+        hitsAnnotated = {}
 
-        ## 2. Make list of annotated features overlapping with alignment segments
-        log.info('2. Make list of annotated features overlapping with alignment segments')
+        for i in ['TRANSDUCTION', 'EXON', 'REPEAT', 'NONE']:
+            hitsAnnotated[i] = []
 
-        # For each alignment
-        for alignment in chain.alignments:
+        # For each hit
+        for hit in chain.alignments:
 
-            ## 2.1. Intersect with repeats database
-            repeat = None
+            ## 2.0. Initialize hit as unannotated
+            annot = None
 
-            if repeatsDb is not None:
-
-                log.info('2.1. Intersect with repeats database')
-
-                ## Do intersection
-                sortedOverlaps = annotation.annotate_interval(alignment.tName, alignment.tBeg, alignment.tEnd, repeatsDb)
-                
-                ## Select repeat with maximum percentage of overlap
-                if sortedOverlaps: 
-                    repeat = sortedOverlaps[0][0]
-                    
-
-            ## 2.2. Intersect with region downstream of source elements
-            transduced = None
-
+            ## 2.1. Intersect with region downstream of source elements
             if transducedDb is not None:
-                log.info('2.2. Intersect with region downstream of source elements')
 
                 ## Do intersection
-                sortedOverlaps = annotation.annotate_interval(alignment.tName, alignment.tBeg, alignment.tEnd, transducedDb)
+                overlaps = annotation.annotate_interval(hit.tName, hit.tBeg, hit.tEnd, transducedDb)
 
-                ## Select transduced region with maximum percentage of overlap
-                if sortedOverlaps: 
-                    transduced = sortedOverlaps[0][0]
-
-            ## 2.3 Intersect with exons database
-            exon = None
-
-            if exonsDb is not None:
-
-                log.info('2.3 Intersect with exons database')
+                ## Select longest match
+                if overlaps: 
+                    annot = overlaps[0]
+                    hitsAnnotated['TRANSDUCTION'].append((hit, annot))
+        
+            ## 2.2. Intersect with exons database
+            if (exonsDb is not None) and (annot is None):
 
                 ## Do intersection
-                sortedOverlaps = annotation.annotate_interval(alignment.tName, alignment.tBeg, alignment.tEnd, exonsDb)
+                overlaps = annotation.annotate_interval(hit.tName, hit.tBeg, hit.tEnd, exonsDb)
 
-                ## Select exon with maximum percentage of overlap
-                if sortedOverlaps: 
-                    exon = sortedOverlaps[0][0]
-             
-        ## 4. Based on the hits annotation infer the candidate insertion type
-        # Possibilities:
-        #   - transduction: hit in transduced area
-        #   - exon: hit in exons database and not in transduced area
-        #   - repeat: hit in repeats database and not in transduced area nor in annotated exons
-        #   - unknown: hit in unnanotated region of the reference
+                ## Select longest match
+                if overlaps: 
+                    annot = overlaps[0]
+                    hitsAnnotated['EXON'].append((hit, annot))
 
-        if transduced is not None:
+            ## 2.3. Intersect with repeats database
+            if (repeatsDb is not None) and (annot is None):
+
+                ## Do intersection
+                overlaps = annotation.annotate_interval(hit.tName, hit.tBeg, hit.tEnd, repeatsDb)
+
+                ## Select longest match
+                if overlaps: 
+                    annot = overlaps[0]
+                    hitsAnnotated['REPEAT'].append((hit, annot))
+            
+            ## 2.4. Add hit annotation results 
+            if annot is None:
+                hitsAnnotated['NONE'].append((hit, None))
+            
+            ## 2.5. Add annotation info as attribute
+            hit.annotation = annot
+
+        ## 4. Add inserted sequence annotated hits as attribute 
+        self.insertedSeqHits = chain
+        
+        ## 5. Based on the hits annotation infer the candidate insertion type
+        # A) Transduction: hit in transduced area
+        if hitsAnnotated['TRANSDUCTION']:
+
+            features = [feature[1][0] for feature in hitsAnnotated['TRANSDUCTION']]
             self.SV_features['INS_TYPE'] = 'transduction'
-            self.SV_features['CYTOBAND'] = transduced.optional['cytobandId']
-            self.SV_features['SCORE'] = transduced.optional['score']
-            self.SV_features['STRAND'] = transduced.optional['strand']
-        
-        elif exon is not None:
-            self.SV_features['INS_TYPE'] = 'exon'
-            self.SV_features['GENE_NAME'] = exon.optional['geneName']
-            self.SV_features['BIOTYPE'] = exon.optional['biotype']
+            self.SV_features['CYTOBAND'] = ','.join(set([feature.optional['cytobandId'] for feature in features])) 
 
-        elif repeat is not None:
+        # B) Exon: hit in exons database and not in transduced area
+        elif hitsAnnotated['EXON']:
+
+            features = [feature[1][0] for feature in hitsAnnotated['EXON']]
+            self.SV_features['INS_TYPE'] = 'exon'
+            self.SV_features['GENE_NAME'] = ','.join(set([feature.optional['geneName'] for feature in features])) 
+            self.SV_features['BIOTYPE'] = ','.join(set([feature.optional['biotype'] for feature in features])) 
+
+        # C) Repeat: hit in repeats database and not in transduced area nor in annotated exons
+        elif hitsAnnotated['REPEAT']:
             self.SV_features['INS_TYPE'] = 'repeat'
-            self.SV_features['FAMILY'] = repeat.optional['family']
-            self.SV_features['SUBFAMILY'] = repeat.optional['subfamily']
-            self.SV_features['DIV'] = repeat.optional['milliDiv']
+            self.SV_features['FAMILY'] = ','.join(set([feature.optional['family'] for feature in features])) 
+            self.SV_features['SUBFAMILY'] = ','.join(set([feature.optional['subfamily'] for feature in features]))
+            self.SV_features['DIV'] = ','.join(set([feature.optional['milliDiv'] for feature in features]))
         
+        # D) Unknown: hit in unnanotated region of the reference
         else:
             self.SV_features['INS_TYPE'] = 'unknown'
+        
