@@ -92,7 +92,9 @@ class SV_caller_long(SV_caller):
             log.header(msg)
 
             annotDir = self.outDir + '/annotDir'
-            annotations2load = ['REPEATS', 'TRANSDUCTIONS', 'EXONS']
+            annotations2load = ['REPEATS', 'TRANSDUCTIONS', 'EXONS']   
+            # annotations2load = ['REPEATS', 'TRANSDUCTIONS']   
+            # annotations2load = ['TRANSDUCTIONS']            
             refLengths = bamtools.get_ref_lengths(self.bam)
             annotations = annotation.load_annotations(annotations2load, refLengths, self.refDir, self.confDict['processes'], annotDir)
 
@@ -104,10 +106,8 @@ class SV_caller_long(SV_caller):
             ## 4.3 Insertion type inference
             msg = '4.3 Insertion type inference'
             log.header(msg)
-
-            index = os.path.splitext(self.reference)[0] + '.mmi'
             outDir = self.outDir + '/insType/'
-            clusters.INS_type_metaclusters(metaclustersPass['INS'], index, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'], self.confDict, outDir)
+            clusters.INS_type_metaclusters(metaclustersPass['INS'], self.reference, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'], self.confDict, outDir)
 
         ### 6. Report SV calls into output files
         ##  6.1 Report INS
