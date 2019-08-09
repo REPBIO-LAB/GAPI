@@ -155,6 +155,30 @@ def BAM2FASTQ_entry(alignmentObj):
     FASTQ_entry = formats.FASTQ_entry(alignmentObj.query_name, seq, '', qual)
     return FASTQ_entry
 
+def alignments2PAF(alignments):
+    '''
+    Convert as set of pysam aligned segments into a PAF object
+
+	Input:
+		1. alignments: list of aligned segments
+
+	Output:
+		1. PAF: PAF object containing alignments
+    '''
+    
+    ## 1. Initialize PAF object
+    PAF = formats.PAF()
+
+    ## 2. Convert each aligned segment into a PAF_line object and add to PAF
+    for alignment in alignments:
+
+        strand = '-' if alignment.is_reverse else '+'
+        fields = [alignment.query_name, alignment.infer_read_length(), alignment.query_alignment_start, alignment.query_alignment_end, strand, alignment.reference_name, alignment.reference_length, alignment.reference_start, alignment.reference_end, 0, 0, alignment.mapping_quality]
+        line = formats.PAF_line(fields)
+        PAF.lines.append(line)
+
+    return PAF
+
 
 def binning(targetBins, bam, binSize, targetRefs):
     '''
