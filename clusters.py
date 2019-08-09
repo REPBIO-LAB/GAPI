@@ -1464,9 +1464,9 @@ class META_cluster():
         log.subHeader(msg)
 
         ## 0. No hit on the reference
-        if not PAF:
+        if not PAF.lines:
             log.info('0. No hit on the reference')
-            insType = None
+            self.SV_features['INS_TYPE'] = 'unknown'
             return
 
         ## 1. Search for complementary alignments 
