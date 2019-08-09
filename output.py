@@ -29,6 +29,7 @@ def write_INS(INS_metaclusters, outFileName, outDir):
         nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING = metacluster.nbEvents()        
         meanLen, cv = metacluster.subclusters['INS'].cv_len() if 'INS' in metacluster.subclusters else (None, None)
         length = metacluster.consensusEvent.length if metacluster.consensusEvent is not None else None
+        percCovered = metacluster.insertedSeqHits.perc_query_covered() if metacluster.insertedSeqHits is not None else None
         insert = metacluster.consensusEvent.pick_insert() if metacluster.consensusEvent is not None else None
         
         ## Repeat specific features
@@ -43,7 +44,7 @@ def write_INS(INS_metaclusters, outFileName, outDir):
         biotype = metacluster.SV_features['BIOTYPE'] if 'BIOTYPE' in metacluster.SV_features else None
         
         # Write INS call into output file
-        row = "\t".join([metacluster.ref, str(metacluster.beg), str(metacluster.end), str(filters), str(metacluster.mutOrigin), str(insType), str(family), str(subfamily), str(cytobandId), str(gnName), str(biotype), str(nbTotal), str(nbTumour), str(nbNormal), str(nbINS), str(nbDEL), str(nbCLIPPING), str(length), str(cv), str(metacluster.insertedSeqHits.perc_query_covered()), str(insert), "\n"])
+        row = "\t".join([metacluster.ref, str(metacluster.beg), str(metacluster.end), str(filters), str(metacluster.mutOrigin), str(insType), str(family), str(subfamily), str(cytobandId), str(gnName), str(biotype), str(nbTotal), str(nbTumour), str(nbNormal), str(nbINS), str(nbDEL), str(nbCLIPPING), str(length), str(cv), str(percCovered), str(insert), "\n"])
         outFile.write(row)
 
     ## Close output file ##

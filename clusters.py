@@ -971,6 +971,7 @@ class META_cluster():
         self.mutOrigin = None
         self.failedFilters = None
         self.consensusEvent = None                
+        self.insertedSeqHits = None
         
         # Update input cluster's clusterId attribute
         for cluster in clusters:
