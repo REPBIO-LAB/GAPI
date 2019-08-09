@@ -1549,6 +1549,8 @@ class META_cluster():
 
         # C) Repeat: hit in repeats database and not in transduced area nor in annotated exons
         elif hitsAnnotated['REPEAT']:
+
+            features = [feature[1][0] for feature in hitsAnnotated['REPEAT']]
             self.SV_features['INS_TYPE'] = 'repeat'
             self.SV_features['FAMILY'] = ','.join(set([feature.optional['family'] for feature in features])) 
             self.SV_features['SUBFAMILY'] = ','.join(set([feature.optional['subfamily'] for feature in features]))
