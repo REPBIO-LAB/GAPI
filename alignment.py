@@ -66,6 +66,31 @@ def alignment_minimap2(FASTA, index, threads, outDir):
 
     return PAF
 
+def alignment_bwa(FASTA, reference, threads, outDir):
+    '''
+    Align a set of sequence into a reference with bwa mem
+
+    Input:
+        1. FASTA: Path to FASTA file with sequences to align
+        2. reference: Path to the reference genome in fasta format (bwa mem index must be located in the same folder)
+        3. threads: Number of threads used by bwa mem
+        4. outDir: Output directory
+
+    Output:
+        1. SAM: Path to SAM file containing input sequences alignments or 'None' if alignment failed 
+    '''
+    ## 1. Align the sequences into the reference
+    SAM = outDir + '/alignments.sam'
+    err = open(outDir + '/align.err', 'w') 
+    command = 'bwa mem -t ' + str(threads) + ' ' + reference + ' ' + FASTA + ' > ' + SAM
+    status = subprocess.call(command, stderr=err, shell=True)
+
+    if status != 0:
+        step = 'ALIGN'
+        msg = 'Alignment failed' 
+        log.step(step, msg)
+
+    return SAM    
 
 def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir):
     '''
