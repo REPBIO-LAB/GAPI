@@ -93,8 +93,8 @@ class SV_caller_long(SV_caller):
 
             annotDir = self.outDir + '/annotDir'
             annotations2load = ['REPEATS', 'TRANSDUCTIONS', 'EXONS']   
-            # annotations2load = ['REPEATS', 'TRANSDUCTIONS']   
-            # annotations2load = ['TRANSDUCTIONS']            
+            #annotations2load = ['REPEATS', 'TRANSDUCTIONS']   
+            #annotations2load = ['TRANSDUCTIONS']            
             refLengths = bamtools.get_ref_lengths(self.bam)
             annotations = annotation.load_annotations(annotations2load, refLengths, self.refDir, self.confDict['processes'], annotDir)
 
