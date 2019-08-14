@@ -1540,7 +1540,23 @@ class META_cluster():
             self.SV_features['INS_TYPE'] = 'transduction'
             self.SV_features['CYTOBAND'] = ','.join(set([feature.optional['cytobandId'] for feature in features])) 
 
-        # B) Exon: hit in exons database and not in transduced area
+        # E) Fusion: hit in repeat and exon database
+        elif hitsAnnotated['REPEAT'] and hitsAnnotated['EXON']:
+
+            self.SV_features['INS_TYPE'] = 'fusion'
+
+            ## Repeat info
+            repeats = [feature[1][0] for feature in hitsAnnotated['REPEAT']]
+            self.SV_features['FAMILY'] = ','.join(set([repeat.optional['family'] for repeat in repeats])) 
+            self.SV_features['SUBFAMILY'] = ','.join(set([repeat.optional['subfamily'] for repeat in repeats]))
+            self.SV_features['DIV'] = ','.join(set([repeat.optional['milliDiv'] for repeat in repeats]))
+
+            ## Exon info
+            exons = [feature[1][0] for feature in hitsAnnotated['EXON']]
+            self.SV_features['GENE_NAME'] = ','.join(set([exon.optional['geneName'] for exon in exons])) 
+            self.SV_features['BIOTYPE'] = ','.join(set([exon.optional['biotype'] for exon in exons])) 
+
+        # C) Exon: hit in exons database 
         elif hitsAnnotated['EXON']:
 
             features = [feature[1][0] for feature in hitsAnnotated['EXON']]
@@ -1548,7 +1564,7 @@ class META_cluster():
             self.SV_features['GENE_NAME'] = ','.join(set([feature.optional['geneName'] for feature in features])) 
             self.SV_features['BIOTYPE'] = ','.join(set([feature.optional['biotype'] for feature in features])) 
 
-        # C) Repeat: hit in repeats database and not in transduced area nor in annotated exons
+        # D) Repeat: hit in repeats database 
         elif hitsAnnotated['REPEAT']:
 
             features = [feature[1][0] for feature in hitsAnnotated['REPEAT']]
@@ -1557,7 +1573,7 @@ class META_cluster():
             self.SV_features['SUBFAMILY'] = ','.join(set([feature.optional['subfamily'] for feature in features]))
             self.SV_features['DIV'] = ','.join(set([feature.optional['milliDiv'] for feature in features]))
         
-        # D) Unknown: hit in unnanotated region of the reference
+        # E) Unknown: hit in unnanotated region of the reference
         else:
             self.SV_features['INS_TYPE'] = 'unknown'
         
