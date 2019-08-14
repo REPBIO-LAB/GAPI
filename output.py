@@ -16,7 +16,7 @@ def write_INS(INS_metaclusters, outFileName, outDir):
     outFile = open(outFilePath, 'w')
 
     ## 2. Write header 
-    row = "#ref \t beg \t end \t filters \t mutOrigin \t insType \t family \t subfamily \t cytobandId \t gnName \t biotype \t nbTotal \t nbTumour \t nbNormal \t nbINS \t nbDEL \t nbCLIPPING \t length \t cv \t percAligned \t insertSeq \n"
+    row = "#ref \t beg \t end \t filters \t mutOrigin \t insType \t family \t subfamily \t cytobandId \t gnName \t biotype \t nbTotal \t nbTumour \t nbNormal \t nbINS \t nbDEL \t nbCLIPPING \t length \t cv \t percAligned \t qHits \t tHits \t insertSeq \n"
     outFile.write(row)
 
     ## 3. Write INS metaclusters 
@@ -31,7 +31,9 @@ def write_INS(INS_metaclusters, outFileName, outDir):
         length = metacluster.consensusEvent.length if metacluster.consensusEvent is not None else None
         percCovered = metacluster.insertedSeqHits.perc_query_covered() if metacluster.insertedSeqHits is not None else None
         insert = metacluster.consensusEvent.pick_insert() if metacluster.consensusEvent is not None else None
-        
+        qHits = None if metacluster.insertedSeqHits is None else ','.join([ 'insertedSeq' + ':' + str(alignment.qBeg) + '-' + str(alignment.qEnd) for alignment in metacluster.insertedSeqHits.alignments ])
+        tHits = None if metacluster.insertedSeqHits is None else ','.join([ alignment.tName + ':' + str(alignment.tBeg) + '-' + str(alignment.tEnd) for alignment in metacluster.insertedSeqHits.alignments ])
+
         ## Repeat specific features
         family = metacluster.SV_features['FAMILY'] if 'FAMILY' in metacluster.SV_features else None
         subfamily = metacluster.SV_features['SUBFAMILY'] if 'SUBFAMILY' in metacluster.SV_features else None
@@ -44,7 +46,7 @@ def write_INS(INS_metaclusters, outFileName, outDir):
         biotype = metacluster.SV_features['BIOTYPE'] if 'BIOTYPE' in metacluster.SV_features else None
         
         # Write INS call into output file
-        row = "\t".join([metacluster.ref, str(metacluster.beg), str(metacluster.end), str(filters), str(metacluster.mutOrigin), str(insType), str(family), str(subfamily), str(cytobandId), str(gnName), str(biotype), str(nbTotal), str(nbTumour), str(nbNormal), str(nbINS), str(nbDEL), str(nbCLIPPING), str(length), str(cv), str(percCovered), str(insert), "\n"])
+        row = "\t".join([metacluster.ref, str(metacluster.beg), str(metacluster.end), str(filters), str(metacluster.mutOrigin), str(insType), str(family), str(subfamily), str(cytobandId), str(gnName), str(biotype), str(nbTotal), str(nbTumour), str(nbNormal), str(nbINS), str(nbDEL), str(nbCLIPPING), str(length), str(cv), str(qHits), str(tHits), str(percCovered), str(insert), "\n"])
         outFile.write(row)
 
     ## Close output file ##
