@@ -515,7 +515,7 @@ def INS_type_metaclusters(metaclusters, reference, repeats, transduced, exons, c
     ## 4. Add to each tuple a third element with the list of arguments
     msg = '4. Add to each tuple a third element with the list of arguments'
     log.subHeader(msg)    
-    args = ([repeats, transduced, exons, confDict, outDir], )
+    args = ([repeats, transduced, exons, confDict], )
     tupleList= [element + args for element in tupleList]
         
     ## 5. For each metacluster determine the insertion type
@@ -527,32 +527,28 @@ def INS_type_metaclusters(metaclusters, reference, repeats, transduced, exons, c
     for element in tupleList:
         metacluster, alignments, args = element 
 
-        # Convert sam aligned segments into a PAF object
-        PAF = bamtools.alignments2PAF(alignments)
-
         # Infer metacluster ins type
-        INS_type_metacluster(metacluster, PAF, args)
+        INS_type_metacluster(metacluster, alignments, args)
 
 
-def INS_type_metacluster(metacluster, PAF, args):
+def INS_type_metacluster(metacluster, alignments, args):
     '''
     For each metacluster determine the type of insertion
 
     Input:
-        1. metacluster: metacluster object  
-        2. PAF: PAF object containing the corresponding alignments for the metacluster consensus inserted sequence
+        1. metacluster: metacluster object 
+        2. alignments: list of pysam alignment segment objects
         3. args: List with 5 variables
                 - repeats: Bin database containing annotated repeats in the reference. None if not available
                 - transduced: Bin database containing regions transduced by source elements. None if not available
                 - exons: Bin database containing annotated exons in the reference. None if not available
                 - confDict: Configuration dictionary
-                - outDir: Output directory
     '''      
     ## 1. Collect input arguments  
-    repeats, transduced, exons, confDict, outDir = args  
+    repeats, transduced, exons, confDict = args  
 
     ## 2. Determine metacluster´s insertion type
-    metacluster.INS_type_candidate(PAF, repeats, transduced, exons, confDict, outDir)
+    metacluster.determine_INS_type(alignments, repeats, transduced, exons, confDict)
 
 
 def insertedSeq2fasta(metaclusters, outDir):
@@ -971,7 +967,6 @@ class META_cluster():
         self.mutOrigin = None
         self.failedFilters = None
         self.consensusEvent = None                
-        self.insertedSeqHits = None
         
         # Update input cluster's clusterId attribute
         for cluster in clusters:
@@ -1450,130 +1445,161 @@ class META_cluster():
             self.consensusFasta = None
      
             
-    def INS_type_candidate(self, PAF, repeatsDb, transducedDb, exonsDb, confDict, outDir):
+    def determine_INS_type(self, alignments, repeatsDb, transducedDb, exonsDb, confDict):
         '''
-        
+        Determine the type of insertion based on the alignments of the inserted sequence on the reference genome
+
         Input:
-            1. PAF: PAF object containing the corresponding alignments for the metacluster consensus inserted sequence
+            1. alignments: list of pysam alignment segment objects
             2. repeatsDb: bin database containing annotated repeats in the reference. None if not available
             3. transducedDb: bin database containing regions transduced by source elements. None if not available
             4. exonsDb: bin database containing annotated exons in the reference. None if not available
             5. confDict: Configuration dictionary
-            6. outDir: Output directory
-        '''
+
+        Output: Add INS type annotation to the attribute SV_features
+        '''    
+        print('determine_INS_type: ', self.ref, self.beg, self.end)
+
         msg = 'INS type inference metacluster'
         log.subHeader(msg)
 
-        ## 0. No hit on the reference
-        if not PAF.lines:
-            log.info('0. No hit on the reference')
+        ## 1. No alignment on the reference
+        if not alignments:
             self.SV_features['INS_TYPE'] = 'unknown'
             return
 
-        ## 1. Search for complementary alignments 
-        log.info('1. Search for complementary alignments')
-        chain = PAF.chain()
-    
-        ## 2. Intersect each hit with a set of annotated features
-        log.info('2. Intersect each hit with a set of annotated features')
-        
-        ## Initialize dictionary
-        hitsAnnotated = {}
+        ## 2. Intersect each inserted sequence alignment with a set of annotated features        
+        ## Initialize list of overlapping features
+        allOverlaps = []
 
-        for i in ['TRANSDUCTION', 'EXON', 'REPEAT', 'NONE']:
-            hitsAnnotated[i] = []
-
-        # For each hit
-        for hit in chain.alignments:
-
-            ## 2.0. Initialize hit as unannotated
-            annot = None
+        # For each alignment
+        for alignment in alignments:
 
             ## 2.1. Intersect with region downstream of source elements
             if transducedDb is not None:
 
                 ## Do intersection
-                overlaps = annotation.annotate_interval(hit.tName, hit.tBeg, hit.tEnd, transducedDb)
+                overlaps = annotation.annotate_interval(alignment.reference_name, alignment.reference_start, alignment.reference_end, transducedDb)
 
-                ## Select longest match
-                if overlaps: 
-                    annot = overlaps[0]
-                    hitsAnnotated['TRANSDUCTION'].append((hit, annot))
-        
+                ## Update list of overlapping features
+                for overlap in overlaps:
+                    allOverlaps.append([alignment] + overlap)
+
             ## 2.2. Intersect with exons database
-            if (exonsDb is not None) and (annot is None):
+            if (exonsDb is not None):
 
                 ## Do intersection
-                overlaps = annotation.annotate_interval(hit.tName, hit.tBeg, hit.tEnd, exonsDb)
+                overlaps = annotation.annotate_interval(alignment.reference_name, alignment.reference_start, alignment.reference_end, exonsDb)
 
-                ## Select longest match
-                if overlaps: 
-                    annot = overlaps[0]
-                    hitsAnnotated['EXON'].append((hit, annot))
+                ## Update list of overlapping features
+                for overlap in overlaps:
+                    allOverlaps.append([alignment] + overlap)
 
             ## 2.3. Intersect with repeats database
-            if (repeatsDb is not None) and (annot is None):
+            if (repeatsDb is not None):
 
                 ## Do intersection
-                overlaps = annotation.annotate_interval(hit.tName, hit.tBeg, hit.tEnd, repeatsDb)
+                overlaps = annotation.annotate_interval(alignment.reference_name, alignment.reference_start, alignment.reference_end, repeatsDb)
 
-                ## Select longest match
-                if overlaps: 
-                    annot = overlaps[0]
-                    hitsAnnotated['REPEAT'].append((hit, annot))
-            
-            ## 2.4. Add hit annotation results 
-            if annot is None:
-                hitsAnnotated['NONE'].append((hit, None))
-            
-            ## 2.5. Add annotation info as attribute
-            hit.annotation = annot
-
-        ## 4. Add inserted sequence annotated hits as attribute 
-        self.insertedSeqHits = chain
+                ## Update list of overlapping features
+                for overlap in overlaps:
+                    allOverlaps.append([alignment] + overlap)
         
-        ## 5. Based on the hits annotation infer the candidate insertion type
-        # A) Transduction: hit in transduced area
-        if hitsAnnotated['TRANSDUCTION']:
+        ## Abort if no annotated feature overlaps with the hit
+        if not allOverlaps:
+            print('Abort if no annotated feature overlaps with the hit')
+            return
 
-            features = [feature[1][0] for feature in hitsAnnotated['TRANSDUCTION']]
-            self.SV_features['INS_TYPE'] = 'transduction'
-            self.SV_features['CYTOBAND'] = ','.join(set([feature.optional['cytobandId'] for feature in features])) 
+        ## 3. Convert intersections from genomic to inserted sequence coordinates
+        PAF = formats.PAF()
 
-        # E) Fusion: hit in repeat and exon database
-        elif hitsAnnotated['REPEAT'] and hitsAnnotated['EXON']:
+        # For each overlap
+        for overlap in allOverlaps:
 
+            # Collect variables
+            alignment, feature, nbBp, percBp, coord = overlap
+            tBeg, tEnd = coord
+            
+            # Map genomic coordinates into consensus inserted sequence coordinates
+            qBeg, qEnd = bamtools.map_genome2query_coord(alignment, tBeg, tEnd)
+
+            if (qBeg is None) or (qEnd is None):
+                log.info('Error at genomic to query sequence coordinates mapping')
+                continue
+
+            # Create PAF line
+            strand = '-' if alignment.is_reverse else '+'
+            fields = [alignment.query_name, self.consensusEvent.length, qBeg, qEnd, strand, alignment.reference_name, alignment.reference_length, tBeg, tEnd, 0, 0, 0]
+            print('FIELDS: ', fields)
+
+            line = formats.PAF_line(fields)
+            line.annotation = feature
+
+            # Add to PAF file
+            PAF.lines.append(line)
+
+        ## 4. Search for complementary intersections explaining the max % possible of the inserted sequence            
+        self.insertAnnot = PAF.chain(50, 20)
+
+        ## 4. Infer the insertion type based on inserted sequence annotation 
+        ## 4.1 Group annotated features according to their type into a dictionary
+        features = {}
+        features['REPEAT'] = []
+        features['SOURCE_ELEMENT'] = []
+        features['EXON'] = []
+
+        for alignment in self.insertAnnot.alignments:
+            features[alignment.annotation.optional['name']].append(alignment)
+
+        ## 4.2 Determine insertion type
+        # A) Partnered transduction: hit in repeat and transduced area 
+        if features['REPEAT'] and features['SOURCE_ELEMENT']:
+
+            ## Repeat info
+            self.SV_features['INS_TYPE'] = 'partnered'
+            self.SV_features['FAMILY'] = ','.join(set([repeat.annotation.optional['family'] for repeat in features['REPEAT']])) 
+            self.SV_features['SUBFAMILY'] = ','.join(set([repeat.annotation.optional['subfamily'] for repeat in features['REPEAT']]))
+            self.SV_features['DIV'] = ','.join(set([repeat.annotation.optional['milliDiv'] for repeat in features['REPEAT']]))
+
+            ## Transduction info
+            self.SV_features['CYTOBAND'] = ','.join(set([srcElement.annotation.optional['cytobandId'] for srcElement in features['SOURCE_ELEMENT']]))
+
+        # B) Orphan transduction: hit in transduced area 
+        elif features['SOURCE_ELEMENT']:
+
+            self.SV_features['INS_TYPE'] = 'orphan'
+            self.SV_features['CYTOBAND'] = ','.join(set([srcElement.annotation.optional['cytobandId'] for srcElement in features['SOURCE_ELEMENT']]))
+            
+        # C) Fusion: hit in repeat and exon database
+        elif features['REPEAT'] and features['EXON']:
+        
             self.SV_features['INS_TYPE'] = 'fusion'
 
             ## Repeat info
-            repeats = [feature[1][0] for feature in hitsAnnotated['REPEAT']]
-            self.SV_features['FAMILY'] = ','.join(set([repeat.optional['family'] for repeat in repeats])) 
-            self.SV_features['SUBFAMILY'] = ','.join(set([repeat.optional['subfamily'] for repeat in repeats]))
-            self.SV_features['DIV'] = ','.join(set([repeat.optional['milliDiv'] for repeat in repeats]))
+            repeats = [feature[0] for feature in features['REPEAT']]
+            self.SV_features['FAMILY'] = ','.join(set([repeat.annotation.optional['family'] for repeat in features['REPEAT']])) 
+            self.SV_features['SUBFAMILY'] = ','.join(set([repeat.annotation.optional['subfamily'] for repeat in features['REPEAT']]))
+            self.SV_features['DIV'] = ','.join(set([repeat.annotation.optional['milliDiv'] for repeat in features['REPEAT']]))
 
             ## Exon info
-            exons = [feature[1][0] for feature in hitsAnnotated['EXON']]
-            self.SV_features['GENE_NAME'] = ','.join(set([exon.optional['geneName'] for exon in exons])) 
-            self.SV_features['BIOTYPE'] = ','.join(set([exon.optional['biotype'] for exon in exons])) 
+            self.SV_features['GENE_NAME'] = ','.join(set([exon.annotation.optional['geneName'] for exon in features['EXON']])) 
+            self.SV_features['BIOTYPE'] = ','.join(set([exon.annotation.optional['biotype'] for exon in features['EXON']])) 
 
-        # C) Exon: hit in exons database 
-        elif hitsAnnotated['EXON']:
+        # D) Exon: hit in exons database 
+        elif features['EXON']:
 
-            features = [feature[1][0] for feature in hitsAnnotated['EXON']]
             self.SV_features['INS_TYPE'] = 'exon'
-            self.SV_features['GENE_NAME'] = ','.join(set([feature.optional['geneName'] for feature in features])) 
-            self.SV_features['BIOTYPE'] = ','.join(set([feature.optional['biotype'] for feature in features])) 
+            self.SV_features['GENE_NAME'] = ','.join(set([exon.annotation.optional['geneName'] for exon in features['EXON']])) 
+            self.SV_features['BIOTYPE'] = ','.join(set([exon.annotation.optional['biotype'] for exon in features['EXON']])) 
 
-        # D) Repeat: hit in repeats database 
-        elif hitsAnnotated['REPEAT']:
+        # E) Repeat: hit in repeats database 
+        elif features['REPEAT']:
 
-            features = [feature[1][0] for feature in hitsAnnotated['REPEAT']]
             self.SV_features['INS_TYPE'] = 'repeat'
-            self.SV_features['FAMILY'] = ','.join(set([feature.optional['family'] for feature in features])) 
-            self.SV_features['SUBFAMILY'] = ','.join(set([feature.optional['subfamily'] for feature in features]))
-            self.SV_features['DIV'] = ','.join(set([feature.optional['milliDiv'] for feature in features]))
-        
-        # E) Unknown: hit in unnanotated region of the reference
+            self.SV_features['FAMILY'] = ','.join(set([repeat.annotation.optional['family'] for repeat in features['REPEAT']])) 
+            self.SV_features['SUBFAMILY'] = ','.join(set([repeat.annotation.optional['subfamily'] for repeat in features['REPEAT']]))
+            self.SV_features['DIV'] = ','.join(set([repeat.annotation.optional['milliDiv'] for repeat in features['REPEAT']]))
+
+        # F) Unknown: hit in unnanotated region of the reference
         else:
-            self.SV_features['INS_TYPE'] = 'unknown'
-        
+            self.SV_features['INS_TYPE'] = 'unknown'        

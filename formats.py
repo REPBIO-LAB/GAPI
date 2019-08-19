@@ -601,7 +601,6 @@ class PAF_line():
 
         return self.qEnd - self.qBeg
 
-
 class PAF_chain():
     '''    
     Chain of complementary PAF alignments  
