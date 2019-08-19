@@ -52,7 +52,7 @@ def is_retrotransposition(FASTA_file, index, outDir):
         return insType, family, srcId, status, percCovered, strand, hits
 
     ## 3. Chain complementary alignments ##
-    chain = PAF.chain()
+    chain = PAF.chain(50, 20)
     
     ## 4. Infer insertion features ##
     ## 4.1 Insertion type
