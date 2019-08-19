@@ -78,14 +78,14 @@ class SV_caller_long(SV_caller):
         msg = '3. Collapse metaclusters in a single dict'
         log.header(msg)
 
-        metaclustersPass = structures.merge_dictionaries(metaclustersPassList)
-        metaclustersFailed = structures.merge_dictionaries(metaclustersFailedList)
+        metaclustersPass_round1 = structures.merge_dictionaries(metaclustersPassList)
+        metaclustersFailed_round1 = structures.merge_dictionaries(metaclustersFailedList)
         
         ### 4. Determine what type of sequence has been inserted for INS metaclusters
         msg = '4. Determine what type of sequence has been inserted for INS metaclusters'
         log.header(msg)
 
-        if 'INS' in metaclustersPass:
+        if 'INS' in metaclustersPass_round1:
 
             ## 4.1. Load reference annotations and databases prior INS type inference ##
             msg = '4.1. Load reference annotations and databases prior INS type inference'
@@ -98,18 +98,26 @@ class SV_caller_long(SV_caller):
             refLengths = bamtools.get_ref_lengths(self.bam)
             annotations = annotation.load_annotations(annotations2load, refLengths, self.refDir, self.confDict['processes'], annotDir)
 
-            ## 4.2 Create database containing retrotransposon consensus sequences
-            msg = '4.2 Create database containing retrotransposon consensus sequences'
-            log.header(msg)
-            #self.retrotransposonDb, self.retrotransposonDbIndex = databases.buildRetrotransposonDb(self.refDir, self.confDict['transductionSearch'], dbDir)
-
-            ## 4.3 Insertion type inference
-            msg = '4.3 Insertion type inference'
+            ## 4.2 Insertion type inference
+            msg = '4.2 Insertion type inference'
             log.header(msg)
             outDir = self.outDir + '/insType/'
-            clusters.INS_type_metaclusters(metaclustersPass['INS'], self.reference, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'], self.confDict, outDir)
+            clusters.INS_type_metaclusters(metaclustersPass_round1['INS'], self.reference, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'], self.confDict, outDir)
 
+        ### 5. Apply second round of filtering after insertion type inference 
+        msg = '5. Apply second round of filtering after insertion type inference '
+        log.header(msg)
+        filters2Apply = ['PERC-RESOLVED']
+        metaclustersPass, metaclustersFailed_round2 = filters.filter_metaclusters(metaclustersPass_round1, filters2Apply, self.confDict)
+
+        ## Merge clusters failing first and second filtering round 
+        metaclustersFailed = structures.merge_dictionaries([metaclustersFailed_round1, metaclustersFailed_round2])
+
+        ## Merge 
         ### 6. Report SV calls into output files
+        msg = '6. Report SV calls into output files'
+        log.header(msg)
+
         ##  6.1 Report INS
         if 'INS' in metaclustersPass:
             outFileName = 'INS_MEIGA.PASS.tsv'
@@ -118,7 +126,7 @@ class SV_caller_long(SV_caller):
         if 'INS' in metaclustersFailed:
             outFileName = 'INS_MEIGA.FAILED.tsv'
             output.write_INS(metaclustersFailed['INS'], outFileName, self.outDir)
-
+        
     def make_clusters_bin(self, ref, beg, end):
         '''
         Search for structural variant (SV) clusters in a genomic bin/window
@@ -203,14 +211,6 @@ class SV_caller_long(SV_caller):
 
         targetSV = ['INS']
         clusters.create_consensus(metaclustersSVType, self.confDict, self.reference, targetSV, binDir)       
-
-        ## 9. For each metacluster supporting an insertion determine what has been inserted (INS-TYPE)
-        #step = 'INS-TYPE'
-        #msg = 'Determine the insertion type for each metacluster supporting an insertion'
-        #log.step(step, msg)
-
-        #if 'INS' in metaclustersSVType:
-        #    clusters.determine_INS_type(metaclustersSVType['INS'], self.retrotransposonDbIndex, self.confDict, binDir) 
 
         ### Do cleanup
         unix.rm([binDir])
