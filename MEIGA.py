@@ -226,6 +226,7 @@ confDict['maxClusterCV'] = maxClusterCV
 confDict['minSupportingReads'] = minSupportingReads
 confDict['minNormalSupportingReads'] = minNormalSupportingReads
 confDict['targetStatus'] = targetStatus.split(',')
+confDict['minPercResolved'] = 40
 
 ## Filtering thresholds short reads
 confDict['minReadsRegionMQ'] = minReadsRegionMQ
