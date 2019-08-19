@@ -255,6 +255,94 @@ def makeGenomicBins(bam, binSize, targetRefs):
     return bins
 
 
+def map_genome2query_coord(alignment, tBeg, tEnd):
+    '''
+    Map input genomic interval into prealigned query sequence space. 
+    
+    Useful to annotate sequences based on their alignment on the reference and the intersection with annotated features
+
+    Input:
+        1. alignment: pysam read alignment object instance
+        2. tBeg: genomic interval start position
+        3. tEnd: genomic interval end position
+
+    Output:
+        1. qBeg: raw query sequence start position
+        2. qEnd: raw query sequence end position
+    '''
+    ## 1. Initialize query position based on the first CIGAR operation
+    ## Arrange cigar according to raw sequence
+    if not alignment.is_reverse:
+        cigartuples = alignment.cigartuples
+
+    else:
+        cigartuples = alignment.cigartuples[::-1] # Reverse cigar 
+
+    ## Select first operation
+    firstOperation, length = cigartuples[0]
+
+    ## Set first aligned position of raw query sequence 
+    # a) No clipping
+    if firstOperation not in [4, 5]:
+        posQuery = 0
+
+    # b) Soft or hard clipping
+    else:
+        posQuery = length
+
+    ## 2. Initialize raw query begin and end interval 
+    posRef = alignment.reference_start
+    qBeg = posQuery if posRef == tBeg else None
+    qEnd = posQuery if posRef == tEnd else None
+
+    ## 3. Iterate through the CIGAR operations
+    for cigarTuple in cigartuples:
+
+        operation = int(cigarTuple[0])
+        length = int(cigarTuple[1])
+
+        ## Skip soft and hard clippings
+        # - Op S, tag 4, soft clipping (clipped sequences present in SEQ)
+        # - Op H, tag 5, hard clipping (clipped sequences NOT present in SEQ)
+        if (operation != 4) and (operation != 5):
+
+            for i in range(0, length):
+            
+                #### Update position over reference and read sequence
+                ### a) Operations consuming query and reference
+                # - Op M, tag 0, alignment match (can be a sequence match or mismatch)
+                # - Op =, tag 7, sequence match
+                # - Op X, tag 8, sequence mismatch
+                if (operation == 0) or (operation == 7) or (operation == 8):
+                    posQuery += 1
+                    posRef += 1
+
+                ### b) Operations only consuming query
+                # - Op I, tag 1, insertion to the reference
+                elif (operation == 1) or (operation == 4) or (operation == 5):
+                    posQuery += 1
+
+                ### c) Operations only consuming reference
+                # - Op D, tag 2, deletion from the reference
+                # - Op N, tag 3, skipped region from the reference
+                elif (operation == 2) or (operation == 3):
+                    posRef += 1
+
+                #### Set query begin and end intervals when current genomic position matches input coordinates                
+                ## a) Corresponding query position for input begin genomic coordinate
+                if (qBeg is None) and (posRef == tBeg):
+                    qBeg = posQuery
+
+                ## a) Corresponding query position for input end genomic coordinate
+                elif (qEnd is None) and (posRef == tEnd):
+                    qEnd = posQuery
+
+                    # Stop once end query position is found
+                    return qBeg, qEnd
+
+    return qBeg, qEnd
+    
+
 def collectSV_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict):
     '''
     Collect structural variant (SV) events in a genomic bin from tumour and matched normal bam files
