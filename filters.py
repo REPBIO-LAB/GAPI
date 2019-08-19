@@ -135,7 +135,7 @@ def minNbEventsFilter(metacluster, minSupportingReads, minNormalSupportingReads)
             PASS = True
 
         elif not nbTumour >= minSupportingReads and nbNormal >= minNormalSupportingReads:
-            metacluster.mutOrigin = 'somatic-NORMAL'
+            metacluster.mutOrigin = 'somatic-normal'
             PASS = True
 
         else:
