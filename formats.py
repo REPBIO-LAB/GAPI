@@ -503,9 +503,13 @@ class PAF():
         sortedAlignments = sorted(self.lines, key=lambda x: x.nbMatches, reverse=True)
         return sortedAlignments
 
-    def chain(self):
+    def chain(self, maxDist, maxPercOverlap):
         '''
         Chain PAF alignments based on alignment complementariety
+
+        Input:
+            1. maxDist: maximum distance between both ranges 
+            2. maxPercOverlap: maximum percentage of overlap between ranges
 
         Output:
             1. chain: PAF_chain object instance
@@ -534,8 +538,6 @@ class PAF():
 
                 ## Assess if alignment complementary to the chain
                 chainBeg, chainEnd = chain.interval()
-                maxDist = 50
-                maxPercOverlap = 20
                 complBool, orientation = gRanges.complementary(chainBeg, chainEnd, alignment.qBeg, alignment.qEnd, maxDist, maxPercOverlap)
 
                 ## Complementary alignment found 
@@ -576,6 +578,7 @@ class PAF_line():
         '''
         Initialize paf line
         '''
+
         PAF_line.number += 1 # Update instances counter
         self.id = 'PAF_line_' + str(PAF_line.number)
         self.qName = str(fields[0])
