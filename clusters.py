@@ -1583,7 +1583,6 @@ class META_cluster():
             self.SV_features['INS_TYPE'] = 'fusion'
 
             ## Repeat info
-            repeats = [feature[0] for feature in features['REPEAT']]
             self.SV_features['FAMILY'] = ','.join(set([repeat.annotation.optional['family'] for repeat in features['REPEAT']])) 
             self.SV_features['SUBFAMILY'] = ','.join(set([repeat.annotation.optional['subfamily'] for repeat in features['REPEAT']]))
             self.SV_features['DIV'] = ','.join(set([repeat.annotation.optional['milliDiv'] for repeat in features['REPEAT']]))
