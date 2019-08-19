@@ -33,6 +33,62 @@ def overlap(begA, endA, begB, endB):
 
     return boolean, overlapLen
         
+def overlap_extended(begA, endA, begB, endB):
+    '''
+    Check if two ranges overlap. Report also the overlapping coordinates for each range
+
+    Input:
+        1. begA: interval A begin position
+        2. endA: interval A end position
+        3. begB: interval B begin position
+        4. endB: interval B end position
+    Output:
+        1. boolean: True (overlap) and False (no overlap)
+        2. overlapLen: number of overlapping base pairs
+        3. coord: tuple with overlapping coordinates (None if no overlap found)
+    '''    
+    ## a) No overlap
+    # <-----A----->endA   begB<-----B-----> OR
+    # <-----B----->endB   begA<-----A----->
+    if (begB > endA) or (begA > endB):
+        boolean = False
+        overlapLen = 0
+        coord = None
+
+    ## b) Range A within B
+    #     begA<-----A----->endA
+    # begB<---------B--------->endB
+    elif (begA >= begB) and (endA <= endB):
+        boolean = True
+        overlapLen = endA - begA 
+        coord = (begA, endA)
+
+    ## c) Range B within A
+    # begA<---------A--------->endA
+    #     begB<-----B----->endB
+    elif (begB >= begA) and (endB <= endA):
+        boolean = True
+        overlapLen = endB - begB 
+        coord = (begB, endB)
+
+    ## d) Partial overlap (A first)
+    #   begA<-----A----->endA   
+    #           begB<-----B----->   
+    elif (begB >= begA) and (begB <= endA):
+        boolean = True
+        overlapLen = endA - begB 
+        coord = (begB, endA)
+
+    ## e) Partial overlap (B first)
+    #          begA<-----A----->
+    #   begB<-----B----->endB
+    elif (begA >= begB) and (begA <= endB):
+        boolean = True
+        overlapLen = endB - begA 
+        coord = (begA, endB)
+
+    return boolean, overlapLen, coord
+
 def rcplOverlap(begA, endA, begB, endB, minPercOverlap):
     '''
     Check if two ranges overlap with a minimum percentage of reciprocal overlap
@@ -106,8 +162,8 @@ def complementary(begA, endA, begB, endB, maxDist, maxPercOverlap):
         overlapLen = overlap(begA, endA, begB, endB)[1]   # Compute real degree of overlap
 
         # For each interval, compute its % overlapping the other interval
-        lenA = (endA - begA)
-        lenB = (endB - begB)
+        lenA = (endA - begA) + 1
+        lenB = (endB - begB) + 1
         percA = (overlapLen / lenA) * 100
         percB = (overlapLen / lenB) * 100
 
