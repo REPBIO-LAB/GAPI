@@ -22,6 +22,7 @@ def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
         1. metaclustersPassDict: Dictionary with same structure as the input one, containing those metaclusters that passed all the filters.
         2. metaclustersFailDict: Dictionary with same structure as the input one, containig those metaclusters that failed one or more filters.
     '''
+
     metaclustersPassDict = {}
     metaclustersFailDict = {}
 
@@ -72,9 +73,10 @@ def filter_metacluster(metacluster, filters2Apply, confDict):
         1. metacluster: metacluster object
         2. filters2Apply: list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
         3. confDict
+
     Output:
         1. failedFilters -> list containing those filters that the metacluster doesn't pass.
-    '''    
+    '''        
     failedFilters = []
 
     ## 1. FILTER 1: Minimum number of reads per cluster
@@ -97,12 +99,11 @@ def filter_metacluster(metacluster, filters2Apply, confDict):
         if not SVTypeFilter(metacluster):
             failedFilters.append('SV-TYPE')
 
-    ## 5. FILTER 5: Wheter if insertion has an status not included in the list (TO DO)
-    #if ('STATUS' in filters2Apply) and ('INS' in metacluster.subclusters) and ('status' in metacluster.SV_features): 
+    ## 5. FILTER 5: Minimum percentage of inserted sequence resolved
+    if ('PERC-RESOLVED' in filters2Apply) and ('INS' in metacluster.subclusters) and ('PERC_RESOLVED' in metacluster.SV_features): 
 
-        # statusFilter(metacluster, confDict['targetStatus']
-        #if not statusFilter(metacluster, confDict['targetStatus'])
-        #    failedFilters.append('STATUS')
+        if not percResolvedFilter(metacluster, confDict['minPercResolved']):
+            failedFilters.append('PERC-RESOLVED')
 
     return failedFilters
 
@@ -195,19 +196,21 @@ def maxCvFilter(metacluster, maxClusterCV):
 
     return PASS
 
-def statusFilter(metacluster):
+def percResolvedFilter(metacluster, minPercResolved):
     '''
-    Filter metacluster by checking if it has a SV type assigned.
+    Filter metacluster by comparing the % of inserted sequence resolved with a minimum threshold
 
     Input:
         1. metacluster: metacluster object
+        2. minPercResolved: minimum % resolved
+
     Output:
         1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
     '''
 
-    ## 2. Compare the percentage of outliers against the maximum required
-    if metacluster.SV_type != None:
-        PASS = True 
+    if metacluster.SV_features['PERC_RESOLVED'] >= minPercResolved:
+        PASS = True
+
     else:
         PASS = False
 
