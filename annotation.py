@@ -42,6 +42,7 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
     if 'REPEATS' in annotations2load:
         log.info('2. Load annotated repeats into a bin database')
         repeatsBed = annotationsDir + '/repeats_repeatMasker.bed'
+        #repeatsBed = annotationsDir + '/repeats_repeatMasker.L1.bed'
         annotations['REPEATS'] = formats.bed2binDb(repeatsBed, refLengths, threads)
 
     ## 3. Create transduced regions database
@@ -50,7 +51,6 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
 
         ## Create bed file containing transduced regions
         sourceBed = annotationsDir + '/srcElements.bed'
-        print('SRC_BED: ', sourceBed)
         transducedPath = databases.create_transduced_bed(sourceBed, 15000, outDir)
 
         ## Load transduced regions into a bin database
@@ -76,10 +76,11 @@ def annotate_interval(ref, beg, end, annotDb):
         4. annotDb: dictionary containing annotated features organized per chromosome (keys) into genomic bins (values)
 
     Output:
-        1. sortedOverlaps. List of tuples sorted in decreasing percentage of overlap. Each tuple corresponds to one overlapping event and is composed by 3 elements: 
+        1. sortedOverlaps. List of lists sorted in decreasing percentage of overlap. Each tuple corresponds to one overlapping event and is composed by 3 elements: 
             1. Overlapping event
             2. Number of overlapping base pairs
             3. Percentage of base pairs of the input interval that are overlapping  
+            4. Tuple with input interval coordinates overlapping with the event
     '''
 
     # a) Annotated features available in the same ref 
@@ -93,7 +94,7 @@ def annotate_interval(ref, beg, end, annotDb):
 
         ## Order overlapping features in decreasing order of perc of overlap
         sortedOverlaps = sorted(overlaps, key=lambda x: x[2], reverse=True)
-
+         
     # b) No feature in the same ref as the interval
     else:
         sortedOverlaps = []
