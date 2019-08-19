@@ -530,7 +530,6 @@ def INS_type_metaclusters(metaclusters, reference, repeats, transduced, exons, c
         # Infer metacluster ins type
         INS_type_metacluster(metacluster, alignments, args)
 
-
 def INS_type_metacluster(metacluster, alignments, args):
     '''
     For each metacluster determine the type of insertion
@@ -967,7 +966,8 @@ class META_cluster():
         self.mutOrigin = None
         self.failedFilters = None
         self.consensusEvent = None                
-        
+        self.insertAnnot = None
+
         # Update input cluster's clusterId attribute
         for cluster in clusters:
             cluster.clusterId = self.id
@@ -1466,6 +1466,7 @@ class META_cluster():
         ## 1. No alignment on the reference
         if not alignments:
             self.SV_features['INS_TYPE'] = 'unknown'
+            self.SV_features['PERC_RESOLVED'] = 0
             return
 
         ## 2. Intersect each inserted sequence alignment with a set of annotated features        
@@ -1507,7 +1508,8 @@ class META_cluster():
         
         ## Abort if no annotated feature overlaps with the hit
         if not allOverlaps:
-            print('Abort if no annotated feature overlaps with the hit')
+            self.SV_features['INS_TYPE'] = 'unknown'            
+            self.SV_features['PERC_RESOLVED'] = 0
             return
 
         ## 3. Convert intersections from genomic to inserted sequence coordinates
@@ -1530,16 +1532,21 @@ class META_cluster():
             # Create PAF line
             strand = '-' if alignment.is_reverse else '+'
             fields = [alignment.query_name, self.consensusEvent.length, qBeg, qEnd, strand, alignment.reference_name, alignment.reference_length, tBeg, tEnd, 0, 0, 0]
-            print('FIELDS: ', fields)
-
             line = formats.PAF_line(fields)
             line.annotation = feature
 
             # Add to PAF file
             PAF.lines.append(line)
 
+        ## Abort if no PAF alignment available
+        if not PAF.lines:
+            self.SV_features['INS_TYPE'] = 'unknown'            
+            self.SV_features['PERC_RESOLVED'] = 0
+            return
+
         ## 4. Search for complementary intersections explaining the max % possible of the inserted sequence            
-        self.insertAnnot = PAF.chain(50, 20)
+        self.insertAnnot = PAF.chain(100, 20)
+        self.SV_features['PERC_RESOLVED'] = self.insertAnnot.perc_query_covered()
 
         ## 4. Infer the insertion type based on inserted sequence annotation 
         ## 4.1 Group annotated features according to their type into a dictionary
@@ -1603,3 +1610,4 @@ class META_cluster():
         # F) Unknown: hit in unnanotated region of the reference
         else:
             self.SV_features['INS_TYPE'] = 'unknown'        
+    
