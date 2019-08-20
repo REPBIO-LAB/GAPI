@@ -80,32 +80,57 @@ class SV_caller_long(SV_caller):
 
         metaclustersPass_round1 = structures.merge_dictionaries(metaclustersPassList)
         metaclustersFailed_round1 = structures.merge_dictionaries(metaclustersFailedList)
-        
-        ### 4. Determine what type of sequence has been inserted for INS metaclusters
-        msg = '4. Determine what type of sequence has been inserted for INS metaclusters'
+
+        ## 4. Perform repeat-based annotation of INS target region
+        msg = '4. Perform repeat-based annotation of INS target region'
+        log.header(msg)
+
+        if ('INS' in metaclustersPass_round1):
+
+            ## 4.1. Load repeats database ##
+            step = 'REPEAT-ANNOT'
+            msg = '4.1. Load repeats database'
+            log.step(step, msg)
+
+            annotDir = self.outDir + '/ANNOT'
+            annotations2load = ['REPEATS']   
+
+            refLengths = bamtools.get_ref_lengths(self.bam)
+            annotations = annotation.load_annotations(annotations2load, refLengths, self.refDir, self.confDict['processes'], annotDir)
+            repeatsAnnot = annotations['REPEATS']
+
+            ## 4.2. Perform repeats annotation ##
+            msg = '4.2. Perform repeats annotation'
+            log.step(step, msg)
+
+            annotation.repeats_annotation(metaclustersPass_round1['INS'], repeatsAnnot, 200)
+
+        ### 5. Determine what type of sequence has been inserted for INS metaclusters
+        msg = '5. Determine what type of sequence has been inserted for INS metaclusters'
         log.header(msg)
 
         if 'INS' in metaclustersPass_round1:
 
-            ## 4.1. Load reference annotations and databases prior INS type inference ##
-            msg = '4.1. Load reference annotations and databases prior INS type inference'
-            log.header(msg)
+            ## 5.1. Load transduced regions and exons database ##
+            step = 'INS-TYPE'
+            msg = '5.1. Load transduced regions and exons database'
+            log.step(step, msg)
 
-            annotDir = self.outDir + '/annotDir'
-            annotations2load = ['REPEATS', 'TRANSDUCTIONS', 'EXONS']   
-            #annotations2load = ['REPEATS', 'TRANSDUCTIONS']   
+            annotDir = self.outDir + '/ANNOT'
+            annotations2load = ['TRANSDUCTIONS', 'EXONS']   
             #annotations2load = ['TRANSDUCTIONS']            
-            refLengths = bamtools.get_ref_lengths(self.bam)
             annotations = annotation.load_annotations(annotations2load, refLengths, self.refDir, self.confDict['processes'], annotDir)
+            annotations['REPEATS'] = repeatsAnnot
 
-            ## 4.2 Insertion type inference
-            msg = '4.2 Insertion type inference'
-            log.header(msg)
+            ## 5.2 Insertion type inference
+            msg = '5.2 Insertion type inference'
+            log.step(step, msg)
+
             outDir = self.outDir + '/insType/'
             clusters.INS_type_metaclusters(metaclustersPass_round1['INS'], self.reference, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'], self.confDict, outDir)
 
-        ### 5. Apply second round of filtering after insertion type inference 
-        msg = '5. Apply second round of filtering after insertion type inference '
+        ### 6. Apply second round of filtering after insertion type inference 
+        msg = '6. Apply second round of filtering after insertion type inference '
         log.header(msg)
         filters2Apply = ['PERC-RESOLVED']
         metaclustersPass, metaclustersFailed_round2 = filters.filter_metaclusters(metaclustersPass_round1, filters2Apply, self.confDict)
@@ -113,12 +138,26 @@ class SV_caller_long(SV_caller):
         ## Merge clusters failing first and second filtering round 
         metaclustersFailed = structures.merge_dictionaries([metaclustersFailed_round1, metaclustersFailed_round2])
 
-        ## Merge 
-        ### 6. Report SV calls into output files
-        msg = '6. Report SV calls into output files'
+        ## 7. Perform gene-based annotation with ANNOVAR of INS target region
+        msg = '7. Perform gene-based annotation with ANNOVAR of INS target region'
         log.header(msg)
 
-        ##  6.1 Report INS
+        # Do gene-based annotation step if enabled
+        if ('INS' in metaclustersPass) and (self.confDict['annovarDir'] is not None):
+
+            step = 'GENE-ANNOT'
+            msg = 'Perform gene-based annotation with ANNOVAR of INS events'
+            log.step(step, msg)
+
+            ## Annotate
+            annotDir = self.outDir + '/ANNOT/' 
+            annotation.gene_annotation(metaclustersPass['INS'], self.confDict['annovarDir'], annotDir)
+
+        ### 8. Report SV calls into output files
+        msg = '8. Report SV calls into output files'
+        log.header(msg)
+
+        ##  8.1 Report INS
         if 'INS' in metaclustersPass:
             outFileName = 'INS_MEIGA.PASS.tsv'
             output.write_INS(metaclustersPass['INS'], outFileName, self.outDir)
@@ -127,6 +166,7 @@ class SV_caller_long(SV_caller):
             outFileName = 'INS_MEIGA.FAILED.tsv'
             output.write_INS(metaclustersFailed['INS'], outFileName, self.outDir)
         
+
     def make_clusters_bin(self, ref, beg, end):
         '''
         Search for structural variant (SV) clusters in a genomic bin/window
