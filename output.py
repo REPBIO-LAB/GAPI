@@ -16,7 +16,7 @@ def write_INS(INS_metaclusters, outFileName, outDir):
     outFile = open(outFilePath, 'w')
 
     ## 2. Write header 
-    row = "#ref \t beg \t end \t filters \t mutOrigin \t insType \t family \t subfamily \t cytobandId \t gnName \t biotype \t nbTotal \t nbTumour \t nbNormal \t nbINS \t nbDEL \t nbCLIPPING \t length \t cv \t percResolved \t qHits \t tHits \t insertSeq \n"
+    row = "#ref \t beg \t end \t filters \t mutOrigin \t insType \t family \t subfamily \t cytobandId \t gnName \t biotype \t region \t gene \t repeatAnnot \t nbTotal \t nbTumour \t nbNormal \t nbINS \t nbDEL \t nbCLIPPING \t length \t cv \t percResolved \t qHits \t tHits \t insertSeq \n"
     outFile.write(row)
 
     ## 3. Write INS metaclusters 
@@ -45,8 +45,12 @@ def write_INS(INS_metaclusters, outFileName, outDir):
         gnName = metacluster.SV_features['GENE_NAME'] if 'GENE_NAME' in metacluster.SV_features else None
         biotype = metacluster.SV_features['BIOTYPE'] if 'BIOTYPE' in metacluster.SV_features else None
         
+        ## Insertion region annotation
+        repeatAnnot = metacluster.repeatAnnot if hasattr(metacluster, 'repeatAnnot') else None
+        region, gene = metacluster.geneAnnot if hasattr(metacluster, 'geneAnnot') else (None, None)
+
         # Write INS call into output file
-        row = "\t".join([metacluster.ref, str(metacluster.beg), str(metacluster.end), str(filters), str(metacluster.mutOrigin), str(insType), str(family), str(subfamily), str(cytobandId), str(gnName), str(biotype), str(nbTotal), str(nbTumour), str(nbNormal), str(nbINS), str(nbDEL), str(nbCLIPPING), str(length), str(cv), str(percResolved), str(qHits), str(tHits), str(insert), "\n"])
+        row = "\t".join([metacluster.ref, str(metacluster.beg), str(metacluster.end), str(filters), str(metacluster.mutOrigin), str(insType), str(family), str(subfamily), str(cytobandId), str(gnName), str(biotype), str(region), str(gene), str(repeatAnnot), str(nbTotal), str(nbTumour), str(nbNormal), str(nbINS), str(nbDEL), str(nbCLIPPING), str(length), str(cv), str(percResolved), str(qHits), str(tHits), str(insert), "\n"])
         outFile.write(row)
 
     ## Close output file ##
