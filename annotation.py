@@ -41,8 +41,8 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
     ## 2. Load annotated repeats into a bin database
     if 'REPEATS' in annotations2load:
         log.info('2. Load annotated repeats into a bin database')
-        repeatsBed = annotationsDir + '/repeats_repeatMasker.bed'
-        #repeatsBed = annotationsDir + '/repeats_repeatMasker.L1.bed'
+        #repeatsBed = annotationsDir + '/repeats_repeatMasker.bed'
+        repeatsBed = annotationsDir + '/repeats_repeatMasker.L1.bed'
         annotations['REPEATS'] = formats.bed2binDb(repeatsBed, refLengths, threads)
 
     ## 3. Create transduced regions database
@@ -113,7 +113,7 @@ def repeats_annotation(events, repeatsDb, buffer):
 
     Output:
         New 'repeatAnnot' attribute set for each input event. 
-        'repeatAnnot' is a not redundant list of overlapping repeats
+        'repeatAnnot' is a tuple containing two lists of overlapping repeat's families and subfamilies 
     '''
 
     ## Assess for each input event if it overlaps with an annotated repeat
@@ -129,20 +129,24 @@ def repeats_annotation(events, repeatsDb, buffer):
             overlaps = repeatsBinDb.collect_interval(event.beg - buffer, event.end + buffer, 'ALL')    
 
             ## Make list of overlapping repeats
-            repeats = [overlap[0].optional['family'] for overlap in overlaps]
+            families = [overlap[0].optional['family'] for overlap in overlaps]
+
+            ## Collect as well subfamily info
+            subfamilies = [overlap[0].optional['subfamily'] for overlap in overlaps]
 
         # B) No repeat in the same ref as the event
         else:
-            repeats = []
+            families = []
+            subfamilies = []
         
-        ## Generate repeats string and add to the input event
+        ## Add repeat annotation as attribute 
         # A) Event overlapping repeat
-        if repeats:
-            event.repeatAnnot = ','.join(set(repeats))
+        if families:
+            event.repeatAnnot = (families, subfamilies)
 
         # B) Event NOT overlapping repeat
         else:    
-            event.repeatAnnot = None
+            event.repeatAnnot = (None, None)
 
 
 def gene_annotation(events, annovarDir, outDir):
