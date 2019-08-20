@@ -291,8 +291,8 @@ class BED():
                 fields = [entry.ref, str(entry.beg), str(entry.end), '0', '0']
 
                 # Add name if available
-                if hasattr(entry, 'name'):
-                    fields.append('comments: ' + entry.name)
+                if 'name' in entry.optional:
+                    fields.append('comments: ' + entry.optional['name'])
 
                 # Create row
                 row = "\t".join(fields)
