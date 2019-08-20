@@ -115,6 +115,7 @@ def repeats_annotation(events, repeatsDb, buffer):
         New 'repeatAnnot' attribute set for each input event. 
         'repeatAnnot' is a not redundant list of overlapping repeats
     '''
+
     ## Assess for each input event if it overlaps with an annotated repeat
     for event in events:
 
@@ -181,9 +182,9 @@ def gene_annotation(events, annovarDir, outDir):
         ## Add gene annotation info
         name = event.ref + ':' + str(event.beg) + '-' + str(event.end)
         event.geneAnnot = out1Dict[name]
-        
+
     ## Do cleanup
-    unix.rm([outDir])
+    unix.rm([annovarInput, out1, out2])
 
 
 def create_annovar_input(events, fileName, outDir):
@@ -206,9 +207,10 @@ def create_annovar_input(events, fileName, outDir):
     for event in events:
 
         # Create BED entry:
+        header = ['ref', 'beg', 'end', 'name']
         name = event.ref + ':' + str(event.beg) + '-' + str(event.end)
         fields = [event.ref, event.beg, event.end, name]
-        entry = formats.BED_line(fields)
+        entry = formats.BED_line(fields, header)
         
         # Add entry to BED
         BED.lines.append(entry)
@@ -236,7 +238,6 @@ def read_annovar_out1(out1):
 
         # Read line by line adding the relevant info to the dict in each iteration
         for line in out1File:
-
             fields = line.split()
             region = fields[0]
             gene = fields[1]
