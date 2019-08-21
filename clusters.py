@@ -1538,6 +1538,16 @@ class META_cluster():
             # Add to PAF file
             PAF.lines.append(line)
 
+        ## Filter out annotations smaller than Xbp 
+        indexes = []
+
+        for index, PAF_line in enumerate(PAF.lines):
+
+            if PAF_line.alignmentLen() <= 20:
+                indexes.append(index)
+
+        PAF.lines = [PAF_line for index, PAF_line in enumerate(PAF.lines) if index not in indexes] 
+
         ## Abort if no PAF alignment available
         if not PAF.lines:
             self.SV_features['INS_TYPE'] = 'unknown'            
