@@ -254,7 +254,6 @@ def makeGenomicBins(bam, binSize, targetRefs):
 
     return bins
 
-
 def map_genome2query_coord(alignment, tBeg, tEnd):
     '''
     Map input genomic interval into prealigned query sequence space. 

@@ -1476,13 +1476,15 @@ class META_cluster():
         # For each alignment
         for alignment in hits:
             
-            filtered = False
+            ## 2.1. Discard unmapped reads
+            if alignment.is_unmapped:
+                continue
 
-            ## 2.1 Apply minimum length filter
+            ## 2.2. Apply minimum length filter
             if alignment.query_alignment_length < 20:
-                filtered = True
+                continue
 
-            ## 2.2. Apply polyA/T tail filter
+            ## 2.3. Apply polyA/T tail filter
             ## Pick aligned fragment of query sequence
             insert = self.consensusEvent.pick_insert()
             qBeg, qEnd = bamtools.map_genome2query_coord(alignment, alignment.reference_start, alignment.reference_end)
@@ -1498,11 +1500,10 @@ class META_cluster():
             baseCounts, basePercs = sequences.baseComposition(fragment)
 
             if (basePercs['A'] >= 70) or (basePercs['T'] >= 70):
-                filtered = True
+                continue
 
-            # Hit pass all the filteres
-            if not filtered:
-                filteredHits.append(alignment)
+            ## Add alignment if it passes all the filters
+            filteredHits.append(alignment)
 
         ## 3. Annotate inserted sequence hits on the reference genome    
         ## Initialize list of overlapping features
