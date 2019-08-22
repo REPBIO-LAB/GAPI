@@ -1486,6 +1486,12 @@ class META_cluster():
             ## Pick aligned fragment of query sequence
             insert = self.consensusEvent.pick_insert()
             qBeg, qEnd = bamtools.map_genome2query_coord(alignment, alignment.reference_start, alignment.reference_end)
+            
+            ## Temporal quality check 
+            if (qBeg is None) or (qEnd is None):
+                log.info('Error at genomic to query sequence coordinates mapping')
+                continue
+
             fragment = insert[qBeg:qEnd]
 
             ## Assess if fragment is polyA/T
@@ -1554,6 +1560,7 @@ class META_cluster():
             # Map genomic coordinates into consensus inserted sequence coordinates
             qBeg, qEnd = bamtools.map_genome2query_coord(alignment, tBeg, tEnd)
 
+            ## Temporal quality check 
             if (qBeg is None) or (qEnd is None):
                 log.info('Error at genomic to query sequence coordinates mapping')
                 continue
