@@ -26,6 +26,7 @@ import retrotransposons
 import filters
 import bkp
 import annotation
+import sequences
 
 
 ###############
@@ -1445,12 +1446,12 @@ class META_cluster():
             self.consensusFasta = None
      
             
-    def determine_INS_type(self, alignments, repeatsDb, transducedDb, exonsDb, confDict):
+    def determine_INS_type(self, hits, repeatsDb, transducedDb, exonsDb, confDict):
         '''
         Determine the type of insertion based on the alignments of the inserted sequence on the reference genome
 
         Input:
-            1. alignments: list of pysam alignment segment objects
+            1. hits: list of pysam alignment segment objects
             2. repeatsDb: bin database containing annotated repeats in the reference. None if not available
             3. transducedDb: bin database containing regions transduced by source elements. None if not available
             4. exonsDb: bin database containing annotated exons in the reference. None if not available
@@ -1464,19 +1465,47 @@ class META_cluster():
         log.subHeader(msg)
 
         ## 1. No alignment on the reference
-        if not alignments:
+        if not hits:
             self.SV_features['INS_TYPE'] = 'unknown'
             self.SV_features['PERC_RESOLVED'] = 0
             return
 
-        ## 2. Intersect each inserted sequence alignment with a set of annotated features        
+        ## 2. Filter out hits 
+        filteredHits = []
+
+        # For each alignment
+        for alignment in hits:
+            
+            filtered = False
+
+            ## 2.1 Apply minimum length filter
+            if alignment.query_alignment_length < 20:
+                filtered = True
+
+            ## 2.2. Apply polyA/T tail filter
+            ## Pick aligned fragment of query sequence
+            insert = self.consensusEvent.pick_insert()
+            qBeg, qEnd = bamtools.map_genome2query_coord(alignment, alignment.reference_start, alignment.reference_end)
+            fragment = insert[qBeg:qEnd]
+
+            ## Assess if fragment is polyA/T
+            baseCounts, basePercs = sequences.baseComposition(fragment)
+
+            if (basePercs['A'] >= 70) or (basePercs['T'] >= 70):
+                filtered = True
+
+            # Hit pass all the filteres
+            if not filtered:
+                filteredHits.append(alignment)
+
+        ## 3. Annotate inserted sequence hits on the reference genome    
         ## Initialize list of overlapping features
         allOverlaps = []
 
         # For each alignment
-        for alignment in alignments:
+        for alignment in filteredHits:
 
-            ## 2.1. Intersect with region downstream of source elements
+            ## 3.1. Intersect with region downstream of source elements
             if transducedDb is not None:
 
                 ## Do intersection
@@ -1486,7 +1515,7 @@ class META_cluster():
                 for overlap in overlaps:
                     allOverlaps.append([alignment] + overlap)
 
-            ## 2.2. Intersect with exons database
+            ## 3.2. Intersect with exons database
             if (exonsDb is not None):
 
                 ## Do intersection
@@ -1496,7 +1525,7 @@ class META_cluster():
                 for overlap in overlaps:
                     allOverlaps.append([alignment] + overlap)
 
-            ## 2.3. Intersect with repeats database
+            ## 3.3. Intersect with repeats database
             if (repeatsDb is not None):
 
                 ## Do intersection
@@ -1512,7 +1541,7 @@ class META_cluster():
             self.SV_features['PERC_RESOLVED'] = 0
             return
 
-        ## 3. Convert intersections from genomic to inserted sequence coordinates
+        ## 4. Convert intersections from genomic to inserted sequence coordinates
         PAF = formats.PAF()
 
         # For each overlap
@@ -1521,7 +1550,7 @@ class META_cluster():
             # Collect variables
             alignment, feature, nbBp, percBp, coord = overlap
             tBeg, tEnd = coord
-            
+
             # Map genomic coordinates into consensus inserted sequence coordinates
             qBeg, qEnd = bamtools.map_genome2query_coord(alignment, tBeg, tEnd)
 
@@ -1538,37 +1567,28 @@ class META_cluster():
             # Add to PAF file
             PAF.lines.append(line)
 
-        ## Filter out annotations smaller than Xbp 
-        indexes = []
-
-        for index, PAF_line in enumerate(PAF.lines):
-
-            if PAF_line.alignmentLen() <= 20:
-                indexes.append(index)
-
-        PAF.lines = [PAF_line for index, PAF_line in enumerate(PAF.lines) if index not in indexes] 
-
         ## Abort if no PAF alignment available
         if not PAF.lines:
             self.SV_features['INS_TYPE'] = 'unknown'            
             self.SV_features['PERC_RESOLVED'] = 0
             return
 
-        ## 4. Search for complementary intersections explaining the max % possible of the inserted sequence            
+        ## 5. Search for complementary intersections explaining the max % possible of the inserted sequence            
         self.insertAnnot = PAF.chain(100, 20)
         self.SV_features['PERC_RESOLVED'] = self.insertAnnot.perc_query_covered()
 
-        ## 4. Infer the insertion type based on inserted sequence annotation 
-        ## 4.1 Group annotated features according to their type into a dictionary
+        ## 6. Infer the insertion type based on inserted sequence annotation 
+        ## 6.1 Group annotated features according to their type into a dictionary
         features = {}
         features['REPEAT'] = []
         features['SOURCE_ELEMENT'] = []
         features['EXON'] = []
 
         for alignment in self.insertAnnot.alignments:
+
             features[alignment.annotation.optional['name']].append(alignment)
 
-        ## 4.2 Determine insertion type
+        ## 6.2 Determine insertion type
         # A) Partnered transduction: hit in repeat and transduced area 
         if features['REPEAT'] and features['SOURCE_ELEMENT']:
 
@@ -1611,12 +1631,17 @@ class META_cluster():
         # E) Repeat: hit in repeats database 
         elif features['REPEAT']:
 
+            # a) Repeat expansion
             self.SV_features['INS_TYPE'] = 'repeat'
             self.SV_features['FAMILY'] = ','.join(set([repeat.annotation.optional['family'] for repeat in features['REPEAT']])) 
             self.SV_features['SUBFAMILY'] = ','.join(set([repeat.annotation.optional['subfamily'] for repeat in features['REPEAT']]))
             self.SV_features['DIV'] = ','.join(set([repeat.annotation.optional['milliDiv'] for repeat in features['REPEAT']]))
 
+            # b) Solo insertion
+
         # F) Unknown: hit in unnanotated region of the reference
         else:
-            self.SV_features['INS_TYPE'] = 'unknown'        
+            self.SV_features['INS_TYPE'] = 'unknown'     
+            self.SV_features['PERC_RESOLVED'] = 0
+ 
     
