@@ -33,6 +33,7 @@ def rev_complement(seq):
 
     return revComplementSeq
 
+
 def baseComposition(seq):
     '''
     Compute mononucleotide frequencies for an input sequence
@@ -41,7 +42,9 @@ def baseComposition(seq):
         1. seq: DNA sequence
     Output:
         1. baseCounts: Dictionary containing counts per nucleotidic base for the input sequence 
+        1. basePercs: Dictionary containing percentajes per nucleotidic base for the input sequence
     '''
+    ## 1. Compute counts
     baseCounts = {}
     baseCounts['A'] = seq.count('A') 
     baseCounts['G'] = seq.count('G') 
@@ -50,7 +53,15 @@ def baseComposition(seq):
     baseCounts['N'] = seq.count('N')
     baseCounts['total'] = baseCounts['A'] + baseCounts['G'] + baseCounts['C'] + baseCounts['T'] + baseCounts['N']
 
-    return baseCounts
+    ## 2. Compute percentages
+    basePercs = {}
+    seqLen = len(seq)
+
+    for base in baseCounts:
+        perc = baseCounts[base] / seqLen * 100
+        basePercs[base] = perc
+
+    return baseCounts, basePercs
 
 
 def find_monomers(seq, targetMonomer, windowSize, maxWindowDist, minMonomerSize, minPurity):
