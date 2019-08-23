@@ -1480,7 +1480,7 @@ class META_cluster():
             if alignment.is_unmapped:
                 continue
 
-            ## 2.2. Apply minimum length filter
+            ## 2.2. Apply minimum hit length filter
             if alignment.query_alignment_length < 20:
                 continue
 
@@ -1499,7 +1499,7 @@ class META_cluster():
             ## Assess if fragment is polyA/T
             baseCounts, basePercs = sequences.baseComposition(fragment)
 
-            if (basePercs['A'] >= 70) or (basePercs['T'] >= 70):
+            if (basePercs['A'] >= 80) or (basePercs['T'] >= 80):
                 continue
 
             ## Add alignment if it passes all the filters
@@ -1511,7 +1511,7 @@ class META_cluster():
 
         # For each alignment
         for alignment in filteredHits:
-
+            
             ## 3.1. Intersect with region downstream of source elements
             if transducedDb is not None:
 
@@ -1520,7 +1520,11 @@ class META_cluster():
 
                 ## Update list of overlapping features
                 for overlap in overlaps:
-                    allOverlaps.append([alignment] + overlap)
+                    nbBp = overlap[1]
+
+                    ## Discard intersections smaller than Xbp
+                    if nbBp >= 20:
+                        allOverlaps.append([alignment] + overlap)
 
             ## 3.2. Intersect with exons database
             if (exonsDb is not None):
@@ -1530,7 +1534,11 @@ class META_cluster():
 
                 ## Update list of overlapping features
                 for overlap in overlaps:
-                    allOverlaps.append([alignment] + overlap)
+                    nbBp = overlap[1]
+
+                    ## Discard intersections smaller than Xbp
+                    if nbBp >= 20:
+                        allOverlaps.append([alignment] + overlap)
 
             ## 3.3. Intersect with repeats database
             if (repeatsDb is not None):
@@ -1540,8 +1548,11 @@ class META_cluster():
 
                 ## Update list of overlapping features
                 for overlap in overlaps:
-                    allOverlaps.append([alignment] + overlap)
-        
+                    nbBp = overlap[1]
+
+                    if nbBp >= 20:
+                        allOverlaps.append([alignment] + overlap)
+                        
         ## Abort if no annotated feature overlaps with the hit
         if not allOverlaps:
             self.SV_features['INS_TYPE'] = 'unknown'            
@@ -1566,6 +1577,7 @@ class META_cluster():
                 log.info('Error at genomic to query sequence coordinates mapping')
                 continue
 
+    
             # Create PAF line
             strand = '-' if alignment.is_reverse else '+'
             fields = [alignment.query_name, self.consensusEvent.length, qBeg, qEnd, strand, alignment.reference_name, alignment.reference_length, tBeg, tEnd, 0, 0, 0]
