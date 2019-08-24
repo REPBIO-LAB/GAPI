@@ -13,6 +13,7 @@ import unix
 import formats
 import databases
 import log
+import gRanges
 
 def load_annotations(annotations2load, refLengths, annotationsDir, threads, outDir):
     '''
@@ -41,8 +42,8 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
     ## 2. Load annotated repeats into a bin database
     if 'REPEATS' in annotations2load:
         log.info('2. Load annotated repeats into a bin database')
-        repeatsBed = annotationsDir + '/repeats_repeatMasker.bed'
-        #repeatsBed = annotationsDir + '/repeats_repeatMasker.L1.bed'
+        #repeatsBed = annotationsDir + '/repeats_repeatMasker.bed'
+        repeatsBed = annotationsDir + '/repeats_repeatMasker.L1.bed'
         annotations['REPEATS'] = formats.bed2binDb(repeatsBed, refLengths, threads)
 
     ## 3. Create transduced regions database
@@ -122,31 +123,54 @@ def repeats_annotation(events, repeatsDb, buffer):
         # A) Annotated repeat in the same ref where the event is located
         if event.ref in repeatsDb:
             
-            ## Select repeats bin database for the corresponding reference 
+            ### Select repeats bin database for the corresponding reference 
             repeatsBinDb = repeatsDb[event.ref]        
 
-            ## Retrieve all the annotated repeats overlapping with the event interval
+            ### Retrieve all the annotated repeats overlapping with the event interval
             overlaps = repeatsBinDb.collect_interval(event.beg - buffer, event.end + buffer, 'ALL')    
 
-            ## Make list of overlapping repeats
+            ### Make list of overlapping repeats
             families = [overlap[0].optional['family'] for overlap in overlaps]
 
-            ## Collect as well subfamily info
+            ### Collect as well subfamily info
             subfamilies = [overlap[0].optional['subfamily'] for overlap in overlaps]
+
+            ### Compute distance between the annotated repeat and the raw interval
+            # [event, overlapLen, overlapPerc, coord]
+            distances = []
+
+            ## For each intersection
+            for overlap in overlaps:
+
+                overlapLen = overlap[1] 
+                boolean = gRanges.overlap(event.beg, event.end, overlap[0].beg, overlap[0].end)[0]
+
+                # a) Overlapping raw intervals, distance == 0 
+                if boolean:
+                    distance = 0
+
+                # b) Not overlapping raw intervals. Compute distance
+                else:
+                    distance = abs(overlapLen - buffer)
+
+                distances.append(distance)
 
         # B) No repeat in the same ref as the event
         else:
             families = []
             subfamilies = []
+            distances = []
         
         ## Add repeat annotation as attribute 
         # A) Event overlapping repeat
         if families:
-            event.repeatAnnot = (families, subfamilies)
+            event.repeatAnnot = (families, subfamilies, distances)
 
         # B) Event NOT overlapping repeat
         else:    
-            event.repeatAnnot = (None, None)
+            event.repeatAnnot = (None, None, None)
+        
+        print('RESULT: ', event.repeatAnnot)
 
 
 def gene_annotation(events, annovarDir, outDir):

@@ -46,7 +46,7 @@ def write_INS(INS_metaclusters, outFileName, outDir):
         biotype = metacluster.SV_features['BIOTYPE'] if 'BIOTYPE' in metacluster.SV_features else None
         
         ## Insertion region annotation
-        families, subfamilies = metacluster.repeatAnnot if hasattr(metacluster, 'repeatAnnot') else (None, None)
+        families, subfamilies, distances = metacluster.repeatAnnot if hasattr(metacluster, 'repeatAnnot') else (None, None, None)
         families = None if families is None else ','.join(set(families))
         subfamilies = None if subfamilies is None else ','.join(set(subfamilies))
 
