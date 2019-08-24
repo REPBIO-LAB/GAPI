@@ -170,8 +170,6 @@ def repeats_annotation(events, repeatsDb, buffer):
         else:    
             event.repeatAnnot = (None, None, None)
         
-        print('RESULT: ', event.repeatAnnot)
-
 
 def gene_annotation(events, annovarDir, outDir):
     '''
