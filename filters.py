@@ -80,27 +80,27 @@ def filter_metacluster(metacluster, filters2Apply, confDict):
     failedFilters = []
 
     ## 1. FILTER 1: Minimum number of reads per cluster
-    if 'MIN-NBREADS' in filters2Apply: # check if the filter is selected
+    if 'MIN-NBREADS' in filters2Apply: 
         if not minNbEventsFilter(metacluster, confDict['minSupportingReads'], confDict['minNormalSupportingReads']):
             failedFilters.append('MIN-NBREADS')
 
     ## 2. FILTER 2: Maximum number of reads per cluster
-    if 'MAX-NBREADS' in filters2Apply: # check if the filter is selected
+    if 'MAX-NBREADS' in filters2Apply: 
         if not maxNbEventsFilter(metacluster, confDict['maxClusterSize']):
             failedFilters.append('MAX-NBREADS')
 
     ## 3. FILTER 3: Maximum Coefficient of Variance per cluster
-    if ('CV' in filters2Apply) and ('INS' in metacluster.subclusters): # check if the filter is selected
+    if ('CV' in filters2Apply) and ('INS' in metacluster.subclusters): 
         if not maxCvFilter(metacluster, confDict['maxClusterCV']):
             failedFilters.append('CV')
 
     ## 4. FILTER 4: Whether a metacluster has a SV_type assigned or not
-    if 'SV-TYPE' in filters2Apply: # check if the filter is selected
+    if 'SV-TYPE' in filters2Apply: 
         if not SVTypeFilter(metacluster):
             failedFilters.append('SV-TYPE')
 
     ## 5. FILTER 5: Minimum percentage of inserted sequence resolved
-    if ('PERC-RESOLVED' in filters2Apply) and ('INS' in metacluster.subclusters) and ('PERC_RESOLVED' in metacluster.SV_features): 
+    if ('PERC-RESOLVED' in filters2Apply) and (metacluster.SV_type == 'INS') and ('PERC_RESOLVED' in metacluster.SV_features): 
 
         if not percResolvedFilter(metacluster, confDict['minPercResolved']):
             failedFilters.append('PERC-RESOLVED')
@@ -208,7 +208,7 @@ def percResolvedFilter(metacluster, minPercResolved):
         1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
     '''
 
-    if metacluster.SV_features['PERC_RESOLVED'] >= minPercResolved:
+    if (metacluster.SV_features['PERC_RESOLVED'] >= minPercResolved):
         PASS = True
 
     else:
