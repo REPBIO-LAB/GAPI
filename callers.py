@@ -130,7 +130,7 @@ class SV_caller_long(SV_caller):
             clusters.INS_type_metaclusters(metaclustersPass_round1['INS'], self.reference, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'], self.confDict, outDir)
 
         ### 6. Apply second round of filtering after insertion type inference 
-        msg = '6. Apply second round of filtering after insertion type inference '
+        msg = '6. Apply second round of filtering after insertion type inference'
         log.header(msg)
         filters2Apply = ['PERC-RESOLVED']
         metaclustersPass, metaclustersFailed_round2 = filters.filter_metaclusters(metaclustersPass_round1, filters2Apply, self.confDict)
