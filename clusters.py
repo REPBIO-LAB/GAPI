@@ -1459,10 +1459,6 @@ class META_cluster():
 
         Output: Add INS type annotation to the attribute SV_features
         '''    
-        print('determine_INS_type: ', self.ref, self.beg, self.end)
-
-        msg = 'INS type inference metacluster'
-        log.subHeader(msg)
 
         ## 1. No alignment on the reference
         if not hits:
@@ -1576,7 +1572,6 @@ class META_cluster():
             if (qBeg is None) or (qEnd is None):
                 log.info('Error at genomic to query sequence coordinates mapping')
                 continue
-
     
             # Create PAF line
             strand = '-' if alignment.is_reverse else '+'
@@ -1651,13 +1646,38 @@ class META_cluster():
         # E) Repeat: hit in repeats database 
         elif features['REPEAT']:
 
-            # a) Repeat expansion
-            self.SV_features['INS_TYPE'] = 'repeat'
-            self.SV_features['FAMILY'] = ','.join(set([repeat.annotation.optional['family'] for repeat in features['REPEAT']])) 
-            self.SV_features['SUBFAMILY'] = ','.join(set([repeat.annotation.optional['subfamily'] for repeat in features['REPEAT']]))
-            self.SV_features['DIV'] = ','.join(set([repeat.annotation.optional['milliDiv'] for repeat in features['REPEAT']]))
+            ## Collect information regarding inserted sequence annotation ##
+            insertFamilies = [repeat.annotation.optional['family'] for repeat in features['REPEAT']]
+            insertSubfamilies = [repeat.annotation.optional['subfamily'] for repeat in features['REPEAT']]
+            insertDivergences = [repeat.annotation.optional['milliDiv'] for repeat in features['REPEAT']]
 
-            # b) Solo insertion
+            self.SV_features['FAMILY'] = ','.join(set(insertFamilies)) 
+            self.SV_features['SUBFAMILY'] = ','.join(set(insertSubfamilies))
+
+            ## Collect information regarding insertion target region annotation ##
+            # Filter out annotated repeats selecting only those directly overlapping with the target region 
+            targetAnnotFiltered = [ repeat for repeat in self.repeatAnnot if repeat['distance'] == 0 ]
+
+            # Make list of annotated families at the target region
+            targetFamilies = [ repeat['family'] for repeat in targetAnnotFiltered ]
+            targetSubfamilies = [ repeat['subfamily'] for repeat in targetAnnotFiltered ]
+
+            # Make list of annotated repeat categories according to repeatmasker
+            repeats = ['Low_complexity', 'Simple_repeat', 'Satellite', 'telo', 'centr', 'acro']
+
+            # a) Expansion from annotated repeat 
+            if any(family in repeats for family in insertFamilies) and any(family in repeats for family in targetFamilies):
+                self.SV_features['INS_TYPE'] = 'annot-expansion'
+
+            # b) Expansion from unannotated repeat
+            elif all(family in repeats for family in insertFamilies):
+                self.SV_features['INS_TYPE'] = 'unannot-expansion'
+            
+            # c) Solo repeat insertion
+            else:
+                self.SV_features['INS_TYPE'] = 'solo'
+                self.SV_features['DIV'] = ','.join(set(insertDivergences))            
+
 
         # F) Unknown: hit in unnanotated region of the reference
         else:
