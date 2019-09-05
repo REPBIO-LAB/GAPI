@@ -42,8 +42,6 @@ class SV_caller():
         self.refDir = refDir
         self.confDict = confDict
         self.outDir = outDir
-        self.retrotransposonDb = None
-        self.retrotransposonDbIndex = None
         self.repeatsBinDb = None
 
 class SV_caller_long(SV_caller):
@@ -113,24 +111,41 @@ class SV_caller_long(SV_caller):
 
             ## 5.1. Load transduced regions and exons database ##
             step = 'INS-TYPE'
-            msg = '5.1. Load transduced regions and exons database'
+            msg = '5.1. Load transduced regions and exons database if appropiate'
             log.step(step, msg)
 
             annotDir = self.outDir + '/ANNOT'
-            annotations2load = ['TRANSDUCTIONS', 'EXONS']   
-            #annotations2load = ['TRANSDUCTIONS']            
+            annotations2load = []
+
+            if self.confDict['transductionSearch']:    
+                annotations2load.append('TRANSDUCTIONS')
+
+            #if True: # add one point include flag for pseudogene search
+                #annotations2load.append('EXONS')
+
             annotations = annotation.load_annotations(annotations2load, refLengths, self.refDir, self.confDict['processes'], annotDir)
             annotations['REPEATS'] = repeatsAnnot
 
-            ## 5.2 Insertion type inference
-            msg = '5.2 Insertion type inference'
+            ## 5.2. Insertion type inference
+            msg = '5.2. Insertion type inference'
             log.step(step, msg)
 
             outDir = self.outDir + '/insType/'
             clusters.INS_type_metaclusters(metaclustersPass_round1['INS'], self.reference, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'], self.confDict, outDir)
 
-        ### 6. Apply second round of filtering after insertion type inference 
-        msg = '6. Apply second round of filtering after insertion type inference'
+        ### 6. Resolve structure for solo, partnered and orphan transductions
+        msg = '6. Resolve structure for solo, partnered and orphan transductions'
+        log.header(msg)
+        
+        if 'INS' in metaclustersPass_round1:
+            consensus = self.refDir + '/consensusDb.fa'
+            transduced = self.refDir + '/transducedDb.fa.masked'
+            outDir = self.outDir + '/structure/'
+
+            clusters.structure_metaclusters(metaclustersPass_round1['INS'], consensus, transduced, self.confDict, outDir)
+
+        ### 7. Apply second round of filtering after insertion type inference 
+        msg = '7. Apply second round of filtering after insertion type inference'
         log.header(msg)
         filters2Apply = ['PERC-RESOLVED']
         metaclustersPass, metaclustersFailed_round2 = filters.filter_metaclusters(metaclustersPass_round1, filters2Apply, self.confDict)
@@ -138,8 +153,8 @@ class SV_caller_long(SV_caller):
         ## Merge clusters failing first and second filtering round 
         metaclustersFailed = structures.merge_dictionaries([metaclustersFailed_round1, metaclustersFailed_round2])
 
-        ## 7. Perform gene-based annotation with ANNOVAR of INS target region
-        msg = '7. Perform gene-based annotation with ANNOVAR of INS target region'
+        ## 8. Perform gene-based annotation with ANNOVAR of INS target region
+        msg = '8. Perform gene-based annotation with ANNOVAR of INS target region'
         log.header(msg)
 
         # Do gene-based annotation step if enabled
@@ -153,11 +168,12 @@ class SV_caller_long(SV_caller):
             annotDir = self.outDir + '/ANNOT/' 
             annotation.gene_annotation(metaclustersPass['INS'], self.confDict['annovarDir'], annotDir)
 
-        ### 8. Report SV calls into output files
+        ### 9. Report SV calls into output files
         msg = '8. Report SV calls into output files'
         log.header(msg)
 
-        ##  8.1 Report INS
+        
+        ##  9.1 Report INS
         if 'INS' in metaclustersPass:
             outFileName = 'INS_MEIGA.PASS.tsv'
             output.write_INS(metaclustersPass['INS'], outFileName, self.outDir)
