@@ -16,7 +16,7 @@ def write_INS(INS_metaclusters, outFileName, outDir):
     outFile = open(outFilePath, 'w')
 
     ## 2. Write header 
-    row = "#ref \t beg \t end \t filters \t mutOrigin \t insType \t family \t subfamily \t cytobandId \t gnName \t biotype \t region \t gene \t families \t subfamilies \t distances \t nbTotal \t nbTumour \t nbNormal \t nbINS \t nbDEL \t nbCLIPPING \t length \t cv \t percResolved \t qHits \t tHits \t insertSeq \n"
+    row = "#ref \t beg \t end \t filters \t mutOrigin \t insType \t mechanism \t family \t subfamily \t cytobandId \t gnName \t biotype \t strand \t region \t gene \t families \t subfamilies \t distances \t nbTotal \t nbTumour \t nbNormal \t nbINS \t nbDEL \t nbCLIPPING \t length \t cv \t percResolved \t qHits \t tHits \t retroCoord \t polyA \t insertSeq \n"
     outFile.write(row)
 
     ## 3. Write INS metaclusters 
@@ -26,6 +26,8 @@ def write_INS(INS_metaclusters, outFileName, outDir):
         ## General features 
         filters = 'PASS' if not metacluster.failedFilters else ','.join(metacluster.failedFilters)
         insType = metacluster.SV_features['INS_TYPE'] if 'INS_TYPE' in metacluster.SV_features else None
+        mechanism = metacluster.SV_features['MECHANISM'] if 'MECHANISM' in metacluster.SV_features else None        
+        strand = metacluster.SV_features['STRAND'] if 'STRAND' in metacluster.SV_features else None
         nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING = metacluster.nbEvents()        
         meanLen, cv = metacluster.subclusters['INS'].cv_len() if 'INS' in metacluster.subclusters else (None, None)
         length = metacluster.consensusEvent.length if metacluster.consensusEvent is not None else None
@@ -33,10 +35,12 @@ def write_INS(INS_metaclusters, outFileName, outDir):
         qHits = None if metacluster.insertAnnot is None else ','.join([ 'insertedSeq' + ':' + str(alignment.qBeg) + '-' + str(alignment.qEnd) for alignment in metacluster.insertAnnot.alignments ])
         tHits = None if metacluster.insertAnnot is None else ','.join([ alignment.tName + ':' + str(alignment.tBeg) + '-' + str(alignment.tEnd) for alignment in metacluster.insertAnnot.alignments ])
         insert = metacluster.consensusEvent.pick_insert() if metacluster.consensusEvent is not None else None
+        polyA = metacluster.SV_features['POLYA'] if 'POLYA' in metacluster.SV_features else None
 
         ## Repeat specific features
         family = metacluster.SV_features['FAMILY'] if 'FAMILY' in metacluster.SV_features else None
-        subfamily = metacluster.SV_features['SUBFAMILY'] if 'SUBFAMILY' in metacluster.SV_features else None
+        subfamily = ','.join(metacluster.SV_features['SUBFAMILY']) if 'SUBFAMILY' in metacluster.SV_features else None
+        retroCoord = metacluster.SV_features['RETRO_COORD'] if 'RETRO_COORD' in metacluster.SV_features else None
         
         ## Transduction specific features
         cytobandId = metacluster.SV_features['CYTOBAND'] if 'CYTOBAND' in metacluster.SV_features else None
@@ -53,7 +57,7 @@ def write_INS(INS_metaclusters, outFileName, outDir):
         region, gene = metacluster.geneAnnot if hasattr(metacluster, 'geneAnnot') else (None, None)
 
         # Write INS call into output file
-        row = "\t".join([metacluster.ref, str(metacluster.beg), str(metacluster.end), str(filters), str(metacluster.mutOrigin), str(insType), str(family), str(subfamily), str(cytobandId), str(gnName), str(biotype), str(region), str(gene), str(families), str(subfamilies), str(distances), str(nbTotal), str(nbTumour), str(nbNormal), str(nbINS), str(nbDEL), str(nbCLIPPING), str(length), str(cv), str(percResolved), str(qHits), str(tHits), str(insert), "\n"])
+        row = "\t".join([metacluster.ref, str(metacluster.beg), str(metacluster.end), str(filters), str(metacluster.mutOrigin), str(insType), str(mechanism), str(family), str(subfamily), str(cytobandId), str(gnName), str(biotype), str(strand), str(region), str(gene), str(families), str(subfamilies), str(distances), str(nbTotal), str(nbTumour), str(nbNormal), str(nbINS), str(nbDEL), str(nbCLIPPING), str(length), str(cv), str(percResolved), str(qHits), str(tHits), str(retroCoord), str(polyA), str(insert), "\n"])
         outFile.write(row)
 
     ## Close output file ##
