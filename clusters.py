@@ -572,9 +572,9 @@ def structure_metaclusters(metaclusters, consensusPath, transducedPath, confDict
         outDir = rootDir + '/' + metaInterval
         unix.mkdir(outDir)
 
-        ## Skip structure inference if not solo, partnered or orphan transduction
-        if metacluster.SV_features['INS_TYPE'] not in ['solo', 'partnered', 'orphan']:
-            print('Skip structure inference: ', metacluster.SV_features['INS_TYPE'])
+        ## Skip structure inference if insertion type not available or not solo, partnered or orphan transduction
+        # Note: investigate why INS_TYPE is not defined in some metaclusters
+        if ('INS_TYPE' not in metacluster.SV_features) or (metacluster.SV_features['INS_TYPE'] not in ['solo', 'partnered', 'orphan']):
             continue
 
         ### 2.1 Create fasta object containing database of sequences
