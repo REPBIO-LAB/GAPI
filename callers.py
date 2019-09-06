@@ -72,13 +72,20 @@ class SV_caller_long(SV_caller):
         pool.close()
         pool.join()
 
-        ### 3. Collapse metaclusters in a single dict
-        msg = '3. Collapse metaclusters in a single dict'
+        ### 3. Collapse metaclusters in a single dict and report metaclusters that failed first round of filtering
+        msg = '3. Collapse metaclusters in a single dict and report metaclusters that failed first round of filtering'
         log.header(msg)
 
         metaclustersPass_round1 = structures.merge_dictionaries(metaclustersPassList)
         metaclustersFailed_round1 = structures.merge_dictionaries(metaclustersFailedList)
 
+        if 'INS' in metaclustersFailed_round1:
+            outFileName = 'INS_MEIGA.FAILED_1.tsv'
+            output.write_INS(metaclustersFailed_round1['INS'], outFileName, self.outDir)
+
+        ## Clear variable
+        del metaclustersFailed_round1
+        
         ## 4. Perform repeat-based annotation of INS target region
         msg = '4. Perform repeat-based annotation of INS target region'
         log.header(msg)
@@ -120,7 +127,7 @@ class SV_caller_long(SV_caller):
             if self.confDict['transductionSearch']:    
                 annotations2load.append('TRANSDUCTIONS')
 
-            #if True: # add one point include flag for pseudogene search
+            #if True: # at one point include flag for pseudogene search
                 #annotations2load.append('EXONS')
 
             annotations = annotation.load_annotations(annotations2load, refLengths, self.refDir, self.confDict['processes'], annotDir)
@@ -133,6 +140,10 @@ class SV_caller_long(SV_caller):
             outDir = self.outDir + '/insType/'
             clusters.INS_type_metaclusters(metaclustersPass_round1['INS'], self.reference, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'], self.confDict, outDir)
 
+            # Variables cleanup
+            del annotations 
+            del repeatsAnnot
+            
         ### 6. Resolve structure for solo, partnered and orphan transductions
         msg = '6. Resolve structure for solo, partnered and orphan transductions'
         log.header(msg)
@@ -150,9 +161,6 @@ class SV_caller_long(SV_caller):
         filters2Apply = ['PERC-RESOLVED']
         metaclustersPass, metaclustersFailed_round2 = filters.filter_metaclusters(metaclustersPass_round1, filters2Apply, self.confDict)
 
-        ## Merge clusters failing first and second filtering round 
-        metaclustersFailed = structures.merge_dictionaries([metaclustersFailed_round1, metaclustersFailed_round2])
-
         ## 8. Perform gene-based annotation with ANNOVAR of INS target region
         msg = '8. Perform gene-based annotation with ANNOVAR of INS target region'
         log.header(msg)
@@ -169,18 +177,17 @@ class SV_caller_long(SV_caller):
             annotation.gene_annotation(metaclustersPass['INS'], self.confDict['annovarDir'], annotDir)
 
         ### 9. Report SV calls into output files
-        msg = '8. Report SV calls into output files'
+        msg = '9. Report SV calls into output files'
         log.header(msg)
 
-        
         ##  9.1 Report INS
         if 'INS' in metaclustersPass:
             outFileName = 'INS_MEIGA.PASS.tsv'
             output.write_INS(metaclustersPass['INS'], outFileName, self.outDir)
 
-        if 'INS' in metaclustersFailed:
-            outFileName = 'INS_MEIGA.FAILED.tsv'
-            output.write_INS(metaclustersFailed['INS'], outFileName, self.outDir)
+        if 'INS' in metaclustersFailed_round2:
+            outFileName = 'INS_MEIGA.FAILED_2.tsv'
+            output.write_INS(metaclustersFailed_round2['INS'], outFileName, self.outDir)
         
 
     def make_clusters_bin(self, ref, beg, end):
