@@ -1744,7 +1744,6 @@ class META_cluster():
                 self.SV_features['INS_TYPE'] = 'solo'
                 self.SV_features['DIV'] = list(set(insertDivergences))            
 
-
         # F) Unknown: hit in unnanotated region of the reference
         else:
             self.SV_features['INS_TYPE'] = 'unknown'     
@@ -1769,4 +1768,4 @@ class META_cluster():
 
         ## 2. Align inserted sequence into the sequences database
         self.SV_features['INS_TYPE'], self.SV_features['FAMILY'], self.SV_features['CYTOBAND'], self.SV_features['STRAND'], self.SV_features['POLYA'], structure, self.SV_features['MECHANISM'] = retrotransposons.retrotransposon_structure(insertPath, index, outDir)
-        self.SV_features['RETRO_COORD'] = structure['retroCoord'] 
+        self.SV_features['RETRO_COORD'] = structure['retroCoord'] if structure is not None else None  
