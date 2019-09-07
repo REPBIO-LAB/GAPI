@@ -97,7 +97,7 @@ class SV_caller_long(SV_caller):
             msg = '4.1. Load repeats database'
             log.step(step, msg)
 
-            annotDir = self.outDir + '/ANNOT'
+            annotDir = self.outDir + '/ANNOT/'
             annotations2load = ['REPEATS']   
 
             refLengths = bamtools.get_ref_lengths(self.bam)
@@ -121,7 +121,7 @@ class SV_caller_long(SV_caller):
             msg = '5.1. Load transduced regions and exons database if appropiate'
             log.step(step, msg)
 
-            annotDir = self.outDir + '/ANNOT'
+            annotDir = self.outDir + '/ANNOT/'
             annotations2load = []
 
             if self.confDict['transductionSearch']:    
@@ -137,10 +137,14 @@ class SV_caller_long(SV_caller):
             msg = '5.2. Insertion type inference'
             log.step(step, msg)
 
-            outDir = self.outDir + '/insType/'
-            clusters.INS_type_metaclusters(metaclustersPass_round1['INS'], self.reference, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'], self.confDict, outDir)
+            outDir = self.outDir + '/INS_TYPE/'
+            unix.mkdir(outDir)
 
-            # Variables cleanup
+            clusters.INS_type_metaclusters(metaclustersPass_round1['INS'], self.reference, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'], self.confDict, outDir)
+            
+            # Cleanup
+            unix.rm([outDir])
+
             del annotations 
             del repeatsAnnot
             
@@ -151,9 +155,14 @@ class SV_caller_long(SV_caller):
         if 'INS' in metaclustersPass_round1:
             consensus = self.refDir + '/consensusDb.fa'
             transduced = self.refDir + '/transducedDb.fa.masked'
-            outDir = self.outDir + '/structure/'
+
+            outDir = self.outDir + '/STRUCTURE/'
+            unix.mkdir(outDir)
 
             clusters.structure_metaclusters(metaclustersPass_round1['INS'], consensus, transduced, self.confDict, outDir)
+
+            # Cleanup
+            unix.rm([outDir])
 
         ### 7. Apply second round of filtering after insertion type inference 
         msg = '7. Apply second round of filtering after insertion type inference'
@@ -176,6 +185,9 @@ class SV_caller_long(SV_caller):
             annotDir = self.outDir + '/ANNOT/' 
             annotation.gene_annotation(metaclustersPass['INS'], self.confDict['annovarDir'], annotDir)
 
+            # Cleanup
+            unix.rm([annotDir])
+        
         ### 9. Report SV calls into output files
         msg = '9. Report SV calls into output files'
         log.header(msg)
@@ -199,7 +211,7 @@ class SV_caller_long(SV_caller):
         msg = 'SV calling in bin: ' + binId
         log.subHeader(msg)
 
-        binDir = self.outDir + '/' + binId
+        binDir = self.outDir + '/CLUSTER/' + binId
         unix.mkdir(binDir)
 
         ## 1. Search for SV candidate events in the bam file/s ##
@@ -258,8 +270,13 @@ class SV_caller_long(SV_caller):
         step = 'SV-TYPE'
         msg = 'Infer structural variant type' 
         log.step(step, msg)
-        metaclustersSVType = clusters.SV_type_metaclusters(metaclusters, self.confDict['minINDELlen'], self.confDict['technology'], binDir)
+
+        outDir = binDir + '/SV_TYPE/' 
+        metaclustersSVType = clusters.SV_type_metaclusters(metaclusters, self.confDict['minINDELlen'], self.confDict['technology'], outDir)
         
+        # Do cleanup
+        unix.rm([outDir])
+
         ## 7. Filter metaclusters ##
         step = 'FILTER'
         msg = 'Filter out metaclusters' 
@@ -273,10 +290,11 @@ class SV_caller_long(SV_caller):
         log.step(step, msg)
 
         targetSV = ['INS']
-        clusters.create_consensus(metaclustersSVType, self.confDict, self.reference, targetSV, binDir)       
+        outDir = binDir + '/CONSENSUS/' 
+        clusters.create_consensus(metaclustersSVType, self.confDict, self.reference, targetSV, outDir)       
 
-        ### Do cleanup
-        unix.rm([binDir])
+        # Do cleanup
+        unix.rm([outDir, binDir])
 
         return metaclustersSVType, metaclustersSVTypeFailed
 
@@ -294,7 +312,7 @@ class SV_caller_short(SV_caller):
         Search for structural variants (SV) genome wide or in a set of target genomic regions
         '''
         ### 1. Create, index and load reference databases prior SV calling ##
-        dbDir = self.outDir + '/databases'
+        dbDir = self.outDir + '/DATABASES/'
         unix.mkdir(dbDir)
 
         ## 1.1 Load annotated retrotransposons into a bin database
@@ -356,7 +374,7 @@ class SV_caller_short(SV_caller):
         msg = 'SV calling in bin: ' + binId
         log.subHeader(msg)
 
-        binDir = self.outDir + '/' + binId
+        binDir = self.outDir + '/CLUSTER/' + binId
         unix.mkdir(binDir)
 
         ## 1. Search for SV candidate events in the bam file/s ##

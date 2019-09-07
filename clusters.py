@@ -255,7 +255,7 @@ def SV_type_metaclusters(metaclusters, minINDELlen, technology, rootOutDir):
     for metacluster in metaclusters:
 
         metaInterval = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])
-        outDir = rootOutDir + '/SV_type/' + metaInterval
+        outDir = rootOutDir + '/' + metaInterval
         metacluster.determine_SV_type(minINDELlen, technology, outDir)
 
         # A) Initialize list containing metaclusters of a given SV type
@@ -264,7 +264,7 @@ def SV_type_metaclusters(metaclusters, minINDELlen, technology, rootOutDir):
 
         # B) Add metacluster to the list        
         else:
-            metaclustersSVType[metacluster.SV_type].append(metacluster)
+            metaclustersSVType[metacluster.SV_type].append(metacluster)    
 
     return metaclustersSVType
 
@@ -301,7 +301,7 @@ def create_consensus(metaclusters, confDict, reference, targetSV, rootOutDir):
         ## For each metacluster
         for metacluster in metaclusters[SV]:
             metaInterval = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])
-            outDir = rootOutDir + '/consensus/' + metaInterval
+            outDir = rootOutDir + '/' + metaInterval
 
             ## 1. Polish metacluster´s consensus sequence
             metacluster.polish(confDict, reference, outDir)
@@ -310,7 +310,8 @@ def create_consensus(metaclusters, confDict, reference, targetSV, rootOutDir):
             metacluster.consensus_event(confDict, reference, 10000, outDir)
 
             ## Cleanup
-            #unix.rm([outDir])
+            unix.rm([outDir])
+    
 
 def double_clipping_supports_INS(clusterA, clusterB, minINDELlen, technology, outDir):
     '''
@@ -483,7 +484,7 @@ def find_insertion_at_clipping_bkp(primary, supplementary):
     return insert
 
 
-def INS_type_metaclusters(metaclusters, reference, repeats, transduced, exons, confDict, outDir):
+def INS_type_metaclusters(metaclusters, reference, repeats, transduced, exons, confDict, rootOutDir):
     '''
     For each metacluster provided as input determine the type of insertion
 
@@ -494,20 +495,18 @@ def INS_type_metaclusters(metaclusters, reference, repeats, transduced, exons, c
         4. transduced: bin database containing regions transduced by source elements. None if not available
         5. exons: bin database containing annotated exons in the reference. None if not available
         6. confDict: Configuration dictionary
-        7. outDir: Output directory
+        7. rootOutDir: Root output directory
     '''      
-    ## 0. Create output directory 
-    unix.mkdir(outDir)
 
     ## 1. Create fasta containing all consensus inserted sequences ##
     msg = '1. Create fasta containing all consensus inserted sequences'
     log.subHeader(msg)    
-    fastaPath = insertedSeq2fasta(metaclusters, outDir)
+    fastaPath = insertedSeq2fasta(metaclusters, rootOutDir)
 
     ## 2. Align consensus inserted sequences into the reference genome ##
     msg = '2. Align consensus inserted sequences into the reference genome'
     log.subHeader(msg)    
-    SAM = alignment.alignment_bwa(fastaPath, reference, confDict['processes'], outDir)
+    SAM = alignment.alignment_bwa(fastaPath, reference, confDict['processes'], rootOutDir)
     
     ## 3. Asign alignments to their corresponding metacluster ##
     msg = '3. Asign alignments to their corresponding metacluster'
@@ -528,9 +527,16 @@ def INS_type_metaclusters(metaclusters, reference, repeats, transduced, exons, c
     # For each metacluster
     for element in tupleList:
         metacluster, alignments, args = element 
+        
+        metaInterval = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])
+        outDir = rootOutDir + metaInterval
+        unix.mkdir(outDir)
 
         # Infer metacluster ins type
         INS_type_metacluster(metacluster, alignments, args)
+
+        # Cleanup
+        unix.rm([outDir])
 
 def INS_type_metacluster(metacluster, alignments, args):
     '''
@@ -567,15 +573,15 @@ def structure_metaclusters(metaclusters, consensusPath, transducedPath, confDict
     ## 2. Infer structure for each insertion metacluster
     for metacluster in metaclusters:
         
-        ## 2.0 Create output directory
-        metaInterval = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])
-        outDir = rootDir + '/' + metaInterval
-        unix.mkdir(outDir)
-
         ## Skip structure inference if insertion type not available or not solo, partnered or orphan transduction
         # Note: investigate why INS_TYPE is not defined in some metaclusters
         if ('INS_TYPE' not in metacluster.SV_features) or (metacluster.SV_features['INS_TYPE'] not in ['solo', 'partnered', 'orphan']):
             continue
+
+        ## 2.0 Create output directory
+        metaInterval = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])
+        outDir = rootDir + '/' + metaInterval
+        unix.mkdir(outDir)
 
         ### 2.1 Create fasta object containing database of sequences
         ## The database will contain the following sequences depending on the insertion type:
@@ -614,6 +620,9 @@ def structure_metaclusters(metaclusters, consensusPath, transducedPath, confDict
 
         ### 2.4 Infer structure
         metacluster.determine_INS_structure(indexPath, outDir)
+
+        # Cleanup
+        unix.rm([outDir])
         
 
 def insertedSeq2fasta(metaclusters, outDir):
