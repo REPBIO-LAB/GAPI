@@ -560,16 +560,6 @@ def INS_type_metacluster(metacluster, alignments, args):
 def structure_metaclusters(metaclusters, consensusPath, transducedPath, confDict, rootDir):
     '''
     '''
-    ## 1. Read fasta files ##
-    #  1.1 Consensus sequences
-    consensus = formats.FASTA()
-    consensus.read(consensusPath)
-
-    #  1.2 Transduced regions
-    if confDict['transductionSearch']: 
-        transduced = formats.FASTA()
-        transduced.read(transducedPath)
-
     ## 2. Infer structure for each insertion metacluster
     for metacluster in metaclusters:
         
@@ -578,48 +568,13 @@ def structure_metaclusters(metaclusters, consensusPath, transducedPath, confDict
         if ('INS_TYPE' not in metacluster.SV_features) or (metacluster.SV_features['INS_TYPE'] not in ['solo', 'partnered', 'orphan']):
             continue
 
-        ## 2.0 Create output directory
+        ## Create output directory
         metaInterval = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])
         outDir = rootDir + '/' + metaInterval
         unix.mkdir(outDir)
 
-        ### 2.1 Create fasta object containing database of sequences
-        ## The database will contain the following sequences depending on the insertion type:
-        ## - Solo      -> consensus sequences for the same family
-        ## - Partnered -> consensus sequences for the same family
-        #              -> corresponding transduced area
-        ## - Orphan    -> corresponding transduced area
-
-        ## Initialize fasta
-        fasta = formats.FASTA()
-
-        ## Add to the fasta subfamily consensus sequences for the corresponding family
-        if metacluster.SV_features['INS_TYPE'] in ['solo', 'partnered']:
-            for seqId, seq in consensus.seqDict.items(): 
-                family = seqId.split('|')[1]
-
-                if family in metacluster.SV_features['FAMILY']:
-                    fasta.seqDict[seqId] = seq
-
-        ## Add to the fasta transduced region or regions
-        if metacluster.SV_features['INS_TYPE'] in ['partnered', 'orphan']:
-        
-            for seqId, seq in transduced.seqDict.items(): 
-                family, srcId = seqId.split('|')[1:3]
-
-                if (family in metacluster.SV_features['FAMILY']) and (srcId in metacluster.SV_features['CYTOBAND']):
-                    fasta.seqDict[seqId] = seq
-
-        ### 2.2 Create fasta file
-        fastaPath = outDir + '/reference_sequences.fa'
-        fasta.write(fastaPath)
-
-        ### 2.3 Index fasta file
-        fileName = 'reference_sequences'  
-        indexPath = alignment.index_minimap2(fastaPath, fileName, outDir)
-
-        ### 2.4 Infer structure
-        metacluster.determine_INS_structure(indexPath, outDir)
+        ## Infer structure
+        metacluster.determine_INS_structure(consensusPath, transducedPath, confDict['transductionSearch'], outDir)
 
         # Cleanup
         unix.rm([outDir])
@@ -1758,14 +1713,59 @@ class META_cluster():
             self.SV_features['INS_TYPE'] = 'unknown'     
             self.SV_features['PERC_RESOLVED'] = 0
  
-    def determine_INS_structure(self, index, outDir):
+    def determine_INS_structure(self, consensusPath, transducedPath, transductionSearch, outDir):
         '''
         '''
         ##  Skip structure inference if consensus event not available
         if self.consensusEvent is None:
             return  
 
-        ## 1. Create fasta file containing consensus inserted sequence
+        ## 1. Read fasta files 
+        #  1.1 Consensus sequences
+        consensus = formats.FASTA()
+        consensus.read(consensusPath)
+
+        #  1.2 Transduced regions
+        if transductionSearch: 
+            transduced = formats.FASTA()
+            transduced.read(transducedPath)
+
+        ## 1. Create fasta object containing database of sequences
+        ## The database will contain the following sequences depending on the insertion type:
+        ## - Solo      -> consensus sequences for the same family
+        ## - Partnered -> consensus sequences for the same family
+        #              -> corresponding transduced area
+        ## - Orphan    -> corresponding transduced area
+
+        ## Initialize fasta
+        fasta = formats.FASTA()
+
+        ## Add to the fasta subfamily consensus sequences for the corresponding family
+        if self.SV_features['INS_TYPE'] in ['solo', 'partnered']:
+            for seqId, seq in consensus.seqDict.items(): 
+                family = seqId.split('|')[1]
+
+                if family in self.SV_features['FAMILY']:
+                    fasta.seqDict[seqId] = seq
+
+        ## Add to the fasta transduced region or regions
+        if self.SV_features['INS_TYPE'] in ['partnered', 'orphan']:
+        
+            for seqId, seq in transduced.seqDict.items(): 
+                family, srcId = seqId.split('|')[1:3]
+
+                if (family in self.SV_features['FAMILY']) and (srcId in self.SV_features['CYTOBAND']):
+                    fasta.seqDict[seqId] = seq
+
+        ## 2. Create fasta file
+        fastaPath = outDir + '/reference_sequences.fa'
+        fasta.write(fastaPath)
+
+        ## 3. Index fasta file
+        fileName = 'reference_sequences'  
+        indexPath = alignment.index_minimap2(fastaPath, fileName, outDir)
+
+        ## 4. Create fasta file containing consensus inserted sequence
         # Create fasta object
         FASTA = formats.FASTA()
         insert = self.consensusEvent.pick_insert()
@@ -1775,6 +1775,6 @@ class META_cluster():
         insertPath = outDir + '/consensus_insert.fa'
         FASTA.write(insertPath)    
 
-        ## 2. Align inserted sequence into the sequences database
-        self.SV_features['INS_TYPE'], self.SV_features['FAMILY'], self.SV_features['CYTOBAND'], self.SV_features['STRAND'], self.SV_features['POLYA'], structure, self.SV_features['MECHANISM'] = retrotransposons.retrotransposon_structure(insertPath, index, outDir)
+        ## 5. Structure inference
+        self.SV_features['INS_TYPE'], self.SV_features['FAMILY'], self.SV_features['CYTOBAND'], self.SV_features['STRAND'], self.SV_features['POLYA'], structure, self.SV_features['MECHANISM'] = retrotransposons.retrotransposon_structure(insertPath, indexPath, outDir)
         self.SV_features['RETRO_COORD'] = structure['retroCoord'] if structure is not None else None  
