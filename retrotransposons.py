@@ -41,7 +41,7 @@ def retrotransposon_structure(FASTA_file, index, outDir):
 
     # Exit function if no hit on the retrotransposons database
     if not PAF.lines:
-        insType, family, srcId, strand, polyA, structure, mechanism = [None, None, None, None, None, None, None]
+        insType, family, srcId, strand, polyA, structure, mechanism = [None, [], [], None, False, {}, 'unknown']
         return insType, family, srcId, strand, polyA, structure, mechanism
 
     ## 3. Chain complementary alignments ##
@@ -67,11 +67,11 @@ def retrotransposon_structure(FASTA_file, index, outDir):
     structure = infer_structure(insType, chain, strand)
 
     ## 4.5 Insertion mechanism (TPRT or EI)
-    mechanism = infer_integration_mechanism(structure['truncation3len'], polyA)
+    mechanism = infer_integration_mechanism(chain, structure['truncation3len'], polyA)
 
     ## 4.6 Target site duplication (TO DO LATER...)
     #search4tsd()
-
+    
     return insType, family, srcId, strand, polyA, structure, mechanism
     
 
@@ -103,35 +103,35 @@ def insertion_type(chain):
     # //////RT//////     
     if (nbTemplateTypes == 1) and ('consensus' in templateTypes) and (nbFamilies == 1):
         insType = 'solo'
-        family = families[0]
-        srcId = None
+        family = families
+        srcId = []
 
     ## b) Nested insertion (Insertion composed by multiple retrotransposons from different families)
     # //////RT_1//////\\\\\\\\RT_2\\\\\\\     
     elif (nbTemplateTypes == 1) and ('consensus' in templateTypes):
         insType = 'nested'
-        family = ','.join(families)
-        srcId = None
+        family = families
+        srcId = []
         
     ## c) Orphan (inserted sequence only matching one transduced region)
     # SOURCE//////TD//////    
     elif (nbTemplateTypes == 1) and ('transduced' in templateTypes) and (nbSource == 1):
         insType = 'orphan'
-        family = None
-        srcId = sourceElements[0]
+        family = []
+        srcId = sourceElements
 
     ## d) Partnered (inserted sequence matching consensus and one transduced sequence)
     # SOURCE >>>>>>L1>>>>>>//////TD///////    
     elif (nbTemplateTypes == 2) and (set(['consensus', 'transduced']).issubset(templateTypes)) and (nbFamilies == 1) and (nbSource == 1):
         insType = 'partnered'
-        family = families[0]
-        srcId = sourceElements[0]
+        family = families
+        srcId = sourceElements
 
     ## e) Unknown insertion type
     else:
         insType = None
-        family = None
-        srcId = None
+        family = []
+        srcId = [] 
 
     return insType, family, srcId
     
@@ -429,7 +429,7 @@ def infer_structure(insType, chain, strand):
     return structure
 
 
-def infer_integration_mechanism(truncation3len, polyA):
+def infer_integration_mechanism(chain, truncation3len, polyA):
     '''
     Determine the mechanism of integration (TPRT: Target Primed Reversed Transcription; EI: Endonuclease Independent)
     
@@ -439,7 +439,7 @@ def infer_integration_mechanism(truncation3len, polyA):
 
     Output:
         1. mechanism: 
-    ''' 
+    '''  
     ## A) TPRT hallmarks: 
     # - 3' truncation <= 100bp OR None (if orphan transduction)
     # - polyA 
@@ -456,5 +456,8 @@ def infer_integration_mechanism(truncation3len, polyA):
     ## C) Unknown mechanism:
     else:
         mechanism = 'unknown'
+
+    #for hit in chain.alignments:
+    #    print('HIT: ', hit.qName, hit.qLen, hit.qBeg, hit.qEnd, hit.strand, hit.tName, hit.tLen, hit.tBeg, hit.tEnd, hit.nbMatches, hit.blockLen, hit.MAPQ)
 
     return mechanism
