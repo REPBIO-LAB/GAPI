@@ -159,7 +159,7 @@ class SV_caller_long(SV_caller):
             outDir = self.outDir + '/STRUCTURE/'
             unix.mkdir(outDir)
 
-            clusters.structure_metaclusters(metaclustersPass_round1['INS'], consensus, transduced, self.confDict, outDir)
+            metaclustersPass_round1['INS'] = clusters.structure_inference_parallel(metaclustersPass_round1['INS'], consensus, transduced, self.confDict['transductionSearch'], self.confDict['processes'], outDir)
 
             # Cleanup
             unix.rm([outDir])
