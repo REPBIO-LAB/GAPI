@@ -22,7 +22,7 @@ def write_INS(INS_metaclusters, outFileName, outDir):
     ## 3. Write INS metaclusters 
     # For each metacluster
     for metacluster in INS_metaclusters:
-            
+                    
         ## General features 
         filters = 'PASS' if not metacluster.failedFilters else ','.join(metacluster.failedFilters)
         insType = metacluster.SV_features['INS_TYPE'] if 'INS_TYPE' in metacluster.SV_features else None
@@ -38,12 +38,12 @@ def write_INS(INS_metaclusters, outFileName, outDir):
         polyA = metacluster.SV_features['POLYA'] if 'POLYA' in metacluster.SV_features else None
 
         ## Repeat specific features
-        family = metacluster.SV_features['FAMILY'] if 'FAMILY' in metacluster.SV_features else None
+        family = ','.join(metacluster.SV_features['FAMILY']) if 'FAMILY' in metacluster.SV_features else None
         subfamily = ','.join(metacluster.SV_features['SUBFAMILY']) if 'SUBFAMILY' in metacluster.SV_features else None
         retroCoord = metacluster.SV_features['RETRO_COORD'] if 'RETRO_COORD' in metacluster.SV_features else None
         
         ## Transduction specific features
-        cytobandId = metacluster.SV_features['CYTOBAND'] if 'CYTOBAND' in metacluster.SV_features else None
+        cytobandId = ','.join(metacluster.SV_features['CYTOBAND']) if 'CYTOBAND' in metacluster.SV_features else None
 
         ## Exon specific features
         gnName = metacluster.SV_features['GENE_NAME'] if 'GENE_NAME' in metacluster.SV_features else None
