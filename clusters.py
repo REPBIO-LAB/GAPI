@@ -557,10 +557,13 @@ def INS_type_metacluster(metacluster, alignments, args):
     ## 2. Determine metacluster´s insertion type
     metacluster.determine_INS_type(alignments, repeats, transduced, exons, confDict)
 
-def structure_metaclusters(metaclusters, consensusPath, transducedPath, confDict, rootDir):
+
+def structure_inference_parallel(metaclusters, consensusPath, transducedPath, transductionSearch, processes, rootDir):
     '''
     '''
-    ## 2. Infer structure for each insertion metacluster
+    ## 1. Create tuple list for multiprocessing
+    tupleList = []
+
     for metacluster in metaclusters:
         
         ## Skip structure inference if insertion type not available or not solo, partnered or orphan transduction
@@ -573,12 +576,22 @@ def structure_metaclusters(metaclusters, consensusPath, transducedPath, confDict
         outDir = rootDir + '/' + metaInterval
         unix.mkdir(outDir)
 
-        ## Infer structure
-        metacluster.determine_INS_structure(consensusPath, transducedPath, confDict['transductionSearch'], outDir)
+        ## Add to the list
+        fields = (metacluster, consensusPath, transducedPath, transductionSearch, outDir)
+        tupleList.append(fields)
 
-        # Cleanup
-        unix.rm([outDir])
-        
+    ## 2. Infer structure
+    pool = mp.Pool(processes=processes)
+    metaclusters = pool.starmap(structure_inference, tupleList)
+
+    return metaclusters
+    
+def structure_inference(metacluster, consensusPath, transducedPath, transductionSearch, outDir):
+    '''
+    '''
+    metacluster.determine_INS_structure(consensusPath, transducedPath, transductionSearch, outDir)
+
+    return metacluster
 
 def insertedSeq2fasta(metaclusters, outDir):
     '''
@@ -680,6 +693,7 @@ def assignAligments2metaclusters_sam(metaclusters, SAM_path):
     tupleList = list(hits.values())
 
     return tupleList
+
 
 #############
 ## CLASSES ##
@@ -1730,7 +1744,7 @@ class META_cluster():
             transduced = formats.FASTA()
             transduced.read(transducedPath)
 
-        ## 1. Create fasta object containing database of sequences
+        ## 2. Create fasta object containing database of sequences
         ## The database will contain the following sequences depending on the insertion type:
         ## - Solo      -> consensus sequences for the same family
         ## - Partnered -> consensus sequences for the same family
@@ -1757,15 +1771,15 @@ class META_cluster():
                 if (family in self.SV_features['FAMILY']) and (srcId in self.SV_features['CYTOBAND']):
                     fasta.seqDict[seqId] = seq
 
-        ## 2. Create fasta file
+        ## 3. Create fasta file
         fastaPath = outDir + '/reference_sequences.fa'
         fasta.write(fastaPath)
 
-        ## 3. Index fasta file
+        ## 4. Index fasta file
         fileName = 'reference_sequences'  
         indexPath = alignment.index_minimap2(fastaPath, fileName, outDir)
 
-        ## 4. Create fasta file containing consensus inserted sequence
+        ## 5. Create fasta file containing consensus inserted sequence
         # Create fasta object
         FASTA = formats.FASTA()
         insert = self.consensusEvent.pick_insert()
@@ -1775,6 +1789,9 @@ class META_cluster():
         insertPath = outDir + '/consensus_insert.fa'
         FASTA.write(insertPath)    
 
-        ## 5. Structure inference
+        ## 6. Structure inference
         self.SV_features['INS_TYPE'], self.SV_features['FAMILY'], self.SV_features['CYTOBAND'], self.SV_features['STRAND'], self.SV_features['POLYA'], structure, self.SV_features['MECHANISM'] = retrotransposons.retrotransposon_structure(insertPath, indexPath, outDir)
         self.SV_features['RETRO_COORD'] = structure['retroCoord'] if structure is not None else None  
+
+        # Cleanup
+        unix.rm([outDir])    
