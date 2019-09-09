@@ -560,6 +560,18 @@ def INS_type_metacluster(metacluster, alignments, args):
 
 def structure_inference_parallel(metaclusters, consensusPath, transducedPath, transductionSearch, processes, rootDir):
     '''
+    Infer structure for a list of INS metacluster objects. Parallelize by distributing metaclusters by processes. 
+
+    Input:
+        1. metaclusters: list of metacluster objects
+        2. consensusPath: path to fasta file containing retrotransposon consensus sequences
+        3. transducedPath: path to fasta containing transduced sequences downstream of source elements
+        4. transductionSearch: boolean specifying if transduction search is enabled (True) or not (False)
+        5. processes: number of processes
+        6. rootDir: Root output directory
+    
+    Output:
+        1. metaclusters: list of metacluster objects with structure information stored at 'SV_features' dict attribute
     '''
     ## 1. Create tuple list for multiprocessing
     tupleList = []
@@ -585,9 +597,20 @@ def structure_inference_parallel(metaclusters, consensusPath, transducedPath, tr
     metaclusters = pool.starmap(structure_inference, tupleList)
 
     return metaclusters
-    
+
 def structure_inference(metacluster, consensusPath, transducedPath, transductionSearch, outDir):
     '''
+    Wrapper to call 'determine_INS_structure' method for a given INS metacluster provided as input
+
+    Input:
+        1. metacluster: INS metacluster 
+        2. consensusPath: path to fasta file containing retrotransposon consensus sequences
+        3. transducedPath: path to fasta containing transduced sequences downstream of source elements
+        4. transductionSearch: boolean specifying if transduction search is enabled (True) or not (False)
+        5. outDir: output directory
+    
+    Output:
+        1. metacluster: INS metacluster with structure information stored at 'SV_features' dict attribute
     '''
     metacluster.determine_INS_structure(consensusPath, transducedPath, transductionSearch, outDir)
 
@@ -1729,6 +1752,15 @@ class META_cluster():
  
     def determine_INS_structure(self, consensusPath, transducedPath, transductionSearch, outDir):
         '''
+        Infer inserted sequence structural features
+
+        Input:
+            1. consensusPath: path to fasta file containing retrotransposon consensus sequences
+            2. transducedPath: path to fasta containing transduced sequences downstream of source elements
+            3. transductionSearch: boolean specifying if transduction search is enabled (True) or not (False)
+            4. outDir: output directory
+    
+        Output: Add INS structure to the attribute SV_features
         '''
         ##  Skip structure inference if consensus event not available
         if self.consensusEvent is None:
@@ -1791,7 +1823,7 @@ class META_cluster():
 
         ## 6. Structure inference
         self.SV_features['INS_TYPE'], self.SV_features['FAMILY'], self.SV_features['CYTOBAND'], self.SV_features['STRAND'], self.SV_features['POLYA'], structure, self.SV_features['MECHANISM'] = retrotransposons.retrotransposon_structure(insertPath, indexPath, outDir)
-        self.SV_features['RETRO_COORD'] = structure['retroCoord'] if structure is not None else None  
+        self.SV_features['RETRO_COORD'] = structure['retroCoord'] if 'retroCoord' in structure else None  
 
         # Cleanup
         unix.rm([outDir])    
