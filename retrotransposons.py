@@ -26,6 +26,13 @@ def retrotransposon_structure(FASTA_file, index, outDir):
         3. outDir: Output directory
         
     Output:
+        1. insType: Insertion type (solo, nested, orphan, partnered or None)
+        2. family: List of retrotransposon families
+        3. srcId: List of source element ids
+        4. strand. Insertion strand (+ or -)
+        5. polyA: boolean specifying if polyA/T sequence was found
+        6. structure: dictionary containing insertion structure information
+        7. mechanism: TPRT, EI or unknown
     '''         
 
     ## 0. Create logs directory ##
@@ -83,9 +90,9 @@ def insertion_type(chain):
         1. chain: Sequence chain of alignments over retrotranposon consensus sequences and/or transduced regions
         
     Output:
-        1. insType: Insertion type 
-        2. family: 
-        3. srcId: 
+        1. insType: Insertion type (solo, nested, orphan, partnered or None)
+        2. family: List of retrotransposon families
+        3. srcId: List of source element ids
     ''' 
     ## Make list containing all the different templates the sequence aligns into
     templateTypes = list(set([alignment.tName.split("|")[0] for alignment in chain.alignments]))
@@ -142,7 +149,7 @@ def infer_strand(insType, chain):
     strand for the insert 3' end over the template sequence
     
     Input:
-        1. insType: Insertion type (solo, transduction, ...)
+        1. insType: Insertion type (solo, nested, orphan, partnered or None)
         2. chain: Sequence chain of alignments over retrotranposon consensus sequences and/or transduced regions
         
     Output:
@@ -186,7 +193,7 @@ def search4polyA(sequence, chain, strand):
         3. strand: Insertion strand (+ or -)
         
     Output:
-        - polyA: boolean specifying if polyA/T sequence was found
+        1. polyA: boolean specifying if polyA/T sequence was found
 
         Update alignments chain object including poly(A/T) hits
     '''
@@ -355,15 +362,15 @@ def search4polyA(sequence, chain, strand):
 
 def infer_structure(insType, chain, strand):
     '''
-    TO DO DESCRIPTION
+    Infer inserted sequence structural features
     
     Input:
-        1. insType: 
-        2. chain: 
-        3. strand:
+        1. insType: Insertion type (solo, nested, orphan, partnered or None)
+        2. chain: Sequence chain of alignments over retrotranposon consensus sequences and/or transduced regions
+        3. strand: Insertion strand (+ or -)
 
     Output:
-        1. structure: 
+        1. structure: dictionary containing insertion structure information
     ''' 
     ### Initialize dictionary
     structure = {}
@@ -434,11 +441,12 @@ def infer_integration_mechanism(chain, truncation3len, polyA):
     Determine the mechanism of integration (TPRT: Target Primed Reversed Transcription; EI: Endonuclease Independent)
     
     Input:
-        1. truncation3len:
-        2. polyA: 
+        1. chain: Sequence chain of alignments over retrotranposon consensus sequences and/or transduced regions
+        2. truncation3len: number of base pairs the inserted sequence has been truncated at its 3'
+        3. polyA: boolean specifying if polyA/T sequence was found
 
     Output:
-        1. mechanism: 
+        1. mechanism: TPRT, EI or unknown
     '''  
     ## A) TPRT hallmarks: 
     # - 3' truncation <= 100bp OR None (if orphan transduction)
