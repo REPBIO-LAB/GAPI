@@ -75,7 +75,7 @@ for line in inputFile:
 	## Discard header
 	if not line.startswith("#"):        
 		fieldsList = line.split("\t")
-		chrom, beg, end, name, cytobandId, score, strand = fieldsList
+		chrom, beg, end, cytobandId, score, strand = fieldsList
 		
 		## a) Element in plus
 		# ---------------> end ........transduced........ end + 15000
@@ -100,7 +100,7 @@ for line in inputFile:
 		coord = chrom + ':' + str(tdBeg) + '-' + str(tdEnd)
 
 		## Add source element transduced region to the fasta
-		header = 'transduced|L1|' + cytobandId + '|' + coord
+		header = 'Transduced3prime|' + cytobandId + '|' + coord
 		FASTA.seqDict[header] = sequence
 
 		## Write transduced region coordinates into bed file

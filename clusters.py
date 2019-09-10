@@ -254,8 +254,7 @@ def SV_type_metaclusters(metaclusters, minINDELlen, technology, rootOutDir):
 
     for metacluster in metaclusters:
 
-        metaInterval = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])
-        outDir = rootOutDir + '/' + metaInterval
+        outDir = rootOutDir + '/SV_type/' + str(metacluster.id)
         metacluster.determine_SV_type(minINDELlen, technology, outDir)
 
         # A) Initialize list containing metaclusters of a given SV type
@@ -264,7 +263,7 @@ def SV_type_metaclusters(metaclusters, minINDELlen, technology, rootOutDir):
 
         # B) Add metacluster to the list        
         else:
-            metaclustersSVType[metacluster.SV_type].append(metacluster)    
+            metaclustersSVType[metacluster.SV_type].append(metacluster)
 
     return metaclustersSVType
 
@@ -300,8 +299,8 @@ def create_consensus(metaclusters, confDict, reference, targetSV, rootOutDir):
 
         ## For each metacluster
         for metacluster in metaclusters[SV]:
-            metaInterval = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])
-            outDir = rootOutDir + '/' + metaInterval
+
+            outDir = rootOutDir + '/consensus/' + str(metacluster.id)
 
             ## 1. Polish metacluster´s consensus sequence
             metacluster.polish(confDict, reference, outDir)
@@ -310,8 +309,7 @@ def create_consensus(metaclusters, confDict, reference, targetSV, rootOutDir):
             metacluster.consensus_event(confDict, reference, 10000, outDir)
 
             ## Cleanup
-            unix.rm([outDir])
-    
+            #unix.rm([outDir])
 
 def double_clipping_supports_INS(clusterA, clusterB, minINDELlen, technology, outDir):
     '''
@@ -484,7 +482,7 @@ def find_insertion_at_clipping_bkp(primary, supplementary):
     return insert
 
 
-def INS_type_metaclusters(metaclusters, reference, repeats, transduced, exons, confDict, rootOutDir):
+def INS_type_metaclusters(metaclusters, reference, repeats, transduced, exons, confDict, outDir):
     '''
     For each metacluster provided as input determine the type of insertion
 
@@ -495,18 +493,20 @@ def INS_type_metaclusters(metaclusters, reference, repeats, transduced, exons, c
         4. transduced: bin database containing regions transduced by source elements. None if not available
         5. exons: bin database containing annotated exons in the reference. None if not available
         6. confDict: Configuration dictionary
-        7. rootOutDir: Root output directory
+        7. outDir: Output directory
     '''      
+    ## 0. Create output directory 
+    unix.mkdir(outDir)
 
     ## 1. Create fasta containing all consensus inserted sequences ##
     msg = '1. Create fasta containing all consensus inserted sequences'
     log.subHeader(msg)    
-    fastaPath = insertedSeq2fasta(metaclusters, rootOutDir)
+    fastaPath = insertedSeq2fasta(metaclusters, outDir)
 
     ## 2. Align consensus inserted sequences into the reference genome ##
     msg = '2. Align consensus inserted sequences into the reference genome'
     log.subHeader(msg)    
-    SAM = alignment.alignment_bwa(fastaPath, reference, confDict['processes'], rootOutDir)
+    SAM = alignment.alignment_bwa(fastaPath, reference, confDict['processes'], outDir)
     
     ## 3. Asign alignments to their corresponding metacluster ##
     msg = '3. Asign alignments to their corresponding metacluster'
@@ -527,16 +527,9 @@ def INS_type_metaclusters(metaclusters, reference, repeats, transduced, exons, c
     # For each metacluster
     for element in tupleList:
         metacluster, alignments, args = element 
-        
-        metaInterval = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])
-        outDir = rootOutDir + metaInterval
-        unix.mkdir(outDir)
 
         # Infer metacluster ins type
         INS_type_metacluster(metacluster, alignments, args)
-
-        # Cleanup
-        unix.rm([outDir])
 
 def INS_type_metacluster(metacluster, alignments, args):
     '''
@@ -557,64 +550,6 @@ def INS_type_metacluster(metacluster, alignments, args):
     ## 2. Determine metacluster´s insertion type
     metacluster.determine_INS_type(alignments, repeats, transduced, exons, confDict)
 
-
-def structure_inference_parallel(metaclusters, consensusPath, transducedPath, transductionSearch, processes, rootDir):
-    '''
-    Infer structure for a list of INS metacluster objects. Parallelize by distributing metaclusters by processes. 
-
-    Input:
-        1. metaclusters: list of metacluster objects
-        2. consensusPath: path to fasta file containing retrotransposon consensus sequences
-        3. transducedPath: path to fasta containing transduced sequences downstream of source elements
-        4. transductionSearch: boolean specifying if transduction search is enabled (True) or not (False)
-        5. processes: number of processes
-        6. rootDir: Root output directory
-    
-    Output:
-        1. metaclusters: list of metacluster objects with structure information stored at 'SV_features' dict attribute
-    '''
-    ## 1. Create tuple list for multiprocessing
-    tupleList = []
-
-    for metacluster in metaclusters:
-        
-        ## Skip structure inference if insertion type not available or not solo, partnered or orphan transduction
-        # Note: investigate why INS_TYPE is not defined in some metaclusters
-        if ('INS_TYPE' not in metacluster.SV_features) or (metacluster.SV_features['INS_TYPE'] not in ['solo', 'partnered', 'orphan']):
-            continue
-
-        ## Create output directory
-        metaInterval = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])
-        outDir = rootDir + '/' + metaInterval
-        unix.mkdir(outDir)
-
-        ## Add to the list
-        fields = (metacluster, consensusPath, transducedPath, transductionSearch, outDir)
-        tupleList.append(fields)
-
-    ## 2. Infer structure
-    pool = mp.Pool(processes=processes)
-    metaclusters = pool.starmap(structure_inference, tupleList)
-
-    return metaclusters
-
-def structure_inference(metacluster, consensusPath, transducedPath, transductionSearch, outDir):
-    '''
-    Wrapper to call 'determine_INS_structure' method for a given INS metacluster provided as input
-
-    Input:
-        1. metacluster: INS metacluster 
-        2. consensusPath: path to fasta file containing retrotransposon consensus sequences
-        3. transducedPath: path to fasta containing transduced sequences downstream of source elements
-        4. transductionSearch: boolean specifying if transduction search is enabled (True) or not (False)
-        5. outDir: output directory
-    
-    Output:
-        1. metacluster: INS metacluster with structure information stored at 'SV_features' dict attribute
-    '''
-    metacluster.determine_INS_structure(consensusPath, transducedPath, transductionSearch, outDir)
-
-    return metacluster
 
 def insertedSeq2fasta(metaclusters, outDir):
     '''
@@ -716,7 +651,6 @@ def assignAligments2metaclusters_sam(metaclusters, SAM_path):
     tupleList = list(hits.values())
 
     return tupleList
-
 
 #############
 ## CLASSES ##
@@ -1279,7 +1213,6 @@ class META_cluster():
 
         # If there is a clipping cluster
         if len (CLIPPING_clusters) > 0:
-            
             ## Choose the clipping cluster with the highest number of events:
             # Coger el cluster de la lista de clusters si si length es igual a la maxima length de todos los clusters de la lista. (como devuelve una lista de un solo elemento, cojo el primer elemento de la lista.)
             # TODO: si hay dos con el mismo numero de eventos.
@@ -1512,7 +1445,7 @@ class META_cluster():
             self.consensusEvent = None                
             self.consensusFasta = None
      
-
+            
     def determine_INS_type(self, hits, repeatsDb, transducedDb, exonsDb, confDict):
         '''
         Determine the type of insertion based on the alignments of the inserted sequence on the reference genome
@@ -1659,14 +1592,15 @@ class META_cluster():
         self.insertAnnot = PAF.chain(100, 20)
         self.SV_features['PERC_RESOLVED'] = self.insertAnnot.perc_query_covered()
 
-        ## 6. Infer the insertion type based on inserted sequence hits annotation 
-        ## 6.1 Group annotated hits according to their type into a dictionary
+        ## 6. Infer the insertion type based on inserted sequence annotation 
+        ## 6.1 Group annotated features according to their type into a dictionary
         features = {}
         features['REPEAT'] = []
         features['SOURCE_ELEMENT'] = []
         features['EXON'] = []
 
         for alignment in self.insertAnnot.alignments:
+
             features[alignment.annotation.optional['name']].append(alignment)
 
         ## 6.2 Determine insertion type
@@ -1675,19 +1609,18 @@ class META_cluster():
 
             ## Repeat info
             self.SV_features['INS_TYPE'] = 'partnered'
-            self.SV_features['FAMILY'] = list(set([repeat.annotation.optional['family'] for repeat in features['REPEAT']])) 
-            self.SV_features['SUBFAMILY'] = list(set([repeat.annotation.optional['subfamily'] for repeat in features['REPEAT']]))
-            self.SV_features['DIV'] = list(set([repeat.annotation.optional['milliDiv'] for repeat in features['REPEAT']]))
+            self.SV_features['FAMILY'] = ','.join(set([repeat.annotation.optional['family'] for repeat in features['REPEAT']])) 
+            self.SV_features['SUBFAMILY'] = ','.join(set([repeat.annotation.optional['subfamily'] for repeat in features['REPEAT']]))
+            self.SV_features['DIV'] = ','.join(set([repeat.annotation.optional['milliDiv'] for repeat in features['REPEAT']]))
 
             ## Transduction info
-            self.SV_features['CYTOBAND'] = list(set([srcElement.annotation.optional['cytobandId'] for srcElement in features['SOURCE_ELEMENT']]))
+            self.SV_features['CYTOBAND'] = ','.join(set([srcElement.annotation.optional['cytobandId'] for srcElement in features['SOURCE_ELEMENT']]))
 
         # B) Orphan transduction: hit in transduced area 
         elif features['SOURCE_ELEMENT']:
 
             self.SV_features['INS_TYPE'] = 'orphan'
-            self.SV_features['FAMILY'] = list(set([srcElement.annotation.optional['family'] for srcElement in features['SOURCE_ELEMENT']]))
-            self.SV_features['CYTOBAND'] = list(set([srcElement.annotation.optional['cytobandId'] for srcElement in features['SOURCE_ELEMENT']]))
+            self.SV_features['CYTOBAND'] = ','.join(set([srcElement.annotation.optional['cytobandId'] for srcElement in features['SOURCE_ELEMENT']]))
             
         # C) Fusion: hit in repeat and exon database
         elif features['REPEAT'] and features['EXON']:
@@ -1695,20 +1628,20 @@ class META_cluster():
             self.SV_features['INS_TYPE'] = 'fusion'
 
             ## Repeat info
-            self.SV_features['FAMILY'] = list(set([repeat.annotation.optional['family'] for repeat in features['REPEAT']])) 
-            self.SV_features['SUBFAMILY'] = list(set([repeat.annotation.optional['subfamily'] for repeat in features['REPEAT']]))
-            self.SV_features['DIV'] = list(set([repeat.annotation.optional['milliDiv'] for repeat in features['REPEAT']]))
+            self.SV_features['FAMILY'] = ','.join(set([repeat.annotation.optional['family'] for repeat in features['REPEAT']])) 
+            self.SV_features['SUBFAMILY'] = ','.join(set([repeat.annotation.optional['subfamily'] for repeat in features['REPEAT']]))
+            self.SV_features['DIV'] = ','.join(set([repeat.annotation.optional['milliDiv'] for repeat in features['REPEAT']]))
 
             ## Exon info
-            self.SV_features['GENE_NAME'] = list(set([exon.annotation.optional['geneName'] for exon in features['EXON']])) 
-            self.SV_features['BIOTYPE'] = list(set([exon.annotation.optional['biotype'] for exon in features['EXON']])) 
+            self.SV_features['GENE_NAME'] = ','.join(set([exon.annotation.optional['geneName'] for exon in features['EXON']])) 
+            self.SV_features['BIOTYPE'] = ','.join(set([exon.annotation.optional['biotype'] for exon in features['EXON']])) 
 
         # D) Exon: hit in exons database 
         elif features['EXON']:
 
             self.SV_features['INS_TYPE'] = 'exon'
-            self.SV_features['GENE_NAME'] = list(set([exon.annotation.optional['geneName'] for exon in features['EXON']])) 
-            self.SV_features['BIOTYPE'] = list(set([exon.annotation.optional['biotype'] for exon in features['EXON']])) 
+            self.SV_features['GENE_NAME'] = ','.join(set([exon.annotation.optional['geneName'] for exon in features['EXON']])) 
+            self.SV_features['BIOTYPE'] = ','.join(set([exon.annotation.optional['biotype'] for exon in features['EXON']])) 
 
         # E) Repeat: hit in repeats database 
         elif features['REPEAT']:
@@ -1718,8 +1651,8 @@ class META_cluster():
             insertSubfamilies = [repeat.annotation.optional['subfamily'] for repeat in features['REPEAT']]
             insertDivergences = [repeat.annotation.optional['milliDiv'] for repeat in features['REPEAT']]
 
-            self.SV_features['FAMILY'] = list(set(insertFamilies)) 
-            self.SV_features['SUBFAMILY'] = list(set(insertSubfamilies))
+            self.SV_features['FAMILY'] = ','.join(set(insertFamilies)) 
+            self.SV_features['SUBFAMILY'] = ','.join(set(insertSubfamilies))
 
             ## Collect information regarding insertion target region annotation ##
             # Filter out annotated repeats selecting only those directly overlapping with the target region 
@@ -1743,87 +1676,12 @@ class META_cluster():
             # c) Solo repeat insertion
             else:
                 self.SV_features['INS_TYPE'] = 'solo'
-                self.SV_features['DIV'] = list(set(insertDivergences))            
+                self.SV_features['DIV'] = ','.join(set(insertDivergences))            
+
 
         # F) Unknown: hit in unnanotated region of the reference
         else:
             self.SV_features['INS_TYPE'] = 'unknown'     
             self.SV_features['PERC_RESOLVED'] = 0
  
-    def determine_INS_structure(self, consensusPath, transducedPath, transductionSearch, outDir):
-        '''
-        Infer inserted sequence structural features
-
-        Input:
-            1. consensusPath: path to fasta file containing retrotransposon consensus sequences
-            2. transducedPath: path to fasta containing transduced sequences downstream of source elements
-            3. transductionSearch: boolean specifying if transduction search is enabled (True) or not (False)
-            4. outDir: output directory
     
-        Output: Add INS structure to the attribute SV_features
-        '''
-        ##  Skip structure inference if consensus event not available
-        if self.consensusEvent is None:
-            return  
-
-        ## 1. Read fasta files 
-        #  1.1 Consensus sequences
-        consensus = formats.FASTA()
-        consensus.read(consensusPath)
-
-        #  1.2 Transduced regions
-        if transductionSearch: 
-            transduced = formats.FASTA()
-            transduced.read(transducedPath)
-
-        ## 2. Create fasta object containing database of sequences
-        ## The database will contain the following sequences depending on the insertion type:
-        ## - Solo      -> consensus sequences for the same family
-        ## - Partnered -> consensus sequences for the same family
-        #              -> corresponding transduced area
-        ## - Orphan    -> corresponding transduced area
-
-        ## Initialize fasta
-        fasta = formats.FASTA()
-
-        ## Add to the fasta subfamily consensus sequences for the corresponding family
-        if self.SV_features['INS_TYPE'] in ['solo', 'partnered']:
-            for seqId, seq in consensus.seqDict.items(): 
-                family = seqId.split('|')[1]
-
-                if family in self.SV_features['FAMILY']:
-                    fasta.seqDict[seqId] = seq
-
-        ## Add to the fasta transduced region or regions
-        if self.SV_features['INS_TYPE'] in ['partnered', 'orphan']:
-        
-            for seqId, seq in transduced.seqDict.items(): 
-                family, srcId = seqId.split('|')[1:3]
-
-                if (family in self.SV_features['FAMILY']) and (srcId in self.SV_features['CYTOBAND']):
-                    fasta.seqDict[seqId] = seq
-
-        ## 3. Create fasta file
-        fastaPath = outDir + '/reference_sequences.fa'
-        fasta.write(fastaPath)
-
-        ## 4. Index fasta file
-        fileName = 'reference_sequences'  
-        indexPath = alignment.index_minimap2(fastaPath, fileName, outDir)
-
-        ## 5. Create fasta file containing consensus inserted sequence
-        # Create fasta object
-        FASTA = formats.FASTA()
-        insert = self.consensusEvent.pick_insert()
-        FASTA.seqDict['consensus_insert'] = insert
-
-        # Write fasta
-        insertPath = outDir + '/consensus_insert.fa'
-        FASTA.write(insertPath)    
-
-        ## 6. Structure inference
-        self.SV_features['INS_TYPE'], self.SV_features['FAMILY'], self.SV_features['CYTOBAND'], self.SV_features['STRAND'], self.SV_features['POLYA'], structure, self.SV_features['MECHANISM'] = retrotransposons.retrotransposon_structure(insertPath, indexPath, outDir)
-        self.SV_features['RETRO_COORD'] = structure['retroCoord'] if 'retroCoord' in structure else None  
-
-        # Cleanup
-        unix.rm([outDir])    

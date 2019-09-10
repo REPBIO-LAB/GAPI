@@ -100,7 +100,7 @@ def find_monomers(seq, targetMonomer, windowSize, maxWindowDist, minMonomerSize,
         sliceLen = len(sliceSeq)
 
         # Compute % of target monomer in the slice 
-        baseCounts, basePercs = baseComposition(sliceSeq)
+        baseCounts = baseComposition(sliceSeq)
         percMonomer = float(baseCounts[targetMonomer])/sliceLen*100
         
         ## A) Slice correspond to a monomer (---ws--- == AAA.../TTT.../...) if:
@@ -215,7 +215,7 @@ def find_monomers(seq, targetMonomer, windowSize, maxWindowDist, minMonomerSize,
     # For each monomer
     for monomerObj in monomers:
         monomerSize = len(monomerObj.seq)
-        baseCounts, basePercs = baseComposition(monomerObj.seq)
+        baseCounts = baseComposition(monomerObj.seq)
         percMonomer = float(baseCounts[targetMonomer])/monomerSize*100
 
         ## Select those monomers with:

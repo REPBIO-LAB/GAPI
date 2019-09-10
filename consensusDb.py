@@ -84,7 +84,7 @@ for sequenceId in FASTA.seqDict:
     if subfamily in targets:
 
         family = targets[subfamily]
-        newId = 'consensus|'+ family + '|' + subfamily  
+        newId = 'consensus|' + subfamily + '|' + family
         sequence = FASTA.seqDict[sequenceId]
 
         ## Remove trailing polyA from consensus sequence (Include polyA trimming as option)

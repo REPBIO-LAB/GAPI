@@ -13,22 +13,6 @@ import bamtools
 
 ## FUNCTIONS ##
 
-def index_minimap2(fastaPath, fileName, outDir):
-    '''
-    '''
-    indexPath = outDir + '/' + fileName + '.mmi'
-    err = open(outDir + '/index.err', 'w') 
-    command = 'minimap2 -k 11 -w 1 -d ' + indexPath + ' ' + fastaPath 
-    status = subprocess.call(command, stderr=err, shell=True)
-
-    if status != 0:
-        step = 'INDEX'
-        msg = 'minimap2 indexing failed' 
-        log.step(step, msg)
-    
-    return indexPath
-
-
 def minimap2_presets(technology):
     '''
     Set minimap2 preset according to the sequencing technology

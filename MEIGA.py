@@ -31,7 +31,6 @@ parser.add_argument('refDir', help='Directory containing reference databases (co
 ## General
 parser.add_argument('--normalBam', default=None, dest='normalBam', help='Matched normal bam file. If provided MEIGA will run in PAIRED mode')
 parser.add_argument('--transduction-search', action="store_true", default=False, dest='transductionSearch', help='Enable transduction search. If not enabled only solo events will be identified')
-parser.add_argument('--source-families', default=None, dest='srcFamilies', type=str, help='Comma separated list of possible families for source elements mediating transductions. Default: None. Mandatory if transduction search enabled')
 parser.add_argument('--gene-annot-dir', default=None, dest='annovarDir', help='Directory containing annovar reference files for gene-based annotation of MEI breakpoints. If not provided gene annotation step will be skipped')
 parser.add_argument('--polishing-rounds', default=1, dest='rounds', type=int, help='Number of polishing rounds to be attempted. Default: 1')
 parser.add_argument('-p', '--processes', default=1, dest='processes', type=int, help='Number of processes. Default: 1')
@@ -80,7 +79,6 @@ refDir = args.refDir
 ## General
 normalBam = args.normalBam
 transductionSearch = args.transductionSearch
-srcFamilies = args.srcFamilies
 annovarDir = args.annovarDir
 rounds = args.rounds
 processes = args.processes
@@ -132,18 +130,12 @@ if technology not in ['NANOPORE', 'PACBIO', 'ILLUMINA']:
 	log.info('[ERROR] Abort execution as ' + technology + ' technology not supported')
 	sys.exit(1)
 
-## Abort if transduction search enabled and target families for source elements not provided
-if (transductionSearch) and (srcFamilies is None):
-	log.info('[ERROR] Abort execution as transduction search enabled (--transduction-search) and target families for source elements not provided (--source-families)')
-	sys.exit(1)	
-
-
 ##############################################
 ## Display configuration to standard output ##
 ##############################################
 scriptName = os.path.basename(sys.argv[0])
 scriptName = os.path.splitext(scriptName)[0]
-version='0.7.0'
+version='0.6.0'
 
 print()
 print('***** ', scriptName, version, 'configuration *****')
@@ -158,7 +150,6 @@ print('** General **')
 print('mode: ', mode)
 print('normalBam: ', normalBam)
 print('transduction-search: ', transductionSearch)
-print('source-families: ', srcFamilies)
 print('gene-annot-dir: ', annovarDir)
 print('polishing-rounds: ', rounds)
 print('processes: ', processes)
@@ -207,7 +198,6 @@ confDict['technology'] = technology
 
 ## General
 confDict['transductionSearch'] = transductionSearch
-confDict['srcFamilies'] = srcFamilies.split(',') if srcFamilies is not None else []
 confDict['annovarDir'] = annovarDir
 confDict['rounds'] = rounds
 confDict['processes'] = processes

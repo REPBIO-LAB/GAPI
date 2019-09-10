@@ -14,7 +14,7 @@ import alignment
 import sequences
 
 ## FUNCTIONS ##
-def retrotransposon_structure(FASTA_file, index, outDir):
+def is_retrotransposition(FASTA_file, index, outDir):
     '''
     Determine if an input sequence correspond to a retrotransposition event (solo, partnered or orphan transduction from a known source element). 
     
@@ -26,21 +26,21 @@ def retrotransposon_structure(FASTA_file, index, outDir):
         3. outDir: Output directory
         
     Output:
-        1. insType: Insertion type (solo, nested, orphan, partnered or None)
-        2. family: List of retrotransposon families
-        3. srcId: List of source element ids
-        4. strand. Insertion strand (+ or -)
-        5. polyA: boolean specifying if polyA/T sequence was found
-        6. structure: dictionary containing insertion structure information
-        7. mechanism: TPRT, EI or unknown
-    '''         
-
+    ''' 
     ## 0. Create logs directory ##
     logDir = outDir + '/Logs'
     unix.mkdir(logDir)
 
     ## 1. Align the sequence into the retrotransposon sequences database ##
-    PAF_file = alignment.alignment_minimap2(FASTA_file, index, 1, outDir)
+    PAF_file = outDir + '/alignments.paf'
+    err = open(logDir + '/align.err', 'w') 
+    command = 'minimap2 ' + index + ' ' + FASTA_file + ' > ' + PAF_file
+    status = subprocess.call(command, stderr=err, shell=True)
+
+    if status != 0:
+        step = 'ALIGN-INSERT'
+        msg = 'Insert alignment failed' 
+        log.step(step, msg)
 
     ## 2. Read PAF alignments ##
     PAF = formats.PAF()
@@ -48,12 +48,12 @@ def retrotransposon_structure(FASTA_file, index, outDir):
 
     # Exit function if no hit on the retrotransposons database
     if not PAF.lines:
-        insType, family, srcId, strand, polyA, structure, mechanism = [None, [], [], None, False, {}, 'unknown']
-        return insType, family, srcId, strand, polyA, structure, mechanism
+        insType, family, srcId, status, percCovered, strand, hits = [None, None, None, None, None, None, None]
+        return insType, family, srcId, status, percCovered, strand, hits
 
     ## 3. Chain complementary alignments ##
-    chain = PAF.chain(100, 20)
-
+    chain = PAF.chain(50, 20)
+    
     ## 4. Infer insertion features ##
     ## 4.1 Insertion type
     insType, family, srcId = insertion_type(chain)
@@ -68,19 +68,31 @@ def retrotransposon_structure(FASTA_file, index, outDir):
     sequence = list(FASTA.seqDict.values())[0]
 
     ## Search for polyA at 3' insert end
-    polyA = search4polyA(sequence, chain, strand)
+    search4polyA(sequence, chain, strand)
 
-    ## 4.4 Sequence structure 
-    structure = infer_structure(insType, chain, strand)
-
-    ## 4.5 Insertion mechanism (TPRT or EI)
-    mechanism = infer_integration_mechanism(chain, structure['truncation3len'], polyA)
-
-    ## 4.6 Target site duplication (TO DO LATER...)
+    ## 4.4 Sequence structure (TO DO LATER...)
+    # infer_structure()
+    
+    ## 4.5 Target site duplication (TO DO LATER...)
     #search4tsd()
-    
-    return insType, family, srcId, strand, polyA, structure, mechanism
-    
+
+    ## 5. Determine status accoding to how much % of its sequence has been resolved ## 
+    percCovered = chain.perc_query_covered()
+
+    if (percCovered >= 70):
+        status = 'resolved'
+
+    elif (percCovered >= 40):
+        status = 'partially_resolved'        
+
+    else:
+        status = 'unresolved'      
+
+    ## Make hits string
+    hits = ['_'.join([str(hit.qBeg), str(hit.qEnd), hit.strand, hit.tName]) for hit in chain.alignments]
+    hits = ';'.join(hits)
+
+    return insType, family, srcId, status, percCovered, strand, hits
 
 def insertion_type(chain):
     '''
@@ -90,58 +102,76 @@ def insertion_type(chain):
         1. chain: Sequence chain of alignments over retrotranposon consensus sequences and/or transduced regions
         
     Output:
-        1. insType: Insertion type (solo, nested, orphan, partnered or None)
-        2. family: List of retrotransposon families
-        3. srcId: List of source element ids
+        1. insType: Insertion type 
     ''' 
+    
     ## Make list containing all the different templates the sequence aligns into
     templateTypes = list(set([alignment.tName.split("|")[0] for alignment in chain.alignments]))
     nbTemplateTypes = len(templateTypes)
 
     ## Make list containing the id for the source element transduced regions the sequence aligns into
-    sourceElements = list(set([alignment.tName.split("|")[2] for alignment in chain.alignments if ('transduced' in alignment.tName)]))
-    nbSource = len(sourceElements)
+    sourceElements = list(set([alignment.tName.split("|")[1] for alignment in chain.alignments if ('Transduced5prime' in alignment.tName) or ('Transduced3prime' in alignment.tName)]))
 
     ## Make list containing the families the sequence aligns into 
-    families = list(set([alignment.tName.split("|")[1] for alignment in chain.alignments if ('consensus' in alignment.tName)]))
+    families = list(set([alignment.tName.split("|")[2] for alignment in chain.alignments if ('consensus' in alignment.tName) or ('consensus' in alignment.tName)]))
     nbFamilies = len(families)
 
-    ## a) Solo insertion
-    # //////RT//////     
-    if (nbTemplateTypes == 1) and ('consensus' in templateTypes) and (nbFamilies == 1):
-        insType = 'solo'
-        family = families
-        srcId = []
-
-    ## b) Nested insertion (Insertion composed by multiple retrotransposons from different families)
-    # //////RT_1//////\\\\\\\\RT_2\\\\\\\     
-    elif (nbTemplateTypes == 1) and ('consensus' in templateTypes):
-        insType = 'nested'
-        family = families
-        srcId = []
-        
-    ## c) Orphan (inserted sequence only matching one transduced region)
-    # SOURCE//////TD//////    
-    elif (nbTemplateTypes == 1) and ('transduced' in templateTypes) and (nbSource == 1):
-        insType = 'orphan'
-        family = []
-        srcId = sourceElements
-
-    ## d) Partnered (inserted sequence matching consensus and one transduced sequence)
-    # SOURCE >>>>>>L1>>>>>>//////TD///////    
-    elif (nbTemplateTypes == 2) and (set(['consensus', 'transduced']).issubset(templateTypes)) and (nbFamilies == 1) and (nbSource == 1):
-        insType = 'partnered'
-        family = families
-        srcId = sourceElements
-
-    ## e) Unknown insertion type
-    else:
+    ## a) Unknown insertion type
+    if not templateTypes:
         insType = None
-        family = []
-        srcId = [] 
+        family = None
+        srcId = None
+
+    ## b) Solo insertion
+    # //////RT//////     
+    elif (nbTemplateTypes == 1) and ('consensus' in templateTypes):
+        insType = 'Solo'
+        family = ';'.join(families)
+        srcId = None
+
+    ## c) Nested insertion (Insertion composed by multiple retrotransposons from different families)
+    # //////RT_1//////\\\\\\\\RT_2\\\\\\\     
+    elif (nbTemplateTypes == 1) and ('consensus' in templateTypes) and (nbFamilies > 1):
+        insType = 'Nested'
+        family = ';'.join(families)
+        srcId = None
+
+    ## d) Orphan 5' 
+    # //////TD//////SOURCE    
+    elif (nbTemplateTypes == 1) and ('Transduced5prime' in templateTypes):
+        insType = 'Orphan5prime'
+        family = None
+        srcId = ';'.join(sourceElements)
+        
+    ## e) Orphan 3' 
+    # SOURCE//////TD//////    
+    elif (nbTemplateTypes == 1) and ('Transduced3prime' in templateTypes):
+        insType = 'Orphan3prime'
+        family = None
+        srcId = ';'.join(sourceElements)
+
+    ## f) Partnered 5' 
+    # SOURCE //////TD///////>>>>>>L1/SVA>>>>>>    
+    elif (nbTemplateTypes == 2) and (set(['consensus', 'Transduced5prime']).issubset(templateTypes)):
+        insType = 'Partnered5prime'
+        family = ';'.join(families)
+        srcId = ';'.join(sourceElements)
+
+    ## g) Partnered 3'
+    # SOURCE >>>>>>L1>>>>>>//////TD///////    
+    elif (nbTemplateTypes == 2) and set(['consensus', 'Transduced3prime']).issubset(templateTypes):
+        insType = 'Partnered3prime'
+        family = ';'.join(families)
+        srcId = ';'.join(sourceElements)
+
+    ## h) Partnered transduction containing both 5' and 3' transduction
+    else:
+        insType = 'Partnered5,3prime'
+        family = ';'.join(families)
+        srcId = ';'.join(sourceElements)
 
     return insType, family, srcId
-    
+
 
 def infer_strand(insType, chain):
     '''
@@ -149,14 +179,15 @@ def infer_strand(insType, chain):
     strand for the insert 3' end over the template sequence
     
     Input:
-        1. insType: Insertion type (solo, nested, orphan, partnered or None)
+        1. insType: Insertion type (solo, transduction, ...)
         2. chain: Sequence chain of alignments over retrotranposon consensus sequences and/or transduced regions
         
     Output:
         1. strand. Insertion strand (+ or -)
     ''' 
+
     ## a) Solo or orphan transduction    
-    if insType in ['solo', 'orphan']:
+    if insType in ['Solo', 'Orphan5prime', 'Orphan3prime']:
 
         ## Sort hits from 5' to 3'
         sortedHits = sorted(chain.alignments, key=lambda alignment: alignment.tEnd, reverse=False)
@@ -164,11 +195,11 @@ def infer_strand(insType, chain):
         ## Select 3' end hit as its strand will be == insertion strand
         strand = sortedHits[-1].strand
         
-    ## b) Partnered transduction
-    elif insType == 'partnered':
+    ## b) Partnered
+    elif insType in ['Partnered5prime', 'Partnered3prime']:
 
         ## Select hits over the transduced region
-        transductionHits = [alignment for alignment in chain.alignments if 'transduced' in alignment.tName]
+        transductionHits = [alignment for alignment in chain.alignments if 'Transduced' in alignment.tName]
 
         ## Sort hits from 5' to 3'
         sortedHits = sorted(transductionHits, key=lambda alignment: alignment.tEnd, reverse=False)
@@ -176,7 +207,19 @@ def infer_strand(insType, chain):
         ## Select 3' end hit as its strand will be == insertion strand
         strand = sortedHits[-1].strand
 
-    ## c) Other
+    ## c) 5' and 3' partnered transductions
+    elif insType == 'Partnered5,3prime':
+
+        ## Select hits over the transduced region
+        transductionHits = [alignment for alignment in chain.alignments if 'Transduced3prime' in alignment.tName]
+
+        ## Sort hits from 5' to 3'
+        sortedHits = sorted(transductionHits, key=lambda alignment: alignment.tEnd, reverse=False)
+
+        ## Select 3' end hit as its strand will be == insertion strand
+        strand = sortedHits[-1].strand
+
+    ## d) Nested
     else:
         strand = None
 
@@ -193,12 +236,8 @@ def search4polyA(sequence, chain, strand):
         3. strand: Insertion strand (+ or -)
         
     Output:
-        1. polyA: boolean specifying if polyA/T sequence was found
-
         Update alignments chain object including poly(A/T) hits
     '''
-    polyA = False
-
     ### Set up configuration parameters
     windowSize = 5
     maxWindowDist = 2
@@ -249,9 +288,6 @@ def search4polyA(sequence, chain, strand):
         ## a) Single poly(A) 
         if nbMonomers == 1:
 
-            ## Set boolean as true
-            polyA = True
-
             monomer = filteredMonomers[0]
 
             ## Create PAF line containing poly(A) info
@@ -267,15 +303,11 @@ def search4polyA(sequence, chain, strand):
         # Sequence in between corresponds to a short transduction (TD)
         # AAAAAAAAAA-----TD-----AAAAAAAAAA
         elif nbMonomers == 2:
-
-            ## Set boolean as true
-            polyA = True
-
             firstMonomer, secondMonomer = filteredMonomers
 
             ## Create PAF line containing TD info
             firstAlignment = chain.alignments[0]
-            fields = [firstAlignment.qName, firstAlignment.qLen, firstMonomer.beg, secondMonomer.beg, None, 'transduced|UNK|UNK|UNK', 0, 0, 0, 0, 0, 0]
+            fields = [firstAlignment.qName, firstAlignment.qLen, firstMonomer.beg, secondMonomer.beg, None, 'Transduced3prime_UNK_UNK', 0, 0, 0, 0, 0, 0]
             alignment = formats.PAF_line(fields)
             chain.alignments.append(alignment) ## Add to the chain
 
@@ -322,9 +354,6 @@ def search4polyA(sequence, chain, strand):
         
         ## a) Single poly(T) 
         if nbMonomers == 1:
-            
-            ## Set boolean as true
-            polyA = True
 
             monomer = filteredMonomers[0]
 
@@ -340,15 +369,11 @@ def search4polyA(sequence, chain, strand):
         # Sequence in between corresponds to a short transduction (TD)
         # TTTTTTTTT-----TD-----TTTTTTTTT
         elif nbMonomers == 2:
-
-            ## Set boolean as true
-            polyA = True
-
             firstMonomer, secondMonomer = filteredMonomers
             
             ## Create PAF line containing TD info
             firstAlignment = chain.alignments[0]
-            fields = [firstAlignment.qName, firstAlignment.qLen, firstMonomer.end, secondMonomer.end, None, 'transduced|UNK|UNK|UNK', 0, 0, 0, 0, 0, 0]
+            fields = [firstAlignment.qName, firstAlignment.qLen, firstMonomer.end, secondMonomer.end, None, 'Transduced3prime_UNK_UNK', 0, 0, 0, 0, 0, 0]
             alignment = formats.PAF_line(fields)
             chain.alignments.insert(0, alignment) ## Add to the chain
 
@@ -357,115 +382,43 @@ def search4polyA(sequence, chain, strand):
             alignment = formats.PAF_line(fields)
             chain.alignments.insert(0, alignment) ## Add to the chain
 
-    return polyA
 
-
-def infer_structure(insType, chain, strand):
+def infer_structure(chain):
     '''
-    Infer inserted sequence structural features
-    
-    Input:
-        1. insType: Insertion type (solo, nested, orphan, partnered or None)
-        2. chain: Sequence chain of alignments over retrotranposon consensus sequences and/or transduced regions
-        3. strand: Insertion strand (+ or -)
-
-    Output:
-        1. structure: dictionary containing insertion structure information
-    ''' 
-    ### Initialize dictionary
-    structure = {}
-
-    for feature in ['retroCoord', 'retroLen', 'isFull', 'truncation5len', 'truncation3len', 'transductionCoord', 'transductionLen', 'inversionLen']:
-        structure[feature] = None
-
-    ### 1. Compute the length of each type of sequence composing the insertion
-    # 1.1 Retroelement length
-    if insType in ['solo', 'partnered']:
-
-        ## Pick only those hits over retrotransposon consensus sequence
-        retroHits = [hit for hit in chain.alignments if 'consensus' in hit.tName]
-
-        ## Determine piece of consensus sequence that has been integrated
-        ref = retroHits[0].tName.split('|')[1]
-        retroBeg = min([hit.tBeg for hit in retroHits])
-        retroEnd = max([hit.tEnd for hit in retroHits])
-        structure['retroCoord'] = str(ref) + ':' + str(retroBeg) + '-' + str(retroEnd)
-
-        ## Compute length
-        structure['retroLen'] = retroEnd - retroBeg
-
-        ## Assess if full length retrotransposon insertion
-        consensusLen = retroHits[0].tLen 
-        percConsensus = float(structure['retroLen']) / consensusLen * 100
-        structure['isFull'] = True if percConsensus >= 95 else False
-
-        ## Compute truncation length at both ends
-        structure['truncation5len'] = retroBeg   
-        structure['truncation3len'] = consensusLen - retroEnd
-
-    # 1.2 Transduction length
-    if insType in ['partnered', 'orphan']:
-
-        ## Pick only those hits over transduced region
-        transductionHits = [hit for hit in chain.alignments if 'transduced' in hit.tName]
- 
-        ## Compute offset to translate from interval to genomic coordinates
-        interval = transductionHits[0].tName.split('|')[3]
-        ref, coord = interval.split(':')
-        offset = int(coord.split('-')[0])
-        
-        ## Determine piece of transduced area that has been integrated
-        transductionBeg = min([hit.tBeg for hit in transductionHits]) + offset
-        transductionEnd = max([hit.tEnd for hit in transductionHits]) + offset
-        structure['transductionCoord'] = (ref, transductionBeg, transductionEnd)
-
-        ## Compute length
-        structure['transductionLen'] = transductionEnd - transductionBeg
-
-    # 1.3 Inversion length
-    inversionHits = [hit for hit in chain.alignments if ((hit.strand != 'None') and (hit.strand != strand))]
-
-    # a) 5' inversion
-    if inversionHits:
-        structure['inversionLen'] = sum([hit.tEnd - hit.tBeg for hit in inversionHits])
-
-    # b) No inversion
-    else:
-        structure['inversionLen'] = 0   
-     
-    return structure
-
-
-def infer_integration_mechanism(chain, truncation3len, polyA):
-    '''
-    Determine the mechanism of integration (TPRT: Target Primed Reversed Transcription; EI: Endonuclease Independent)
+    WORK ON PROGRESS
     
     Input:
         1. chain: Sequence chain of alignments over retrotranposon consensus sequences and/or transduced regions
-        2. truncation3len: number of base pairs the inserted sequence has been truncated at its 3'
-        3. polyA: boolean specifying if polyA/T sequence was found
-
+        
     Output:
-        1. mechanism: TPRT, EI or unknown
-    '''  
-    ## A) TPRT hallmarks: 
-    # - 3' truncation <= 100bp OR None (if orphan transduction)
-    # - polyA 
-    # - Incorporate TSD later as an additional evidence...
-    if ((truncation3len is None) or (truncation3len <= 100)) and polyA:
-        mechanism = 'TPRT'
+    ''' 
+    #### 3. Collect transduction information  
+    ## a) Not transduction
+    if (insType == 'Solo') or (insType == 'Nested'):
+        srcId = None 
+        srcType = None
+        srcCoord = None
+        tdCoord = None
+        tdLen = None
+ 
+    ## b) 5' and 3' transductions
+    #elif (insType == 'Partnered5,3prime'):
 
-    ## B) EI hallmarks:
-    # - 3' truncation > 100bp 
-    # - no polyA
-    elif ((truncation3len is not None) and (truncation3len > 100)) and not polyA:
-        mechanism = 'EI'
-
-    ## C) Unknown mechanism:
+    ## c) Single transduction
     else:
-        mechanism = 'unknown'
+        ## Select hits over the transduced region
+        transductionHits = [alignment for alignment in chain.alignments if 'Transduced' in alignment.tName ]
+        
+        ## Collect src element id and coordinates from template name
+        srcType = 'GERMLINE'   # Temporary
+        srcId, srcCoord = transductionHits[0].tName.split(':')[1:]
 
-    #for hit in chain.alignments:
-    #    print('HIT: ', hit.qName, hit.qLen, hit.qBeg, hit.qEnd, hit.strand, hit.tName, hit.tLen, hit.tBeg, hit.tEnd, hit.nbMatches, hit.blockLen, hit.MAPQ)
+        chrom, coords = srcCoord.split(':')
+        beg, end = coords.split('-')
 
-    return mechanism
+        ## 
+        tdBeg = min([alignment.tBeg for alignment in transductionHits]) + int(beg)
+        tdEnd = max([alignment.tEnd for alignment in transductionHits]) + int(beg)
+
+        tdCoord = None
+        tdLen = None
