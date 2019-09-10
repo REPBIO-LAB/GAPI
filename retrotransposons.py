@@ -47,8 +47,8 @@ def retrotransposon_structure(FASTA_file, index, outDir):
 
     # Exit function if no hit on the retrotransposons database
     if not PAF.lines:
-        insType, family, srcId, strand, polyA, structure, mechanism = [None, [], [], None, False, {}, 'unknown']
-        return insType, family, srcId, strand, polyA, structure, mechanism
+        percResolved, insType, family, srcId, strand, polyA, structure, mechanism = [0, None, [], [], None, False, {}, 'unknown']
+        return percResolved, insType, family, srcId, strand, polyA, structure, mechanism
 
     ## 3. Chain complementary alignments ##
     chain = PAF.chain(100, 20)
@@ -439,7 +439,6 @@ def infer_integration_mechanism(chain, truncation3len, polyA):
     # - 3' truncation > 100bp 
     # - no polyA
     elif (chain.perc_query_covered() >= 95) and ((truncation3len is not None) and (truncation3len > 100)) and not polyA:
-        print('EI_INDEPENDENT: ', chain.perc_query_covered(), truncation3len, polyA)
         mechanism = 'EI'
 
     ## C) Unknown mechanism:
