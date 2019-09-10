@@ -13,6 +13,31 @@ import bamtools
 
 ## FUNCTIONS ##
 
+def index_minimap2(fastaPath, fileName, outDir):
+    '''
+    Create minimap2 index for an input fasta
+
+    Input:
+        1. fastaPath: path to fasta file to index
+        2. fileName: name of index
+        3. outDir: output directory
+
+    Output:
+        1. indexPath: path to index
+    '''
+    indexPath = outDir + '/' + fileName + '.mmi'
+    err = open(outDir + '/index.err', 'w') 
+    command = 'minimap2 -k 11 -w 1 -d ' + indexPath + ' ' + fastaPath 
+    status = subprocess.call(command, stderr=err, shell=True)
+
+    if status != 0:
+        step = 'INDEX'
+        msg = 'minimap2 indexing failed' 
+        log.step(step, msg)
+    
+    return indexPath
+
+
 def minimap2_presets(technology):
     '''
     Set minimap2 preset according to the sequencing technology
@@ -82,7 +107,7 @@ def alignment_bwa(FASTA, reference, threads, outDir):
     ## 1. Align the sequences into the reference
     SAM = outDir + '/alignments.sam'
     err = open(outDir + '/align.err', 'w') 
-    command = 'bwa mem -t ' + str(threads) + ' ' + reference + ' ' + FASTA + ' > ' + SAM
+    command = 'bwa mem -Y -t ' + str(threads) + ' ' + reference + ' ' + FASTA + ' > ' + SAM
     status = subprocess.call(command, stderr=err, shell=True)
 
     if status != 0:
