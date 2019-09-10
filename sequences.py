@@ -100,7 +100,7 @@ def find_monomers(seq, targetMonomer, windowSize, maxWindowDist, minMonomerSize,
         sliceLen = len(sliceSeq)
 
         # Compute % of target monomer in the slice 
-        baseCounts = baseComposition(sliceSeq)
+        baseCounts, basePercs = baseComposition(sliceSeq)
         percMonomer = float(baseCounts[targetMonomer])/sliceLen*100
         
         ## A) Slice correspond to a monomer (---ws--- == AAA.../TTT.../...) if:
@@ -215,7 +215,7 @@ def find_monomers(seq, targetMonomer, windowSize, maxWindowDist, minMonomerSize,
     # For each monomer
     for monomerObj in monomers:
         monomerSize = len(monomerObj.seq)
-        baseCounts = baseComposition(monomerObj.seq)
+        baseCounts, basePercs = baseComposition(monomerObj.seq)
         percMonomer = float(baseCounts[targetMonomer])/monomerSize*100
 
         ## Select those monomers with:
@@ -226,6 +226,39 @@ def find_monomers(seq, targetMonomer, windowSize, maxWindowDist, minMonomerSize,
         
     return filteredMonomers
 
+
+def filter_internal_monomers(monomers, targetSeq, maxDist2Ends, minInternalMonomerSize):
+    '''
+    Filter monomers by requesting a larger size for internal monomers
+
+    Input:
+        1. monomers: 
+        2. targetSeq:
+        3. maxDist2Ends: 
+        4. minInternalMonomerSize: 
+
+    Output:
+        1. filteredMonomers: 
+    '''
+    ## An internal monomer is located at more than Xbp from the inserted sequence ends
+    filteredMonomers = []
+
+    ## For each input monomer
+    for monomer in monomers:
+        dist2Beg = monomer.beg
+        dist2End = len(targetSeq) - monomer.end
+
+        ## a) Select external monomers located at less than or equal to X bp from insert ends 
+        if (dist2Beg <= maxDist2Ends) or (dist2End <= maxDist2Ends):
+            filteredMonomers.append(monomer)
+                            
+        ## b) Select internal monomers longer or equal than X bp
+        elif (monomer.length() >= minInternalMonomerSize):
+            filteredMonomers.append(monomer)
+            
+        ## c) Discard internal monomers smaller than X bp
+
+    return filteredMonomers
 
 def aligmentMaxNbMatches(FASTA_file, db, PAF_file, outDir):
     '''
