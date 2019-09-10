@@ -276,9 +276,6 @@ def aligmentMaxNbMatches(FASTA_file, db, PAF_file, outDir):
         msg = 'Identify mate sequence failed' 
         log.step(step, msg)
         
-        
-        
-
 
     # If PAF file is not empty
     if not os.stat(PAF_file).st_size == 0:

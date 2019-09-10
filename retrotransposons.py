@@ -34,7 +34,6 @@ def retrotransposon_structure(FASTA_file, index, outDir):
         6. structure: dictionary containing insertion structure information
         7. mechanism: TPRT, EI or unknown
     '''         
-
     ## 0. Create logs directory ##
     logDir = outDir + '/Logs'
     unix.mkdir(logDir)
@@ -64,22 +63,18 @@ def retrotransposon_structure(FASTA_file, index, outDir):
     insType, family, srcId = insertion_type(chain)
 
     ## 4.2 Insertion strand
-    strand = infer_strand_alignment(insType, chain)
-    infer_strand(insType, sequence, chain)
+    strand, polyA = infer_strand(insType, sequence, chain)
 
-    ## 4.3 Identify PolyA tail
-    polyA = search4polyA_old(sequence, chain, strand)
-
-    ## 4.4 Sequence structure 
+    ## 4.3 Sequence structure 
     structure = infer_structure(insType, chain, strand)
 
-    ## 4.5 Insertion mechanism (TPRT or EI)
+    ## 4.4 Insertion mechanism (TPRT or EI)
     mechanism = infer_integration_mechanism(chain, structure['truncation3len'], polyA)
 
-    ## 4.6 Target site duplication (TO DO LATER...)
+    ## 4.5 Target site duplication (TO DO LATER...)
     #search4tsd()
     
-    return insType, family, srcId, strand, polyA, structure, mechanism
+    return chain.perc_query_covered(), insType, family, srcId, strand, polyA, structure, mechanism
     
 
 def insertion_type(chain):
@@ -148,29 +143,59 @@ def infer_strand(insType, sequence, chain):
     Infer insertion strand based on two criteria:
         1) Alignment orientation for the insert 3' end over the template sequence
         2) Location of polyA/T tail at sequence ends
+
+    Input:
+        1. insType: Insertion type (solo, nested, orphan, partnered or None)
+        2. sequence: consensus inserted sequence
+        3. chain: Sequence chain of alignments over retrotranposon consensus sequences and/or transduced regions
+
+    Output:
+        1. strand: Insertion strand (+, - or None) 
+        2. polyA: boolean specifying if polyA/T sequence was found
     '''
 
-    ## 1. Strand based on alignment orientation
-    strandOrientation = infer_strand_alignment(insType, chain)
-    print('strandOrientation: ', strandOrientation)
+    ## 1. Strand based on polyA/T presence 
+    strandPolyA, polyA = infer_strand_polyA(sequence, chain)
 
-    ## 2. Strand based on polyA/T presence 
-    infer_strand_polyA(sequence, chain)
+    ## 2. Strand based on alignment orientation
+    strandAlignment = infer_strand_alignment(insType, chain)
 
+    ## 3. Define consensus strand
+    # a) PolyA/T has preference over the alignment orientation
+    if strandPolyA is not None:
+        strand = strandPolyA
+    
+    # b) Strand based on the alignment orientation
+    elif strandAlignment is not None:
+        strand = strandAlignment
+    
+    # c) Unknown strand
+    else:
+        strand = None
+    
+    return strand, polyA
+    
 
 def infer_strand_polyA(sequence, chain):
     '''
     Infer insertion strand based on two criteria:
         1) Location of polyA/T tail at sequence ends
         2) Alignment strand for the insert 3' end over the template sequence
+
+    Input: 
+        1. sequence: consensus inserted sequence
+        2. chain: Sequence chain of alignments over retrotranposon consensus sequences and/or transduced regions
+
+    Output:
+        1. strand: Insertion strand (+, - or None) 
+        2. polyA: boolean specifying if polyA/T sequence was found
     '''
-    print('infer_strand_polyA: ', sequence, chain)
     
     ### Set up configuration parameters
-    windowSize = 5
+    windowSize = 8
     maxWindowDist = 2
-    minMonomerSize = 8
-    minPurity = 70 
+    minMonomerSize = 10
+    minPurity = 80 
 
     maxDist2Ends = 10 
     minInternalMonomerSize = 20
@@ -180,38 +205,99 @@ def infer_strand_polyA(sequence, chain):
     lastHit = chain.alignments[-1]
     targetSeq = sequence[lastHit.qEnd:]
 
-    print('targetSeq: ', targetSeq)
-
     # 1.2 Search for poly(A) monomers on the 3' end 
     targetMonomer = 'A'
     monomers3end = sequences.find_monomers(targetSeq, targetMonomer, windowSize, maxWindowDist, minMonomerSize, minPurity)
-    print('monomers3end: ', len(monomers3end), monomers3end)
 
     # 1.3 Filter internal monomers
     monomers3end = sequences.filter_internal_monomers(monomers3end, targetSeq, maxDist2Ends, minInternalMonomerSize)
-    print('monomers3end_filtered: ', len(monomers3end), monomers3end)
 
     ## 2. Search for polyT at the insert 5' end ##
     # 2.1 Extract unaligned 5' end of the inserted sequence
     firstHit = chain.alignments[0]
     targetSeq = sequence[:firstHit.qBeg]
 
-    print('targetSeq: ', targetSeq)
-
     # 2.2 Search for poly(T) monomers on the 5' end 
     targetMonomer = 'T'
     monomers5end = sequences.find_monomers(targetSeq, targetMonomer, windowSize, maxWindowDist, minMonomerSize, minPurity)
-    print('monomers5end: ', len(monomers5end), monomers5end)
 
     # 2.3 Filter internal monomers
     monomers5end = sequences.filter_internal_monomers(monomers5end, targetSeq, maxDist2Ends, minInternalMonomerSize)
-    print('monomers5end_filtered: ', len(monomers5end), monomers5end)
 
-    ## 3. Determine strand
+    ## 3. Determine strand ##
+    # 3.1 Compute 3' monomers accumulative length
+    monomers3endLengths = [monomer.length() for monomer in monomers3end]
+    accumulative3prime = sum(monomers3endLengths)
+     
+    # 3.2 Compute 5' monomers accumulative length
+    monomers5endLengths = [monomer.length() for monomer in monomers5end]
+    accumulative5prime = sum(monomers5endLengths)
 
-    ## 4. Convert monomer coordinates to inserted sequence space
-    
+    # 3.3 Determine if polyA/T at 5' or 3' end (indicative of strand orientation) 
+    # a) Unknown strand if:
+    # - No monomer found in any end OR
+    # - Ambiguity as 3' and 5' monomers with equal size
+    if ((accumulative3prime == 0) and (accumulative5prime == 0)) or (accumulative3prime == accumulative5prime) :
+        monomers = None
+        strand = None
+        polyA = False
+
+    # b) Positive strand
+    elif accumulative3prime > accumulative5prime:
+        monomers = monomers3end
+        strand = '+'
+        polyA = True
+
+    # c) Negative strand
+    else:
+        monomers = monomers5end
+        strand = '-'
+        polyA = True
+
+    ## 4. Convert monomer coordinates to inserted sequence space ##
+    ## a) + strand
+    # -----insert------**unaligned**
+    if strand == '+':
+
+        for monomer in monomers:
+            monomer.beg = monomer.beg + lastHit.qEnd
+            monomer.end = monomer.end + lastHit.qEnd 
+
+    ## b) - strand
+    # NOT NEEDED as the unaligned sequence correspond to the leftmost end of the insert 
+    # **unaligned**-----insert------ 
+
     ## 5. Add polyA/T to the chain of alignments
+    firstAlignment = chain.alignments[0]
+
+    ## a) + strand
+    if strand == '+':
+
+        # For each monomer
+        for monomer in monomers:
+
+            # Create PAF line containing poly(A) info
+            fields = [firstAlignment.qName, firstAlignment.qLen, monomer.beg, monomer.end, None, 'poly(A/T)', 0, 0, 0, 0, 0, 0]            
+            alignment = formats.PAF_line(fields)
+
+            # Add to the end of the chain
+            chain.alignments.append(alignment) 
+
+    ## b) - strand
+    elif strand == '-':
+
+        # For each monomer
+        for monomer in monomers[::-1]:
+
+            # Create PAF line containing poly(T) info
+            fields = [firstAlignment.qName, firstAlignment.qLen, monomer.beg, monomer.end, None, 'poly(A/T)', 0, 0, 0, 0, 0, 0]
+            alignment = formats.PAF_line(fields)
+
+            # Add to the begin of the chain
+            chain.alignments.insert(0, alignment) 
+
+    return strand, polyA
+
 
 def infer_strand_alignment(insType, chain):
     '''
@@ -223,7 +309,7 @@ def infer_strand_alignment(insType, chain):
         2. chain: Sequence chain of alignments over retrotranposon consensus sequences and/or transduced regions
         
     Output:
-        1. strand: Insertion strand (+ or -)
+        1. strand: Insertion strand (+, - or None) 
     ''' 
     ## a) Solo or orphan transduction    
     if insType in ['solo', 'orphan']:
@@ -251,183 +337,6 @@ def infer_strand_alignment(insType, chain):
         strand = None
 
     return strand
-
-
-def search4polyA_old(sequence, chain, strand):
-    '''
-    Search for polyA/T sequence at 3' insert end
-
-    Input:
-        1. sequence: Inserted fragment 
-        2. chain: Sequence chain of alignments over retrotranposon consensus sequences and/or transduced regions
-        3. strand: Insertion strand (+ or -)
-        
-    Output:
-        1. polyA: boolean specifying if polyA/T sequence was found
-
-        Update alignments chain object including poly(A/T) hits
-    '''
-    polyA = False
-
-    ### Set up configuration parameters
-    windowSize = 5
-    maxWindowDist = 2
-    minMonomerSize = 8
-    minPurity = 70 
-
-    maxDist2Ends = 10 
-    minInternalMonomerSize = 20
-
-    ### Search for poly A/T tracts in the 3' ends of the insert 
-    ## A) + strand
-    if strand == '+':
-
-        ## 1. Extract unaligned 3' end of the inserted sequence
-        lastHit = chain.alignments[-1]
-        targetSeq = sequence[lastHit.qEnd:]
-
-        ## 2. Search for poly(A) monomers on the 3' end 
-        targetMonomer = 'A'
-        monomers = sequences.find_monomers(targetSeq, targetMonomer, windowSize, maxWindowDist, minMonomerSize, minPurity)
-
-        ## 3. Request a larger size for internal monomers
-        ## An internal monomer is located at more than Xbp from the inserted sequence ends
-        filteredMonomers = []
-
-        for monomer in monomers:
-            dist2Beg = monomer.beg
-            dist2End = len(targetSeq) - monomer.end
-
-            ## a) Select external monomers located at less than or equal to X bp from insert ends 
-            if (dist2Beg <= maxDist2Ends) or (dist2End <= maxDist2Ends):
-                filteredMonomers.append(monomer)
-                            
-            ## b) Select internal monomers longer or equal than X bp
-            elif (monomer.length() >= minInternalMonomerSize):
-                filteredMonomers.append(monomer)
-            
-            ## c) Discard internal monomers smaller than X bp
-
-        ## 4. Convert monomer coordinates to inserted sequence space
-        for monomer in filteredMonomers:
-            monomer.beg = monomer.beg + lastHit.qEnd
-            monomer.end = monomer.end + lastHit.qEnd
-
-        ## 5. Add poly(A) info to the chain of alignments         
-        nbMonomers = len(filteredMonomers)
-        
-        ## a) Single poly(A) 
-        if nbMonomers == 1:
-
-            ## Set boolean as true
-            polyA = True
-
-            monomer = filteredMonomers[0]
-
-            ## Create PAF line containing poly(A) info
-            firstAlignment = chain.alignments[0]
-            fields = [firstAlignment.qName, firstAlignment.qLen, monomer.beg, monomer.end, None, 'poly(A/T)', 0, 0, 0, 0, 0, 0]
-            alignment = formats.PAF_line(fields)
-
-            chain.alignments.append(alignment) ## Add to the chain
-        
-        ## b) Two poly(A) tracts. The most likely explanation of this structure is a short transduction
-        # First poly(A) corresponds to the source L1 element
-        # Second poly(A) corresponds to the transcript polyA tail
-        # Sequence in between corresponds to a short transduction (TD)
-        # AAAAAAAAAA-----TD-----AAAAAAAAAA
-        elif nbMonomers == 2:
-
-            ## Set boolean as true
-            polyA = True
-
-            firstMonomer, secondMonomer = filteredMonomers
-
-            ## Create PAF line containing TD info
-            firstAlignment = chain.alignments[0]
-            fields = [firstAlignment.qName, firstAlignment.qLen, firstMonomer.beg, secondMonomer.beg, None, 'transduced|UNK|UNK|UNK', 0, 0, 0, 0, 0, 0]
-            alignment = formats.PAF_line(fields)
-            chain.alignments.append(alignment) ## Add to the chain
-
-            ## Create PAF line containing poly(T) info
-            fields = [firstAlignment.qName, firstAlignment.qLen, secondMonomer.beg, secondMonomer.end, None, 'poly(A/T)', 0, 0, 0, 0, 0, 0]
-            alignment = formats.PAF_line(fields)
-            chain.alignments.append(alignment) ## Add to the chain
-
-    ## B) - strand
-    else:
-        
-        ## 1. Extract unaligned 3' end of the inserted sequence
-        firstHit = chain.alignments[0]
-        targetSeq = sequence[:firstHit.qBeg]
-
-        ## 2. Search for poly(T) monomers on the 3' end
-        targetMonomer = 'T'
-        monomers = sequences.find_monomers(targetSeq, targetMonomer, windowSize, maxWindowDist, minMonomerSize, minPurity)
-
-        ## 3. Request a larger size for internal monomers
-        ## An internal monomer is located at more than Xbp from the inserted sequence ends
-        filteredMonomers = []
-
-        for monomer in monomers:
-            dist2Beg = monomer.beg
-            dist2End = len(targetSeq) - monomer.end
-
-            ## a) Select external monomers located at less than or equal to X bp from insert ends 
-            if (dist2Beg <= maxDist2Ends) or (dist2End <= maxDist2Ends):
-                filteredMonomers.append(monomer)
-                            
-            ## b) Select internal monomers longer or equal than X bp
-            elif (monomer.length() >= minInternalMonomerSize):
-                filteredMonomers.append(monomer)
-            
-            ## c) Discard internal monomers smaller than X bp
-
-        ## 4. Convert monomer coordinates to inserted sequence space
-        # NOT NEEDED as the unaligned sequence correspond to the leftmost end of the insert 
-        # **unaligned**-----insert------ 
-
-        ## 5. Add poly(T) info to the chain of alignments 
-        nbMonomers = len(filteredMonomers)
-        
-        ## a) Single poly(T) 
-        if nbMonomers == 1:
-            
-            ## Set boolean as true
-            polyA = True
-
-            monomer = filteredMonomers[0]
-
-            ## Create PAF line containing poly(T) info
-            firstAlignment = chain.alignments[0]
-            fields = [firstAlignment.qName, firstAlignment.qLen, monomer.beg, monomer.end, None, 'poly(A/T)', 0, 0, 0, 0, 0, 0]
-            alignment = formats.PAF_line(fields)
-            chain.alignments.insert(0, alignment) ## Add to the chain
-        
-        ## b) Two poly(T) tracts. The most likely explanation of this structure is a short transduction
-        # First poly(T) corresponds to the transcript polyA tail 
-        # Second poly(T) corresponds to the source L1 element
-        # Sequence in between corresponds to a short transduction (TD)
-        # TTTTTTTTT-----TD-----TTTTTTTTT
-        elif nbMonomers == 2:
-
-            ## Set boolean as true
-            polyA = True
-
-            firstMonomer, secondMonomer = filteredMonomers
-            
-            ## Create PAF line containing TD info
-            firstAlignment = chain.alignments[0]
-            fields = [firstAlignment.qName, firstAlignment.qLen, firstMonomer.end, secondMonomer.end, None, 'transduced|UNK|UNK|UNK', 0, 0, 0, 0, 0, 0]
-            alignment = formats.PAF_line(fields)
-            chain.alignments.insert(0, alignment) ## Add to the chain
-
-            ## Create PAF line containing poly(T) info
-            fields = [firstAlignment.qName, firstAlignment.qLen, firstMonomer.beg, firstMonomer.end, None, 'poly(A/T)', 0, 0, 0, 0, 0, 0]
-            alignment = formats.PAF_line(fields)
-            chain.alignments.insert(0, alignment) ## Add to the chain
-
-    return polyA
 
 
 def infer_structure(insType, chain, strand):
@@ -526,16 +435,15 @@ def infer_integration_mechanism(chain, truncation3len, polyA):
         mechanism = 'TPRT'
 
     ## B) EI hallmarks:
+    # - % resolved > 95%
     # - 3' truncation > 100bp 
     # - no polyA
-    elif ((truncation3len is not None) and (truncation3len > 100)) and not polyA:
+    elif (chain.perc_query_covered() >= 95) and ((truncation3len is not None) and (truncation3len > 100)) and not polyA:
+        print('EI_INDEPENDENT: ', chain.perc_query_covered(), truncation3len, polyA)
         mechanism = 'EI'
 
     ## C) Unknown mechanism:
     else:
         mechanism = 'unknown'
-
-    #for hit in chain.alignments:
-    #    print('HIT: ', hit.qName, hit.qLen, hit.qBeg, hit.qEnd, hit.strand, hit.tName, hit.tLen, hit.tBeg, hit.tEnd, hit.nbMatches, hit.blockLen, hit.MAPQ)
 
     return mechanism

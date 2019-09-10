@@ -254,25 +254,17 @@ def SV_type_metaclusters(metaclusters, minINDELlen, technology, rootOutDir):
 
     for metacluster in metaclusters:
 
-        ## 0. Create output directory 
         metaInterval = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])
         outDir = rootOutDir + '/' + metaInterval
-        unix.mkdir(outDir)
-
-        ## 1. Infer SV type
         metacluster.determine_SV_type(minINDELlen, technology, outDir)
 
-        ## 2. Add metacluster to dict
         # A) Initialize list containing metaclusters of a given SV type
         if metacluster.SV_type not in metaclustersSVType:
             metaclustersSVType[metacluster.SV_type] = [metacluster]
 
         # B) Add metacluster to the list        
         else:
-            metaclustersSVType[metacluster.SV_type].append(metacluster)
-
-        ## Cleanup
-        unix.rm([outDir])
+            metaclustersSVType[metacluster.SV_type].append(metacluster)    
 
     return metaclustersSVType
 
@@ -308,10 +300,8 @@ def create_consensus(metaclusters, confDict, reference, targetSV, rootOutDir):
 
         ## For each metacluster
         for metacluster in metaclusters[SV]:
-
             metaInterval = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])
             outDir = rootOutDir + '/' + metaInterval
-            unix.mkdir(outDir)
 
             ## 1. Polish metacluster´s consensus sequence
             metacluster.polish(confDict, reference, outDir)
@@ -321,6 +311,7 @@ def create_consensus(metaclusters, confDict, reference, targetSV, rootOutDir):
 
             ## Cleanup
             unix.rm([outDir])
+    
 
 def double_clipping_supports_INS(clusterA, clusterB, minINDELlen, technology, outDir):
     '''
@@ -506,6 +497,7 @@ def INS_type_metaclusters(metaclusters, reference, repeats, transduced, exons, c
         6. confDict: Configuration dictionary
         7. rootOutDir: Root output directory
     '''      
+
     ## 1. Create fasta containing all consensus inserted sequences ##
     msg = '1. Create fasta containing all consensus inserted sequences'
     log.subHeader(msg)    
@@ -528,7 +520,6 @@ def INS_type_metaclusters(metaclusters, reference, repeats, transduced, exons, c
     tupleList= [element + args for element in tupleList]
         
     ## 5. For each metacluster determine the insertion type
-    # metaclusters will be distributed into X processes
     msg = '5. For each metacluster determine the insertion type'
     log.subHeader(msg)    
 
@@ -539,6 +530,10 @@ def INS_type_metaclusters(metaclusters, reference, repeats, transduced, exons, c
         # Infer metacluster ins type
         INS_type_metacluster(metacluster, alignments, args)
 
+    #print('tupleList: ', tupleList)
+    
+    #pool = mp.Pool(processes=confDict['processes'])
+    #metaclusters = pool.starmap(INS_type_metacluster, tupleList)
 
 def INS_type_metacluster(metacluster, alignments, args):
     '''
@@ -546,7 +541,7 @@ def INS_type_metacluster(metacluster, alignments, args):
 
     Input:
         1. metacluster: metacluster object 
-        2. alignments: list of pysam alignment segment objects
+        2. alignments: list of pysam aligned segment objects
         3. args: List with 5 variables
                 - repeats: Bin database containing annotated repeats in the reference. None if not available
                 - transduced: Bin database containing regions transduced by source elements. None if not available
@@ -558,6 +553,8 @@ def INS_type_metacluster(metacluster, alignments, args):
 
     ## 2. Determine metacluster´s insertion type
     metacluster.determine_INS_type(alignments, repeats, transduced, exons, confDict)
+
+    return metacluster
 
 def structure_inference_parallel(metaclusters, consensusPath, transducedPath, transductionSearch, processes, rootDir):
     '''
@@ -593,9 +590,6 @@ def structure_inference_parallel(metaclusters, consensusPath, transducedPath, tr
         fields = (metacluster, consensusPath, transducedPath, transductionSearch, outDir)
         tupleList.append(fields)
 
-        # Cleanup
-        unix.rm([outDir])
-          
     ## 2. Infer structure
     pool = mp.Pool(processes=processes)
     metaclusters = pool.starmap(structure_inference, tupleList)
@@ -720,6 +714,7 @@ def assignAligments2metaclusters_sam(metaclusters, SAM_path):
     tupleList = list(hits.values())
 
     return tupleList
+
 
 #############
 ## CLASSES ##
@@ -1282,6 +1277,7 @@ class META_cluster():
 
         # If there is a clipping cluster
         if len (CLIPPING_clusters) > 0:
+            
             ## Choose the clipping cluster with the highest number of events:
             # Coger el cluster de la lista de clusters si si length es igual a la maxima length de todos los clusters de la lista. (como devuelve una lista de un solo elemento, cojo el primer elemento de la lista.)
             # TODO: si hay dos con el mismo numero de eventos.
@@ -1514,13 +1510,13 @@ class META_cluster():
             self.consensusEvent = None                
             self.consensusFasta = None
      
-            
-    def determine_INS_type(self, hits, repeatsDb, transducedDb, exonsDb, confDict):
+
+    def determine_INS_type(self, alignments, repeatsDb, transducedDb, exonsDb, confDict):
         '''
         Determine the type of insertion based on the alignments of the inserted sequence on the reference genome
 
         Input:
-            1. hits: list of pysam alignment segment objects
+            1. alignments: list of pysam aligned segment objects
             2. repeatsDb: bin database containing annotated repeats in the reference. None if not available
             3. transducedDb: bin database containing regions transduced by source elements. None if not available
             4. exonsDb: bin database containing annotated exons in the reference. None if not available
@@ -1530,7 +1526,7 @@ class META_cluster():
         '''    
 
         ## 1. No alignment on the reference
-        if not hits:
+        if not alignments:
             self.SV_features['INS_TYPE'] = 'unknown'
             self.SV_features['PERC_RESOLVED'] = 0
             return
@@ -1539,7 +1535,7 @@ class META_cluster():
         filteredHits = []
 
         # For each alignment
-        for alignment in hits:
+        for alignment in alignments:
             
             ## 2.1. Discard unmapped reads
             if alignment.is_unmapped:
@@ -1669,7 +1665,6 @@ class META_cluster():
         features['EXON'] = []
 
         for alignment in self.insertAnnot.alignments:
-
             features[alignment.annotation.optional['name']].append(alignment)
 
         ## 6.2 Determine insertion type
@@ -1689,6 +1684,7 @@ class META_cluster():
         elif features['SOURCE_ELEMENT']:
 
             self.SV_features['INS_TYPE'] = 'orphan'
+            self.SV_features['FAMILY'] = list(set([srcElement.annotation.optional['family'] for srcElement in features['SOURCE_ELEMENT']]))
             self.SV_features['CYTOBAND'] = list(set([srcElement.annotation.optional['cytobandId'] for srcElement in features['SOURCE_ELEMENT']]))
             
         # C) Fusion: hit in repeat and exon database
@@ -1697,7 +1693,7 @@ class META_cluster():
             self.SV_features['INS_TYPE'] = 'fusion'
 
             ## Repeat info
-            self.SV_features['FAMILY'] = list(set([repeat.annotation.optional['family'] for repeat in features['REPEAT']]))  
+            self.SV_features['FAMILY'] = list(set([repeat.annotation.optional['family'] for repeat in features['REPEAT']])) 
             self.SV_features['SUBFAMILY'] = list(set([repeat.annotation.optional['subfamily'] for repeat in features['REPEAT']]))
             self.SV_features['DIV'] = list(set([repeat.annotation.optional['milliDiv'] for repeat in features['REPEAT']]))
 
@@ -1710,7 +1706,7 @@ class META_cluster():
 
             self.SV_features['INS_TYPE'] = 'exon'
             self.SV_features['GENE_NAME'] = list(set([exon.annotation.optional['geneName'] for exon in features['EXON']])) 
-            self.SV_features['BIOTYPE'] = list(set([exon.annotation.optional['biotype'] for exon in features['EXON']]))
+            self.SV_features['BIOTYPE'] = list(set([exon.annotation.optional['biotype'] for exon in features['EXON']])) 
 
         # E) Repeat: hit in repeats database 
         elif features['REPEAT']:
@@ -1720,7 +1716,7 @@ class META_cluster():
             insertSubfamilies = [repeat.annotation.optional['subfamily'] for repeat in features['REPEAT']]
             insertDivergences = [repeat.annotation.optional['milliDiv'] for repeat in features['REPEAT']]
 
-            self.SV_features['FAMILY'] = list(set(insertFamilies))
+            self.SV_features['FAMILY'] = list(set(insertFamilies)) 
             self.SV_features['SUBFAMILY'] = list(set(insertSubfamilies))
 
             ## Collect information regarding insertion target region annotation ##
@@ -1747,13 +1743,11 @@ class META_cluster():
                 self.SV_features['INS_TYPE'] = 'solo'
                 self.SV_features['DIV'] = list(set(insertDivergences))            
 
-
         # F) Unknown: hit in unnanotated region of the reference
         else:
             self.SV_features['INS_TYPE'] = 'unknown'     
             self.SV_features['PERC_RESOLVED'] = 0
-
-
+ 
     def determine_INS_structure(self, consensusPath, transducedPath, transductionSearch, outDir):
         '''
         Infer inserted sequence structural features
@@ -1826,10 +1820,8 @@ class META_cluster():
         FASTA.write(insertPath)    
 
         ## 6. Structure inference
-        self.SV_features['INS_TYPE'], self.SV_features['FAMILY'], self.SV_features['CYTOBAND'], self.SV_features['STRAND'], self.SV_features['POLYA'], structure, self.SV_features['MECHANISM'] = retrotransposons.retrotransposon_structure(insertPath, indexPath, outDir)
+        self.SV_features['PERC_RESOLVED'], self.SV_features['INS_TYPE'], self.SV_features['FAMILY'], self.SV_features['CYTOBAND'], self.SV_features['STRAND'], self.SV_features['POLYA'], structure, self.SV_features['MECHANISM'] = retrotransposons.retrotransposon_structure(insertPath, indexPath, outDir)
         self.SV_features['RETRO_COORD'] = structure['retroCoord'] if 'retroCoord' in structure else None  
 
         # Cleanup
         unix.rm([outDir])   
-        print('-----------------------------------------') 
-    

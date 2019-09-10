@@ -42,8 +42,8 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
     ## 2. Load annotated repeats into a bin database
     if 'REPEATS' in annotations2load:
         log.info('2. Load annotated repeats into a bin database')
-        repeatsBed = annotationsDir + '/repeats_repeatMasker.bed'
-        #repeatsBed = annotationsDir + '/repeats_repeatMasker.L1.bed'
+        #repeatsBed = annotationsDir + '/repeats_repeatMasker.bed'
+        repeatsBed = annotationsDir + '/repeats_repeatMasker.L1.bed'
         #repeatsBed = annotationsDir + '/repeats_repeatMasker.L1.satellite.bed'
         annotations['REPEATS'] = formats.bed2binDb(repeatsBed, refLengths, threads)
 
@@ -152,7 +152,6 @@ def repeats_annotation(events, repeatsDb, buffer):
                     distance = abs(overlapLen - buffer)
 
                 repeat['distance'] = distance
-
                 annotatedRepeats.append(repeat)
 
         # B) No repeat in the same ref as the event

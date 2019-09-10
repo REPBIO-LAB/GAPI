@@ -15,15 +15,6 @@ import bamtools
 
 def index_minimap2(fastaPath, fileName, outDir):
     '''
-    Create minimap2 index for an input fasta
-
-    Input:
-        1. fastaPath: path to fasta file to index
-        2. fileName: name of index
-        3. outDir: output directory
-
-    Output:
-        1. indexPath: path to index
     '''
     indexPath = outDir + '/' + fileName + '.mmi'
     err = open(outDir + '/index.err', 'w') 
