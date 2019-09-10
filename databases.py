@@ -155,12 +155,12 @@ def create_transduced_bed(sourceBed, size, outDir):
     Create bed file containing regions frequently transduced by source elements
 
     Input:
-        1. sourceBed: Bed file source elements coordinates, cytoband identifier and orientation. Following fields required:
+        1. sourceBed: Bed file source elements coordinates, cytoband identifier, family and orientation. Following fields required:
                       1) chrom
                       2) beg
                       3) end
                       4) cytobandId
-                      5) score
+                      5) family
                       6) strand
 
         2. size: transduced region size
@@ -176,7 +176,7 @@ def create_transduced_bed(sourceBed, size, outDir):
     transducedBed = open(transducedPath, 'w')
 
     ## Write header in outfile
-    row = "\t".join(['#ref', 'tdBeg', 'tdEnd', 'name', 'cytobandId', 'score', 'strand', "\n"])
+    row = "\t".join(['#ref', 'tdBeg', 'tdEnd', 'name', 'cytobandId', 'family', 'strand', "\n"])
     transducedBed.write(row)
 
     ## Read bed with source elements annotation line by line
@@ -187,7 +187,7 @@ def create_transduced_bed(sourceBed, size, outDir):
         if not line.startswith("#"):   
      
             fieldsList = line.split("\t")
-            ref, beg, end, name, cytobandId, score, strand = fieldsList
+            ref, beg, end, name, cytobandId, family, strand = fieldsList
 		
             ## a) Element in plus
             # ---------------> end ........transduced........ end + size
@@ -204,7 +204,7 @@ def create_transduced_bed(sourceBed, size, outDir):
                 tdEnd = int(beg)
 
             ## Write into output file
-            row = "\t".join([ref, str(tdBeg), str(tdEnd), name, cytobandId, score, strand, "\n"])
+            row = "\t".join([ref, str(tdBeg), str(tdEnd), name, cytobandId, family, strand, "\n"])
             transducedBed.write(row)
 
     return transducedPath
