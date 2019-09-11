@@ -89,7 +89,6 @@ def create_bin_database_interval(ref, beg, end, eventsDict, binSizes):
         # Add all the events from the given event type to the bin database
         binDb.add(events, eventType)
 
-    print('CREATED_BIN_DB_REF: ', binDb.ref)
     return binDb
 
 ## CLASSES ##
