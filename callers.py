@@ -83,7 +83,9 @@ class SV_caller_long(SV_caller):
             outFileName = 'INS_MEIGA.FAILED_1.tsv'
             output.write_INS(metaclustersFailed_round1['INS'], outFileName, self.outDir)
 
-        ## Clear variable
+        ## Remove metaclusters that failed filtering to release memory 
+        del metaclustersPassList
+        del metaclustersFailedList
         del metaclustersFailed_round1
         
         ## 4. Perform repeat-based annotation of INS target region
@@ -145,6 +147,7 @@ class SV_caller_long(SV_caller):
             # Cleanup
             unix.rm([outDir])
 
+            # Remove annotation databases to release memory
             del annotations 
             del repeatsAnnot
             
@@ -170,6 +173,9 @@ class SV_caller_long(SV_caller):
         filters2Apply = ['PERC-RESOLVED']
         metaclustersPass, metaclustersFailed_round2 = filters.filter_metaclusters(metaclustersPass_round1, filters2Apply, self.confDict)
 
+        # Remove variables to release memory
+        del metaclustersPass_round1
+        
         ## 8. Perform gene-based annotation with ANNOVAR of INS target region
         msg = '8. Perform gene-based annotation with ANNOVAR of INS target region'
         log.header(msg)
