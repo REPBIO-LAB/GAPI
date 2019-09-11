@@ -15,10 +15,8 @@ import sequences
 
 ## FUNCTIONS ##
 def retrotransposon_structure(FASTA_file, index, outDir):
-    '''
-    Determine if an input sequence correspond to a retrotransposition event (solo, partnered or orphan transduction from a known source element). 
-    
-    Infer the insertion size, structure, poly-A and target site duplication length
+    '''    
+    Infer the insertion size, structure, poly-A, target site duplication length and other insertion structural features
 
     Input:
         1. FASTA_file: Path to FASTA file containing the sequence
@@ -26,14 +24,10 @@ def retrotransposon_structure(FASTA_file, index, outDir):
         3. outDir: Output directory
         
     Output:
-        1. insType: Insertion type (solo, nested, orphan, partnered or None)
-        2. family: List of retrotransposon families
-        3. srcId: List of source element ids
-        4. strand. Insertion strand (+ or -)
-        5. polyA: boolean specifying if polyA/T sequence was found
-        6. structure: dictionary containing insertion structure information
-        7. mechanism: TPRT, EI or unknown
+        1. structure: dictionary containing insertion structure information
     '''         
+    structure = {}
+
     ## 0. Create logs directory ##
     logDir = outDir + '/Logs'
     unix.mkdir(logDir)
@@ -47,8 +41,8 @@ def retrotransposon_structure(FASTA_file, index, outDir):
 
     # Exit function if no hit on the retrotransposons database
     if not PAF.lines:
-        percResolved, insType, family, srcId, strand, polyA, structure, mechanism = [0, None, [], [], None, False, {}, 'unknown']
-        return percResolved, insType, family, srcId, strand, polyA, structure, mechanism
+
+        return structure
 
     ## 3. Chain complementary alignments ##
     chain = PAF.chain(100, 20)
@@ -60,21 +54,25 @@ def retrotransposon_structure(FASTA_file, index, outDir):
     sequence = list(FASTA.seqDict.values())[0]
 
     ## 4.1 Insertion type
-    insType, family, srcId = insertion_type(chain)
+    structure['INS_TYPE'], structure['FAMILY'], structure['CYTOBAND'] = insertion_type(chain)
 
     ## 4.2 Insertion strand
-    strand, polyA = infer_strand(insType, sequence, chain)
+    structure['STRAND'], structure['POLYA'] = infer_strand(structure['INS_TYPE'], sequence, chain)
 
-    ## 4.3 Sequence structure 
-    structure = infer_structure(insType, chain, strand)
+    ## 4.3 Sequence lengths 
+    lengths = infer_lengths(structure['INS_TYPE'], chain, structure['STRAND'])
+    structure.update(lengths)
 
     ## 4.4 Insertion mechanism (TPRT or EI)
-    mechanism = infer_integration_mechanism(chain, structure['truncation3len'], polyA)
+    structure['MECHANISM'] = infer_integration_mechanism(chain, structure['TRUNCATION_3_LEN'], structure['POLYA'])
 
     ## 4.5 Target site duplication (TO DO LATER...)
     #search4tsd()
     
-    return chain.perc_query_covered(), insType, family, srcId, strand, polyA, structure, mechanism
+    ## 4.6 Percentage resolved
+    structure['PERC_RESOLVED'] = chain.perc_query_covered()
+
+    return structure
     
 
 def insertion_type(chain):
@@ -339,9 +337,9 @@ def infer_strand_alignment(insType, chain):
     return strand
 
 
-def infer_structure(insType, chain, strand):
+def infer_lengths(insType, chain, strand):
     '''
-    Infer inserted sequence structural features
+    Determine the length of each type of sequence composing the insertion (transduction, retrotransposon, insertion, inversion)
     
     Input:
         1. insType: Insertion type (solo, nested, orphan, partnered or None)
@@ -349,13 +347,13 @@ def infer_structure(insType, chain, strand):
         3. strand: Insertion strand (+ or -)
 
     Output:
-        1. structure: dictionary containing insertion structure information
+        1. lengths: dictionary containing length information
     ''' 
     ### Initialize dictionary
-    structure = {}
+    lengths = {}
 
-    for feature in ['retroCoord', 'retroLen', 'isFull', 'truncation5len', 'truncation3len', 'transductionCoord', 'transductionLen', 'inversionLen']:
-        structure[feature] = None
+    for feature in ['RETRO_COORD', 'RETRO_LEN', 'IS_FULL', 'TRUNCATION_5_LEN', 'TRUNCATION_3_LEN', 'TRANSDUCTION_COORD', 'TRANSDUCTION_LEN', 'INVERSION_LEN']:
+        lengths[feature] = None
 
     ### 1. Compute the length of each type of sequence composing the insertion
     # 1.1 Retroelement length
@@ -368,19 +366,19 @@ def infer_structure(insType, chain, strand):
         ref = retroHits[0].tName.split('|')[1]
         retroBeg = min([hit.tBeg for hit in retroHits])
         retroEnd = max([hit.tEnd for hit in retroHits])
-        structure['retroCoord'] = str(ref) + ':' + str(retroBeg) + '-' + str(retroEnd)
+        lengths['RETRO_COORD'] = str(ref) + ':' + str(retroBeg) + '-' + str(retroEnd)
 
         ## Compute length
-        structure['retroLen'] = retroEnd - retroBeg
+        lengths['RETRO_LEN'] = retroEnd - retroBeg
 
         ## Assess if full length retrotransposon insertion
         consensusLen = retroHits[0].tLen 
-        percConsensus = float(structure['retroLen']) / consensusLen * 100
-        structure['isFull'] = True if percConsensus >= 95 else False
+        percConsensus = float(lengths['RETRO_LEN']) / consensusLen * 100
+        lengths['IS_FULL'] = True if percConsensus >= 95 else False
 
         ## Compute truncation length at both ends
-        structure['truncation5len'] = retroBeg   
-        structure['truncation3len'] = consensusLen - retroEnd
+        lengths['TRUNCATION_5_LEN'] = retroBeg   
+        lengths['TRUNCATION_3_LEN'] = consensusLen - retroEnd
 
     # 1.2 Transduction length
     if insType in ['partnered', 'orphan']:
@@ -396,23 +394,23 @@ def infer_structure(insType, chain, strand):
         ## Determine piece of transduced area that has been integrated
         transductionBeg = min([hit.tBeg for hit in transductionHits]) + offset
         transductionEnd = max([hit.tEnd for hit in transductionHits]) + offset
-        structure['transductionCoord'] = (ref, transductionBeg, transductionEnd)
+        lengths['TRANSDUCTION_COORD'] = (ref, transductionBeg, transductionEnd)
 
         ## Compute length
-        structure['transductionLen'] = transductionEnd - transductionBeg
+        lengths['TRANSDUCTION_LEN'] = transductionEnd - transductionBeg
 
     # 1.3 Inversion length
     inversionHits = [hit for hit in chain.alignments if ((hit.strand != 'None') and (hit.strand != strand))]
 
     # a) 5' inversion
     if inversionHits:
-        structure['inversionLen'] = sum([hit.tEnd - hit.tBeg for hit in inversionHits])
+        lengths['INVERSION_LEN'] = sum([hit.tEnd - hit.tBeg for hit in inversionHits])
 
     # b) No inversion
     else:
-        structure['inversionLen'] = 0   
+        lengths['INVERSION_LEN'] = 0   
      
-    return structure
+    return lengths
 
 
 def infer_integration_mechanism(chain, truncation3len, polyA):
