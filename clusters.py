@@ -530,11 +530,6 @@ def INS_type_metaclusters(metaclusters, reference, repeats, transduced, exons, c
         # Infer metacluster ins type
         INS_type_metacluster(metacluster, alignments, args)
 
-    #print('tupleList: ', tupleList)
-    
-    #pool = mp.Pool(processes=confDict['processes'])
-    #metaclusters = pool.starmap(INS_type_metacluster, tupleList)
-
 def INS_type_metacluster(metacluster, alignments, args):
     '''
     For each metacluster determine the type of insertion
@@ -571,6 +566,7 @@ def structure_inference_parallel(metaclusters, consensusPath, transducedPath, tr
     Output:
         1. metaclusters: list of metacluster objects with structure information stored at 'SV_features' dict attribute
     '''
+    
     ## 1. Create tuple list for multiprocessing
     tupleList = []
 
