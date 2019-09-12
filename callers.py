@@ -162,7 +162,10 @@ class SV_caller_long(SV_caller):
             outDir = self.outDir + '/STRUCTURE/'
             unix.mkdir(outDir)
 
-            metaclustersPass_round1['INS'] = clusters.structure_inference_parallel(metaclustersPass_round1['INS'], consensus, transduced, self.confDict['transductionSearch'], self.confDict['processes'], outDir)
+            ## Reduce the number of processes to the half to decrease RAM usage
+            processes = int(self.confDict['processes']/2)
+
+            metaclustersPass_round1['INS'] = clusters.structure_inference_parallel(metaclustersPass_round1['INS'], consensus, transduced, self.confDict['transductionSearch'], processes, outDir)
 
             # Cleanup
             unix.rm([outDir])
