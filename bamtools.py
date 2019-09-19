@@ -392,7 +392,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
         3. binEnd: bin end
         4. bam: indexed BAM file
         5. confDict:
-            * targetSV       -> list with target SV (INS: insertion; DEL: deletion; CLIPPING: left and right clippings)
+            * targetSV       -> list with target SV (INS: insertion; DEL: deletion; CLIPPING: left and right clippings, DISCORDANT: discordant)
             * minMAPQ        -> minimum mapping quality
             * minCLIPPINGlen -> minimum clipping lenght
             * minINDELlen    -> minimum INS and DEL lenght
