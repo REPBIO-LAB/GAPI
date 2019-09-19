@@ -143,7 +143,7 @@ if (transductionSearch) and (srcFamilies is None):
 ##############################################
 scriptName = os.path.basename(sys.argv[0])
 scriptName = os.path.splitext(scriptName)[0]
-version='0.7.0'
+version='0.8.0'
 
 print()
 print('***** ', scriptName, version, 'configuration *****')
