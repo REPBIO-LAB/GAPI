@@ -10,7 +10,6 @@ import numpy as np
 import pysam
 import math
 import itertools
-from memory_profiler import profile
 
 # Internal
 import log

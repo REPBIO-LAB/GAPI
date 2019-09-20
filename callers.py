@@ -10,7 +10,6 @@ import subprocess
 import os
 import pysam
 import pprint
-from memory_profiler import profile
 
 # Internal
 import log
