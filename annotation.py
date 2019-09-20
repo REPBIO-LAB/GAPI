@@ -29,27 +29,24 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
     Output:
         1. annotations: directory containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
     '''
-
     ## 0. Initialize dictionary
     annotations = {}
     annotations['REPEATS'] = None
     annotations['TRANSDUCTIONS'] = None
     annotations['EXONS'] = None
 
-    ## 1. Create output directory
+    ## Create output directory
     unix.mkdir(outDir)
 
-    ## 2. Load annotated repeats into a bin database
+    ## 1. Load annotated repeats into a bin database
     if 'REPEATS' in annotations2load:
-        log.info('2. Load annotated repeats into a bin database')
-        repeatsBed = annotationsDir + '/repeats_repeatMasker.bed'
-        #repeatsBed = annotationsDir + '/repeats_repeatMasker.L1.bed'
-        #repeatsBed = annotationsDir + '/repeats_repeatMasker.L1.satellite.bed'
+
+        repeatsBed = annotationsDir + '/repeats.bed'
+        #repeatsBed = annotationsDir + '/repeats.L1.bed'
         annotations['REPEATS'] = formats.bed2binDb(repeatsBed, refLengths, threads)
 
-    ## 3. Create transduced regions database
+    ## 2. Create transduced regions database
     if 'TRANSDUCTIONS' in annotations2load:
-        log.info('3. Create transduced regions database')
 
         ## Create bed file containing transduced regions
         sourceBed = annotationsDir + '/srcElements.bed'
@@ -58,14 +55,62 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
         ## Load transduced regions into a bin database
         annotations['TRANSDUCTIONS'] = formats.bed2binDb(transducedPath, refLengths, threads)
 
-    ## 4. Create exons database
+    ## 3. Create exons database
     if 'EXONS' in annotations2load:
 
-        log.info('4. Create exons database')
         exonsBed = annotationsDir + '/exons.bed'
         annotations['EXONS'] = formats.bed2binDb(exonsBed, refLengths, threads)
 
     return annotations
+
+def annotate(events, steps, refLengths, refDir, annovarDir, processes, outDir):
+    '''
+    Annotate each input event inverval based on different annotation resources.
+
+    Input: 
+        1. events: list containing input events to be annotated. Events should be objects containing ref, beg and end attributes.
+        2. steps: list containing annotation steps to be performed. Possible values: REPEAT and GENE.
+        3. refLengths: Dictionary containing reference ids as keys and as values the length for each reference. 'None' if repeat annotation no enabled 
+        4. refDir: Directory containing reference databases. 'None' if repeat annotation no enabled
+        5. annovarDir: Directory containing annovar reference databases. 'None' if gene annotation no enabled 
+        6. processes: Number of processes
+        7. outDir: Output directory
+
+    Output:
+        1. New 'repeatAnnot' attribute set for each input event. 
+        'repeatAnnot' is a list of dictionaries. Each dictionary contains information pertaining to one overlapping repeat
+
+        2. New 'geneAnnot' attribute set for each input event. 
+        'geneAnnot' is a tuple(region,gene) 
+    '''
+    ## 1. Perform repeat based annotation if enabled
+    msg = '1. Perform repeat based annotation if enabled'
+    log.subHeader(msg)   
+
+    if 'REPEAT' in steps:
+
+        ## 1.1 Load repeats database ##
+        msg = '1.1 Load repeats database'
+        log.info(msg)   
+
+        annotations = load_annotations(['REPEATS'], refLengths, refDir, processes, outDir)
+
+        ## 1.2 Perform repeats annotation ##
+        msg = '1.2 Perform repeats annotation'
+        log.info(msg)   
+
+        repeats_annotation(events, annotations['REPEATS'], 200)
+
+    ## 2. Perform gene-based annotation if enabled
+    msg = '2. Perform gene-based annotation if enabled'
+    log.subHeader(msg)
+
+    if 'GENE' in steps:
+
+        msg = 'Perform gene-based annotation'
+        log.info(msg)  
+        gene_annotation(events, annovarDir, outDir)
+
 
 def annotate_interval(ref, beg, end, annotDb):
     '''
