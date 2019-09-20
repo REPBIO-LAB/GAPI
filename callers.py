@@ -59,130 +59,89 @@ class SV_caller_long(SV_caller):
         Search for structural variants (SV) genome wide or in a set of target genomic regions
         '''
 
-        ## 1. Create SV clusters
-        metaclusters = self.make_clusters()
+        ### 1. Create SV clusters 
+        msg = '1. Create SV clusters'
+        log.header(msg)
+        allMetaclusters = self.make_clusters()
 
-        ## 2. Perform repeat-based annotation of INS target region
-        msg = '2. Perform repeat-based annotation of INS target region'
+        ### 2. Annotate SV clusters intervals  
+        msg = '2. Annotate SV clusters intervals'
         log.header(msg)
 
-        if ('INS' in metaclusters):
+        # Create output directory
+        annotDir = self.outDir + '/ANNOT/'
+        unix.mkdir(annotDir)
 
-            ## 2.1. Load repeats database ##
-            step = 'REPEAT-ANNOT'
-            msg = '4.1. Load repeats database'
-            log.step(step, msg)
+        # Reference lengths, needed for repeats annotation
+        refLengths = bamtools.get_ref_lengths(self.bam)
 
-            annotDir = self.outDir + '/ANNOT/'
-            annotations2load = ['REPEATS']   
+        # Define annotation steps
+        steps = ['REPEAT']
 
-            refLengths = bamtools.get_ref_lengths(self.bam)
-            annotations = annotation.load_annotations(annotations2load, refLengths, self.refDir, self.confDict['processes'], annotDir)
-            repeatsAnnot = annotations['REPEATS']
+        if self.confDict['annovarDir'] is not None:
+            steps.append('GENE')
 
-            ## 2.2. Perform repeats annotation ##
-            msg = '2.2. Perform repeats annotation'
-            log.step(step, msg)
+        # For each cluster type
+        for SV_type in allMetaclusters:
+            
+            metaclusters = allMetaclusters[SV_type]
+            annotation.annotate(metaclusters, steps, refLengths, self.refDir, self.confDict['annovarDir'], self.confDict['processes'], annotDir)
 
-            annotation.repeats_annotation(metaclusters['INS'], repeatsAnnot, 200)
+        # Remove annotation directory
+        unix.rm([annotDir])
 
         ### 3. Determine what type of sequence has been inserted for INS metaclusters
         msg = '3. Determine what type of sequence has been inserted for INS metaclusters'
         log.header(msg)
 
-        if 'INS' in metaclusters:
+        # Create output directory
+        outDir = self.outDir + '/INS_TYPE/'
+        unix.mkdir(outDir)
 
-            ## 3.1. Load transduced regions and exons database ##
-            step = 'INS-TYPE'
-            msg = '5.1. Load transduced regions and exons database if appropiate'
-            log.step(step, msg)
+        if 'INS' in allMetaclusters:
 
-            annotDir = self.outDir + '/ANNOT/'
-            annotations2load = []
+            ## Infer insertion type
+            clusters.INS_type_metaclusters(allMetaclusters['INS'], self.reference, refLengths, self.refDir, self.confDict['transductionSearch'], self.confDict['processes'], outDir)
 
-            if self.confDict['transductionSearch']:    
-                annotations2load.append('TRANSDUCTIONS')
-
-            #if True: # at one point include flag for pseudogene search
-                #annotations2load.append('EXONS')
-
-            annotations = annotation.load_annotations(annotations2load, refLengths, self.refDir, self.confDict['processes'], annotDir)
-            annotations['REPEATS'] = repeatsAnnot
-
-            ## 3.2. Insertion type inference
-            msg = '3.2. Insertion type inference'
-            log.step(step, msg)
-
-            outDir = self.outDir + '/INS_TYPE/'
-            unix.mkdir(outDir)
-
-            clusters.INS_type_metaclusters(metaclusters['INS'], self.reference, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'], self.confDict, outDir)
+        # Remove output directory
+        unix.rm([outDir])
             
-            # Cleanup
-            unix.rm([outDir])
-
-            # Remove annotation databases to release memory
-            del annotations 
-            del repeatsAnnot
-            
-        ### 6. Resolve structure for solo, partnered and orphan transductions
-        msg = '6. Resolve structure for solo, partnered and orphan transductions'
+        ### 4. Resolve structure for solo, partnered and orphan transductions
+        msg = '4. Resolve structure for solo, partnered and orphan transductions'
         log.header(msg)
         
-        if 'INS' in metaclusters:
+        if 'INS' in allMetaclusters:
             consensus = self.refDir + '/consensusDb.fa'
             transduced = self.refDir + '/transducedDb.fa.masked'
 
+            # Create output directory
             outDir = self.outDir + '/STRUCTURE/'
             unix.mkdir(outDir)
 
-            ## Reduce the number of processes to the half to decrease RAM usage
-            processes = int(self.confDict['processes']/2)
+            # Structure inference
+            allMetaclusters['INS'] = clusters.structure_inference_parallel(allMetaclusters['INS'], consensus, transduced, self.confDict['transductionSearch'], self.confDict['processes'], outDir)
 
-            metaclusters['INS'] = clusters.structure_inference_parallel(metaclusters['INS'], consensus, transduced, self.confDict['transductionSearch'], processes, outDir)
-
-            # Cleanup
+            # Remove output directory
             unix.rm([outDir])
 
-        ### 7. Apply second round of filtering after insertion type inference 
-        msg = '7. Apply second round of filtering after insertion type inference'
+        ### 5. Apply second round of filtering after insertion type inference 
+        msg = '5. Apply second round of filtering after insertion type inference'
         log.header(msg)
         filters2Apply = ['PERC-RESOLVED']
-        metaclustersPass, metaclustersFailed_round2 = filters.filter_metaclusters(metaclusters, filters2Apply, self.confDict)
-
-        # Remove variables to release memory
-        del metaclusters
-        
-        ## 8. Perform gene-based annotation with ANNOVAR of INS target region
-        msg = '8. Perform gene-based annotation with ANNOVAR of INS target region'
+        metaclustersPass, metaclustersFailed = filters.filter_metaclusters(allMetaclusters, filters2Apply, self.confDict)
+                
+        ### 6. Report SV calls into output files
+        msg = '6. Report SV calls into output files'
         log.header(msg)
 
-        # Do gene-based annotation step if enabled
-        if ('INS' in metaclustersPass) and (self.confDict['annovarDir'] is not None):
-
-            step = 'GENE-ANNOT'
-            msg = 'Perform gene-based annotation with ANNOVAR of INS events'
-            log.step(step, msg)
-
-            ## Annotate
-            annotDir = self.outDir + '/ANNOT/' 
-            annotation.gene_annotation(metaclustersPass['INS'], self.confDict['annovarDir'], annotDir)
-
-            # Cleanup
-            unix.rm([annotDir])
-        
-        ### 9. Report SV calls into output files
-        msg = '9. Report SV calls into output files'
-        log.header(msg)
-
-        ##  9.1 Report INS
+        ##  6.1 Report INS
         if 'INS' in metaclustersPass:
             outFileName = 'INS_MEIGA.PASS.tsv'
             output.write_INS(metaclustersPass['INS'], outFileName, self.outDir)
 
-        if 'INS' in metaclustersFailed_round2:
-            outFileName = 'INS_MEIGA.FAILED_2.tsv'
-            output.write_INS(metaclustersFailed_round2['INS'], outFileName, self.outDir)
+        if 'INS' in metaclustersFailed:
+            outFileName = 'INS_MEIGA.FAILED.2.tsv'
+            output.write_INS(metaclustersFailed['INS'], outFileName, self.outDir)
         
     def make_clusters(self):
         '''
@@ -192,25 +151,22 @@ class SV_caller_long(SV_caller):
             1. metaclustersPass: dictionary containing one key per SV type and the list of metaclusters identified of each given SV type
         '''
         ### 1. Define genomic bins to search for SV ##
-        msg = '1. Define genomic bins to search for SV'
-        log.header(msg)
-
         bins = bamtools.binning(self.confDict['targetBins'], self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
         
         ### 2. Search for SV clusters in each bin ##
-        # Genomic bins will be distributed into X processes
-        msg = '2. Search for SV clusters in each bin'
-        log.header(msg)
+        # Create output directory
+        unix.mkdir(self.outDir + '/CLUSTER/')
 
+        # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
         metaclustersPassList, metaclustersFailedList = zip(*pool.starmap(self.make_clusters_bin, bins))
         pool.close()
         pool.join()
 
-        ### 3. Collapse metaclusters in a single dict and report metaclusters that failed filtering
-        msg = '3. Collapse metaclusters in a single dict and report metaclusters that failed filtering'
-        log.header(msg)
+        # Remove output directory
+        unix.rm([self.outDir + '/CLUSTER/'])
 
+        ### 3. Collapse metaclusters in a single dict and report metaclusters that failed filtering
         metaclustersPass = structures.merge_dictionaries(metaclustersPassList)
         metaclustersFailed = structures.merge_dictionaries(metaclustersFailedList)
 
