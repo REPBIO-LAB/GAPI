@@ -7,6 +7,7 @@ Module 'annotation' - Contains functions for the annotation of genomic intervals
 import os
 import subprocess
 from operator import itemgetter
+from memory_profiler import profile
 
 # Internal
 import unix
@@ -62,6 +63,7 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
         annotations['EXONS'] = formats.bed2binDb(exonsBed, refLengths, threads)
 
     return annotations
+
 
 def annotate(events, steps, refLengths, refDir, annovarDir, processes, outDir):
     '''

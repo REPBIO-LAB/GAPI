@@ -4,6 +4,7 @@ Module 'filters' - Contains functions for filtering clusters
 
 ## [SR CHANGE]
 import pysam
+from memory_profiler import profile
 
 ###############
 ## FUNCTIONS ##
