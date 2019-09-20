@@ -5,7 +5,6 @@ Module 'filters' - Contains functions for filtering clusters
 ## [SR CHANGE]
 import pysam
 
-
 ###############
 ## FUNCTIONS ##
 ###############

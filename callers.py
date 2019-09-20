@@ -6,10 +6,8 @@ Module 'callers' - Contains classes and functions for calling variants from next
 # External
 import sys
 import multiprocessing as mp
-import subprocess
 import os
 import pysam
-import pprint
 
 # Internal
 import log
