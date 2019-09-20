@@ -572,24 +572,13 @@ def structure_inference_parallel(metaclusters, consensusPath, transducedPath, tr
 
     for metacluster in metaclusters:
         
-        ## Skip structure inference if:
-        # - Consensus event not available for the metacluster
-        # - Insertion type not available or not solo, partnered or orphan transduction
-        if (metacluster.consensusEvent is None) or ('INS_TYPE' not in metacluster.SV_features) or (metacluster.SV_features['INS_TYPE'] not in ['solo', 'partnered', 'orphan']):
+        ## Skip structure inference if insertion type not available or not solo, partnered or orphan transduction
+        # Note: investigate why INS_TYPE is not defined in some metaclusters
+        if ('INS_TYPE' not in metacluster.SV_features) or (metacluster.SV_features['INS_TYPE'] not in ['solo', 'partnered', 'orphan']):
             continue
 
-        ## Create output directory
-        metaInterval = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])
-        outDir = rootDir + '/' + metaInterval
-        unix.mkdir(outDir)
-        
-        ## Create fasta file containing consensus inserted sequence
-        insertPath = insertedSeq2fasta([metacluster], outDir)
-
         ## Add to the list
-        families = metacluster.SV_features['FAMILY'] if 'FAMILY' in metacluster.SV_features else None
-        cytobands = metacluster.SV_features['CYTOBAND'] if 'CYTOBAND' in metacluster.SV_features else None
-        fields = (metaInterval, metacluster.SV_features['INS_TYPE'], families, cytobands, insertPath, consensusPath, transducedPath, transductionSearch, outDir)
+        fields = (metacluster, consensusPath, transducedPath, transductionSearch, rootDir)
         tupleList.append(fields)
 
     ## 2. Infer structure
@@ -601,7 +590,7 @@ def structure_inference_parallel(metaclusters, consensusPath, transducedPath, tr
 
     for metacluster in metaclusters:
         
-        ## Retrieve relevant dict containing structure info
+        # Retrieve relevant dict containing structure info
         metaInterval = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])
         
         if metaInterval in results:
@@ -612,76 +601,32 @@ def structure_inference_parallel(metaclusters, consensusPath, transducedPath, tr
         
     return metaclusters
 
-def structure_inference(insId, insType, families, cytobands, insertPath, consensusPath, transducedPath, transductionSearch, outDir):
+def structure_inference(metacluster, consensusPath, transducedPath, transductionSearch, rootDir):
     '''
-    Infer inserted sequence structural features
+    Wrapper to call 'determine_INS_structure' method for a given INS metacluster provided as input
 
     Input:
-        1. insId: insertion identifier (string)
-        2. insType: insertion type (solo, orphan or partnered)
-        3. families: list of repeat families matching to the inserted sequence. None if not relevant
-        4. cytobands: list of source element cytoband identifiers (only for transductions). None if not relevant
-        5. insertPath: path to fasta file containing the inserted sequence
-        6. consensusPath: path to fasta file containing retrotransposon consensus sequences
-        7. transducedPath: path to fasta containing transduced sequences downstream of source elements
-        8. transductionSearch: boolean specifying if transduction search is enabled (True) or not (False)
-        9. outDir: output directory
+        1. metacluster: INS metacluster 
+        2. consensusPath: path to fasta file containing retrotransposon consensus sequences
+        3. transducedPath: path to fasta containing transduced sequences downstream of source elements
+        4. transductionSearch: boolean specifying if transduction search is enabled (True) or not (False)
+        5. rootDir: Root output directory
     
-    Output: 
-        1. insId: insertion identifier (string, same as input)
-        2. structure: dictionary containing insertion structural properties
+    Output:
+        1. metacluster: INS metacluster with structure information stored at 'SV_features' dict attribute
     '''
-        
-    ## 1. Read fasta files 
-    #  1.1 Consensus sequences
-    consensus = formats.FASTA()
-    consensus.read(consensusPath)
+    # Create output directory
+    metaInterval = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])
+    outDir = rootDir + '/' + metaInterval
+    unix.mkdir(outDir)
 
-    #  1.2 Transduced regions
-    if transductionSearch: 
-        transduced = formats.FASTA()
-        transduced.read(transducedPath)
+    # Infer structure
+    structure = metacluster.determine_INS_structure(consensusPath, transducedPath, transductionSearch, outDir)
 
-    ## 2. Create fasta object containing database of sequences
-    ## The database will contain the following sequences depending on the insertion type:
-    ## - Solo      -> consensus sequences for the same family
-    ## - Partnered -> consensus sequences for the same family
-    #              -> corresponding transduced area
-    ## - Orphan    -> corresponding transduced area
+    # Remove output directory
+    unix.rm([outDir])
 
-    ## Initialize fasta
-    fasta = formats.FASTA()
-
-    ## Add to the fasta subfamily consensus sequences for the corresponding family
-    if insType in ['solo', 'partnered']:
-        for seqId, seq in consensus.seqDict.items(): 
-            family = seqId.split('|')[1]
-
-            if family in families:
-                fasta.seqDict[seqId] = seq
-
-    ## Add to the fasta transduced region or regions
-    if insType in ['partnered', 'orphan']:
-        
-        for seqId, seq in transduced.seqDict.items(): 
-            family, srcId = seqId.split('|')[1:3]
-
-            if (family in families) and (srcId in cytobands):
-                fasta.seqDict[seqId] = seq
-
-    ## 3. Create fasta file
-    fastaPath = outDir + '/reference_sequences.fa'
-    fasta.write(fastaPath)
-
-    ## 4. Index fasta file
-    fileName = 'reference_sequences'  
-    indexPath = alignment.index_minimap2(fastaPath, fileName, outDir)
- 
-    ## 5. Structure inference        
-    structure = retrotransposons.retrotransposon_structure(insertPath, indexPath, outDir)
-
-    return insId, structure
-
+    return metaInterval, structure
 
 def insertedSeq2fasta(metaclusters, outDir):
     '''
@@ -1817,3 +1762,78 @@ class META_cluster():
             self.SV_features['INS_TYPE'] = 'unknown'     
             self.SV_features['PERC_RESOLVED'] = 0
  
+    def determine_INS_structure(self, consensusPath, transducedPath, transductionSearch, outDir):
+        '''
+        Infer inserted sequence structural features
+
+        Input:
+            1. consensusPath: path to fasta file containing retrotransposon consensus sequences
+            2. transducedPath: path to fasta containing transduced sequences downstream of source elements
+            3. transductionSearch: boolean specifying if transduction search is enabled (True) or not (False)
+            4. outDir: output directory
+    
+        Output: Add INS structure to the attribute SV_features
+        '''
+        ##  Skip structure inference if consensus event not available
+        if self.consensusEvent is None:
+            return  
+
+        ## 1. Read fasta files 
+        #  1.1 Consensus sequences
+        consensus = formats.FASTA()
+        consensus.read(consensusPath)
+
+        #  1.2 Transduced regions
+        if transductionSearch: 
+            transduced = formats.FASTA()
+            transduced.read(transducedPath)
+
+        ## 2. Create fasta object containing database of sequences
+        ## The database will contain the following sequences depending on the insertion type:
+        ## - Solo      -> consensus sequences for the same family
+        ## - Partnered -> consensus sequences for the same family
+        #              -> corresponding transduced area
+        ## - Orphan    -> corresponding transduced area
+
+        ## Initialize fasta
+        fasta = formats.FASTA()
+
+        ## Add to the fasta subfamily consensus sequences for the corresponding family
+        if self.SV_features['INS_TYPE'] in ['solo', 'partnered']:
+            for seqId, seq in consensus.seqDict.items(): 
+                family = seqId.split('|')[1]
+
+                if family in self.SV_features['FAMILY']:
+                    fasta.seqDict[seqId] = seq
+
+        ## Add to the fasta transduced region or regions
+        if self.SV_features['INS_TYPE'] in ['partnered', 'orphan']:
+        
+            for seqId, seq in transduced.seqDict.items(): 
+                family, srcId = seqId.split('|')[1:3]
+
+                if (family in self.SV_features['FAMILY']) and (srcId in self.SV_features['CYTOBAND']):
+                    fasta.seqDict[seqId] = seq
+
+        ## 3. Create fasta file
+        fastaPath = outDir + '/reference_sequences.fa'
+        fasta.write(fastaPath)
+
+        ## 4. Index fasta file
+        fileName = 'reference_sequences'  
+        indexPath = alignment.index_minimap2(fastaPath, fileName, outDir)
+
+        ## 5. Create fasta file containing consensus inserted sequence
+        # Create fasta object
+        FASTA = formats.FASTA()
+        insert = self.consensusEvent.pick_insert()
+        FASTA.seqDict['consensus_insert'] = insert
+
+        # Write fasta
+        insertPath = outDir + '/consensus_insert.fa'
+        FASTA.write(insertPath)    
+
+        ## 6. Structure inference        
+        structure = retrotransposons.retrotransposon_structure(insertPath, indexPath, outDir)
+
+        return structure
