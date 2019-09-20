@@ -64,7 +64,7 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
 
     return annotations
 
-
+@profile
 def annotate(events, steps, refLengths, refDir, annovarDir, processes, outDir):
     '''
     Annotate each input event inverval based on different annotation resources.

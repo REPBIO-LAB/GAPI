@@ -484,7 +484,7 @@ def find_insertion_at_clipping_bkp(primary, supplementary):
 
     return insert
 
-
+@profile
 def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transductionSearch, processes, rootOutDir):
     '''
     For each metacluster provided as input determine the type of insertion
@@ -575,6 +575,7 @@ def INS_type_metacluster(metacluster, alignments, args):
 
     return metacluster
 
+@profile
 def structure_inference_parallel(metaclusters, consensusPath, transducedPath, transductionSearch, processes, rootDir):
     '''
     Infer structure for a list of INS metacluster objects. Parallelize by distributing metaclusters by processes. 
