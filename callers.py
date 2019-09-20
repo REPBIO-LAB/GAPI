@@ -9,6 +9,8 @@ import multiprocessing as mp
 import subprocess
 import os
 import pysam
+import pprint
+from memory_profiler import profile
 
 # Internal
 import log
@@ -56,45 +58,17 @@ class SV_caller_long(SV_caller):
         '''
         Search for structural variants (SV) genome wide or in a set of target genomic regions
         '''
-        ### 1. Define genomic bins to search for SV ##
-        msg = '1. Define genomic bins to search for SV'
+
+        ## 1. Create SV clusters
+        metaclusters = self.make_clusters()
+
+        ## 2. Perform repeat-based annotation of INS target region
+        msg = '2. Perform repeat-based annotation of INS target region'
         log.header(msg)
 
-        bins = bamtools.binning(self.confDict['targetBins'], self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
-        
-        ### 2. Search for SV clusters in each bin ##
-        # Genomic bins will be distributed into X processes
-        msg = '2. Search for SV clusters in each bin'
-        log.header(msg)
+        if ('INS' in metaclusters):
 
-        pool = mp.Pool(processes=self.confDict['processes'])
-        metaclustersPassList, metaclustersFailedList = zip(*pool.starmap(self.make_clusters_bin, bins))
-        pool.close()
-        pool.join()
-
-        ### 3. Collapse metaclusters in a single dict and report metaclusters that failed first round of filtering
-        msg = '3. Collapse metaclusters in a single dict and report metaclusters that failed first round of filtering'
-        log.header(msg)
-
-        metaclustersPass_round1 = structures.merge_dictionaries(metaclustersPassList)
-        metaclustersFailed_round1 = structures.merge_dictionaries(metaclustersFailedList)
-
-        if 'INS' in metaclustersFailed_round1:
-            outFileName = 'INS_MEIGA.FAILED_1.tsv'
-            output.write_INS(metaclustersFailed_round1['INS'], outFileName, self.outDir)
-
-        ## Remove metaclusters that failed filtering to release memory 
-        del metaclustersPassList
-        del metaclustersFailedList
-        del metaclustersFailed_round1
-        
-        ## 4. Perform repeat-based annotation of INS target region
-        msg = '4. Perform repeat-based annotation of INS target region'
-        log.header(msg)
-
-        if ('INS' in metaclustersPass_round1):
-
-            ## 4.1. Load repeats database ##
+            ## 2.1. Load repeats database ##
             step = 'REPEAT-ANNOT'
             msg = '4.1. Load repeats database'
             log.step(step, msg)
@@ -106,19 +80,19 @@ class SV_caller_long(SV_caller):
             annotations = annotation.load_annotations(annotations2load, refLengths, self.refDir, self.confDict['processes'], annotDir)
             repeatsAnnot = annotations['REPEATS']
 
-            ## 4.2. Perform repeats annotation ##
-            msg = '4.2. Perform repeats annotation'
+            ## 2.2. Perform repeats annotation ##
+            msg = '2.2. Perform repeats annotation'
             log.step(step, msg)
 
-            annotation.repeats_annotation(metaclustersPass_round1['INS'], repeatsAnnot, 200)
+            annotation.repeats_annotation(metaclusters['INS'], repeatsAnnot, 200)
 
-        ### 5. Determine what type of sequence has been inserted for INS metaclusters
-        msg = '5. Determine what type of sequence has been inserted for INS metaclusters'
+        ### 3. Determine what type of sequence has been inserted for INS metaclusters
+        msg = '3. Determine what type of sequence has been inserted for INS metaclusters'
         log.header(msg)
 
-        if 'INS' in metaclustersPass_round1:
+        if 'INS' in metaclusters:
 
-            ## 5.1. Load transduced regions and exons database ##
+            ## 3.1. Load transduced regions and exons database ##
             step = 'INS-TYPE'
             msg = '5.1. Load transduced regions and exons database if appropiate'
             log.step(step, msg)
@@ -135,14 +109,14 @@ class SV_caller_long(SV_caller):
             annotations = annotation.load_annotations(annotations2load, refLengths, self.refDir, self.confDict['processes'], annotDir)
             annotations['REPEATS'] = repeatsAnnot
 
-            ## 5.2. Insertion type inference
-            msg = '5.2. Insertion type inference'
+            ## 3.2. Insertion type inference
+            msg = '3.2. Insertion type inference'
             log.step(step, msg)
 
             outDir = self.outDir + '/INS_TYPE/'
             unix.mkdir(outDir)
 
-            clusters.INS_type_metaclusters(metaclustersPass_round1['INS'], self.reference, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'], self.confDict, outDir)
+            clusters.INS_type_metaclusters(metaclusters['INS'], self.reference, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'], self.confDict, outDir)
             
             # Cleanup
             unix.rm([outDir])
@@ -155,7 +129,7 @@ class SV_caller_long(SV_caller):
         msg = '6. Resolve structure for solo, partnered and orphan transductions'
         log.header(msg)
         
-        if 'INS' in metaclustersPass_round1:
+        if 'INS' in metaclusters:
             consensus = self.refDir + '/consensusDb.fa'
             transduced = self.refDir + '/transducedDb.fa.masked'
 
@@ -165,7 +139,7 @@ class SV_caller_long(SV_caller):
             ## Reduce the number of processes to the half to decrease RAM usage
             processes = int(self.confDict['processes']/2)
 
-            metaclustersPass_round1['INS'] = clusters.structure_inference_parallel(metaclustersPass_round1['INS'], consensus, transduced, self.confDict['transductionSearch'], processes, outDir)
+            metaclusters['INS'] = clusters.structure_inference_parallel(metaclusters['INS'], consensus, transduced, self.confDict['transductionSearch'], processes, outDir)
 
             # Cleanup
             unix.rm([outDir])
@@ -174,10 +148,10 @@ class SV_caller_long(SV_caller):
         msg = '7. Apply second round of filtering after insertion type inference'
         log.header(msg)
         filters2Apply = ['PERC-RESOLVED']
-        metaclustersPass, metaclustersFailed_round2 = filters.filter_metaclusters(metaclustersPass_round1, filters2Apply, self.confDict)
+        metaclustersPass, metaclustersFailed_round2 = filters.filter_metaclusters(metaclusters, filters2Apply, self.confDict)
 
         # Remove variables to release memory
-        del metaclustersPass_round1
+        del metaclusters
         
         ## 8. Perform gene-based annotation with ANNOVAR of INS target region
         msg = '8. Perform gene-based annotation with ANNOVAR of INS target region'
@@ -210,6 +184,41 @@ class SV_caller_long(SV_caller):
             outFileName = 'INS_MEIGA.FAILED_2.tsv'
             output.write_INS(metaclustersFailed_round2['INS'], outFileName, self.outDir)
         
+    def make_clusters(self):
+        '''
+        Search for structural variant (SV) clusters 
+
+        Output:
+            1. metaclustersPass: dictionary containing one key per SV type and the list of metaclusters identified of each given SV type
+        '''
+        ### 1. Define genomic bins to search for SV ##
+        msg = '1. Define genomic bins to search for SV'
+        log.header(msg)
+
+        bins = bamtools.binning(self.confDict['targetBins'], self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
+        
+        ### 2. Search for SV clusters in each bin ##
+        # Genomic bins will be distributed into X processes
+        msg = '2. Search for SV clusters in each bin'
+        log.header(msg)
+
+        pool = mp.Pool(processes=self.confDict['processes'])
+        metaclustersPassList, metaclustersFailedList = zip(*pool.starmap(self.make_clusters_bin, bins))
+        pool.close()
+        pool.join()
+
+        ### 3. Collapse metaclusters in a single dict and report metaclusters that failed filtering
+        msg = '3. Collapse metaclusters in a single dict and report metaclusters that failed filtering'
+        log.header(msg)
+
+        metaclustersPass = structures.merge_dictionaries(metaclustersPassList)
+        metaclustersFailed = structures.merge_dictionaries(metaclustersFailedList)
+
+        if 'INS' in metaclustersFailed:
+            outFileName = 'INS_MEIGA.FAILED.1.tsv'
+            output.write_INS(metaclustersFailed['INS'], outFileName, self.outDir)
+        
+        return metaclustersPass
 
     def make_clusters_bin(self, ref, beg, end):
         '''
