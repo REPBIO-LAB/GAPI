@@ -484,44 +484,68 @@ def find_insertion_at_clipping_bkp(primary, supplementary):
     return insert
 
 
-def INS_type_metaclusters(metaclusters, reference, repeats, transduced, exons, confDict, rootOutDir):
+def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transductionSearch, processes, rootOutDir):
     '''
     For each metacluster provided as input determine the type of insertion
 
     Input:
         1. metaclusters: list of metaclusters supporting insertion events
         2. reference: Path to the reference genome in fasta format (bwa mem index must be located in the same folder)
-        3. repeats: bin database containing annotated repeats in the reference. None if not available
-        4. transduced: bin database containing regions transduced by source elements. None if not available
-        5. exons: bin database containing annotated exons in the reference. None if not available
-        6. confDict: Configuration dictionary
+        3. refLengths: Dictionary containing reference ids as keys and as values the length for each reference. 
+        4. refDir: Directory containing reference databases. 
+        5. transductionSearch: boolean specifying if transduction search is enabled (True) or not (False)
+        6. processes: number of processes
         7. rootOutDir: Root output directory
     '''      
 
-    ## 1. Create fasta containing all consensus inserted sequences ##
-    msg = '1. Create fasta containing all consensus inserted sequences'
-    log.subHeader(msg)    
+    ### 1. Load transduced regions and exons database 
+    msg = '1. Load transduced regions and exons database'
+    log.subHeader(msg)        
+    annotDir = rootOutDir + '/ANNOT/'
+    unix.mkdir(annotDir)
+
+    annotations2load = ['REPEATS']
+
+    if transductionSearch:    
+        annotations2load.append('TRANSDUCTIONS')
+
+    #if True: # at one point include flag for pseudogene search
+        #annotations2load.append('EXONS')
+
+    annotations = annotation.load_annotations(annotations2load, refLengths, refDir, processes, annotDir)
+
+    ## Cleanup
+    unix.rm([annotDir])
+
+    ### 2. Insertion type inference
+    msg = '2. Insertion type inference'
+    log.subHeader(msg)   
+
+    ## 2.1 Create fasta containing all consensus inserted sequences 
+    msg = '2.1 Create fasta containing all consensus inserted sequences'
+    log.info(msg)   
+
     fastaPath = insertedSeq2fasta(metaclusters, rootOutDir)
 
-    ## 2. Align consensus inserted sequences into the reference genome ##
-    msg = '2. Align consensus inserted sequences into the reference genome'
-    log.subHeader(msg)    
-    SAM = alignment.alignment_bwa(fastaPath, reference, confDict['processes'], rootOutDir)
+    ## 2.2 Align consensus inserted sequences into the reference genome  
+    msg = '2.2 Align consensus inserted sequences into the reference genome'
+    log.info(msg)    
+    SAM = alignment.alignment_bwa(fastaPath, reference, processes, rootOutDir)
     
-    ## 3. Asign alignments to their corresponding metacluster ##
-    msg = '3. Asign alignments to their corresponding metacluster'
-    log.subHeader(msg)    
+    ## 2.3 Asign alignments to their corresponding metacluster 
+    msg = '2.3 Asign alignments to their corresponding metacluster'
+    log.info(msg)       
     tupleList = assignAligments2metaclusters_sam(metaclusters, SAM)        
 
-    ## 4. Add to each tuple a third element with the list of arguments
-    msg = '4. Add to each tuple a third element with the list of arguments'
-    log.subHeader(msg)    
-    args = ([repeats, transduced, exons, confDict], )
+    ## 2.4 Add to each tuple a third element with the list of arguments 
+    msg = '2.4 Add to each tuple a third element with the list of arguments'
+    log.info(msg)           
+    args = ([annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS']], )
     tupleList= [element + args for element in tupleList]
         
-    ## 5. For each metacluster determine the insertion type
-    msg = '5. For each metacluster determine the insertion type'
-    log.subHeader(msg)    
+    ## 2.5 For each metacluster determine the insertion type
+    msg = '2.5 For each metacluster determine the insertion type'
+    log.info(msg)   
 
     # For each metacluster
     for element in tupleList:
@@ -541,13 +565,12 @@ def INS_type_metacluster(metacluster, alignments, args):
                 - repeats: Bin database containing annotated repeats in the reference. None if not available
                 - transduced: Bin database containing regions transduced by source elements. None if not available
                 - exons: Bin database containing annotated exons in the reference. None if not available
-                - confDict: Configuration dictionary
     '''      
     ## 1. Collect input arguments  
-    repeats, transduced, exons, confDict = args  
+    repeats, transduced, exons = args  
 
     ## 2. Determine metacluster´s insertion type
-    metacluster.determine_INS_type(alignments, repeats, transduced, exons, confDict)
+    metacluster.determine_INS_type(alignments, repeats, transduced, exons)
 
     return metacluster
 
@@ -568,6 +591,8 @@ def structure_inference_parallel(metaclusters, consensusPath, transducedPath, tr
     '''
     
     ## 1. Create tuple list for multiprocessing
+    msg = '1. Create tuple list for multiprocessing'
+    log.subHeader(msg)      
     tupleList = []
 
     for metacluster in metaclusters:
@@ -582,10 +607,14 @@ def structure_inference_parallel(metaclusters, consensusPath, transducedPath, tr
         tupleList.append(fields)
 
     ## 2. Infer structure
+    msg = '2. Infer structure'
+    log.subHeader(msg)       
     pool = mp.Pool(processes=processes)
     results = pool.starmap(structure_inference, tupleList)
 
     ## 3. Add structure info to the metacluster
+    msg = '3. Add structure info to the metacluster'
+    log.subHeader(msg)      
     results = dict(results)
 
     for metacluster in metaclusters:
@@ -1525,7 +1554,7 @@ class META_cluster():
             self.consensusFasta = None
      
 
-    def determine_INS_type(self, alignments, repeatsDb, transducedDb, exonsDb, confDict):
+    def determine_INS_type(self, alignments, repeatsDb, transducedDb, exonsDb):
         '''
         Determine the type of insertion based on the alignments of the inserted sequence on the reference genome
 
@@ -1534,7 +1563,6 @@ class META_cluster():
             2. repeatsDb: bin database containing annotated repeats in the reference. None if not available
             3. transducedDb: bin database containing regions transduced by source elements. None if not available
             4. exonsDb: bin database containing annotated exons in the reference. None if not available
-            5. confDict: Configuration dictionary
 
         Output: Add INS type annotation to the attribute SV_features
         '''    
