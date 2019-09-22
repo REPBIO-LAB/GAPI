@@ -10,6 +10,7 @@ import numpy as np
 import pysam
 import math
 import itertools
+from memory_profiler import profile
 
 # Internal
 import log
@@ -179,7 +180,10 @@ def create_clusters(eventsBinDb, confDict):
 
     ## 2. Organize clusters into bins ##    
     binSizes = [100, 1000, 10000, 100000, 1000000]
-    clustersBinDb = structures.create_bin_database_interval(eventsBinDb.ref, eventsBinDb.beg, eventsBinDb.end, clustersDict, binSizes)
+    clustersRefDict = {}
+    clustersRefDict[eventsBinDb.ref] = clustersDict
+
+    clustersBinDb = structures.create_bin_database_interval(eventsBinDb.ref, eventsBinDb.beg, eventsBinDb.end, clustersRefDict, binSizes)
 
     return clustersBinDb
 
@@ -483,7 +487,7 @@ def find_insertion_at_clipping_bkp(primary, supplementary):
 
     return insert
 
-@profile
+#@profile
 def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transductionSearch, processes, rootOutDir):
     '''
     For each metacluster provided as input determine the type of insertion
@@ -574,7 +578,7 @@ def INS_type_metacluster(metacluster, alignments, args):
 
     return metacluster
 
-@profile
+#@profile
 def structure_inference_parallel(metaclusters, consensusPath, transducedPath, transductionSearch, processes, rootDir):
     '''
     Infer structure for a list of INS metacluster objects. Parallelize by distributing metaclusters by processes. 
