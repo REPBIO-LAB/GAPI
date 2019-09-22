@@ -31,7 +31,24 @@ def create_bin_database(refLengths, eventsDict, threads):
     Output:
         1. wgBinDb: dictionary containing references as keys and the corresponding 'bin_database' as value
     '''    
-    ## Create list of tuples. Each tuple will contain all the variables needed for creating a bin database for a given chromosome
+    ## 1. Create shared dictionary with input events 
+    manager = mp.Manager()
+    eventsShared = manager.dict()
+
+    # For each reference
+    for ref in list(eventsDict.keys()):
+
+        # Add events to shared dict
+        eventsShared[ref] = eventsDict[ref]
+
+        # Remove reference from original dict
+        eventsDict.pop(ref)
+
+    ## 2. Initialize shared whole genome bin database
+    manager = mp.Manager()
+    wgBinDbShared = manager.dict()
+
+    ## Create list of tuples. Each tuple will contain all the variables needed for loading the events into a the whole genome bin database
     tupleList = []
 
     # For each reference
@@ -45,9 +62,9 @@ def create_bin_database(refLengths, eventsDict, threads):
         binSizes = [10000, 100000, 1000000, refLen]
 
         # Add to the list of tuples
-        fields = (ref, 0, refLen, eventsDict[ref], binSizes)
+        fields = (ref, 0, refLen, eventsShared, binSizes)
         tupleList.append(fields)
-
+        
     ## Create bin database per chromosome
     pool = mp.Pool(processes=threads)
     databases = pool.starmap(create_bin_database_interval, tupleList)
@@ -64,27 +81,31 @@ def create_bin_database(refLengths, eventsDict, threads):
 
 def create_bin_database_interval(ref, beg, end, eventsDict, binSizes):
     '''
-    Organize events identified in a given genomic interval into a bin database
+    Organize events into a bin database
 
     Input:
         1. ref: reference/chromosome
         2. beg: bin begin coordinate
         3. end: bin end coordinate
-        4. eventsDict: dictionary containing:
-            * KEY_1 -> list of objects
-            * KEY_2 -> list of objects
+        4. eventsDict: nested dictionary containing:
+            * FIRST LEVEL KEYS:
+                - REF_1
+                - ...
+
+                * SECOND LEVEL KEYS:
+                    - EVENT_TYPE_1 -> list of objects
+                    - ...
     
         5. binSizes: list of bin sizes that will be used to create a bin database 
 
     Output:
         1. binDb: 'bin_database' instance containing all the input events organized in genomic bins
-    '''          
-
+    '''            
     # Initiate bin database
     binDb = bin_database(ref, beg, end, binSizes)
 
     # For each type of input event
-    for eventType, events in eventsDict.items():
+    for eventType, events in eventsDict[ref].items():
 
         # Add all the events from the given event type to the bin database
         binDb.add(events, eventType)
