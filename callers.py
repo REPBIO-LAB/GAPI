@@ -8,6 +8,7 @@ import sys
 import multiprocessing as mp
 import os
 import pysam
+from memory_profiler import profile
 
 # Internal
 import log
@@ -51,7 +52,7 @@ class SV_caller_long(SV_caller):
 
         SV_caller.__init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir)
 
-    @profile
+    #@profile
     def call(self):
         '''
         Search for structural variants (SV) genome wide or in a set of target genomic regions
@@ -141,7 +142,7 @@ class SV_caller_long(SV_caller):
             outFileName = 'INS_MEIGA.FAILED.2.tsv'
             output.write_INS(metaclustersFailed['INS'], outFileName, self.outDir)
         
-    @profile
+    #@profile
     def make_clusters(self):
         '''
         Search for structural variant (SV) clusters 
@@ -213,7 +214,9 @@ class SV_caller_long(SV_caller):
         binSizes = [minBinSize, 1000, 10000, 100000, 1000000]
 
         ## Create bins
-        eventsBinDb = structures.create_bin_database_interval(ref, beg, end, eventsDict, binSizes)
+        eventsRefDict = {}
+        eventsRefDict[ref] = eventsDict
+        eventsBinDb = structures.create_bin_database_interval(ref, beg, end, eventsRefDict, binSizes)
 
         ## 3. Group events into clusters ##
         step = 'CLUSTERING'
@@ -393,7 +396,10 @@ class SV_caller_short(SV_caller):
         binSizes = [1000, 10000, 100000, 1000000]
 
         ## Create bins
-        discordantsBinDb = structures.create_bin_database_interval(ref, beg, end, discordantsIdentity, binSizes)
+        discordantsRefIdentity = {}
+        discordantsRefIdentity[ref] = discordantsIdentity
+
+        discordantsBinDb = structures.create_bin_database_interval(ref, beg, end, discordantsRefIdentity, binSizes)
         
         ## 4. Group discordant read pairs into clusters based on their mate identity ##
         buffer = 100
