@@ -589,78 +589,73 @@ def structure_inference_parallel(metaclusters, consensusPath, transducedPath, tr
         3. transducedPath: path to fasta containing transduced sequences downstream of source elements
         4. transductionSearch: boolean specifying if transduction search is enabled (True) or not (False)
         5. processes: number of processes
-        6. rootDir: Root output directory
+        6. rootDir: Root output directory    
     
     Output:
-        1. metaclusters: list of metacluster objects with structure information stored at 'SV_features' dict attribute
+        1. metaclusters:
     '''
-    
-    ## 1. Create tuple list for multiprocessing
-    msg = '1. Create tuple list for multiprocessing'
+    ## 1. Organize metaclusters into a shared dictionary
+    msg = '1. Organize metaclusters into a shared dictionary'
+    log.subHeader(msg)        
+    manager = mp.Manager()
+    metaclustersShared = manager.dict()
+
+    for metacluster in metaclusters:
+        metaclusterId = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])  
+        metaclustersShared[metaclusterId] = metacluster
+
+    ## 2. Create tuple list for multiprocessing
+    msg = '2. Create tuple list for multiprocessing'
     log.subHeader(msg)      
     tupleList = []
 
-    for metacluster in metaclusters:
-        
+    for metaclusterId, metacluster in metaclustersShared.items():
+
         ## Skip structure inference if insertion type not available or not solo, partnered or orphan transduction
         # Note: investigate why INS_TYPE is not defined in some metaclusters
         if ('INS_TYPE' not in metacluster.SV_features) or (metacluster.SV_features['INS_TYPE'] not in ['solo', 'partnered', 'orphan']):
             continue
 
         ## Add to the list
-        fields = (metacluster, consensusPath, transducedPath, transductionSearch, rootDir)
+        fields = (metaclusterId, metaclustersShared, consensusPath, transducedPath, transductionSearch, rootDir)
         tupleList.append(fields)
 
-    ## 2. Infer structure
+    ## 3. Infer structure
     msg = '2. Infer structure'
     log.subHeader(msg)       
     pool = mp.Pool(processes=processes)
-    results = pool.starmap(structure_inference, tupleList)
-
-    ## 3. Add structure info to the metacluster
-    msg = '3. Add structure info to the metacluster'
-    log.subHeader(msg)      
-    results = dict(results)
-
-    for metacluster in metaclusters:
-        
-        # Retrieve relevant dict containing structure info
-        metaInterval = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])
-        
-        if metaInterval in results:
-            structure = results[metaInterval]
-
-            # Add info to the object attribute
-            metacluster.SV_features.update(structure) 
-        
+    metaclusters = pool.starmap(structure_inference, tupleList)
+    
     return metaclusters
 
-def structure_inference(metacluster, consensusPath, transducedPath, transductionSearch, rootDir):
+def structure_inference(metaclusterId, metaclusters, consensusPath, transducedPath, transductionSearch, rootDir):
     '''
     Wrapper to call 'determine_INS_structure' method for a given INS metacluster provided as input
 
     Input:
-        1. metacluster: INS metacluster 
-        2. consensusPath: path to fasta file containing retrotransposon consensus sequences
-        3. transducedPath: path to fasta containing transduced sequences downstream of source elements
-        4. transductionSearch: boolean specifying if transduction search is enabled (True) or not (False)
-        5. rootDir: Root output directory
+        1. metaclusterId: metacluster identifier string (ref_beg_end)
+        2. metaclusters: dictionary containing all the metaclusters as values and as keys the metacluster ids
+        3. consensusPath: path to fasta file containing retrotransposon consensus sequences
+        4. transducedPath: path to fasta containing transduced sequences downstream of source elements
+        5. transductionSearch: boolean specifying if transduction search is enabled (True) or not (False)
+        6. rootDir: Root output directory
     
     Output:
-        1. metacluster: INS metacluster with structure information stored at 'SV_features' dict attribute
+        1. metacluster: metacluster containing structural features at 'SV_features' dict attribute
     '''
     # Create output directory
-    metaInterval = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])
-    outDir = rootDir + '/' + metaInterval
+    outDir = rootDir + '/' + metaclusterId
     unix.mkdir(outDir)
 
     # Infer structure
-    structure = metacluster.determine_INS_structure(consensusPath, transducedPath, transductionSearch, outDir)
+    metacluster = metaclusters[metaclusterId]
+    metacluster.determine_INS_structure(consensusPath, transducedPath, transductionSearch, outDir)
 
     # Remove output directory
     unix.rm([outDir])
 
-    return metaInterval, structure
+    return metacluster
+
 
 def insertedSeq2fasta(metaclusters, outDir):
     '''
@@ -1571,7 +1566,6 @@ class META_cluster():
 
         Output: Add INS type annotation to the attribute SV_features
         '''    
-
         ## 1. No alignment on the reference
         if not alignments:
             self.SV_features['INS_TYPE'] = 'unknown'
@@ -1869,4 +1863,6 @@ class META_cluster():
         ## 6. Structure inference        
         structure = retrotransposons.retrotransposon_structure(insertPath, indexPath, outDir)
 
-        return structure
+        # Add structure info to the object attribute
+        self.SV_features.update(structure) 
+
