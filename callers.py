@@ -119,7 +119,7 @@ class SV_caller_long(SV_caller):
 
             # Structure inference
             allMetaclusters['INS'] = clusters.structure_inference_parallel(allMetaclusters['INS'], consensus, transduced, self.confDict['transductionSearch'], self.confDict['processes'], outDir)
-
+            
             # Remove output directory
             unix.rm([outDir])
 
