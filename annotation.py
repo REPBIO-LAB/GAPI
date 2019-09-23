@@ -7,6 +7,7 @@ Module 'annotation' - Contains functions for the annotation of genomic intervals
 import os
 import subprocess
 from operator import itemgetter
+from memory_profiler import profile
 
 # Internal
 import unix

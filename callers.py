@@ -52,7 +52,7 @@ class SV_caller_long(SV_caller):
 
         SV_caller.__init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir)
 
-    #@profile
+    @profile
     def call(self):
         '''
         Search for structural variants (SV) genome wide or in a set of target genomic regions
@@ -142,7 +142,7 @@ class SV_caller_long(SV_caller):
             outFileName = 'INS_MEIGA.FAILED.2.tsv'
             output.write_INS(metaclustersFailed['INS'], outFileName, self.outDir)
         
-    #@profile
+    @profile
     def make_clusters(self):
         '''
         Search for structural variant (SV) clusters 
