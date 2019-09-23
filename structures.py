@@ -10,8 +10,8 @@ import multiprocessing as mp
 import log
 import gRanges
 
-## FUNCTIONS ##
 
+## FUNCTIONS ##
 def create_bin_database(refLengths, eventsDict, threads):
     '''
     Organize genome wide events into a set of bin databases, one per reference
@@ -44,18 +44,14 @@ def create_bin_database(refLengths, eventsDict, threads):
         # Remove reference from original dict
         eventsDict.pop(ref)
 
-    ## 2. Initialize shared whole genome bin database
-    manager = mp.Manager()
-    wgBinDbShared = manager.dict()
-
-    ## Create list of tuples. Each tuple will contain all the variables needed for loading the events into a the whole genome bin database
+    ## 2.  Create list of tuples. Each tuple will contain all the variables needed for loading the events into a the whole genome bin database
     tupleList = []
 
     # For each reference
     for ref, refLen in refLengths.items():
         
         # Skip if no events in that particular ref
-        if ref not in eventsDict:
+        if ref not in eventsShared:
             continue
 
         # Define bin sizes
