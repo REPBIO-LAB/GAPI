@@ -248,7 +248,7 @@ def gene_annotation(events, annovarDir, outDir):
         event.geneAnnot = out1Dict[name]
 
     ## Do cleanup
-    unix.rm([annovarInput, out1, out2])
+    #unix.rm([annovarInput, out1, out2])
 
 
 def create_annovar_input(events, fileName, outDir):

@@ -502,8 +502,8 @@ def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transduct
         7. rootOutDir: Root output directory
     '''      
 
-    ### 1. Load transduced regions and exons database 
-    msg = '1. Load transduced regions and exons database'
+    ### 1. Load repeats, transduced regions and exons database 
+    msg = '1. Load repeats, transduced regions and exons database'
     log.subHeader(msg)        
     annotDir = rootOutDir + '/ANNOT/'
     unix.mkdir(annotDir)

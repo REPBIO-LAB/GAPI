@@ -87,7 +87,7 @@ class SV_caller_long(SV_caller):
             annotation.annotate(metaclusters, steps, refLengths, self.refDir, self.confDict['annovarDir'], self.confDict['processes'], annotDir)
 
         # Remove annotation directory
-        unix.rm([annotDir])
+        #unix.rm([annotDir])
 
         ### 3. Determine what type of sequence has been inserted for INS metaclusters
         msg = '3. Determine what type of sequence has been inserted for INS metaclusters'
