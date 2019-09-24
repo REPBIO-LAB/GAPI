@@ -99,8 +99,12 @@ class SV_caller_long(SV_caller):
 
         if 'INS' in allMetaclusters:
 
+            ## Set maximum number of processes to 5
+            processes = 5 if self.confDict['processes'] > 5 else self.confDict['processes']
+            print('processes: ', processes)
+        
             ## Infer insertion type
-            clusters.INS_type_metaclusters(allMetaclusters['INS'], self.reference, refLengths, self.refDir, self.confDict['transductionSearch'], self.confDict['processes'], outDir)
+            clusters.INS_type_metaclusters(allMetaclusters['INS'], self.reference, refLengths, self.refDir, self.confDict['transductionSearch'], processes, outDir)
 
         # Remove output directory
         #unix.rm([outDir])
