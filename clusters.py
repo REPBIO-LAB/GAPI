@@ -725,6 +725,7 @@ def assignAligments2metaclusters(metaclusters, PAF_path):
 
     return tupleList
 
+@profile
 def assignAligments2metaclusters_sam(metaclusters, SAM_path):
     '''
     Map alignments to their corresponding metacluster. 

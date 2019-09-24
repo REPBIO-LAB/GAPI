@@ -150,7 +150,7 @@ def annotate_interval(ref, beg, end, annotDb):
 
     return sortedOverlaps
         
-
+@profile
 def repeats_annotation(events, repeatsDb, buffer):
     '''
     For each input event assess if overlaps with an annotated repeat in the reference genome
@@ -207,7 +207,8 @@ def repeats_annotation(events, repeatsDb, buffer):
         
         ## Add repeat annotation as attribute 
         event.repeatAnnot = annotatedRepeats
-        
+
+@profile        
 def gene_annotation(events, annovarDir, outDir):
     '''
     Perform gene-based annotation for a list of input events

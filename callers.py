@@ -103,7 +103,7 @@ class SV_caller_long(SV_caller):
             clusters.INS_type_metaclusters(allMetaclusters['INS'], self.reference, refLengths, self.refDir, self.confDict['transductionSearch'], self.confDict['processes'], outDir)
 
         # Remove output directory
-        unix.rm([outDir])
+        #unix.rm([outDir])
             
         ### 4. Resolve structure for solo, partnered and orphan transductions
         msg = '4. Resolve structure for solo, partnered and orphan transductions'
@@ -121,7 +121,7 @@ class SV_caller_long(SV_caller):
             allMetaclusters['INS'] = clusters.structure_inference_parallel(allMetaclusters['INS'], consensus, transduced, self.confDict['transductionSearch'], self.confDict['processes'], outDir)
             
             # Remove output directory
-            unix.rm([outDir])
+            #unix.rm([outDir])
 
         ### 5. Apply second round of filtering after insertion type inference 
         msg = '5. Apply second round of filtering after insertion type inference'
