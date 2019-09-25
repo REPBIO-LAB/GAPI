@@ -63,8 +63,8 @@ class SV_caller_long(SV_caller):
         log.header(msg)
         allMetaclusters = self.make_clusters()
 
-        ### 2. Annotate SV clusters intervals  
-        msg = '2. Annotate SV clusters intervals'
+        ### 2. Repeats annotation at SV clusters intervals  
+        msg = '2. Repeats annotation at SV clusters intervals'
         log.header(msg)
 
         # Create output directory
@@ -74,17 +74,11 @@ class SV_caller_long(SV_caller):
         # Reference lengths, needed for repeats annotation
         refLengths = bamtools.get_ref_lengths(self.bam)
 
-        # Define annotation steps
-        steps = ['REPEAT']
-
-        if self.confDict['annovarDir'] is not None:
-            steps.append('GENE')
-
         # For each cluster type
         for SV_type in allMetaclusters:
             
             metaclusters = allMetaclusters[SV_type]
-            annotation.annotate(metaclusters, steps, refLengths, self.refDir, self.confDict['annovarDir'], self.confDict['processes'], annotDir)
+            annotation.annotate(metaclusters, ['REPEAT'], refLengths, self.refDir, self.confDict['annovarDir'], self.confDict['processes'], annotDir)
 
         # Remove annotation directory
         #unix.rm([annotDir])
@@ -101,7 +95,7 @@ class SV_caller_long(SV_caller):
 
             ## Set maximum number of processes to 5
             processes = 5 if self.confDict['processes'] > 5 else self.confDict['processes']
-            print('processes: ', processes)
+            print('processes-INS-TYPE: ', processes)
         
             ## Infer insertion type
             clusters.INS_type_metaclusters(allMetaclusters['INS'], self.reference, refLengths, self.refDir, self.confDict['transductionSearch'], processes, outDir)
