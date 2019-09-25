@@ -58,13 +58,17 @@ class SV_caller_long(SV_caller):
         Search for structural variants (SV) genome wide or in a set of target genomic regions
         '''
 
+        ## 0. Set maximum number of processes to 5 for memory intensive steps
+        maxProcessesMem = 5 if self.confDict['processes'] > 5 else self.confDict['processes']
+        print('maxProcessesMem: ', maxProcessesMem)
+
         ### 1. Create SV clusters 
         msg = '1. Create SV clusters'
         log.header(msg)
         allMetaclusters = self.make_clusters()
 
-        ### 2. Repeats annotation at SV clusters intervals  
-        msg = '2. Repeats annotation at SV clusters intervals'
+        ### 2. Annotate repeats at SV clusters intervals  
+        msg = '2. Annotate repeats at SV clusters intervals'
         log.header(msg)
 
         # Create output directory
@@ -78,7 +82,7 @@ class SV_caller_long(SV_caller):
         for SV_type in allMetaclusters:
             
             metaclusters = allMetaclusters[SV_type]
-            annotation.annotate(metaclusters, ['REPEAT'], refLengths, self.refDir, self.confDict['annovarDir'], self.confDict['processes'], annotDir)
+            annotation.annotate(metaclusters, ['REPEAT'], refLengths, self.refDir, self.confDict['annovarDir'], maxProcessesMem, annotDir)
 
         # Remove annotation directory
         #unix.rm([annotDir])
@@ -93,12 +97,8 @@ class SV_caller_long(SV_caller):
 
         if 'INS' in allMetaclusters:
 
-            ## Set maximum number of processes to 5
-            processes = 5 if self.confDict['processes'] > 5 else self.confDict['processes']
-            print('processes-INS-TYPE: ', processes)
-        
             ## Infer insertion type
-            clusters.INS_type_metaclusters(allMetaclusters['INS'], self.reference, refLengths, self.refDir, self.confDict['transductionSearch'], processes, outDir)
+            clusters.INS_type_metaclusters(allMetaclusters['INS'], self.reference, refLengths, self.refDir, self.confDict['transductionSearch'], maxProcessesMem, outDir)
 
         # Remove output directory
         #unix.rm([outDir])
@@ -116,7 +116,7 @@ class SV_caller_long(SV_caller):
             unix.mkdir(outDir)
 
             # Structure inference
-            allMetaclusters['INS'] = clusters.structure_inference_parallel(allMetaclusters['INS'], consensus, transduced, self.confDict['transductionSearch'], self.confDict['processes'], outDir)
+            allMetaclusters['INS'] = clusters.structure_inference_parallel(allMetaclusters['INS'], consensus, transduced, self.confDict['transductionSearch'], maxProcessesMem, outDir)
             
             # Remove output directory
             #unix.rm([outDir])
