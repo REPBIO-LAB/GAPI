@@ -36,13 +36,8 @@ def create_bin_database(refLengths, eventsDict, threads):
     eventsShared = manager.dict()
 
     # For each reference
-    for ref in list(eventsDict.keys()):
-
-        # Add events to shared dict
-        eventsShared[ref] = eventsDict[ref]
-
-        # Remove reference from original dict
-        eventsDict.pop(ref)
+    for ref in list(eventsDict.keys()):    
+        eventsShared[ref] = eventsDict.pop(ref)
 
     ## 2.  Create list of tuples. Each tuple will contain all the variables needed for loading the events into a the whole genome bin database
     tupleList = []
@@ -77,7 +72,7 @@ def create_bin_database(refLengths, eventsDict, threads):
 
 def create_bin_database_interval(ref, beg, end, eventsDict, binSizes):
     '''
-    Organize events into a bin database
+    Organize events into a bin database. Events are removed from the original dict once they are incorporated into the bin database
 
     Input:
         1. ref: reference/chromosome
@@ -97,16 +92,20 @@ def create_bin_database_interval(ref, beg, end, eventsDict, binSizes):
     Output:
         1. binDb: 'bin_database' instance containing all the input events organized in genomic bins
     '''            
-    # Initiate bin database
+    ## Initiate bin database
     binDb = bin_database(ref, beg, end, binSizes)
 
-    # For each type of input event
+    ## For each type of input event
     for eventType, events in eventsDict[ref].items():
 
         # Add all the events from the given event type to the bin database
         binDb.add(events, eventType)
+    
+    ## Once bin database created remove events from original dictionary
+    eventsDict.pop(ref)
 
     return binDb
+
 
 ## CLASSES ##
 class bin_database():
