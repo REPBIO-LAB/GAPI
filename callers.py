@@ -299,7 +299,7 @@ class SV_caller_short(SV_caller):
         ## Read bed
         rtAnnotBed = self.refDir + '/retrotransposons_repeatMasker.bed'
         rtAnnot = formats.BED()
-        rtAnnot.read(rtAnnotBed, 'nestedDict')
+        rtAnnot.read(rtAnnotBed, 'nestedDict', None)
 
         ## Create bin database
         refLengths = bamtools.get_ref_lengths(self.bam)
@@ -318,7 +318,7 @@ class SV_caller_short(SV_caller):
 
             ## Read bed
             transducedBed = formats.BED()
-            transducedBed.read(transducedPath, 'nestedDict')
+            transducedBed.read(transducedPath, 'nestedDict', None)
 
             ## Create bin database
             self.transducedBinDb = structures.create_bin_database(refLengths, transducedBed.lines, 1)
