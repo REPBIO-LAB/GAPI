@@ -662,9 +662,6 @@ def structure_inference(metacluster, consensusPath, transducedPath, transduction
 
     return metaInterval, structure
 
-
-
-
 def insertedSeq2fasta(metaclusters, outDir):
     '''
     Collect all the consensus inserted sequences from a list of metaclusters supporting INS and 

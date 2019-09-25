@@ -7,7 +7,6 @@ Module 'annotation' - Contains functions for the annotation of genomic intervals
 import os
 import subprocess
 from operator import itemgetter
-from memory_profiler import profile
 
 # Internal
 import unix
@@ -64,7 +63,6 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
 
     return annotations
 
-@profile
 def annotate(events, steps, refLengths, refDir, annovarDir, processes, outDir):
     '''
     Annotate each input event inverval based on different annotation resources.
@@ -108,7 +106,6 @@ def annotate(events, steps, refLengths, refDir, annovarDir, processes, outDir):
     log.subHeader(msg)
 
     if 'GENE' in steps:
-
         msg = 'Perform gene-based annotation'
         log.info(msg)  
         gene_annotation(events, annovarDir, outDir)
@@ -150,7 +147,6 @@ def annotate_interval(ref, beg, end, annotDb):
 
     return sortedOverlaps
         
-@profile
 def repeats_annotation(events, repeatsDb, buffer):
     '''
     For each input event assess if overlaps with an annotated repeat in the reference genome
@@ -208,7 +204,7 @@ def repeats_annotation(events, repeatsDb, buffer):
         ## Add repeat annotation as attribute 
         event.repeatAnnot = annotatedRepeats
 
-@profile        
+
 def gene_annotation(events, annovarDir, outDir):
     '''
     Perform gene-based annotation for a list of input events
@@ -240,7 +236,7 @@ def gene_annotation(events, annovarDir, outDir):
     addGnAnnot2events(events, out1)
     
     ## Do cleanup
-    #unix.rm([annovarInput, out1, out2])
+    unix.rm([annovarInput, out1, out2])
 
 def addGnAnnot2events(events, out1):
     '''
@@ -262,16 +258,17 @@ def addGnAnnot2events(events, out1):
         name = event.ref + ':' + str(event.beg) + '-' + str(event.end)
         eventsDict[name] = event
 
-    ## 2. Add to each event gene annotation info
-    with open(out1, "r") as out1File:
-    
-        # Read line by line adding the relevant info to the corresponding event in each iteration
-        for line in out1File:
-            fields = line.split()
-            region = fields[0]
-            gene = fields[1]
-            name = fields[8]             
-            eventsDict[name].geneAnnot = (region, gene)
+    ## 2. Add to each event gene annotation info    
+    out1File = open(out1, "r")
+
+    # Read line by line adding the relevant info to the corresponding event in each iteration
+    for line in out1File:
+
+        fields = line.split()
+        region = fields[0]
+        gene = fields[1]
+        name = fields[8]             
+        eventsDict[name].geneAnnot = (region, gene)
 
 def create_annovar_input(events, fileName, outDir):
     '''
@@ -286,16 +283,12 @@ def create_annovar_input(events, fileName, outDir):
     outPath = outDir + '/' + fileName
     outFile = open(outPath, 'w')
 
-    fields = ['ref', 'beg', 'end', 'name']
-    row = "\t".join(fields)
-    outFile.write(row + '\n')
-
     ## 2. Write events
     # For each event
     for event in events:
 
         name = event.ref + ':' + str(event.beg) + '-' + str(event.end)
-        fields = [event.ref, str(event.beg), str(event.end), 'comments: ' + name]
+        fields = [event.ref, str(event.beg), str(event.end), '0', '0', 'comments: ' + name]
         row = "\t".join(fields)
         
         # Add entry to BED
