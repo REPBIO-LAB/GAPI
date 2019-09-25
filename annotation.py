@@ -42,8 +42,8 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
     ## 1. Load annotated repeats into a bin database
     if 'REPEATS' in annotations2load:
 
-        #repeatsBed = annotationsDir + '/repeats.bed'
-        repeatsBed = annotationsDir + '/repeats.L1.bed'
+        repeatsBed = annotationsDir + '/repeats.bed'
+        #repeatsBed = annotationsDir + '/repeats.L1.bed'
         annotations['REPEATS'] = formats.bed2binDb(repeatsBed, refLengths, threads)
 
     ## 2. Create transduced regions database
@@ -245,7 +245,7 @@ def gene_annotation(events, annovarDir, outDir):
 def addGnAnnot2events(events, out1):
     '''
     Read annovar output file and incorporate gene annotation information to the corresponding event objects
-    
+
     Input: 
         1. events: List containing input events to be annotated. Events should be objects containing ref, beg and end attributes.
         2. out1: Annovar output file 1 (region annotation for all the variants) 
