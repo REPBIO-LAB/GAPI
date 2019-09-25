@@ -10,7 +10,6 @@ import multiprocessing as mp
 import log
 import gRanges
 
-
 ## FUNCTIONS ##
 def create_bin_database(refLengths, eventsDict, threads):
     '''

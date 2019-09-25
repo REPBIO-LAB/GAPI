@@ -8,7 +8,6 @@ import sys
 import multiprocessing as mp
 import os
 import pysam
-from memory_profiler import profile
 
 # Internal
 import log
@@ -52,7 +51,6 @@ class SV_caller_long(SV_caller):
 
         SV_caller.__init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir)
 
-    @profile
     def call(self):
         '''
         Search for structural variants (SV) genome wide or in a set of target genomic regions
@@ -67,8 +65,8 @@ class SV_caller_long(SV_caller):
         log.header(msg)
         allMetaclusters = self.make_clusters()
 
-        ### 2. Annotate repeats at SV clusters intervals  
-        msg = '2. Annotate repeats at SV clusters intervals'
+        ### 2. Annotate SV clusters intervals  
+        msg = '2. Annotate SV clusters intervals'
         log.header(msg)
 
         # Create output directory
@@ -78,14 +76,20 @@ class SV_caller_long(SV_caller):
         # Reference lengths, needed for repeats annotation
         refLengths = bamtools.get_ref_lengths(self.bam)
 
+        # Define annotation steps
+        steps = ['REPEAT']
+
+        if self.confDict['annovarDir'] is not None:
+            steps.append('GENE')
+
         # For each cluster type
         for SV_type in allMetaclusters:
             
             metaclusters = allMetaclusters[SV_type]
-            annotation.annotate(metaclusters, ['REPEAT'], refLengths, self.refDir, self.confDict['annovarDir'], maxProcessesMem, annotDir)
+            annotation.annotate(metaclusters, steps, refLengths, self.refDir, self.confDict['annovarDir'], maxProcessesMem, annotDir)
 
         # Remove annotation directory
-        #unix.rm([annotDir])
+        unix.rm([annotDir])
 
         ### 3. Determine what type of sequence has been inserted for INS metaclusters
         msg = '3. Determine what type of sequence has been inserted for INS metaclusters'
@@ -98,10 +102,10 @@ class SV_caller_long(SV_caller):
         if 'INS' in allMetaclusters:
 
             ## Infer insertion type
-            clusters.INS_type_metaclusters(allMetaclusters['INS'], self.reference, refLengths, self.refDir, self.confDict['transductionSearch'], maxProcessesMem, outDir)
+            clusters.INS_type_metaclusters(allMetaclusters['INS'], self.reference, refLengths, self.refDir, self.confDict['transductionSearch'], 1, outDir)
 
         # Remove output directory
-        #unix.rm([outDir])
+        unix.rm([outDir])
             
         ### 4. Resolve structure for solo, partnered and orphan transductions
         msg = '4. Resolve structure for solo, partnered and orphan transductions'
@@ -119,7 +123,7 @@ class SV_caller_long(SV_caller):
             allMetaclusters['INS'] = clusters.structure_inference_parallel(allMetaclusters['INS'], consensus, transduced, self.confDict['transductionSearch'], maxProcessesMem, outDir)
             
             # Remove output directory
-            #unix.rm([outDir])
+            unix.rm([outDir])
 
         ### 5. Apply second round of filtering after insertion type inference 
         msg = '5. Apply second round of filtering after insertion type inference'
@@ -140,7 +144,7 @@ class SV_caller_long(SV_caller):
             outFileName = 'INS_MEIGA.FAILED.2.tsv'
             output.write_INS(metaclustersFailed['INS'], outFileName, self.outDir)
         
-    @profile
+
     def make_clusters(self):
         '''
         Search for structural variant (SV) clusters 
