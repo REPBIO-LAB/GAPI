@@ -75,7 +75,8 @@ def bed2binDb(bedPath, refLengths, threads):
     '''
     ## Read bed
     bed = formats.BED()
-    bed.read(bedPath, 'nestedDict')
+    targetRefs = list(refLengths.keys())
+    bed.read(bedPath, 'nestedDict', targetRefs)
 
     ## Create bin database
     wgBinDb = structures.create_bin_database(refLengths, bed.lines, threads)
@@ -197,8 +198,8 @@ class BED():
         '''
         self.lines = None
         self.structure =  None
-                        
-    def read(self, filePath, structure):
+
+    def read(self, filePath, structure, targetRefs):
         '''
         BED file reader. Read and store bed lines into a data structure
 
@@ -209,21 +210,23 @@ class BED():
                 - 'Dict': lines saved in a dictionary where each key will correspond to a reference and the corresponding value will be the list of lines in that reference
                 - 'nestedDict': lines saved in a nested dictionary where first level keys correspond to the references and second level keys to bed entry names
 
+            3) targetRefs: list containing target references. Entries with refs not included in the list will not be loaded. 
+                            If 'None' all the entries will be loaded
         Initialize lines attribute as output
         '''
         self.structure = structure
 
         # a) Organize BED entries into a list
         if (self.structure == 'List'):
-            self.lines = self.organize_list(filePath)
+            self.lines = self.organize_list(filePath, targetRefs)
 
         # b) Organize BED entries into a dict
         elif (self.structure == 'Dict'):
-            self.lines = self.organize_dict(filePath)
+            self.lines = self.organize_dict(filePath, targetRefs)
 
         # c) Organize BED entries into a nested dict
         elif (self.structure == 'nestedDict'):
-            self.lines = self.organize_nestedDict(filePath)
+            self.lines = self.organize_nestedDict(filePath, targetRefs)
 
         # d) Unkown data type structure provided
         else:
@@ -298,14 +301,15 @@ class BED():
                 row = "\t".join(fields)
                 outFile.write(row + '\n')
 
-
-    def organize_list(self, filePath):
+    def organize_list(self, filePath, targetRefs):
         '''
         Organize bed file lines in a list
 
         Input:
             1) filePath: path to bed file
-
+            2) targetRefs: list containing target references. Entries with refs not included in the list will not be loaded. 
+                            If 'None' all the entries will be loaded
+        
         Output:
             1) lines: list containing bed entries
         '''
@@ -330,16 +334,20 @@ class BED():
             # B) Data line
             else:
                 line = BED_line(fields, header)
-                lines.append(line)
+
+                if (targetRefs is None) or (line.ref in targetRefs):
+                    lines.append(line)
         
         return lines
 
-    def organize_dict(self, filePath):
+    def organize_dict(self, filePath, targetRefs):
         '''
         Organize bed file lines in a dictionary where each key will correspond to a reference and the corresponding value will be the list of lines in that reference
         
         Input:
             1) filePath: path to bed file
+            2) targetRefs: list containing target references. Entries with refs not included in the list will not be loaded. 
+                            If 'None' all the entries will be loaded
 
         Output:
             1) lines: dictionary containing bed entries
@@ -367,22 +375,26 @@ class BED():
             else:
                 line = BED_line(fields, header)
 
-                # a) Initialize reference and add line
-                if line.ref not in lines:
-                    lines[line.ref] = [line]
+                if (targetRefs is None) or (line.ref in targetRefs):
 
-                # b) Add to preexisting reference
-                else:
-                    lines[line.ref].append(line)
+                    # a) Initialize reference and add line
+                    if line.ref not in lines:
+                        lines[line.ref] = [line]
+
+                    # b) Add to preexisting reference
+                    else:
+                        lines[line.ref].append(line)
 
         return lines
 
-    def organize_nestedDict(self, filePath):
+    def organize_nestedDict(self, filePath, targetRefs):
         '''
         Organize bed file lines in a nested dictionary where first level keys correspond to the references and second level keys to bed entry names  
 
         Input:
             1) filePath: path to bed file
+            2) targetRefs: list containing target references. Entries with refs not included in the list will not be loaded. 
+                            If 'None' all the entries will be loaded
 
         Output:
             1) lines: nested dictionary containing bed entries
@@ -412,21 +424,23 @@ class BED():
             else:
                 line = BED_line(fields, header)
                 
-                # A) Initialize reference and add line
-                if line.ref not in lines:
-                    lines[line.ref] = {}
-                    lines[line.ref][line.optional['name']] = [line]
+                if (targetRefs is None) or (line.ref in targetRefs):
 
-                # B) Add to preexisting reference
-                else:
-
-                    # a) Initialize entry name
-                    if line.optional['name'] not in lines[line.ref]:
+                    # A) Initialize reference and add line
+                    if line.ref not in lines:
+                        lines[line.ref] = {}
                         lines[line.ref][line.optional['name']] = [line]
 
-                    # b) Add to preexisting entry name
+                    # B) Add to preexisting reference
                     else:
-                        lines[line.ref][line.optional['name']].append(line)
+
+                        # a) Initialize entry name
+                        if line.optional['name'] not in lines[line.ref]:
+                            lines[line.ref][line.optional['name']] = [line]
+
+                        # b) Add to preexisting entry name
+                        else:
+                            lines[line.ref][line.optional['name']].append(line)
 
         return lines
 

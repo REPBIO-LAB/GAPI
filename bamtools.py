@@ -208,7 +208,7 @@ def binning(targetBins, bam, binSize, targetRefs):
     # B) Read bins from bed file
     else:
         BED = formats.BED()
-        BED.read(targetBins, 'List')        
+        BED.read(targetBins, 'List', None)        
         bins = [ (line.ref, line.beg, line.end) for line in BED.lines]
     
     return bins
