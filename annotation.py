@@ -42,8 +42,8 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
     ## 1. Load annotated repeats into a bin database
     if 'REPEATS' in annotations2load:
 
-        repeatsBed = annotationsDir + '/repeats.bed'
-        #repeatsBed = annotationsDir + '/repeats.L1.bed'
+        #repeatsBed = annotationsDir + '/repeats.bed'
+        repeatsBed = annotationsDir + '/repeats.L1.bed'
         annotations['REPEATS'] = formats.bed2binDb(repeatsBed, refLengths, threads)
 
     ## 2. Create transduced regions database
@@ -237,19 +237,41 @@ def gene_annotation(events, annovarDir, outDir):
     out1, out2 = run_annovar(annovarInput, annovarDir, outDir)
 
     ## 4. Add gene annotation info to the events
-    # Read annovar output file into a dict
-    out1Dict = read_annovar_out1(out1)
-
-    # Add to each event gene annotation info
-    for event in events:
-
-        ## Add gene annotation info
-        name = event.ref + ':' + str(event.beg) + '-' + str(event.end)
-        event.geneAnnot = out1Dict[name]
-
+    addGnAnnot2events(events, out1)
+    
     ## Do cleanup
     #unix.rm([annovarInput, out1, out2])
 
+def addGnAnnot2events(events, out1):
+    '''
+    Read annovar output file and incorporate gene annotation information to the corresponding event objects
+    
+    Input: 
+        1. events: List containing input events to be annotated. Events should be objects containing ref, beg and end attributes.
+        2. out1: Annovar output file 1 (region annotation for all the variants) 
+
+    Output:
+        New 'geneAnnot' attribute set for each input event. 
+        'geneAnnot' is a tuple(region,gene) 
+    '''
+    ## 1. Organize events into a dict
+    eventsDict = {}
+
+    for event in events:
+
+        name = event.ref + ':' + str(event.beg) + '-' + str(event.end)
+        eventsDict[name] = event
+
+    ## 2. Add to each event gene annotation info
+    with open(out1, "r") as out1File:
+    
+        # Read line by line adding the relevant info to the corresponding event in each iteration
+        for line in out1File:
+            fields = line.split()
+            region = fields[0]
+            gene = fields[1]
+            name = fields[8]             
+            eventsDict[name].geneAnnot = (region, gene)
 
 def create_annovar_input(events, fileName, outDir):
     '''
@@ -260,29 +282,24 @@ def create_annovar_input(events, fileName, outDir):
         2. fileName: Output file name 
         3. outDir: Output directory
     '''
-    ## 1. Initialize BED 
-    BED = formats.BED()
+    ## 1. Write header
+    outPath = outDir + '/' + fileName
+    outFile = open(outPath, 'w')
 
-    ## 2. Add events intervals to the BED  
-    BED.lines = []
-    BED.structure = 'List'
+    fields = ['ref', 'beg', 'end', 'name']
+    row = "\t".join(fields)
+    outFile.write(row + '\n')
 
+    ## 2. Write events
     # For each event
     for event in events:
 
-        # Create BED entry:
-        header = ['ref', 'beg', 'end', 'name']
         name = event.ref + ':' + str(event.beg) + '-' + str(event.end)
-        fields = [event.ref, event.beg, event.end, name]
-        entry = formats.BED_line(fields, header)
+        fields = [event.ref, str(event.beg), str(event.end), 'comments: ' + name]
+        row = "\t".join(fields)
         
         # Add entry to BED
-        BED.lines.append(entry)
-
-    ## 3. Write bed into a format compatible with annovar 
-    outFile = outDir + '/' + fileName
-    BED.write_annovar(outFile)
-
+        outFile.write(row + '\n')
 
 def read_annovar_out1(out1):
     '''
