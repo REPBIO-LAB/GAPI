@@ -1810,7 +1810,7 @@ class META_cluster():
         '''
         ##  Skip structure inference if consensus event not available
         if self.consensusEvent is None:
-            return  
+            return {}
 
         ## 1. Read fasta files 
         #  1.1 Consensus sequences
@@ -1848,6 +1848,10 @@ class META_cluster():
 
                 if (family in self.SV_features['FAMILY']) and (srcId in self.SV_features['CYTOBAND']):
                     fasta.seqDict[seqId] = seq
+
+        ##  Skip structure inference if empty database of sequences
+        if not fasta.seqDict:
+            return {}
 
         ## 3. Create fasta file
         fastaPath = outDir + '/reference_sequences.fa'

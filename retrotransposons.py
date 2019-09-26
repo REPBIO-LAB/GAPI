@@ -41,7 +41,6 @@ def retrotransposon_structure(FASTA_file, index, outDir):
 
     # Exit function if no hit on the retrotransposons database
     if not PAF.lines:
-        structure['PERC_RESOLVED'] = 0
         return structure
 
     ## 3. Chain complementary alignments ##
