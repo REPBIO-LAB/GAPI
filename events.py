@@ -187,15 +187,14 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb):
         ## Separate discordants matching from those not matching source elements
         discordants = []
 
-        if 'PLUS_DISCORDANT_None':
+        if 'PLUS_DISCORDANT_None' in discordantsTd:
             discordants = discordants + discordantsTd['PLUS_DISCORDANT_None']
             discordantsTd.pop('PLUS_DISCORDANT_None', None)
 
-        if 'MINUS_DISCORDANT_None':
+        if 'MINUS_DISCORDANT_None' in discordantsTd:
             discordants = discordants + discordantsTd['MINUS_DISCORDANT_None']
             discordantsTd.pop('MINUS_DISCORDANT_None', None)
         
-
     ## 2. Assess if discordant read pairs support transduction insertion
     discordantsRt = annotation.intersect_mate_annotation(discordants, repeatsBinDb)
 
