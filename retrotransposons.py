@@ -12,6 +12,7 @@ import unix
 import formats
 import alignment
 import sequences
+import annotation
 
 ## FUNCTIONS ##
 def retrotransposon_structure(FASTA_file, index, outDir):
@@ -443,3 +444,161 @@ def infer_integration_mechanism(chain, truncation3len, polyA):
         mechanism = 'unknown'
 
     return mechanism
+
+
+def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
+    '''
+    Determine if input sequence corresponds to a interspersed insertion
+
+    Input:
+        1. sequence: Input sequence
+        2. PAF: PAF object containing input sequence alignments on the reference genome
+        3. repeatsDb: bin database containing annotated repeats in the reference. None if not available
+        4. transducedDb: bin database containing regions transduced by source elements. None if not available
+
+    Output:
+        1. INS_features: dictionary containing interspersed repeat insertion features
+    '''
+    INS_features = {}
+
+    ## 0. Sequence does not align on the reference ##
+    if not PAF.lines:
+        INS_features['INS_TYPE'] = 'unknown'
+        INS_features['PERC_RESOLVED'] = 0
+        return INS_features
+
+    ## 1. Create chain of alignments ##
+    chain = PAF.chain(300, 20)
+
+    ## 2. Annotate each hit in the chain ##
+    repeatMatch = False
+    transducedMatch = False
+
+    ## For each hit
+    for hit in chain.alignments:
+
+        hit.annot = {}
+
+        ## 2.1 Does the hit corresponds to a polyA/T? 
+        polyA = is_polyA(sequence, 80)
+
+        # Skip next annotation steps if hit corresponds to a polyA
+        if polyA:
+            continue
+
+        ## 2.2 Hit matches an annotated repeat 
+        overlaps = annotation.annotate_interval(hit.tName, hit.tBeg, hit.tEnd, repeatsDb)
+
+        if overlaps:
+            repeatMatch = True
+            hit.annot['REPEAT'] = overlaps[0][0] # Select repeat with longest overlap
+
+        ## 2.3 Hit matches a transduced region
+        overlaps = annotation.annotate_interval(hit.tName, hit.tBeg, hit.tEnd, transducedDb)
+
+        if overlaps:
+            transducedMatch = True
+            hit.annot['SOURCE_ELEMENT'] = overlaps[0][0] # Select trandsduced with longest overlap
+
+    ## 3. Make list of distinct features matching the inserted sequence ##
+    features = {}
+    features['SOURCE_ELEMENT'] = []   
+    features['REPEATS'] = {}
+    features['REPEATS']['FAMILIES'] = []
+    features['REPEATS']['SUBFAMILIES'] = []
+
+    for hit in chain.alignments:
+
+        ## Hit overlaps a repeat
+        if 'REPEAT' in hit.annot:
+            family = hit.annot['REPEAT'].optional['family']
+            subfamily = hit.annot['REPEAT'].optional['subfamily']
+
+            if family not in features['REPEATS']['FAMILIES']:
+                features['REPEATS']['FAMILIES'].append(family)
+
+            if subfamily not in features['REPEATS']['SUBFAMILIES']:
+                features['REPEATS']['SUBFAMILIES'].append(subfamily)
+
+        ## Hit overlaps a source element
+        if 'SOURCE_ELEMENT' in hit.annot:
+            cytobandId = hit.annot['SOURCE_ELEMENT'].optional['cytobandId']
+            family = hit.annot['SOURCE_ELEMENT'].optional['family']
+
+            if cytobandId not in features['SOURCE_ELEMENT']:
+                features['SOURCE_ELEMENT'].append(cytobandId)
+
+            if family not in features['REPEATS']['FAMILIES']:
+                features['REPEATS']['FAMILIES'].append(family)
+
+    ## 4. Determine insertion type based on hits annotation ##
+    # A) Partnered transduction
+    if repeatMatch and transducedMatch:
+
+        INS_features['INS_TYPE'] = 'partnered'
+        INS_features['PERC_RESOLVED'] = chain.perc_query_covered()
+
+        ## Repeat info
+        INS_features['FAMILY'] = features['REPEATS']['FAMILIES'] 
+        INS_features['SUBFAMILY'] = features['REPEATS']['SUBFAMILIES']
+
+        ## Transduction info
+        INS_features['CYTOBAND'] = features['SOURCE_ELEMENT']
+
+    # B) Orphan
+    elif transducedMatch:
+        INS_features['INS_TYPE'] = 'orphan'
+        INS_features['PERC_RESOLVED'] = chain.perc_query_covered()
+
+        INS_features['FAMILY'] = features['REPEATS']['FAMILIES'] 
+        INS_features['CYTOBAND'] = features['SOURCE_ELEMENT']
+
+    # C) Solo
+    elif repeatMatch:
+
+        INS_features['INS_TYPE'] = 'solo'
+        INS_features['PERC_RESOLVED'] = chain.perc_query_covered()
+
+        INS_features['FAMILY'] = features['REPEATS']['FAMILIES'] 
+        INS_features['SUBFAMILY'] = features['REPEATS']['SUBFAMILIES']
+
+    # D) PolyA/T tail
+    elif polyA:
+
+        INS_features['INS_TYPE'] = 'poly(A/T)'
+        INS_features['PERC_RESOLVED'] = chain.perc_query_covered()
+
+    # E) Unknown 
+    else:        
+        INS_features['INS_TYPE'] = 'unknown'
+        INS_features['PERC_RESOLVED'] = 0
+
+    return INS_features
+
+
+def is_polyA(sequence, minPerc):
+    '''
+    Determine if input sequence corresponds to a polyA/T tail or not
+
+    Input:
+        1. sequence: Input sequence
+        2. minPerc: Minimum percentage of base pairs corresponding to A or T to call a polyA/T tail
+
+    Output:
+        1. polyA: boolean specifying if input sequence corresponds to a polyA/T tail
+    '''
+    ## 1. Assess input sequence base composition
+    baseCounts, basePercs = sequences.baseComposition(sequence)
+
+    ## 2. Determine if polyA/T
+    # a) PolyA/T
+    if (basePercs['A'] >= minPerc) or (basePercs['T'] >= minPerc):
+        polyA = True
+    
+    # b) Not PolyA/T
+    else:
+        polyA = False
+    
+    return polyA
+
+

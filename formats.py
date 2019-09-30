@@ -592,7 +592,6 @@ class PAF_line():
         '''
         Initialize paf line
         '''
-
         PAF_line.number += 1 # Update instances counter
         self.id = 'PAF_line_' + str(PAF_line.number)
         self.qName = str(fields[0])
