@@ -60,7 +60,7 @@ def assemble_overlap(fastaA, fastaB, technology, outDir):
     PAF.read(PAF_file)
 
     # Exit function if no hit found
-    if not PAF.lines:
+    if not PAF.alignments:
         return None
 
     ## 3. Filter overlaps 
@@ -69,7 +69,7 @@ def assemble_overlap(fastaA, fastaB, technology, outDir):
     # Pick alignments starting within 250 from sequences ends. 
     filtered = []
 
-    for overlap in PAF.lines:
+    for overlap in PAF.alignments:
 
         # Compute the distance between the corresponding sequence end and the overlap begin or end position
         distA = overlap.qLen - overlap.qEnd 
@@ -80,18 +80,18 @@ def assemble_overlap(fastaA, fastaB, technology, outDir):
             filtered.append(overlap)
 
     # Replace raw by filtered overlaps
-    PAF.lines = filtered
+    PAF.alignments = filtered
 
     # Exit function if all the overlapping hits have been filtered
-    if not PAF.lines:
+    if not PAF.alignments:
         return None
 
     ## 4. Pick longest overlap passing the filters
     # Sort PAF in decreasing overlap lengths
-    PAF.lines = PAF.sortByLen()
+    PAF.alignments = PAF.sortByLen()
 
     # Pick longest overlap
-    overlapLongest = PAF.lines[0]
+    overlapLongest = PAF.alignments[0]
 
     ## 5. Concatenate overlapping sequences to generate a contig 
     ## Read input fasta files
