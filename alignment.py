@@ -13,6 +13,23 @@ import bamtools
 
 ## FUNCTIONS ##
 
+def sam2paf(SAM, outDir):
+    '''
+    Wrapper to convert a SAM into a PAF file
+    '''
+
+    PAF = outDir + '/alignments.paf'
+    err = open(outDir + '/sam2paf.err', 'w') 
+    command = 'paftools.js sam2paf -p ' + SAM + ' > ' + PAF
+    status = subprocess.call(command, stderr=err, shell=True)
+
+    if status != 0:
+        step = 'SAM2PAF'
+        msg = 'SAM to PAF conversion failed' 
+        log.step(step, msg)
+
+    return PAF    
+
 def index_minimap2(fastaPath, fileName, outDir):
     '''
     '''
