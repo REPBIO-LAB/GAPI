@@ -483,7 +483,7 @@ class PAF():
         '''
         Initialize empty class instance
         '''
-        self.lines = []
+        self.alignments = []
 
     def read(self, filePath):
         '''
@@ -500,13 +500,13 @@ class PAF():
 
             fields = line.split() 
             line = PAF_line(fields)
-            self.lines.append(line)
+            self.alignments.append(line)
 
     def sortByLen(self):
         '''
         Sort alignments by query alignment length in descending order
         '''
-        sortedAlignments = sorted(self.lines, key=lambda x: x.alignmentLen(), reverse=True)
+        sortedAlignments = sorted(self.alignments, key=lambda x: x.alignmentLen(), reverse=True)
         return sortedAlignments
 
     ## [SR CHANGES]
@@ -514,7 +514,7 @@ class PAF():
         '''
         Sort alignments by query alignment length
         '''
-        sortedAlignments = sorted(self.lines, key=lambda x: x.nbMatches, reverse=True)
+        sortedAlignments = sorted(self.alignments, key=lambda x: x.nbMatches, reverse=True)
         return sortedAlignments
 
     def chain(self, maxDist, maxPercOverlap):

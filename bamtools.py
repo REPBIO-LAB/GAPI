@@ -178,7 +178,7 @@ def alignments2PAF(alignments):
             strand = '-' if alignment.is_reverse else '+'
             fields = [alignment.query_name, alignment.infer_read_length(), alignment.query_alignment_start, alignment.query_alignment_end, strand, alignment.reference_name, alignment.reference_length, alignment.reference_start, alignment.reference_end, 0, 0, alignment.mapping_quality]
             line = formats.PAF_line(fields)
-            PAF.lines.append(line)
+            PAF.alignments.append(line)
 
     return PAF
 

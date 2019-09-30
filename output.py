@@ -32,8 +32,8 @@ def write_INS(INS_metaclusters, outFileName, outDir):
         meanLen, cv = metacluster.subclusters['INS'].cv_len() if 'INS' in metacluster.subclusters else (None, None)
         length = metacluster.consensusEvent.length if metacluster.consensusEvent is not None else None
         percResolved = metacluster.SV_features['PERC_RESOLVED'] if 'PERC_RESOLVED' in metacluster.SV_features else None
-        qHits = None if metacluster.insertAnnot is None else ','.join([ 'insertedSeq' + ':' + str(alignment.qBeg) + '-' + str(alignment.qEnd) for alignment in metacluster.insertAnnot.alignments ])
-        tHits = None if metacluster.insertAnnot is None else ','.join([ alignment.tName + ':' + str(alignment.tBeg) + '-' + str(alignment.tEnd) for alignment in metacluster.insertAnnot.alignments ])
+        qHits = None if metacluster.insertHits is None else ','.join([ 'insertedSeq' + ':' + str(alignment.qBeg) + '-' + str(alignment.qEnd) for alignment in metacluster.insertHits.alignments ])
+        tHits = None if metacluster.insertHits is None else ','.join([ alignment.tName + ':' + str(alignment.tBeg) + '-' + str(alignment.tEnd) for alignment in metacluster.insertHits.alignments ])
         insert = metacluster.consensusEvent.pick_insert() if metacluster.consensusEvent is not None else None
         polyA = metacluster.SV_features['POLYA'] if 'POLYA' in metacluster.SV_features else None
 
