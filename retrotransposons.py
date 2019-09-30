@@ -41,7 +41,7 @@ def retrotransposon_structure(FASTA_file, index, outDir):
     PAF.read(PAF_file)
 
     # Exit function if no hit on the retrotransposons database
-    if not PAF.lines:
+    if not PAF.alignments:
         return structure
 
     ## 3. Chain complementary alignments ##
@@ -458,14 +458,15 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
 
     Output:
         1. INS_features: dictionary containing interspersed repeat insertion features
+        2. chain: alignments chain on the reference. None if sequence does not align on the reference
     '''
     INS_features = {}
 
     ## 0. Sequence does not align on the reference ##
-    if not PAF.lines:
+    if not PAF.alignments:
         INS_features['INS_TYPE'] = 'unknown'
         INS_features['PERC_RESOLVED'] = 0
-        return INS_features
+        return INS_features, None
 
     ## 1. Create chain of alignments ##
     chain = PAF.chain(300, 20)
@@ -536,7 +537,6 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
     if repeatMatch and transducedMatch:
 
         INS_features['INS_TYPE'] = 'partnered'
-        INS_features['PERC_RESOLVED'] = chain.perc_query_covered()
 
         ## Repeat info
         INS_features['FAMILY'] = features['REPEATS']['FAMILIES'] 
@@ -548,7 +548,6 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
     # B) Orphan
     elif transducedMatch:
         INS_features['INS_TYPE'] = 'orphan'
-        INS_features['PERC_RESOLVED'] = chain.perc_query_covered()
 
         INS_features['FAMILY'] = features['REPEATS']['FAMILIES'] 
         INS_features['CYTOBAND'] = features['SOURCE_ELEMENT']
@@ -557,7 +556,6 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
     elif repeatMatch:
 
         INS_features['INS_TYPE'] = 'solo'
-        INS_features['PERC_RESOLVED'] = chain.perc_query_covered()
 
         INS_features['FAMILY'] = features['REPEATS']['FAMILIES'] 
         INS_features['SUBFAMILY'] = features['REPEATS']['SUBFAMILIES']
@@ -566,14 +564,13 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
     elif polyA:
 
         INS_features['INS_TYPE'] = 'poly(A/T)'
-        INS_features['PERC_RESOLVED'] = chain.perc_query_covered()
 
     # E) Unknown 
     else:        
-        INS_features['INS_TYPE'] = 'unknown'
         INS_features['PERC_RESOLVED'] = 0
+        INS_features['INS_TYPE'] = 'unknown'
 
-    return INS_features
+    return INS_features, chain
 
 
 def is_polyA(sequence, minPerc):
