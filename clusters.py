@@ -27,7 +27,7 @@ import filters
 import bkp
 import annotation
 import sequences
-
+import gRanges
 
 ###############
 ## FUNCTIONS ##
@@ -699,8 +699,8 @@ def assignAligments2metaclusters_paf(metaclusters, PAF_path):
     PAF.read(PAF_path)
 
     # For each read alignment 
-    for alignment in PAF.lines:
-        hits[alignment.qName][1].lines.append(alignment)
+    for alignment in PAF.alignments:
+        hits[alignment.qName][1].alignments.append(alignment)
     
     ## 3. Generate list of tuples
     tupleList = list(hits.values())
@@ -1057,7 +1057,7 @@ class META_cluster():
         self.mutOrigin = None
         self.failedFilters = None
         self.consensusEvent = None                
-        self.insertAnnot = None
+        self.insertHits = None
 
         # Update input cluster's clusterId attribute
         for cluster in clusters:
@@ -1547,21 +1547,24 @@ class META_cluster():
             3. transducedDb: bin database containing regions transduced by source elements. None if not available
 
         Output: Add INS type annotation to the attribute SV_features
-        ''' 
+        '''  
         ## 1. Assess if input sequence corresponds to repeat expansion
         # None: check if overlapping satellite/simple repeat on the reference genome
         # I need to download some examples from cesga to use them for testing
         print('REPEAT_ANNOTATION: ', self.repeatAnnot)
             
-        ## 2. Assess if input sequence corresponds to duplication (DO NEXT!!)
-        # Note: Classify event as duplication if hit aligns at cluster interval
-        # Abort if insert does not align on the reference
-        # I need to download some examples from cesga to use them for testing
+        ## 2. Assess if input sequence corresponds to duplication 
+        is_DUP, self.insertHits = self.is_duplication(PAF, 100)
+
+        # Stop if insertion is a duplication
+        if is_DUP:
+            return
 
         ## 3. Assess if input sequence corresponds to solo insertion or transduction
-        INS_features = retrotransposons.is_interspersed_ins(self.consensusEvent.pick_insert(), PAF, repeatsDb, transducedDb)
+        # Note: return boolean as well specifying if interspersed or not
+        INS_features, self.insertHits = retrotransposons.is_interspersed_ins(self.consensusEvent.pick_insert(), PAF, repeatsDb, transducedDb)
 
-        ## Update metacluster with insertion features
+        # Update metacluster with insertion features
         self.SV_features.update(INS_features) 
 
     def determine_INS_structure(self, consensusPath, transducedPath, transductionSearch, outDir):
@@ -1645,4 +1648,43 @@ class META_cluster():
 
         return structure
 
+    def is_duplication(self, PAF, buffer):
+        '''
+        Determine if metacluster corresponds to a short tandem duplication
+        
+        Input:
+            1. PAF: PAF object containing consensus inserted sequence alignments on the reference genome
+            2. buffer: number of base pairs to extend metacluster interval when assessing overlap
 
+        Output:
+            1. DUP: boolean specifying if inserted sequence corresponds to a duplication (True) or not (False)
+            2. HITS: PAF object containing inserted sequence alignments supporting a duplication
+        '''
+        ## 0. Initialize
+        DUP = False
+        HITS = formats.PAF()
+
+        ## 1. Search hits matching metacluster interval
+        # For each hit
+        for hit in PAF.alignments: 
+
+            ## Hit in the same ref as the metacluster
+            if hit.tName == self.ref: 
+
+                overlap, nbBp = gRanges.overlap(self.beg - buffer, self.end + buffer, hit.tBeg, hit.tEnd)
+
+                ## Hit within metacluster interval
+                if overlap:
+                    DUP = True
+                    HITS.alignments.append(hit)
+
+        ## 2. Determine if duplication or not
+        # a) Duplication
+        if DUP:
+            self.SV_features['INS_TYPE'] = 'duplication'
+
+        # b) Not duplication
+        else:
+            self.SV_features['PERC_RESOLVED'] = 0
+
+        return DUP, HITS
