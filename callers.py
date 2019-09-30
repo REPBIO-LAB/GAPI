@@ -104,6 +104,7 @@ class SV_caller_long(SV_caller):
             ## Infer insertion type
             clusters.INS_type_metaclusters(allMetaclusters['INS'], self.reference, refLengths, self.refDir, self.confDict['transductionSearch'], 1, outDir)
 
+        
         # Remove output directory
         unix.rm([outDir])
             
