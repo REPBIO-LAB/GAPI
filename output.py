@@ -28,8 +28,6 @@ def write_INS(INS_metaclusters, outFileName, outDir):
         insType = metacluster.SV_features['INS_TYPE'] if 'INS_TYPE' in metacluster.SV_features else None
         mechanism = metacluster.SV_features['MECHANISM'] if 'MECHANISM' in metacluster.SV_features else None        
         strand = metacluster.SV_features['STRAND'] if 'STRAND' in metacluster.SV_features else None
-        nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING = metacluster.nbEvents()        
-        meanLen, cv = metacluster.subclusters['INS'].cv_len() if 'INS' in metacluster.subclusters else (None, None)
         length = metacluster.consensusEvent.length if metacluster.consensusEvent is not None else None
         percResolved = metacluster.SV_features['PERC_RESOLVED'] if 'PERC_RESOLVED' in metacluster.SV_features else None
         qHits = None if metacluster.insertHits is None else ','.join([ 'insertedSeq' + ':' + str(alignment.qBeg) + '-' + str(alignment.qEnd) for alignment in metacluster.insertHits.alignments ])
@@ -46,7 +44,6 @@ def write_INS(INS_metaclusters, outFileName, outDir):
         cytobandId = ','.join(metacluster.SV_features['CYTOBAND']) if ('CYTOBAND' in metacluster.SV_features and metacluster.SV_features['CYTOBAND']) else None
 
         ## Length features
-        meanLen, cv = metacluster.subclusters['INS'].cv_len() if 'INS' in metacluster.subclusters else (None, None)
         retroLen = metacluster.SV_features['RETRO_LEN'] if 'RETRO_LEN' in metacluster.SV_features else None
         full = metacluster.SV_features['IS_FULL'] if 'IS_FULL' in metacluster.SV_features else None
         transductionLen = metacluster.SV_features['TRANSDUCTION_LEN'] if 'TRANSDUCTION_LEN' in metacluster.SV_features else None
@@ -66,7 +63,7 @@ def write_INS(INS_metaclusters, outFileName, outDir):
         region, gene = metacluster.geneAnnot if hasattr(metacluster, 'geneAnnot') else (None, None)
 
         # Write INS call into output file
-        row = "\t".join([metacluster.ref, str(metacluster.beg), str(metacluster.end), str(filters), str(metacluster.mutOrigin), str(insType), str(mechanism), str(family), str(subfamily), str(cytobandId), str(gnName), str(biotype), str(strand), str(region), str(gene), str(families), str(subfamilies), str(distances), str(nbTotal), str(nbTumour), str(nbNormal), str(nbINS), str(nbDEL), str(nbCLIPPING), str(length), str(cv), str(retroLen), str(truncation5len), str(truncation3len), str(full), str(transductionLen), str(invLen), str(percResolved), str(qHits), str(tHits), str(retroCoord), str(polyA), str(insert), "\n"])
+        row = "\t".join([metacluster.ref, str(metacluster.beg), str(metacluster.end), str(filters), str(metacluster.mutOrigin), str(insType), str(mechanism), str(family), str(subfamily), str(cytobandId), str(gnName), str(biotype), str(strand), str(region), str(gene), str(families), str(subfamilies), str(distances), str(metacluster.nbTotal), str(metacluster.nbTumour), str(metacluster.nbNormal), str(metacluster.nbINS), str(metacluster.nbDEL), str(metacluster.nbCLIPPING), str(length), str(metacluster.cv), str(retroLen), str(truncation5len), str(truncation3len), str(full), str(transductionLen), str(invLen), str(percResolved), str(qHits), str(tHits), str(retroCoord), str(polyA), str(insert), "\n"])
         outFile.write(row)
 
     ## Close output file ##
