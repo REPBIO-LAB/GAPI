@@ -197,7 +197,7 @@ def targetered2genomic_coord(event, ref, offset):
     event.end = event.end + offset 
 
     ## 3. Add offset to supplementary alignments 
-    if event.supplAlignment != None:
+    if hasattr(event, 'supplAlignment') and (event.supplAlignment != None):
 
         supplAlignments = ''
 
