@@ -24,7 +24,7 @@ def overlap(begA, endA, begB, endB):
     # a) Overlap
     if maxBeg <= minEnd:
         boolean = True
-        overlapLen = minEnd - maxBeg + 1
+        overlapLen = minEnd - maxBeg 
 
     # d) No overlap
     else:

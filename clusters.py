@@ -10,6 +10,7 @@ import numpy as np
 import pysam
 import math
 import itertools
+import copy
 
 # Internal
 import log
@@ -1517,7 +1518,7 @@ class META_cluster():
             self.SV_type = 'INS'
 
             ## Select consensus INS event and sequence
-            self.consensusEvent = self.subclusters['INS'].pick_median_length()
+            self.consensusEvent = copy.deepcopy(self.subclusters['INS'].pick_median_length()) 
             
             self.consensusFasta = formats.FASTA()
             self.consensusFasta.seqDict[self.consensusEvent.readName] = self.consensusEvent.readSeq
@@ -1527,7 +1528,7 @@ class META_cluster():
             self.SV_type = 'DEL'
 
             ## Select consensus DEL event and sequence
-            self.consensusEvent = self.subclusters['DEL'].pick_median_length()
+            self.consensusEvent = copy.deepcopy(self.subclusters['DEL'].pick_median_length())
 
             self.consensusFasta = formats.FASTA()
             self.consensusFasta.seqDict[self.consensusEvent.readName] = self.consensusEvent.readSeq
@@ -1566,10 +1567,9 @@ class META_cluster():
 
         Output: Add INS type annotation to the attribute SV_features
         '''  
-        ## 1. Assess if input sequence corresponds to repeat expansion
+        ## 1. Assess if input sequence corresponds to a satellite repeat expansion 
         # None: check if overlapping satellite/simple repeat on the reference genome
         # I need to download some examples from cesga to use them for testing
-        print('REPEAT_ANNOTATION: ', self.repeatAnnot)
             
         ## 2. Assess if input sequence corresponds to duplication 
         is_DUP, self.insertHits = self.is_duplication(PAF, 100)
@@ -1677,11 +1677,13 @@ class META_cluster():
         Output:
             1. DUP: boolean specifying if inserted sequence corresponds to a duplication (True) or not (False)
             2. HITS: PAF object containing inserted sequence alignments supporting a duplication
+
+        Update SV_features attribute with 'INS_TYPE' and 'PERC_RESOLVED' info
         '''
         ## 0. Initialize
-        DUP = False
+        totalPerc = 0
         HITS = formats.PAF()
-
+        
         ## 1. Search hits matching metacluster interval
         # For each hit
         for hit in PAF.alignments: 
@@ -1690,19 +1692,30 @@ class META_cluster():
             if hit.tName == self.ref: 
                 
                 overlap, nbBp = gRanges.overlap(self.beg - buffer, self.end + buffer, hit.tBeg, hit.tEnd)
+                perc = float(nbBp) / hit.qLen * 100
 
                 ## Hit within metacluster interval
                 if overlap:
-                    DUP = True
+                    totalPerc += perc
                     HITS.alignments.append(hit)
+
+        ## set upper bound to 100
+        if totalPerc > 100:
+            totalPerc = 100 
 
         ## 2. Determine if duplication or not
         # a) Duplication
-        if DUP:
+        if totalPerc >= 40:
+
+            DUP = True
             self.SV_features['INS_TYPE'] = 'duplication'
+            self.SV_features['PERC_RESOLVED'] = totalPerc
 
         # b) Not duplication
         else:
+
+            DUP = False
+            self.SV_features['INS_TYPE'] = 'unknown'
             self.SV_features['PERC_RESOLVED'] = 0
 
         return DUP, HITS
