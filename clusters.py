@@ -10,7 +10,6 @@ import numpy as np
 import pysam
 import math
 import itertools
-import copy
 
 # Internal
 import log
@@ -310,15 +309,38 @@ def create_consensus(metaclusters, confDict, reference, targetSV, rootOutDir):
             ## 1. Polish metacluster´s consensus sequence
             metacluster.polish(confDict, reference, outDir)
 
-            ## 2. Remove metacluster supporting read sequences once consensus was created
-            metacluster.remove_reads()
-
-            ## 3. Obtain consensus metacluster´s event
+            ## 2. Obtain consensus metacluster´s event
             metacluster.consensus_event(confDict, reference, 10000, outDir)
 
             ## Cleanup
             unix.rm([outDir])
     
+
+def lighten_up_metaclusters(metaclusters):
+    '''
+    Make metacluster objects lighter by removing events and subcluster objects.
+
+    Collect relevant info for downstream analysis as metacluster attributes
+
+    Input:
+        1. metaclusters: Dictionary containing one key per SV type and the list of metaclusters identified as value
+    '''
+    # For each SV type
+    for SV_type in metaclusters:
+
+        # For each metacluster
+        for metacluster in metaclusters[SV_type]:
+
+            ## Set some object attributes before lightening up
+            metacluster.nbTotal, metacluster.nbTumour, metacluster.nbNormal, metacluster.nbINS, metacluster.nbDEL, metacluster.nbCLIPPING = metacluster.nbEvents()
+
+            if 'INS' in metacluster.subclusters:
+                metacluster.cv = metacluster.subclusters['INS'].cv_len()[1]
+
+            ## Remove events and subclusters from metacluster instance
+            metacluster.events = None
+            metacluster.subclusters = None
+
 
 def double_clipping_supports_INS(clusterA, clusterB, minINDELlen, technology, outDir):
     '''
@@ -886,14 +908,6 @@ class cluster():
 
         return FASTA
 
-    def remove_reads(self):
-        '''
-        Remove cluster supporting read sequences to release memory
-        '''
-        ## For each event 
-        for event in self.events:
-            event.readSeq = None
-
     def nbEvents(self):
         '''
         Return the number of events composing the cluster
@@ -985,6 +999,7 @@ class INS_cluster(cluster):
         Output:
             1. subclusters: list of subclusters
         '''
+
         subclusters = []
 
         ## Compute metrics based on events length
@@ -1215,14 +1230,6 @@ class META_cluster():
                     FASTA.seqDict[event.readName] = event.readSeq 
      
         return FASTA
-
-    def remove_reads(self):
-        '''
-        Remove metacluster supporting read sequences to release memory
-        '''
-        ## For each event 
-        for event in self.events:
-            event.readSeq = None
 
     def nbEvents(self):
         '''
@@ -1518,7 +1525,7 @@ class META_cluster():
             self.SV_type = 'INS'
 
             ## Select consensus INS event and sequence
-            self.consensusEvent = copy.deepcopy(self.subclusters['INS'].pick_median_length()) 
+            self.consensusEvent = self.subclusters['INS'].pick_median_length()
             
             self.consensusFasta = formats.FASTA()
             self.consensusFasta.seqDict[self.consensusEvent.readName] = self.consensusEvent.readSeq
@@ -1528,7 +1535,7 @@ class META_cluster():
             self.SV_type = 'DEL'
 
             ## Select consensus DEL event and sequence
-            self.consensusEvent = copy.deepcopy(self.subclusters['DEL'].pick_median_length())
+            self.consensusEvent = self.subclusters['DEL'].pick_median_length()
 
             self.consensusFasta = formats.FASTA()
             self.consensusFasta.seqDict[self.consensusEvent.readName] = self.consensusEvent.readSeq
@@ -1566,8 +1573,14 @@ class META_cluster():
             3. transducedDb: bin database containing regions transduced by source elements. None if not available
 
         Output: Add INS type annotation to the attribute SV_features
-        '''  
-        ## 1. Assess if input sequence corresponds to a satellite repeat expansion 
+        ''' 
+        ## 0. Abort if consensus event not available 
+        if self.consensusEvent is None:
+            self.SV_features['INS_TYPE'] = 'unknown'
+            self.SV_features['PERC_RESOLVED'] = 0
+            return 
+
+        ## 1. Assess if input sequence corresponds to repeat expansion
         # None: check if overlapping satellite/simple repeat on the reference genome
         # I need to download some examples from cesga to use them for testing
             
@@ -1665,6 +1678,7 @@ class META_cluster():
         structure = retrotransposons.retrotransposon_structure(insertPath, indexPath, outDir)
 
         return structure
+
 
     def is_duplication(self, PAF, buffer):
         '''
