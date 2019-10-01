@@ -104,7 +104,6 @@ class SV_caller_long(SV_caller):
             ## Infer insertion type
             clusters.INS_type_metaclusters(allMetaclusters['INS'], self.reference, refLengths, self.refDir, self.confDict['transductionSearch'], 1, outDir)
 
-        
         # Remove output directory
         unix.rm([outDir])
             
@@ -272,6 +271,13 @@ class SV_caller_long(SV_caller):
         outDir = binDir + '/CONSENSUS/' 
         clusters.create_consensus(metaclustersSVType, self.confDict, self.reference, targetSV, outDir)       
 
+        ## 9. Lighten up metaclusters  ##
+        ## Metaclusters passing all the filters
+        clusters.lighten_up_metaclusters(metaclustersSVType)
+
+        ## Filtered metaclusters
+        clusters.lighten_up_metaclusters(metaclustersSVTypeFailed)
+        
         # Do cleanup
         unix.rm([outDir, binDir])
 

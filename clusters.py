@@ -1084,7 +1084,9 @@ class META_cluster():
         self.failedFilters = None
         self.consensusEvent = None                
         self.insertHits = None
-
+        self.nbTotal, self.nbTumour, self.nbNormal, self.nbINS, self.nbDEL, self.nbCLIPPING = [None, None, None, None, None, None] 
+        self.cv = None
+        
         # Update input cluster's clusterId attribute
         for cluster in clusters:
             cluster.clusterId = self.id
