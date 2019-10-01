@@ -309,7 +309,10 @@ def create_consensus(metaclusters, confDict, reference, targetSV, rootOutDir):
             ## 1. Polish metacluster´s consensus sequence
             metacluster.polish(confDict, reference, outDir)
 
-            ## 2. Obtain consensus metacluster´s event
+            ## 2. Remove metacluster supporting read sequences once consensus was created
+            metacluster.remove_reads()
+
+            ## 3. Obtain consensus metacluster´s event
             metacluster.consensus_event(confDict, reference, 10000, outDir)
 
             ## Cleanup
@@ -882,6 +885,14 @@ class cluster():
 
         return FASTA
 
+    def remove_reads(self):
+        '''
+        Remove cluster supporting read sequences to release memory
+        '''
+        ## For each event 
+        for event in self.events:
+            event.readSeq = None
+
     def nbEvents(self):
         '''
         Return the number of events composing the cluster
@@ -973,7 +984,6 @@ class INS_cluster(cluster):
         Output:
             1. subclusters: list of subclusters
         '''
-
         subclusters = []
 
         ## Compute metrics based on events length
@@ -1204,6 +1214,14 @@ class META_cluster():
                     FASTA.seqDict[event.readName] = event.readSeq 
      
         return FASTA
+
+    def remove_reads(self):
+        '''
+        Remove metacluster supporting read sequences to release memory
+        '''
+        ## For each event 
+        for event in self.events:
+            event.readSeq = None
 
     def nbEvents(self):
         '''
@@ -1670,7 +1688,7 @@ class META_cluster():
 
             ## Hit in the same ref as the metacluster
             if hit.tName == self.ref: 
-
+                
                 overlap, nbBp = gRanges.overlap(self.beg - buffer, self.end + buffer, hit.tBeg, hit.tEnd)
 
                 ## Hit within metacluster interval

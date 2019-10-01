@@ -448,7 +448,7 @@ def infer_integration_mechanism(chain, truncation3len, polyA):
 
 def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
     '''
-    Determine if input sequence corresponds to a interspersed insertion
+    Determine if input sequence corresponds to an interspersed insertion
 
     Input:
         1. sequence: Input sequence
