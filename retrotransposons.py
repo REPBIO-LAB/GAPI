@@ -448,7 +448,7 @@ def infer_integration_mechanism(chain, truncation3len, polyA):
 
 def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
     '''
-    Determine if input sequence corresponds to an interspersed insertion
+    Determine if input sequence corresponds to a interspersed insertion
 
     Input:
         1. sequence: Input sequence
@@ -459,8 +459,6 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
     Output:
         1. INS_features: dictionary containing interspersed repeat insertion features
         2. chain: alignments chain on the reference. None if sequence does not align on the reference
-
-    # Note: program should set PERC_RESOLVED!!!
     '''
     INS_features = {}
 
