@@ -56,10 +56,6 @@ class SV_caller_long(SV_caller):
         Search for structural variants (SV) genome wide or in a set of target genomic regions
         '''
 
-        ## 0. Set maximum number of processes to 5 for memory intensive steps
-        maxProcessesMem = 5 if self.confDict['processes'] > 5 else self.confDict['processes']
-        print('maxProcessesMem: ', maxProcessesMem)
-
         ### 1. Create SV clusters 
         msg = '1. Create SV clusters'
         log.header(msg)
@@ -86,7 +82,7 @@ class SV_caller_long(SV_caller):
         for SV_type in allMetaclusters:
             
             metaclusters = allMetaclusters[SV_type]
-            annotation.annotate(metaclusters, steps, refLengths, self.refDir, self.confDict['annovarDir'], maxProcessesMem, annotDir)
+            annotation.annotate(metaclusters, steps, refLengths, self.refDir, self.confDict['annovarDir'], self.confDict['processes'], annotDir)
 
         # Remove annotation directory
         unix.rm([annotDir])
@@ -120,7 +116,7 @@ class SV_caller_long(SV_caller):
             unix.mkdir(outDir)
 
             # Structure inference
-            allMetaclusters['INS'] = clusters.structure_inference_parallel(allMetaclusters['INS'], consensus, transduced, self.confDict['transductionSearch'], maxProcessesMem, outDir)
+            allMetaclusters['INS'] = clusters.structure_inference_parallel(allMetaclusters['INS'], consensus, transduced, self.confDict['transductionSearch'], self.confDict['processes'], outDir)
             
             # Remove output directory
             unix.rm([outDir])
