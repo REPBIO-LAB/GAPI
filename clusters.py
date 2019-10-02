@@ -630,6 +630,8 @@ def structure_inference_parallel(metaclusters, consensusPath, transducedPath, tr
         pool = mp.Pool(processes=processes)
         results = pool.starmap(structure_inference, chunk)
         allResults = allResults + results
+        pool.close()
+        pool.join()
 
     ## 4. Add structure info to the metacluster
     msg = '4. Add structure info to the metacluster'
