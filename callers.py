@@ -212,9 +212,7 @@ class SV_caller_long(SV_caller):
         binSizes = [minBinSize, 1000, 10000, 100000, 1000000]
 
         ## Create bins
-        eventsRefDict = {}
-        eventsRefDict[ref] = eventsDict
-        eventsBinDb = structures.create_bin_database_interval(ref, beg, end, eventsRefDict, binSizes)
+        eventsBinDb = structures.create_bin_database_interval(ref, beg, end, eventsDict, binSizes)
 
         ## 3. Group events into clusters ##
         step = 'CLUSTERING'
@@ -401,10 +399,7 @@ class SV_caller_short(SV_caller):
         binSizes = [1000, 10000, 100000, 1000000]
 
         ## Create bins
-        discordantsRefIdentity = {}
-        discordantsRefIdentity[ref] = discordantsIdentity
-
-        discordantsBinDb = structures.create_bin_database_interval(ref, beg, end, discordantsRefIdentity, binSizes)
+        discordantsBinDb = structures.create_bin_database_interval(ref, beg, end, discordantsIdentity, binSizes)
         
         ## 4. Group discordant read pairs into clusters based on their mate identity ##
         buffer = 100

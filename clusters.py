@@ -179,10 +179,7 @@ def create_clusters(eventsBinDb, confDict):
 
     ## 2. Organize clusters into bins ##    
     binSizes = [100, 1000, 10000, 100000, 1000000]
-    clustersRefDict = {}
-    clustersRefDict[eventsBinDb.ref] = clustersDict
-
-    clustersBinDb = structures.create_bin_database_interval(eventsBinDb.ref, eventsBinDb.beg, eventsBinDb.end, clustersRefDict, binSizes)
+    clustersBinDb = structures.create_bin_database_interval(eventsBinDb.ref, eventsBinDb.beg, eventsBinDb.end, clustersDict, binSizes)
 
     return clustersBinDb
 
