@@ -612,43 +612,15 @@ def structure_inference_parallel(metaclusters, consensusPath, transducedPath, tr
         fields = (metacluster, consensusPath, transducedPath, transductionSearch, rootDir)
         tupleList.append(fields)
 
-    ## 2. Split list into chunks, each one containing X tuples (X==processes)
-    msg = '2. Split list into chunks, each one containing X tuples (X==processes)'
-    chunks = [tupleList[i:i+processes] for i in range(0, len(tupleList), processes)]
-
-    ## 3. Infer structure
-    msg = '3. Infer structure'
+    ## 2. Infer structure
+    msg = '2. Infer structure'
     log.subHeader(msg)       
 
-    allResults = []
-
-    # For each chunk
-    for chunk in chunks:
-
-        # Process each chunk through multiple processes
-        pool = mp.Pool(processes=processes)
-        results = pool.starmap(structure_inference, chunk)
-        pool.close()
-        pool.join()
-
-        allResults = allResults + results
-
-    ## 4. Add structure info to the metacluster
-    msg = '4. Add structure info to the metacluster'
-    log.subHeader(msg)      
-    allResults = dict(allResults)
-    
-    for metacluster in metaclusters:
-        
-        # Retrieve relevant dict containing structure info
-        metaInterval = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])
-        
-        if metaInterval in allResults:
-            structure = allResults[metaInterval]
-
-            # Add info to the object attribute
-            metacluster.SV_features.update(structure) 
-        
+    pool = mp.Pool(processes=processes)
+    metaclusters = pool.starmap(structure_inference, tupleList)
+    pool.close()
+    pool.join()
+      
     return metaclusters
 
 def structure_inference(metacluster, consensusPath, transducedPath, transductionSearch, rootDir):
@@ -663,8 +635,7 @@ def structure_inference(metacluster, consensusPath, transducedPath, transduction
         5. rootDir: Root output directory
     
     Output:
-        1. metaInterval: metacluster coordinates (ref_beg_end)
-        2. structure: dictionary containing insertion structural properties
+        1. metacluster: INS metacluster containing structural properties  
     '''
     # Create output directory
     metaInterval = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])
@@ -674,10 +645,13 @@ def structure_inference(metacluster, consensusPath, transducedPath, transduction
     # Infer structure
     structure = metacluster.determine_INS_structure(consensusPath, transducedPath, transductionSearch, outDir)
 
+    # Add structure info to the metacluster
+    metacluster.SV_features.update(structure) 
+    
     # Remove output directory
     unix.rm([outDir])
 
-    return metaInterval, structure
+    return metacluster
 
 def insertedSeq2fasta(metaclusters, outDir):
     '''
