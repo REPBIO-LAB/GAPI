@@ -30,38 +30,32 @@ def create_bin_database(refLengths, eventsDict, threads):
     Output:
         1. wgBinDb: dictionary containing references as keys and the corresponding 'bin_database' as value
     '''    
-    ## 1. Create shared dictionary with input events 
-    manager = mp.Manager()
-    eventsShared = manager.dict()
-
-    # For each reference
-    for ref in list(eventsDict.keys()):    
-        eventsShared[ref] = eventsDict.pop(ref)
-
-    ## 2.  Create list of tuples. Each tuple will contain all the variables needed for loading the events into a the whole genome bin database
+    ## 1. Create list of tuples for multiprocessing
+    # Each tuple will contain all the variables needed for loading the events 
+    # into a the whole genome bin database
     tupleList = []
 
     # For each reference
     for ref, refLen in refLengths.items():
         
         # Skip if no events in that particular ref
-        if ref not in eventsShared:
+        if ref not in eventsDict:
             continue
 
         # Define bin sizes
         binSizes = [10000, 100000, 1000000, refLen]
 
         # Add to the list of tuples
-        fields = (ref, 0, refLen, eventsShared, binSizes)
+        fields = (ref, 0, refLen, eventsDict[ref], binSizes)
         tupleList.append(fields)
         
-    ## Create bin database per chromosome
+    ## 2. Create bin database per chromosome
     pool = mp.Pool(processes=threads)
     databases = pool.starmap(create_bin_database_interval, tupleList)
     pool.close()
     pool.join()
 
-    ## Organize bin databases into a dictionary
+    ## 3. Organize bin databases into a dictionary
     wgBinDb = {}
 
     for binDb in databases:
@@ -77,14 +71,10 @@ def create_bin_database_interval(ref, beg, end, eventsDict, binSizes):
         1. ref: reference/chromosome
         2. beg: bin begin coordinate
         3. end: bin end coordinate
-        4. eventsDict: nested dictionary containing:
-            * FIRST LEVEL KEYS:
-                - REF_1
-                - ...
+        4. eventsDict:  Dictionary containing:
 
-                * SECOND LEVEL KEYS:
-                    - EVENT_TYPE_1 -> list of objects
-                    - ...
+            - EVENT_TYPE_1 -> list of objects
+            - ...
     
         5. binSizes: list of bin sizes that will be used to create a bin database 
 
@@ -95,16 +85,12 @@ def create_bin_database_interval(ref, beg, end, eventsDict, binSizes):
     binDb = bin_database(ref, beg, end, binSizes)
 
     ## For each type of input event
-    for eventType, events in eventsDict[ref].items():
+    for eventType, events in eventsDict.items():
 
         # Add all the events from the given event type to the bin database
         binDb.add(events, eventType)
     
-    ## Once bin database created remove events from original dictionary
-    eventsDict.pop(ref)
-
     return binDb
-
 
 ## CLASSES ##
 class bin_database():
