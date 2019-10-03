@@ -457,16 +457,18 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
         4. transducedDb: bin database containing regions transduced by source elements. None if not available
 
     Output:
-        1. INS_features: dictionary containing interspersed repeat insertion features
-        2. chain: alignments chain on the reference. None if sequence does not align on the reference
+        1. INTERSPERSED: Boolean specifying if inserted sequence corresponds to an intersersed repeat (True) or not (False)
+        2. INS_features: dictionary containing interspersed repeat insertion features
+        3. chain: alignments chain on the reference. None if sequence does not align on the reference
     '''
     INS_features = {}
 
     ## 0. Sequence does not align on the reference ##
     if not PAF.alignments:
+        INTERSPERSED = False
         INS_features['INS_TYPE'] = 'unknown'
         INS_features['PERC_RESOLVED'] = 0
-        return INS_features, None
+        return INTERSPERSED, INS_features, None
 
     ## 1. Create chain of alignments ##
     chain = PAF.chain(300, 20)
@@ -536,6 +538,7 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
     # A) Partnered transduction
     if repeatMatch and transducedMatch:
 
+        INTERSPERSED = True
         INS_features['INS_TYPE'] = 'partnered'
 
         ## Repeat info
@@ -547,6 +550,7 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
 
     # B) Orphan
     elif transducedMatch:
+        INTERSPERSED = True
         INS_features['INS_TYPE'] = 'orphan'
 
         INS_features['FAMILY'] = features['REPEATS']['FAMILIES'] 
@@ -554,7 +558,7 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
 
     # C) Solo
     elif repeatMatch:
-
+        INTERSPERSED = True
         INS_features['INS_TYPE'] = 'solo'
 
         INS_features['FAMILY'] = features['REPEATS']['FAMILIES'] 
@@ -562,15 +566,16 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
 
     # D) PolyA/T tail
     elif polyA:
-
+        INTERSPERSED = True
         INS_features['INS_TYPE'] = 'poly(A/T)'
 
     # E) Unknown 
-    else:        
+    else:       
+        INTERSPERSED = False
         INS_features['PERC_RESOLVED'] = 0
         INS_features['INS_TYPE'] = 'unknown'
 
-    return INS_features, chain
+    return INTERSPERSED, INS_features, chain
 
 
 def is_polyA(sequence, minPerc):
