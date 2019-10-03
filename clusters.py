@@ -596,7 +596,6 @@ def structure_inference_parallel(metaclusters, consensusPath, transducedPath, tr
     Output:
         1. metaclusters: list of metacluster objects with structure information stored at 'SV_features' dict attribute
     '''
-    
     ## 1. Create tuple list for multiprocessing
     msg = '1. Create tuple list for multiprocessing'
     log.subHeader(msg)      
@@ -1598,9 +1597,12 @@ class META_cluster():
             return 
 
         ## 1. Assess if input sequence corresponds to repeat expansion
-        # None: check if overlapping satellite/simple repeat on the reference genome
-        # I need to download some examples from cesga to use them for testing
-            
+        is_EXPANSION, self.insertHits = self.is_expansion(PAF, repeatsDb)
+
+        # Stop if insertion is a expansion
+        if is_EXPANSION:
+            return
+
         ## 2. Assess if input sequence corresponds to duplication 
         is_DUP, self.insertHits = self.is_duplication(PAF, 100)
 
@@ -1608,12 +1610,21 @@ class META_cluster():
         if is_DUP:
             return
 
-        ## 3. Assess if input sequence corresponds to solo insertion or transduction
+        ## 3. Assess if input sequence corresponds to solo interspersed insertion or transduction
         # Note: return boolean as well specifying if interspersed or not
-        INS_features, self.insertHits = retrotransposons.is_interspersed_ins(self.consensusEvent.pick_insert(), PAF, repeatsDb, transducedDb)
+        is_INTERSPERSED, INS_features, self.insertHits = retrotransposons.is_interspersed_ins(self.consensusEvent.pick_insert(), PAF, repeatsDb, transducedDb)
 
         # Update metacluster with insertion features
         self.SV_features.update(INS_features) 
+
+        # Stop if insertion is a interspersed insertion
+        if is_INTERSPERSED:
+            return    
+
+        ## 4. Assess if input sequence corresponds to processed pseudogene insertion
+
+        ## 5. Assess if input sequence corresponds to a viral insertion
+
 
     def determine_INS_structure(self, consensusPath, transducedPath, transductionSearch, outDir):
         '''
@@ -1710,6 +1721,9 @@ class META_cluster():
             2. HITS: PAF object containing inserted sequence alignments supporting a duplication
 
         Update SV_features attribute with 'INS_TYPE' and 'PERC_RESOLVED' info
+
+        Note: I need to modify the way PERC_RESOLVED. Now it´s not precise, do it based on the qBeg and qEnd
+        alignment coordinates
         '''
         ## 0. Initialize
         totalPerc = 0
@@ -1750,3 +1764,93 @@ class META_cluster():
             self.SV_features['PERC_RESOLVED'] = 0
 
         return DUP, HITS
+
+    def is_expansion(self, PAF, repeatsDb):
+        '''
+        Determine if metacluster corresponds to a repeat expansion
+        
+        Input:
+            1. PAF: PAF object containing consensus inserted sequence alignments on the reference genome
+            2. repeatsDb: bin database containing annotated repeats in the reference. None if not available
+
+        Output:
+            1. EXPANSION: Boolean specifying if inserted sequence corresponds to an expansion (True) or not (False)
+            2. HITS: PAF object containing inserted sequence alignments supporting an expansion
+
+        Update SV_features attribute with 'INS_TYPE', 'FAMILY', 'SUBFAMILY', 'PERC_RESOLVED' info
+
+        Note: I need to modify the way PERC_RESOLVED. Now it´s not precise, do it based on the qBeg and qEnd
+        alignment coordinates        
+        '''
+
+        ### Initialize
+        totalPerc = 0
+        HITS = formats.PAF()
+
+        ### Assess if metacluster located over an annotated repeat sequence 
+        # Make list of annotated repeat categories according to repeatmasker
+        repeatTypes = ['Low_complexity', 'Simple_repeat', 'Satellite', 'telo', 'centr', 'acro']
+
+        # Selecting those annotated repeats over the target region 
+        repeatsFiltered = [ repeat for repeat in self.repeatAnnot if repeat['distance'] == 0 ]
+
+        # Make list of annotated families at the target region
+        targetFamilies = [ repeat['family'] for repeat in repeatsFiltered ]
+        targetSubfamilies = [ repeat['subfamily'] for repeat in repeatsFiltered ]
+
+        # A) Metacluster over annotated repeat
+        if any(family in repeatTypes for family in targetFamilies):
+
+            families = []
+            subfamilies = []
+
+            ### Search for inserted sequence hits on repeats of the same family
+            # For each hit
+            for hit in PAF.alignments: 
+
+                ## Intersect hit coordinates with annotated repeats
+                overlaps = annotation.annotate_interval(hit.tName, hit.tBeg, hit.tEnd, repeatsDb)
+                
+                ## For each repeat overlapping hit coordinates
+                for overlap in overlaps:
+                    event, nbBp, percBp, coord = overlap
+                    
+                    # Repeat belonging to the same family as the ones at metacluster interval
+                    if event.optional['family'] in targetFamilies:
+                        perc = float(nbBp) / hit.qLen * 100
+                        totalPerc += perc
+                        families.append(event.optional['family'])
+                        subfamilies.append(event.optional['subfamily'])
+
+                        if hit not in HITS.alignments:
+                            HITS.alignments.append(hit)
+
+            ## set upper bound to 100
+            if totalPerc > 100:
+                totalPerc = 100 
+
+            ## Determine if expansion or not
+            # a) Expansion
+            if totalPerc >= 40:
+
+                EXPANSION = True
+                self.SV_features['INS_TYPE'] = 'expansion'
+                self.SV_features['PERC_RESOLVED'] = totalPerc
+                self.SV_features['FAMILY'] = list(set(families))
+                self.SV_features['SUBFAMILY'] = list(set(subfamilies))
+
+            # b) Not duplication
+            else:
+
+                EXPANSION = False
+                self.SV_features['INS_TYPE'] = 'unknown'
+                self.SV_features['PERC_RESOLVED'] = 0
+
+
+        # B) Metacluster outside annotated repeat
+        else:
+            EXPANSION = False
+            self.SV_features['INS_TYPE'] = 'unknown'
+            self.SV_features['PERC_RESOLVED'] = 0
+
+        return EXPANSION, HITS              
