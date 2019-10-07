@@ -34,7 +34,7 @@ def retrotransposon_structure(FASTA_file, index, outDir):
     unix.mkdir(logDir)
 
     ## 1. Align the sequence into the retrotransposon sequences database ##
-    PAF_file = alignment.alignment_minimap2(FASTA_file, index, 1, outDir)
+    PAF_file = alignment.alignment_minimap2(FASTA_file, index, 'alignment2consensus', 1, outDir)
 
     ## 2. Read PAF alignments ##
     PAF = formats.PAF()
