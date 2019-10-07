@@ -10,28 +10,25 @@ import subprocess
 import log
 import unix
 import bamtools 
+import formats
+
 
 ## FUNCTIONS ##
-
-def sam2paf(SAM, outDir):
+def sam2paf(SAM, fileName, outDir):
     '''
     Wrapper to convert a SAM into a PAF file
     '''
-
-    PAF = outDir + '/alignments.paf'
+    PAF = outDir + '/' + fileName + '.paf'
     err = open(outDir + '/sam2paf.err', 'w') 
     command = 'paftools.js sam2paf -p ' + SAM + ' > ' + PAF
-    status = subprocess.call(command, stderr=err, shell=True)
-
-    if status != 0:
-        step = 'SAM2PAF'
-        msg = 'SAM to PAF conversion failed' 
-        log.step(step, msg)
+    subprocess.call(command, stderr=err, shell=True)
 
     return PAF    
 
+
 def index_minimap2(fastaPath, fileName, outDir):
     '''
+    Wrapper to generate minimap2 index for fasta file
     '''
     indexPath = outDir + '/' + fileName + '.mmi'
     err = open(outDir + '/index.err', 'w') 
@@ -72,24 +69,26 @@ def minimap2_presets(technology):
 
     return preset
 
-def alignment_minimap2(FASTA, index, threads, outDir):
+
+def alignment_minimap2(FASTA, index, fileName, processes, outDir):
     '''
     Align a set of sequence into a reference with minimap2
 
     Input:
         1. FASTA: Path to FASTA file with sequences to align
         2. index: Path to the the index of the reference in .mmi format (generated with minimap2)
-        3. threads: Number of threads used by minimap2
-        4. outDir: Output directory
+        3. fileName: output file will be named accordingly
+        4. processes: Number of processes used by minimap2
+        5. outDir: Output directory
 
     Output:
         1. PAF: Path to PAF file containing input sequences alignments or 'None' if alignment failed 
     '''
-    ## 1. Align the sequences into the reference
-    # Use -Y to get soft clippings for supplementary alignments
-    PAF = outDir + '/alignments.paf'
+    ## Align the sequences into the reference
+    # Note, condider to use -Y to get soft clippings for supplementary alignments
+    PAF = outDir + '/' + fileName + '.paf'
     err = open(outDir + '/align.err', 'w') 
-    command = 'minimap2 -t ' + str(threads) + ' ' + index + ' ' + FASTA + ' > ' + PAF
+    command = 'minimap2 -t ' + str(processes) + ' ' + index + ' ' + FASTA + ' > ' + PAF
     status = subprocess.call(command, stderr=err, shell=True)
 
     if status != 0:
@@ -99,23 +98,54 @@ def alignment_minimap2(FASTA, index, threads, outDir):
 
     return PAF
 
-def alignment_bwa(FASTA, reference, threads, outDir):
+
+def alignment_minimap2_spliced(FASTA, index, fileName, processes, outDir):
+    '''
+    Align a set of sequence into a reference with minimap2
+
+    Input:
+        1. FASTA: Path to FASTA file with sequences to align
+        2. index: Path to the the index of the reference in .mmi format (generated with minimap2)
+        3. fileName: output file will be named accordingly
+        4. processes: Number of processes used by minimap2
+        5. outDir: Output directory
+
+    Output:
+        1. PAF: Path to PAF file containing input sequences alignments or 'None' if alignment failed 
+    '''
+    ## Align the sequences into the reference
+    # Note, condider to use -Y to get soft clippings for supplementary alignments
+    PAF = outDir + '/' + fileName + '.paf'
+    err = open(outDir + '/align.err', 'w') 
+    command = 'minimap2 -x splice -t ' + str(processes) + ' ' + index + ' ' + FASTA + ' > ' + PAF
+    status = subprocess.call(command, stderr=err, shell=True)
+
+    if status != 0:
+        step = 'ALIGN'
+        msg = 'Local alignment failed' 
+        log.step(step, msg)
+
+    return PAF
+
+
+def alignment_bwa(FASTA, reference, fileName, processes, outDir):
     '''
     Align a set of sequence into a reference with bwa mem
 
     Input:
         1. FASTA: Path to FASTA file with sequences to align
         2. reference: Path to the reference genome in fasta format (bwa mem index must be located in the same folder)
-        3. threads: Number of threads used by bwa mem
-        4. outDir: Output directory
+        3. fileName: output file will be named accordingly
+        4. processes: Number of processes used by bwa mem
+        5. outDir: Output directory
 
     Output:
         1. SAM: Path to SAM file containing input sequences alignments or 'None' if alignment failed 
     '''
-    ## 1. Align the sequences into the reference
-    SAM = outDir + '/alignments.sam'
+    ## Align the sequences into the reference
+    SAM = outDir + '/' + fileName + '.sam'
     err = open(outDir + '/align.err', 'w') 
-    command = 'bwa mem -Y -t ' + str(threads) + ' ' + reference + ' ' + FASTA + ' > ' + SAM
+    command = 'bwa mem -Y -t ' + str(processes) + ' ' + reference + ' ' + FASTA + ' > ' + SAM
     status = subprocess.call(command, stderr=err, shell=True)
 
     if status != 0:
@@ -124,6 +154,7 @@ def alignment_bwa(FASTA, reference, threads, outDir):
         log.step(step, msg)
 
     return SAM    
+
 
 def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir):
     '''
@@ -177,6 +208,7 @@ def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir):
 
     return BAM    
 
+
 def targetered2genomic_coord(event, ref, offset):
     '''
     Convert event coordinates resulting from the realignment of a sequence into a target region into genomic coordinates
@@ -219,3 +251,34 @@ def targetered2genomic_coord(event, ref, offset):
             event.supplAlignment = supplAlignments
 
     return event
+
+
+def organize_hits_paf(PAF_path):
+    '''
+    Group hits by query name into a dictionary
+
+    Input:
+        1. PAF_path: Path to paf file containing alignments
+
+    Output:
+        1. hits: dictionary containing query names as keys and the list of alignments for each query as values
+    '''
+    ## 1. Read PAF 
+    PAF = formats.PAF()
+    PAF.read(PAF_path)
+
+    ## 2. Organize hits by query name into the dictionary
+    hits = {}
+
+    # For each read alignment 
+    for alignment in PAF.alignments:
+
+        # First hit for this query, initialize PAF
+        if alignment.qName not in hits:
+            PAF = formats.PAF()
+            hits[alignment.qName] = PAF
+
+        # Add hit to PAF
+        hits[alignment.qName].alignments.append(alignment)
+
+    return hits    
