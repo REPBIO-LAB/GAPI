@@ -10,6 +10,7 @@ import numpy as np
 import pysam
 import math
 import itertools
+import os
 
 # Internal
 import log
@@ -287,8 +288,6 @@ def create_consensus(metaclusters, confDict, reference, targetSV, rootOutDir):
         3. reference: Path to reference genome in fasta format    
         4. targetSV: Target SV types to generate consensus
         5. rootOutDir: Root output directory
-
-    Output:
     ''' 
 
     ## For each type of SV 
@@ -516,7 +515,7 @@ def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transduct
 
     Input:
         1. metaclusters: list of metaclusters supporting insertion events
-        2. reference: Path to the reference genome in fasta format (bwa mem index must be located in the same folder)
+        2. reference: Path to the reference genome in fasta format (bwa mem and minimap2 indexes must be located in the same folder)
         3. refLengths: Dictionary containing reference ids as keys and as values the length for each reference. 
         4. refDir: Directory containing reference databases. 
         5. transductionSearch: boolean specifying if transduction search is enabled (True) or not (False)
@@ -542,41 +541,89 @@ def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transduct
     ## Cleanup
     unix.rm([annotDir])
 
-    ### 2. Insertion type inference
-    msg = '2. Insertion type inference'
-    log.subHeader(msg)   
-
-    ## 2.1 Create fasta containing all consensus inserted sequences 
-    msg = '2.1 Create fasta containing all consensus inserted sequences'
+    ## 2. Create fasta containing all consensus inserted sequences 
+    msg = '2. Create fasta containing all consensus inserted sequences'
     log.info(msg)   
     fastaPath = insertedSeq2fasta(metaclusters, rootOutDir)
 
-    ## 2.2 Align consensus inserted sequences into the reference genome  
-    msg = '2.2 Align consensus inserted sequences into the reference genome'
+    ## 3. Align consensus inserted sequences
+    msg = '3. Align consensus inserted sequences'
+    log.info(msg) 
+
+    ## 3.1 Align consensus inserted sequences into the reference genome
+    msg = '3.1 Align consensus inserted sequences into the reference genome'
     log.info(msg)    
-    SAM = alignment.alignment_bwa(fastaPath, reference, processes, rootOutDir)
-    
-    ## 2.3 Convert SAM to PAF
-    PAF = alignment.sam2paf(SAM, rootOutDir)
+    SAM_genome = alignment.alignment_bwa(fastaPath, reference, 'alignments_genome', processes, rootOutDir)
 
-    # Note, make sure PAF is ok for reads aligning with hard clipping at their begin
-    ## Note, strategy for insertion type inference will be simplified. First we´ll find complementary hits. Then we will annotate them
-    
-    ## 2.4 Asign alignments to their corresponding metacluster 
-    msg = '2.4 Asign alignments to their corresponding metacluster'
-    log.info(msg)       
-    metaclustersHits = assignAligments2metaclusters_paf(metaclusters, PAF)        
-    
-    ## 2.5 For each metacluster determine the insertion type
-    msg = '2.5 For each metacluster determine the insertion type'
+    ## Convert SAM to PAF
+    PAF_genome = alignment.sam2paf(SAM_genome, 'alignments_genome', rootOutDir)
+
+    ## Organize hits according to their corresponding metacluster
+    allHits_genome = alignment.organize_hits_paf(PAF_genome) 
+
+    ## 3.2 Align consensus inserted sequences into the reference genome (splicing-aware)
+    msg = '3.2 Align consensus inserted sequences into the reference genome (splicing-aware)'
+    log.info(msg)    
+
+    ## Minimap index for the reference
+    index = os.path.splitext(reference)[0] + '.mmi'
+    SAM_splicing = alignment.alignment_minimap2_spliced(fastaPath, index, 'alignments_spliced', processes, rootOutDir)
+
+    ## Convert SAM to PAF
+    PAF_splicing = alignment.sam2paf(SAM_splicing, 'alignments_spliced', rootOutDir)
+
+    ## Organize hits according to their corresponding metacluster
+    allHits_splicing = alignment.organize_hits_paf(PAF_splicing) 
+
+    ## 3.3 Align consensus inserted sequences into the viral database
+    msg = '3.3 Align consensus inserted sequences into the viral database'
+    log.info(msg)    
+
+    '''
+    SAM_viral = alignment.alignment_bwa(fastaPath, reference, processes, rootOutDir)
+
+    ## Convert SAM to PAF
+    PAF_viral = alignment.sam2paf(SAM_viral, 'alignments_viral', rootOutDir)
+
+    ## Organize hits according to their corresponding metacluster
+    allHits_viral = organize_hits_paf(PAF_viral) 
+    '''
+    allHits_viral = {}
+
+    ## 4. For each metacluster determine the insertion type
+    msg = '4. For each metacluster determine the insertion type'
     log.info(msg)   
-
+    
     # For each metacluster
-    for element in metaclustersHits:
-        metacluster, hits = element 
+    for metacluster in metaclusters:
 
-        # Infer metacluster ins type
-        metacluster.determine_INS_type(hits, annotations['REPEATS'], annotations['TRANSDUCTIONS'])
+        ## 4.1 Collect consensus inserted sequence hits
+        metaId = str(metacluster.ref) + ':' + str(metacluster.beg) + '-' + str(metacluster.end)
+
+        ## Hits in the reference genome
+        if metaId in allHits_genome:
+            hits_genome = allHits_genome[metaId]
+        
+        else:
+            hits_genome = None
+
+        ## Hits in the reference genome (splice-aware alignment)
+        if metaId in allHits_splicing:
+            hits_splicing = allHits_splicing[metaId]
+
+        else:
+            hits_splicing = None
+
+        ## Hits in the viral database
+        if metaId in allHits_viral:
+            hits_viral = allHits_viral[metaId]
+
+        else:
+            hits_viral = None
+
+        ## 4.2 Insertion type inference
+        metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, annotations['REPEATS'], annotations['TRANSDUCTIONS'])
+        
 
 def structure_inference_parallel(metaclusters, consensusPath, transducedPath, transductionSearch, processes, rootDir):
     '''
@@ -591,11 +638,12 @@ def structure_inference_parallel(metaclusters, consensusPath, transducedPath, tr
         6. rootDir: Root output directory
     
     Output:
-        1. metaclusters: list of metacluster objects with structure information stored at 'SV_features' dict attribute
+        1. metaclustersOut: list of metacluster objects with structure information stored at 'SV_features' dict attribute
     '''
     ## 1. Create tuple list for multiprocessing
     msg = '1. Create tuple list for multiprocessing'
     log.subHeader(msg)      
+    metaclustersOut = []
     tupleList = []
 
     for metacluster in metaclusters:
@@ -603,6 +651,7 @@ def structure_inference_parallel(metaclusters, consensusPath, transducedPath, tr
         ## Skip structure inference if insertion type not available or not solo, partnered or orphan transduction
         # Note: investigate why INS_TYPE is not defined in some metaclusters
         if ('INS_TYPE' not in metacluster.SV_features) or (metacluster.SV_features['INS_TYPE'] not in ['solo', 'partnered', 'orphan']):
+            metaclustersOut.append(metacluster) 
             continue
 
         ## Add to the list
@@ -614,11 +663,15 @@ def structure_inference_parallel(metaclusters, consensusPath, transducedPath, tr
     log.subHeader(msg)       
 
     pool = mp.Pool(processes=processes)
-    metaclusters = pool.starmap(structure_inference, tupleList)
+    metaclustersStructure = pool.starmap(structure_inference, tupleList)
     pool.close()
     pool.join()
       
-    return metaclusters
+    ## 3. Create final list with metaclusters to be reported as output
+    msg = '3. Create final list with metaclusters to be reported as output'
+    metaclustersOut = metaclustersOut + metaclustersStructure 
+
+    return metaclustersOut
 
 def structure_inference(metacluster, consensusPath, transducedPath, transductionSearch, rootDir):
     '''
@@ -683,6 +736,7 @@ def insertedSeq2fasta(metaclusters, outDir):
     FASTA.write(fastaPath)    
 
     return fastaPath
+
 
 def assignAligments2metaclusters_paf(metaclusters, PAF_path):
     '''
@@ -1550,32 +1604,34 @@ class META_cluster():
             self.consensusFasta = None
      
      
-    def determine_INS_type(self, PAF, repeatsDb, transducedDb):
+    def determine_INS_type(self, hits_genome, hits_splicing, hits_viral, repeatsDb, transducedDb):
         '''
         Determine the type of insertion based on the alignments of the inserted sequence on the reference genome
 
         Input:
-            1. PAF: PAF object containing inserted sequence alignments on the reference genome
-            2. repeatsDb: bin database containing annotated repeats in the reference. None if not available
-            3. transducedDb: bin database containing regions transduced by source elements. None if not available
+            1. hits_genome: PAF object containing inserted sequence alignments on the reference genome
+            2. hits_splicing: PAF object containing inserted sequence alignments on the reference genome (splice-aware alignment)
+            3. hits_viral: PAF object containing inserted sequence alignments on the viral database 
+            4. repeatsDb: bin database containing annotated repeats in the reference. None if not available
+            5. transducedDb: bin database containing regions transduced by source elements. None if not available
 
         Output: Add INS type annotation to the attribute SV_features
         ''' 
-        ## 0. Abort if consensus event not available 
-        if self.consensusEvent is None:
+        ## 0. Abort if consensus event or hits not available 
+        if (self.consensusEvent is None) or (hits_genome is None):
             self.SV_features['INS_TYPE'] = 'unknown'
             self.SV_features['PERC_RESOLVED'] = 0
             return 
 
         ## 1. Assess if input sequence corresponds to repeat expansion
-        is_EXPANSION, self.insertHits = self.is_expansion(PAF, repeatsDb)
+        is_EXPANSION, self.insertHits = self.is_expansion(hits_genome, repeatsDb)
 
         # Stop if insertion is a expansion
         if is_EXPANSION:
             return
 
         ## 2. Assess if input sequence corresponds to duplication 
-        is_DUP, self.insertHits = self.is_duplication(PAF, 100)
+        is_DUP, self.insertHits = self.is_duplication(hits_genome, 100)
 
         # Stop if insertion is a duplication
         if is_DUP:
@@ -1583,7 +1639,7 @@ class META_cluster():
 
         ## 3. Assess if input sequence corresponds to solo interspersed insertion or transduction
         # Note: return boolean as well specifying if interspersed or not
-        is_INTERSPERSED, INS_features, self.insertHits = retrotransposons.is_interspersed_ins(self.consensusEvent.pick_insert(), PAF, repeatsDb, transducedDb)
+        is_INTERSPERSED, INS_features, self.insertHits = retrotransposons.is_interspersed_ins(self.consensusEvent.pick_insert(), hits_genome, repeatsDb, transducedDb)
 
         # Update metacluster with insertion features
         self.SV_features.update(INS_features) 
