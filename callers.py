@@ -8,6 +8,7 @@ import sys
 import multiprocessing as mp
 import os
 import pysam
+import time
 
 # Internal
 import log
@@ -181,6 +182,7 @@ class SV_caller_long(SV_caller):
         binId = '_'.join([str(ref), str(beg), str(end)])
         msg = 'SV calling in bin: ' + binId
         log.subHeader(msg)
+        start = time.time()
 
         binDir = self.outDir + '/CLUSTER/' + binId
         unix.mkdir(binDir)
@@ -273,6 +275,12 @@ class SV_caller_long(SV_caller):
         
         # Do cleanup
         unix.rm([outDir, binDir])
+
+        ## Print time taken to process bin
+        end = time.time()
+        time_taken = end - start
+        msg = 'SV calling in bin: ' + binId + ' finished in ' + str(time_taken)
+        log.info(msg)
 
         return metaclustersSVType, metaclustersSVTypeFailed
 
