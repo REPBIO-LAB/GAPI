@@ -143,13 +143,12 @@ if __name__ == '__main__':
 		log.info('[ERROR] Abort execution as transduction search enabled (--transduction-search) and target families for source elements not provided (--source-families)')
 		sys.exit(1)	
 
-
 	##############################################
 	## Display configuration to standard output ##
 	##############################################
 	scriptName = os.path.basename(sys.argv[0])
 	scriptName = os.path.splitext(scriptName)[0]
-	version='0.9.0'
+	version='0.10.0'
 
 	print()
 	print('***** ', scriptName, version, 'configuration *****')
