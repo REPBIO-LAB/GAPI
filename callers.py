@@ -117,7 +117,7 @@ class SV_caller_long(SV_caller):
 
             # Structure inference
             allMetaclusters['INS'] = clusters.structure_inference_parallel(allMetaclusters['INS'], consensus, transduced, self.confDict['transductionSearch'], self.confDict['processes'], outDir)
-            
+
             # Remove output directory
             unix.rm([outDir])
 
@@ -139,7 +139,6 @@ class SV_caller_long(SV_caller):
         if 'INS' in metaclustersFailed:
             outFileName = 'INS_MEIGA.FAILED.2.tsv'
             output.write_INS(metaclustersFailed['INS'], outFileName, self.outDir)
-        
 
     def make_clusters(self):
         '''
