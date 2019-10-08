@@ -444,6 +444,28 @@ class BED():
 
         return lines
 
+    def group_entries_by_name(self):
+        '''
+        Organize bed file lines into a dictionary by feature name
+
+        Output:
+            1) groupedEntries: dictionary containing feature names as keys and as values a list of bed lines corresponding to each name
+        '''
+        groupedEntries = {}
+
+        # For each bed entry
+        for entry in self.lines:
+
+            # a) Initialize entry name
+            if entry.optional['name'] not in groupedEntries:
+                groupedEntries[entry.optional['name']] = [entry]
+
+            # b) Add to preexisting entry name
+            else:
+                groupedEntries[entry.optional['name']].append(entry)
+        
+        return groupedEntries
+
 class BED_line():
     '''
     BED line class 
