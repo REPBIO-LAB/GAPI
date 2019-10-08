@@ -527,14 +527,13 @@ def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transduct
     log.subHeader(msg)        
     annotDir = rootOutDir + '/ANNOT/'
     unix.mkdir(annotDir)
-
     annotations2load = ['REPEATS']
 
     if transductionSearch:    
         annotations2load.append('TRANSDUCTIONS')
 
-    #if True: # at one point include flag for pseudogene search
-        #annotations2load.append('EXONS')
+    if True: # at one point include flag for pseudogene search
+        annotations2load.append('EXONS')
 
     annotations = annotation.load_annotations(annotations2load, refLengths, refDir, processes, annotDir)
 
@@ -569,11 +568,16 @@ def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transduct
     index = os.path.splitext(reference)[0] + '.mmi'
     SAM_splicing = alignment.alignment_minimap2_spliced(fastaPath, index, 'alignments_spliced', processes, rootOutDir)
 
-    ## Convert SAM to PAF
-    PAF_splicing = alignment.sam2paf(SAM_splicing, 'alignments_spliced', rootOutDir)
+    ## Convert SAM to BAM
+    BAM_splicing = bamtools.SAM2BAM(SAM_splicing, rootOutDir)
+
+    ## Convert BAM to BED
+    BED_path = bamtools.BAM2BED(BAM_splicing, rootOutDir)
 
     ## Organize hits according to their corresponding metacluster
-    allHits_splicing = alignment.organize_hits_paf(PAF_splicing) 
+    allHits_splicing = formats.BED()
+    allHits_splicing.read(BED_path, 'List', None)
+    groupedEntries = allHits_splicing.group_entries_by_name()
 
     ## 3.3 Align consensus inserted sequences into the viral database
     msg = '3.3 Align consensus inserted sequences into the viral database'
@@ -608,8 +612,8 @@ def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transduct
             hits_genome = None
 
         ## Hits in the reference genome (splice-aware alignment)
-        if metaId in allHits_splicing:
-            hits_splicing = allHits_splicing[metaId]
+        if metaId in groupedEntries:
+            hits_splicing = groupedEntries[metaId]
 
         else:
             hits_splicing = None
@@ -622,8 +626,7 @@ def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transduct
             hits_viral = None
 
         ## 4.2 Insertion type inference
-        metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, annotations['REPEATS'], annotations['TRANSDUCTIONS'])
-        
+        metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'])
 
 def structure_inference_parallel(metaclusters, consensusPath, transducedPath, transductionSearch, processes, rootDir):
     '''
@@ -1604,16 +1607,17 @@ class META_cluster():
             self.consensusFasta = None
      
      
-    def determine_INS_type(self, hits_genome, hits_splicing, hits_viral, repeatsDb, transducedDb):
+    def determine_INS_type(self, hits_genome, hits_splicing, hits_viral, repeatsDb, transducedDb, exonsDb):
         '''
         Determine the type of insertion based on the alignments of the inserted sequence on the reference genome
 
         Input:
             1. hits_genome: PAF object containing inserted sequence alignments on the reference genome
-            2. hits_splicing: PAF object containing inserted sequence alignments on the reference genome (splice-aware alignment)
+            2. hits_splicing: list of bed entries containing inserted sequence alignments on the reference genome (splice-aware alignment)
             3. hits_viral: PAF object containing inserted sequence alignments on the viral database 
             4. repeatsDb: bin database containing annotated repeats in the reference. None if not available
             5. transducedDb: bin database containing regions transduced by source elements. None if not available
+            6. exonsDb: bin database containing annotated exons. None if not available. 
 
         Output: Add INS type annotation to the attribute SV_features
         ''' 
@@ -1649,9 +1653,9 @@ class META_cluster():
             return    
 
         ## 4. Assess if input sequence corresponds to processed pseudogene insertion
+        is_PSEUDOGENE, outHits = self.is_processed_pseudogene(hits_splicing, exonsDb)
 
         ## 5. Assess if input sequence corresponds to a viral insertion
-
 
     def determine_INS_structure(self, consensusPath, transducedPath, transductionSearch, outDir):
         '''
@@ -1733,7 +1737,6 @@ class META_cluster():
         structure = retrotransposons.retrotransposon_structure(insertPath, indexPath, outDir)
 
         return structure
-
 
     def is_duplication(self, PAF, buffer):
         '''
@@ -1866,7 +1869,7 @@ class META_cluster():
                 self.SV_features['FAMILY'] = list(set(families))
                 self.SV_features['SUBFAMILY'] = list(set(subfamilies))
 
-            # b) Not duplication
+            # b) Not expansion
             else:
 
                 EXPANSION = False
@@ -1880,4 +1883,105 @@ class META_cluster():
             self.SV_features['INS_TYPE'] = 'unknown'
             self.SV_features['PERC_RESOLVED'] = 0
 
-        return EXPANSION, HITS              
+        return EXPANSION, HITS     
+
+    def is_processed_pseudogene(self, hits, exonsDb):     
+        '''
+        Determine if metacluster corresponds to a processed pseudogene insertion
+        
+        Input:
+            1. hits: PAF object containing consensus inserted sequence alignments on the reference genome
+            2. exonsDb: bin database containing annotated repeats in the reference. None if not available
+
+        Output:
+            1. PSEUDOGENE: Boolean specifying if inserted sequence corresponds to an expansion (True) or not (False)
+            2. outHits: 
+        
+        Update SV_features attribute with 'INS_TYPE', 'PERC_RESOLVED', 'NB_EXONS', 'SOURCE_GENE', 'POLYA', 'STRAND'
+
+        Note: I need to modify the way PERC_RESOLVED. Now it´s not precise, do it based on the qBeg and qEnd
+        alignment coordinates        
+        '''
+
+        ## 1. Search for polyA/T tails
+        insert = self.consensusEvent.pick_insert()
+        windowSize = 8
+        maxWindowDist = 2
+        minMonomerSize = 10
+        minPurity = 80 
+
+        # 1.1 Search for poly(A) monomers on the 3' end 
+        targetSeq = insert[-50:]
+        targetMonomer = 'A'
+        monomers3end = sequences.find_monomers(targetSeq, targetMonomer, windowSize, maxWindowDist, minMonomerSize, minPurity)
+
+        ## 1.2 Search for polyT on the 5' end 
+        targetSeq = insert[:50]
+        targetMonomer = 'T'
+        monomers5end = sequences.find_monomers(targetSeq, targetMonomer, windowSize, maxWindowDist, minMonomerSize, minPurity)
+
+        if monomers3end and monomers5end:
+            polyA = False
+            strand = None
+
+        elif monomers3end:
+            polyA = True
+            strand = '+'
+
+        elif monomers5end:
+            polyA = True
+            strand = '-'
+
+        else:
+            polyA = False
+            strand = None
+
+        ## 2. Intersect each hit with the annotated exons
+        outHits = []
+        nbResolvedBp = 0
+        nbExons = 0
+
+        # For each hit
+        for hit in hits: 
+
+            hit.annot = {}
+
+            ## Do intersection
+            overlaps = annotation.annotate_interval(hit.ref, hit.beg, hit.end, exonsDb)
+
+            ## Hit intersect with exon
+            if overlaps:
+                longestOverlap = overlaps[0] # Select exon with longest overlap
+                hit.annot['EXON'] = longestOverlap[0] 
+                
+                outHits.append(hit)
+                nbResolvedBp += longestOverlap[1]
+                nbExons += 1
+
+        ## 3. Compute percentage of inserted sequence matching on annotated exons
+        percResolved = float(nbResolvedBp) / self.consensusEvent.length * 100
+
+        # set upper bound to 100
+        if percResolved > 100:
+            percResolved = 100 
+
+        ## 4. Determine if pseudogene or not
+        # a) Pseudogene
+        if percResolved >= 40:
+
+            PSEUDOGENE = True
+            self.SV_features['INS_TYPE'] = 'pseudogene'
+            self.SV_features['PERC_RESOLVED'] = percResolved
+            self.SV_features['NB_EXONS'] = nbExons
+            self.SV_features['SOURCE_GENE'] = list(set([hit.annot['EXON'].optional['geneName'] for hit in outHits]))
+            self.SV_features['POLYA'] = polyA
+            self.SV_features['STRAND'] = strand
+
+        # b) Not pseudogene
+        else:
+            PSEUDOGENE = False
+            self.SV_features['INS_TYPE'] = 'unknown'
+            self.SV_features['PERC_RESOLVED'] = percResolved        
+
+        return PSEUDOGENE, outHits
+    
