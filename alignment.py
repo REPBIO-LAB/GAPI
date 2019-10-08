@@ -111,13 +111,13 @@ def alignment_minimap2_spliced(FASTA, index, fileName, processes, outDir):
         5. outDir: Output directory
 
     Output:
-        1. PAF: Path to PAF file containing input sequences alignments or 'None' if alignment failed 
+        1. SAM: Path to SAM file containing input sequences alignments or 'None' if alignment failed 
     '''
     ## Align the sequences into the reference
     # Note, condider to use -Y to get soft clippings for supplementary alignments
-    PAF = outDir + '/' + fileName + '.paf'
+    SAM = outDir + '/' + fileName + '.sam'
     err = open(outDir + '/align.err', 'w') 
-    command = 'minimap2 -x splice -t ' + str(processes) + ' ' + index + ' ' + FASTA + ' > ' + PAF
+    command = 'minimap2 -a -x splice -t ' + str(processes) + ' ' + index + ' ' + FASTA + ' > ' + SAM
     status = subprocess.call(command, stderr=err, shell=True)
 
     if status != 0:
@@ -125,7 +125,7 @@ def alignment_minimap2_spliced(FASTA, index, fileName, processes, outDir):
         msg = 'Local alignment failed' 
         log.step(step, msg)
 
-    return PAF
+    return SAM
 
 
 def alignment_bwa(FASTA, reference, fileName, processes, outDir):
@@ -281,4 +281,4 @@ def organize_hits_paf(PAF_path):
         # Add hit to PAF
         hits[alignment.qName].alignments.append(alignment)
 
-    return hits    
+    return hits     
