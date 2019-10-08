@@ -103,6 +103,41 @@ def SAM2BAM(SAM, outDir):
 
     return BAM_sorted
 
+def BAM2BED(BAM, outDir):
+    '''
+    Convert BAM file into BED using bedtools
+
+	Input:
+		1. BAM: Path to BAM file 
+        2. outDir: Output directory
+
+	Output:
+		1. BED: Path to BED file
+    '''
+    print('BAM2BED_INPUT: ', BAM, outDir)
+
+    ## 0. Create logs directory 
+    logDir = outDir + '/Logs'
+    unix.mkdir(logDir)
+
+    ## 1. Convert BAM into BED
+    BED_path = outDir + '/alignments.bed'
+    err = open(logDir + '/BAM2BED.err', 'w') 
+    command = 'bedtools bamtobed -split -i ' + BAM + ' > ' + BED_path
+    status = subprocess.call(command, stderr=err, shell=True)
+    print('command: ', command, status)
+
+    if status != 0:
+        step = 'BAM2BED'
+        msg = 'BAM to BED conversion failed' 
+        log.step(step, msg)
+    
+    ## 2. Add header to BED file
+    header = "#ref \t beg \t end \t name \t score \t strand \n"
+    with open(BED_path, 'r') as original: data = original.read()
+    with open(BED_path, 'w') as modified: modified.write(header + data)
+
+    return BED_path
 
 def phred2ASCII(phred):
     '''
