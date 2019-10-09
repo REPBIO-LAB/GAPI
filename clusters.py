@@ -1644,7 +1644,7 @@ class META_cluster():
         ## 3. Assess if input sequence corresponds to solo interspersed insertion or transduction
         # Note: return boolean as well specifying if interspersed or not
         is_INTERSPERSED, INS_features, self.insertHits = retrotransposons.is_interspersed_ins(self.consensusEvent.pick_insert(), hits_genome, repeatsDb, transducedDb)
-
+        
         # Update metacluster with insertion features
         self.SV_features.update(INS_features) 
 

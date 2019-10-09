@@ -463,17 +463,27 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
     '''
     INS_features = {}
 
-    ## 0. Sequence does not align on the reference ##
+    ## 0. Sequence does not align on the reference 
     if not PAF.alignments:
         INTERSPERSED = False
         INS_features['INS_TYPE'] = 'unknown'
         INS_features['PERC_RESOLVED'] = 0
         return INTERSPERSED, INS_features, None
 
-    ## 1. Create chain of alignments ##
+    ## 1. Does the sequence corresponds to a polyA/T? 
+    polyA, percPolyA = is_polyA(sequence, 70)
+
+    if polyA:
+        INTERSPERSED = True
+        INS_features['INS_TYPE'] = 'poly(A/T)'
+        INS_features['POLYA'] = True
+        INS_features['PERC_RESOLVED'] = percPolyA
+        return INTERSPERSED, INS_features, None
+
+    ## 2. Create chain of alignments ##
     chain = PAF.chain(300, 20)
 
-    ## 2. Annotate each hit in the chain ##
+    ## 3. Annotate each hit in the chain ##
     repeatMatch = False
     transducedMatch = False
 
@@ -482,28 +492,21 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
 
         hit.annot = {}
 
-        ## 2.1 Does the hit corresponds to a polyA/T? 
-        polyA = is_polyA(sequence, 80)
-
-        # Skip next annotation steps if hit corresponds to a polyA
-        if polyA:
-            continue
-
-        ## 2.2 Hit matches an annotated repeat 
+        ## 3.1 Hit matches an annotated repeat 
         overlaps = annotation.annotate_interval(hit.tName, hit.tBeg, hit.tEnd, repeatsDb)
 
         if overlaps:
             repeatMatch = True
             hit.annot['REPEAT'] = overlaps[0][0] # Select repeat with longest overlap
 
-        ## 2.3 Hit matches a transduced region
+        ## 3.2 Hit matches a transduced region
         overlaps = annotation.annotate_interval(hit.tName, hit.tBeg, hit.tEnd, transducedDb)
 
         if overlaps:
             transducedMatch = True
             hit.annot['SOURCE_ELEMENT'] = overlaps[0][0] # Select trandsduced with longest overlap
 
-    ## 3. Make list of distinct features matching the inserted sequence ##
+    ## 4. Make list of distinct features matching the inserted sequence ##
     features = {}
     features['SOURCE_ELEMENT'] = []   
     features['REPEATS'] = {}
@@ -534,7 +537,7 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
             if family not in features['REPEATS']['FAMILIES']:
                 features['REPEATS']['FAMILIES'].append(family)
 
-    ## 4. Determine insertion type based on hits annotation ##
+    ## 5. Determine insertion type based on hits annotation ##
     # A) Partnered transduction
     if repeatMatch and transducedMatch:
 
@@ -547,6 +550,7 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
 
         ## Transduction info
         INS_features['CYTOBAND'] = features['SOURCE_ELEMENT']
+        INS_features['PERC_RESOLVED'] = chain.perc_query_covered()
 
     # B) Orphan
     elif transducedMatch:
@@ -555,6 +559,7 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
 
         INS_features['FAMILY'] = features['REPEATS']['FAMILIES'] 
         INS_features['CYTOBAND'] = features['SOURCE_ELEMENT']
+        INS_features['PERC_RESOLVED'] = chain.perc_query_covered()
 
     # C) Solo
     elif repeatMatch:
@@ -563,17 +568,13 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
 
         INS_features['FAMILY'] = features['REPEATS']['FAMILIES'] 
         INS_features['SUBFAMILY'] = features['REPEATS']['SUBFAMILIES']
+        INS_features['PERC_RESOLVED'] = chain.perc_query_covered()
 
-    # D) PolyA/T tail
-    elif polyA:
-        INTERSPERSED = True
-        INS_features['INS_TYPE'] = 'poly(A/T)'
-
-    # E) Unknown 
+    # D) Unknown 
     else:       
         INTERSPERSED = False
-        INS_features['PERC_RESOLVED'] = 0
         INS_features['INS_TYPE'] = 'unknown'
+        INS_features['PERC_RESOLVED'] = 0
 
     return INTERSPERSED, INS_features, chain
 
@@ -588,19 +589,27 @@ def is_polyA(sequence, minPerc):
 
     Output:
         1. polyA: boolean specifying if input sequence corresponds to a polyA/T tail
+        2. percPolyA: percentage of bases corresponding to polyA/T
     '''
     ## 1. Assess input sequence base composition
     baseCounts, basePercs = sequences.baseComposition(sequence)
 
     ## 2. Determine if polyA/T
-    # a) PolyA/T
-    if (basePercs['A'] >= minPerc) or (basePercs['T'] >= minPerc):
+    # a) PolyA
+    if (basePercs['A'] >= minPerc):
         polyA = True
-    
-    # b) Not PolyA/T
+        percPolyA = basePercs['A']
+
+    # b) PolyT
+    elif (basePercs['T'] >= minPerc):
+        polyA = True
+        percPolyA = basePercs['T']
+
+    # c) Not PolyA/T
     else:
         polyA = False
-    
-    return polyA
+        percPolyA = max([basePercs['A'], basePercs['T']])
+
+    return polyA, percPolyA
 
 
