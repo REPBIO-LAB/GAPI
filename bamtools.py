@@ -114,8 +114,6 @@ def BAM2BED(BAM, outDir):
 	Output:
 		1. BED: Path to BED file
     '''
-    print('BAM2BED_INPUT: ', BAM, outDir)
-
     ## 0. Create logs directory 
     logDir = outDir + '/Logs'
     unix.mkdir(logDir)
@@ -125,7 +123,6 @@ def BAM2BED(BAM, outDir):
     err = open(logDir + '/BAM2BED.err', 'w') 
     command = 'bedtools bamtobed -split -i ' + BAM + ' > ' + BED_path
     status = subprocess.call(command, stderr=err, shell=True)
-    print('command: ', command, status)
 
     if status != 0:
         step = 'BAM2BED'
