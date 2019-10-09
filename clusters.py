@@ -609,21 +609,21 @@ def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transduct
             hits_genome = allHits_genome[metaId]
         
         else:
-            hits_genome = None
+            hits_genome = formats.PAF()
 
         ## Hits in the reference genome (splice-aware alignment)
         if metaId in groupedEntries:
             hits_splicing = groupedEntries[metaId]
 
         else:
-            hits_splicing = None
+            hits_splicing = []
 
         ## Hits in the viral database
         if metaId in allHits_viral:
             hits_viral = allHits_viral[metaId]
 
         else:
-            hits_viral = None
+            hits_viral = formats.PAF()
 
         ## 4.2 Insertion type inference
         metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'])
@@ -1606,14 +1606,13 @@ class META_cluster():
             self.consensusEvent = None                
             self.consensusFasta = None
      
-     
     def determine_INS_type(self, hits_genome, hits_splicing, hits_viral, repeatsDb, transducedDb, exonsDb):
         '''
         Determine the type of insertion based on the alignments of the inserted sequence on the reference genome
 
         Input:
             1. hits_genome: PAF object containing inserted sequence alignments on the reference genome
-            2. hits_splicing: list of bed entries containing inserted sequence alignments on the reference genome (splice-aware alignment)
+            2. hits_splicing: list of bed entries containing inserted sequence alignments on the reference genome (splice-aware alignment). None if not hit found
             3. hits_viral: PAF object containing inserted sequence alignments on the viral database 
             4. repeatsDb: bin database containing annotated repeats in the reference. None if not available
             5. transducedDb: bin database containing regions transduced by source elements. None if not available
@@ -1621,8 +1620,9 @@ class META_cluster():
 
         Output: Add INS type annotation to the attribute SV_features
         ''' 
-        ## 0. Abort if consensus event or hits not available 
-        if (self.consensusEvent is None) or (hits_genome is None):
+
+        ## 0. Abort if consensus event not available 
+        if self.consensusEvent is None:
             self.SV_features['INS_TYPE'] = 'unknown'
             self.SV_features['PERC_RESOLVED'] = 0
             return 
@@ -1654,6 +1654,10 @@ class META_cluster():
 
         ## 4. Assess if input sequence corresponds to processed pseudogene insertion
         is_PSEUDOGENE, outHits = self.is_processed_pseudogene(hits_splicing, exonsDb)
+
+        # Stop if insertion is a processed pseudogene
+        if is_PSEUDOGENE:
+            return    
 
         ## 5. Assess if input sequence corresponds to a viral insertion
 
@@ -1748,18 +1752,27 @@ class META_cluster():
 
         Output:
             1. DUP: boolean specifying if inserted sequence corresponds to a duplication (True) or not (False)
-            2. HITS: PAF object containing inserted sequence alignments supporting a duplication
+            2. HITS: PAF object containing inserted sequence alignments supporting a duplication. None if no hit found
 
         Update SV_features attribute with 'INS_TYPE' and 'PERC_RESOLVED' info
 
         Note: I need to modify the way PERC_RESOLVED. Now it´s not precise, do it based on the qBeg and qEnd
         alignment coordinates
         '''
-        ## 0. Initialize
+        ## 0. Abort if no hit available
+        if not PAF.alignments:
+
+            DUP = False
+            self.SV_features['INS_TYPE'] = 'unknown'
+            self.SV_features['PERC_RESOLVED'] = 0
+
+            return DUP, None   
+
+        ## 1. Initialize
         totalPerc = 0
         HITS = formats.PAF()
         
-        ## 1. Search hits matching metacluster interval
+        ## 2. Search hits matching metacluster interval
         # For each hit
         for hit in PAF.alignments: 
 
@@ -1778,7 +1791,7 @@ class META_cluster():
         if totalPerc > 100:
             totalPerc = 100 
 
-        ## 2. Determine if duplication or not
+        ## 3. Determine if duplication or not
         # a) Duplication
         if totalPerc >= 40:
 
@@ -1801,11 +1814,11 @@ class META_cluster():
         
         Input:
             1. PAF: PAF object containing consensus inserted sequence alignments on the reference genome
-            2. repeatsDb: bin database containing annotated repeats in the reference. None if not available
+            2. repeatsDb: bin database containing annotated repeats in the reference
 
         Output:
             1. EXPANSION: Boolean specifying if inserted sequence corresponds to an expansion (True) or not (False)
-            2. HITS: PAF object containing inserted sequence alignments supporting an expansion
+            2. HITS: PAF object containing inserted sequence alignments supporting an expansion. None if no hit found
 
         Update SV_features attribute with 'INS_TYPE', 'FAMILY', 'SUBFAMILY', 'PERC_RESOLVED' info
 
@@ -1813,11 +1826,20 @@ class META_cluster():
         alignment coordinates        
         '''
 
-        ### Initialize
+        ## 0. Abort if no hit available
+        if not PAF.alignments:
+
+            EXPANSION = False
+            self.SV_features['INS_TYPE'] = 'unknown'
+            self.SV_features['PERC_RESOLVED'] = 0
+
+            return EXPANSION, None   
+            
+        ## 1. Initialize
         totalPerc = 0
         HITS = formats.PAF()
 
-        ### Assess if metacluster located over an annotated repeat sequence 
+        ## 2. Assess if metacluster located over an annotated repeat sequence 
         # Make list of annotated repeat categories according to repeatmasker
         repeatTypes = ['Low_complexity', 'Simple_repeat', 'Satellite', 'telo', 'centr', 'acro']
 
@@ -1876,7 +1898,6 @@ class META_cluster():
                 self.SV_features['INS_TYPE'] = 'unknown'
                 self.SV_features['PERC_RESOLVED'] = 0
 
-
         # B) Metacluster outside annotated repeat
         else:
             EXPANSION = False
@@ -1890,18 +1911,27 @@ class META_cluster():
         Determine if metacluster corresponds to a processed pseudogene insertion
         
         Input:
-            1. hits: PAF object containing consensus inserted sequence alignments on the reference genome
-            2. exonsDb: bin database containing annotated repeats in the reference. None if not available
+            1. hits: list of bed entries corresponding to inserted sequence hits on the reference 
+            2. exonsDb: bin database containing annotated exons in the reference. None if not available
 
         Output:
             1. PSEUDOGENE: Boolean specifying if inserted sequence corresponds to an expansion (True) or not (False)
-            2. outHits: 
+            2. outHits: list of bed entries corresponding to hits matching annotated exons
         
         Update SV_features attribute with 'INS_TYPE', 'PERC_RESOLVED', 'NB_EXONS', 'SOURCE_GENE', 'POLYA', 'STRAND'
 
         Note: I need to modify the way PERC_RESOLVED. Now it´s not precise, do it based on the qBeg and qEnd
         alignment coordinates        
         '''
+
+        ## 0. Abort if no hit available
+        if not hits:
+
+            PSEUDOGENE = False
+            self.SV_features['INS_TYPE'] = 'unknown'
+            self.SV_features['PERC_RESOLVED'] = 0
+
+            return PSEUDOGENE, None   
 
         ## 1. Search for polyA/T tails
         insert = self.consensusEvent.pick_insert()

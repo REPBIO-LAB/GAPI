@@ -251,7 +251,6 @@ if __name__ == '__main__':
 	## 2. Execute structural variation caller
 	###########################################
 
-
 	### Create caller
 	# A) Pacbio or Nanopore long reads 
 	if confDict['technology'] in ['NANOPORE', 'PACBIO']:

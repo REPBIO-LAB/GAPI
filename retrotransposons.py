@@ -463,14 +463,8 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
     '''
     INS_features = {}
 
-    ## 0. Sequence does not align on the reference 
-    if not PAF.alignments:
-        INTERSPERSED = False
-        INS_features['INS_TYPE'] = 'unknown'
-        INS_features['PERC_RESOLVED'] = 0
-        return INTERSPERSED, INS_features, None
-
-    ## 1. Does the sequence corresponds to a polyA/T? 
+    ## 0. Preliminary steps
+    ## 0.1 Does the sequence corresponds to a polyA/T? 
     polyA, percPolyA = is_polyA(sequence, 70)
 
     if polyA:
@@ -480,10 +474,18 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
         INS_features['PERC_RESOLVED'] = percPolyA
         return INTERSPERSED, INS_features, None
 
-    ## 2. Create chain of alignments ##
+    ## 0.2 Abort if sequence does not align on the reference 
+    if not PAF.alignments:
+
+        INTERSPERSED = False
+        INS_features['INS_TYPE'] = 'unknown'
+        INS_features['PERC_RESOLVED'] = 0
+        return INTERSPERSED, INS_features, None
+            
+    ## 1. Create chain of alignments ##
     chain = PAF.chain(300, 20)
 
-    ## 3. Annotate each hit in the chain ##
+    ## 2. Annotate each hit in the chain ##
     repeatMatch = False
     transducedMatch = False
 
@@ -492,21 +494,21 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
 
         hit.annot = {}
 
-        ## 3.1 Hit matches an annotated repeat 
+        ## 2.1 Hit matches an annotated repeat 
         overlaps = annotation.annotate_interval(hit.tName, hit.tBeg, hit.tEnd, repeatsDb)
 
         if overlaps:
             repeatMatch = True
             hit.annot['REPEAT'] = overlaps[0][0] # Select repeat with longest overlap
 
-        ## 3.2 Hit matches a transduced region
+        ## 2.2 Hit matches a transduced region
         overlaps = annotation.annotate_interval(hit.tName, hit.tBeg, hit.tEnd, transducedDb)
 
         if overlaps:
             transducedMatch = True
             hit.annot['SOURCE_ELEMENT'] = overlaps[0][0] # Select trandsduced with longest overlap
 
-    ## 4. Make list of distinct features matching the inserted sequence ##
+    ## 3. Make list of distinct features matching the inserted sequence ##
     features = {}
     features['SOURCE_ELEMENT'] = []   
     features['REPEATS'] = {}
@@ -537,7 +539,7 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
             if family not in features['REPEATS']['FAMILIES']:
                 features['REPEATS']['FAMILIES'].append(family)
 
-    ## 5. Determine insertion type based on hits annotation ##
+    ## 4. Determine insertion type based on hits annotation ##
     # A) Partnered transduction
     if repeatMatch and transducedMatch:
 
