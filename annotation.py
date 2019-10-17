@@ -43,6 +43,7 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
 
         repeatsBed = annotationsDir + '/repeats.bed'
         #repeatsBed = annotationsDir + '/repeats.L1.bed'
+        #repeatsBed = annotationsDir + '/repeats.chr22.bed'
         annotations['REPEATS'] = formats.bed2binDb(repeatsBed, refLengths, threads)
 
     ## 2. Create transduced regions database
@@ -59,6 +60,7 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
     if 'EXONS' in annotations2load:
 
         exonsBed = annotationsDir + '/exons.bed'
+        #exonsBed = annotationsDir + '/exons.test.bed'
         annotations['EXONS'] = formats.bed2binDb(exonsBed, refLengths, threads)
 
     return annotations
@@ -356,13 +358,14 @@ def run_annovar(inputFile, annovarDir, outDir):
     return out1, out2
 
 
-def intersect_mate_annotation(discordants, annotation):
+def intersect_mate_annotation(discordants, annotation, targetField):
     '''
-    For each input read assess if the mate aligns in a retrotransposon located elsewhere in the reference genome
+    For each input read assess if the mate aligns over an annotated feature
 
     Input: 
         1) discordants: list containing input discordant read pair events
         2) annotation: dictionary containing annotated features organized per chromosome (keys) into genomic bins (values)
+        3) targetField: optional field name to be used to determine overlapping feature name
 
     Output:
         1) matesIdentity: dictionary containing lists of discordant read pairs organized taking into account their orientation and if the mate aligns in an annotated feature 
@@ -377,7 +380,7 @@ def intersect_mate_annotation(discordants, annotation):
     ##  For each input discordant intersect mate alignment coordinates with the provided annotation 
     for discordant in discordants:
         
-        # A) Annotated repeat in the same ref where the mate aligns
+        # A) Annotated feature in the same ref where the mate aligns
         if discordant.mateRef in annotation:
 
             ## Select features bin database for the corresponding reference 
@@ -387,20 +390,20 @@ def intersect_mate_annotation(discordants, annotation):
             overlappingFeatures = featureBinDb.collect_interval(discordant.mateStart, discordant.mateStart + 100, 'ALL')    
 
             ## Determine mate status 
-            # a) Mate does not align within an annotated repeat
+            # a) Mate does not align within an annotated feature
             if len(overlappingFeatures) == 0:
                 featureType = 'None'
 
-            # b) Mate aligns within a single repeat
+            # b) Mate aligns within a single feature
             elif len(overlappingFeatures) == 1:
-                featureType = overlappingFeatures[0][0].optional['family']
+                featureType = overlappingFeatures[0][0].optional[targetField]
 
-            # c) Mate overlaps multiple repeats
+            # c) Mate overlaps multiple features
             else:
                 overlappingFeatures = sorted(overlappingFeatures,key=itemgetter(1), reverse=True)
-                featureType = overlappingFeatures[0][0].optional['family']
+                featureType = overlappingFeatures[0][0].optional[targetField]
 
-        # B) No repeat in the same ref as mate
+        # B) No feature in the same ref as mate
         else:
             featureType = 'None'
 
