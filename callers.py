@@ -553,3 +553,121 @@ class SV_caller_short(SV_caller):
         return dictMetaclusters
         '''
 
+class SV_caller_sureselect(SV_caller):
+    '''
+    Structural variation (SV) caller for Illumina sureselect data targetering source element´s downstream regions
+    '''
+    def __init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir):
+
+        SV_caller.__init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir)
+
+    def call(self):
+        '''
+        Search for structural variants (SV) genome wide or in a set of target genomic regions
+        '''
+
+        ### 1. Load reference annotations prior SV calling 
+        annotDir = self.outDir + '/ANNOT/'
+        unix.mkdir(annotDir)
+
+        refLengths = bamtools.get_ref_lengths(self.bam)
+        #annotations2load = ['TRANSDUCTIONS', 'REPEATS']
+        annotations2load = ['TRANSDUCTIONS']        
+        self.annotations = annotation.load_annotations(annotations2load, refLengths, self.refDir, self.confDict['processes'], annotDir)
+        
+        ### 2. Define genomic bins to search for SV 
+        bins = bamtools.binning(self.confDict['targetBins'], self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
+
+        ### 3. Search for SV clusters in each bin 
+        # Genomic bins will be distributed into X processes
+        pool = mp.Pool(processes=self.confDict['processes'])
+        pool.starmap(self.make_clusters_bin, bins)
+        #discordantClusters = pool.starmap(self.make_clusters_bin, bins)
+        pool.close()
+        pool.join()
+
+    def make_clusters_bin(self, ref, beg, end):
+        '''
+        Search for structural variant (SV) clusters in a genomic bin/window
+        '''
+
+        ## 0. Set bin id and create bin directory ##
+        binId = '_'.join([str(ref), str(beg), str(end)])
+        msg = 'SV calling in bin: ' + binId
+        log.subHeader(msg)
+
+        binDir = self.outDir + '/CLUSTER/' + binId
+        unix.mkdir(binDir)
+
+        ## 1. Search for SV candidate events in the bam file/s ##
+        # a) Single sample mode
+        if self.mode == "SINGLE":
+            eventsDict = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, None)
+
+        # b) Paired sample mode (tumour & matched normal)
+        else:
+            eventsDict = bamtools.collectSV_paired(ref, beg, end, self.bam, self.normalBam, self.confDict)
+
+        step = 'COLLECT'
+        SV_types = sorted(eventsDict.keys())
+        counts = [str(len(eventsDict[SV_type])) for SV_type in SV_types]
+        msg = 'Number of SV events in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
+        log.step(step, msg)
+
+        if counts == []:
+            unix.rm([binDir])
+            return None
+        
+        ## 2. Discordant read pair identity ##
+        ## Determine identity
+        discordantsIdentity = events.determine_discordant_identity(eventsDict['DISCORDANT'], self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'])
+
+        step = 'IDENTITY'
+        SV_types = sorted(discordantsIdentity.keys())
+        counts = [str(len(discordantsIdentity[SV_type])) for SV_type in SV_types]
+        msg = 'Number of SV events per identity in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
+        log.step(step, msg)
+
+        if counts == []:
+            unix.rm([binDir])
+            return None     
+
+        
+        ## 3. Organize discordant read pairs into genomic bins prior clustering ##
+        step = 'BINNING'
+        msg = 'Organize discordant read pairs into genomic bins prior clustering'
+        log.step(step, msg)
+
+        ## Define bin database sizes 
+        ## Note: bigger window sizes are needed for SR (see comments, ask Eva where are the comments?)
+        binSizes = [1000, 10000, 100000, 1000000]
+
+        ## Create bins
+        discordantsBinDb = structures.create_bin_database_interval(ref, beg, end, discordantsIdentity, binSizes)
+        print('discordantsBinDb: ', discordantsBinDb)
+        
+        
+        ## 4. Group discordant read pairs into clusters based on their mate identity ##
+        buffer = 100
+        discordantClustersDict = clusters.create_discordantClusters(discordantsBinDb, self.confDict['minClusterSize'], buffer)
+    
+        step = 'DISCORDANT-CLUSTERING'
+        SV_types = sorted(discordantClustersDict.keys())
+        counts = [str(len(discordantClustersDict[SV_type])) for SV_type in SV_types]
+        msg = 'Number of created discordant clusters in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
+        log.step(step, msg)
+
+        if counts == []:
+            unix.rm([binDir])
+            return None
+
+        print('discordantClustersDict: ', discordantClustersDict)
+
+        for clusterType, clusterList in discordantClustersDict.items():
+            print("CLUSTER_TYPE: ", clusterType, len(clusterList))
+            for cluster in clusterList:
+                print('CLUSTER: ', cluster.ref, cluster.beg, cluster.end)
+
+
+
+
