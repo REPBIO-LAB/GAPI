@@ -29,7 +29,7 @@ if __name__ == '__main__':
 	### Mandatory arguments
 	parser = argparse.ArgumentParser(description='Call mobile element insertions (MEI) and viral integrations from second and third generation sequencing data. Two running modes: 1) SINGLE: individual sample; 2) PAIRED: tumour and matched normal sample')
 	parser.add_argument('bam', help='Input bam file. Will correspond to the tumour sample in the PAIRED mode')
-	parser.add_argument('technology', help='Sequencing technology used to generate the data (NANOPORE, PACBIO or ILLUMINA)')
+	parser.add_argument('technology', help='Sequencing technology used to generate the data (NANOPORE, PACBIO, ILLUMINA or SURESELECT)')
 	parser.add_argument('reference', help='Reference genome in fasta format. An index of the reference generated with samtools faidx must be located in the same directory')
 	parser.add_argument('refDir', help='Directory containing reference databases (consensus sequences, source elements...)')
 
@@ -134,7 +134,7 @@ if __name__ == '__main__':
 	mode = 'SINGLE' if normalBam == None else 'PAIRED'
 
 	## If unknown technology provided raise an error and exit 
-	if technology not in ['NANOPORE', 'PACBIO', 'ILLUMINA']:
+	if technology not in ['NANOPORE', 'PACBIO', 'ILLUMINA', 'SURESELECT']:
 		log.info('[ERROR] Abort execution as ' + technology + ' technology not supported')
 		sys.exit(1)
 
@@ -148,7 +148,7 @@ if __name__ == '__main__':
 	##############################################
 	scriptName = os.path.basename(sys.argv[0])
 	scriptName = os.path.splitext(scriptName)[0]
-	version='0.10.0'
+	version='0.11.0'
 
 	print()
 	print('***** ', scriptName, version, 'configuration *****')
@@ -257,8 +257,13 @@ if __name__ == '__main__':
 		caller = callers.SV_caller_long(mode, bam, normalBam, reference, refDir, confDict, outDir)
 
 	# B) Illumina short reads
-	else:
+	elif confDict['technology'] == 'ILLUMINA':
 		caller = callers.SV_caller_short(mode, bam, normalBam, reference, refDir, confDict, outDir)
+
+	# C) Source elements sureselect data
+	elif confDict['technology'] == 'SURESELECT':
+		confDict['targetSV'] = ['DISCORDANT']
+		caller = callers.SV_caller_sureselect(mode, bam, normalBam, reference, refDir, confDict, outDir)
 
 	### Do calling
 	caller.call()
