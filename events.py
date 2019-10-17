@@ -8,7 +8,7 @@ Module 'events' - Contains classes for dealing with structural variation events 
 # Internal
 import annotation
 import virus
-
+import structures
 
 ###############
 ## FUNCTIONS ##
@@ -180,9 +180,10 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb):
                                     - Event type: DISCORDANT   
                                     - Type: identity type. It can be retrotransposon family (L1, Alu, ...), source element (22q, 5p, ...), viral strain (HPV, ...)
     '''
+    
     ## 1. Assess if discordant read pairs support transduction insertion if transduction database provided
     if transducedBinDb is not None:
-        discordantsTd = annotation.intersect_mate_annotation(discordants, transducedBinDb)
+        discordantsTd = annotation.intersect_mate_annotation(discordants, transducedBinDb, 'cytobandId')
 
         ## Separate discordants matching from those not matching source elements
         discordants = []
@@ -194,15 +195,25 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb):
         if 'MINUS_DISCORDANT_None' in discordantsTd:
             discordants = discordants + discordantsTd['MINUS_DISCORDANT_None']
             discordantsTd.pop('MINUS_DISCORDANT_None', None)
-        
-    ## 2. Assess if discordant read pairs support transduction insertion
-    discordantsRt = annotation.intersect_mate_annotation(discordants, repeatsBinDb)
-
-    ## 3. Merge discordant read pairs supporting RT and transduction insertions if transduction database provided
-    if transducedBinDb is not None:
-        discordantsIdentity = {**discordantsTd, **discordantsRt}
     else:
-        discordantsIdentity = discordantsRt
+
+        discordantsTd = {}
+
+    ## 2. Assess if discordant read pairs support retrotransposons insertion if repeats database provided
+    if repeatsBinDb is not None:
+        discordantsRt = annotation.intersect_mate_annotation(discordants, repeatsBinDb, 'family')
+
+        if 'PLUS_DISCORDANT_None' in discordantsRt:
+            discordantsRt.pop('PLUS_DISCORDANT_None', None)
+
+        if 'MINUS_DISCORDANT_None' in discordantsRt:
+            discordantsRt.pop('MINUS_DISCORDANT_None', None)
+
+    else:
+        discordantsRt = {}
+
+    ## 3. Merge discordant read pairs supporting RT and transduction insertions if transduction database provided    
+    discordantsIdentity = structures.merge_dictionaries([discordantsTd, discordantsRt])
 
     '''
     ## 2. Assess if discordant read pairs support viral insertion
