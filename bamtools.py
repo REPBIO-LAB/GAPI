@@ -605,14 +605,21 @@ def collectDISCORDANT(alignmentObj, sample):
         else:
             orientation = 'PLUS'
 
-        ## 2. Determine number of alignment blocks
+        ## 2. Determine if discordant is mate 1 or 2
+        if alignmentObj.is_read1:
+            pair = '1'
+
+        else:
+            pair = '2'
+
+        ## 3. Determine number of alignment blocks
         operations = [t[0] for t in alignmentObj.cigartuples]
         nbBlocks = operations.count(3) + 1 
 
-        ## 3. Create discordant event
+        ## 4. Create discordant event
         # A) Read aligning in a single block (WG or RNA-seq read no spanning a splice junction)
         if nbBlocks == 1:
-            DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, orientation, alignmentObj.query_name, alignmentObj, sample)
+            DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, orientation, pair, alignmentObj.query_name, alignmentObj, sample)
             DISCORDANTS.append(DISCORDANT)
 
         # B) Read alignning in multiple blocks (RNA-seq read spanning one or multiple splice junctions) -> Create one discordant event per block
@@ -629,9 +636,9 @@ def collectDISCORDANT(alignmentObj, sample):
 
                 # a) End of the block -> End current block by creating a discordant event and Initiate a new block
                 if operation == 3:
-                    
+
                     # Create discordant event for the block
-                    DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, blockBeg, blockEnd, orientation, alignmentObj.query_name, alignmentObj, sample)
+                    DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, blockBeg, blockEnd, orientation, pair, alignmentObj.query_name, alignmentObj, sample)
                     DISCORDANTS.append(DISCORDANT)
 
                     # Initialize new block
@@ -643,7 +650,7 @@ def collectDISCORDANT(alignmentObj, sample):
                     blockEnd = blockEnd + length   
 
             ## End last block by creating a discordant
-            DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, blockBeg, blockEnd, orientation, alignmentObj.query_name, alignmentObj, sample)
+            DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, blockBeg, blockEnd, orientation, pair, alignmentObj.query_name, alignmentObj, sample)
             DISCORDANTS.append(DISCORDANT)
 
     return DISCORDANTS
