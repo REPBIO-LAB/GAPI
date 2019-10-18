@@ -234,7 +234,26 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb):
 
     return discordantsIdentity
 
+def discordants2mates(discordants):
+    '''
+    Generate discordant objects for the mates of a input list of discordant events
 
+    Input:
+        1. discordants: list of discordant event objects
+
+    Output:
+        1. mates: list of discordant event objects corresponding to input discordant mates
+    '''
+    mates = []
+
+    for discordant in discordants:
+        pair = '2' if discordant.pair == '1' else '1'
+        mate = DISCORDANT(discordant.mateRef, discordant.mateStart, discordant.mateStart, None, pair, discordant.readName, None, discordant.sample)
+
+        mates.append(mate)
+
+    return mates
+    
 def merge_INS(INS_list):
     '''
     Merge a set of adjacent INS events supported by the same read into a single one
@@ -410,27 +429,30 @@ class DISCORDANT():
     Discordant class
     '''
     number = 0 # Number of instances
-
-    def __init__(self, ref, beg, end, side, readName, alignmentObj, sample):
+    
+    def __init__(self, ref, beg, end, orientation, pair, readName, alignmentObj, sample):
         DISCORDANT.number += 1 # Update instances counter
         self.id = 'DISCORDANT_' + str(DISCORDANT.number)
         self.type = 'DISCORDANT'
         self.ref = str(ref)
         self.beg = int(beg)
         self.end = int(end)
-        self.side = side
-        self.readName = readName
+        self.orientation = orientation
+        self.pair = pair
+        self.readName = readName 
         self.sample = sample
         self.clusterId = None
-        
-        ## Set supporting read id
-        mate = '/1' if side == 'MINUS' else '/2'  ### Comment from Berni: I think this assumption is not ok. MINUS are not always mate1 and PLUS mate_2. Orientation do not have to do with mate relative position
-        self.readName = alignmentObj.query_name + mate
-
-        ## mate
-        self.pair = '1' if alignmentObj.is_read1 else '2'
-        self.mateRef = alignmentObj.next_reference_name
-        self.mateStart = alignmentObj.next_reference_start
-        self.mateSeq = None
         self.identity = None
-        self.specificIdentity = None
+        
+        ## Mate info
+        self.mateSeq = None
+
+        if alignmentObj is None:
+            self.mateRef = None
+            self.mateStart = None           
+        else:
+            self.mateRef = alignmentObj.next_reference_name
+            self.mateStart = alignmentObj.next_reference_start
+
+    
+
