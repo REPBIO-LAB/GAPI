@@ -79,7 +79,7 @@ def bed2binDb(bedPath, refLengths, threads):
     bed.read(bedPath, 'nestedDict', targetRefs)
 
     ## Create bin database
-    wgBinDb = structures.create_bin_database(refLengths, bed.lines, threads)
+    wgBinDb = structures.create_bin_database_parallel(refLengths, bed.lines, threads)
 
     return wgBinDb
 
