@@ -253,7 +253,34 @@ def discordants2mates(discordants):
         mates.append(mate)
 
     return mates
-    
+
+def events2dict(events, eventType):
+    '''
+    Organize a set of input events into a nested dictionary
+
+    Input:
+        1. events: list of input events. Events should contain ref attribute
+        2. eventType: type of events. Used a key in inner dictionary
+
+    Output:
+        1. eventsDict: nested dictionary with first level keys corresponding to references, second level keys to
+                       eventType and the corresponding list of events as values
+    '''    
+    eventsDict = {}
+
+    ## For each event
+    for event in events:
+
+        # Initialize list if needed
+        if event.ref not in eventsDict:
+            eventsDict[event.ref] = {}
+            eventsDict[event.ref][eventType] = []
+        
+        # Add event to the list
+        eventsDict[event.ref][eventType].append(event)
+
+    return eventsDict
+
 def merge_INS(INS_list):
     '''
     Merge a set of adjacent INS events supported by the same read into a single one
