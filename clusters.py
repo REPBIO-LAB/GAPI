@@ -714,6 +714,7 @@ def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transduct
         ## 4.2 Insertion type inference
         metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'])
 
+
 def structure_inference_parallel(metaclusters, consensusPath, transducedPath, transductionSearch, processes, rootDir):
     '''
     Infer structure for a list of INS metacluster objects. Parallelize by distributing metaclusters by processes. 
@@ -1707,14 +1708,13 @@ class META_cluster():
 
         Output: Add INS type annotation to the attribute SV_features
         ''' 
-
         ## 0. Abort if consensus event not available 
         if self.consensusEvent is None:
             self.SV_features['INS_TYPE'] = 'unknown'
             self.SV_features['PERC_RESOLVED'] = 0
             return 
 
-        ## 1. Assess if input sequence corresponds to repeat expansion
+        ## 1. Assess if input sequence corresponds to a repeat expansion
         is_EXPANSION, self.insertHits = self.is_expansion(hits_genome, repeatsDb)
 
         # Stop if insertion is a expansion
@@ -1731,7 +1731,7 @@ class META_cluster():
         ## 3. Assess if input sequence corresponds to solo interspersed insertion or transduction
         # Note: return boolean as well specifying if interspersed or not
         is_INTERSPERSED, INS_features, self.insertHits = retrotransposons.is_interspersed_ins(self.consensusEvent.pick_insert(), hits_genome, repeatsDb, transducedDb)
-        
+
         # Update metacluster with insertion features
         self.SV_features.update(INS_features) 
 
@@ -1848,7 +1848,6 @@ class META_cluster():
         '''
         ## 0. Abort if no hit available
         if not PAF.alignments:
-
             DUP = False
             self.SV_features['INS_TYPE'] = 'unknown'
             self.SV_features['PERC_RESOLVED'] = 0
@@ -1913,8 +1912,8 @@ class META_cluster():
         alignment coordinates        
         '''
 
-        ## 0. Abort if no hit available
-        if not PAF.alignments:
+        ## 0. Abort if no hit or repeats database not available
+        if (not PAF.alignments) or (repeatsDb is None):
 
             EXPANSION = False
             self.SV_features['INS_TYPE'] = 'unknown'
@@ -2012,7 +2011,7 @@ class META_cluster():
         '''
 
         ## 0. Abort if no hit available
-        if not hits:
+        if (not hits) or (exonsDb is None):
 
             PSEUDOGENE = False
             self.SV_features['INS_TYPE'] = 'unknown'
