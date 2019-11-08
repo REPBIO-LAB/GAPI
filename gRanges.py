@@ -190,32 +190,3 @@ def complementary(begA, endA, begB, endB, maxDist, maxPercOverlap):
                 orientation = 'RIGHT'
 
     return boolean, orientation
-
-
-# TODO: REMOVE BIGGEST GROUP YJAY IS NOT NECESSARY ANYMORE!!!!
-def groupCloseCoord(chrom, iterable):
-    prev = None
-    groups = []
-    group = []
-    groupLen = 0
-    biggestGroup = []
-    iterable.sort()
-    for item in iterable:
-        if not prev or item - prev <= 100:
-            group.append(item)
-        else:
-            groups.append(group)
-            #yield group
-            if len(group) > groupLen:
-                biggestGroup = [chrom, group[0], group[-1] ,len(group)]
-                groupLen = len(group)
-            group = [item]
-        prev = item
-    if group:
-        #yield group
-        groups.append(group)
-        if len(group) > groupLen:
-            biggestGroup = [chrom, group[0], group[-1] ,len(group)]
-            groupLen = len(group)
-
-    return groups, biggestGroup

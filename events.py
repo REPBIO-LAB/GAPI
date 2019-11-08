@@ -4,7 +4,6 @@ Module 'events' - Contains classes for dealing with structural variation events 
 
 ## DEPENDENCIES ##
 # External
-from cigar import Cigar
 
 # Internal
 import annotation
@@ -450,46 +449,6 @@ class CLIPPING():
             self.mapQual = alignmentObj.mapping_quality
             self.supplAlignment = alignmentObj.get_tag('SA') if alignmentObj.has_tag('SA') else None
             self.refLen = alignmentObj.reference_length
-    
-    def supAlignments(self):
-        '''
-        '''
-        supplAlignmentPosList = []
-        # Create a dictionary: d[chrom]=[(supplAlignmentStart,supplAlignmentEnd),(supplAlignmentStart,supplAlignmentEnd)...]
-    
-        # In case that there are more than one Supplementary Alignment (as SAs end with and ; last value is not taken)
-        for supplAlignment in self.supplAlignment.split(';')[:-1]:
-            supplAlignmentStart = int(supplAlignment.split(',')[1])
-            supplAlignmentCigar = Cigar(supplAlignment.split(',')[3])
-            matchingLength = 0
-            # Add length from cigar to the start position of the supplementary alignment in order to know the end position ('I' doesn't have to be count)
-
-            for cigarTuple in list(supplAlignmentCigar.items()):
-
-                length = int(cigarTuple[0])
-                operation = cigarTuple[1]
-
-                ## Skip soft and hard clippings
-                # - Op S, tag 4, soft clipping (clipped sequences present in SEQ)
-                # - Op H, tag 5, hard clipping (clipped sequences NOT present in SEQ)
-                if (operation != 'S') and (operation != 'H'):
-                    
-                        #### Update position over reference and read sequence
-                        ### a) Operations consuming query and reference
-                        # - Op M, tag 0, alignment match (can be a sequence match or mismatch)
-                        # - Op =, tag 7, sequence match
-                        # - Op X, tag 8, sequence mismatch
-                        if (operation == 'M') or (operation == '=') or (operation == 'X'):
-                            matchingLength += length
-
-                        elif (operation == 'D'):
-                            matchingLength += length
-
-            supplAlignmentEnd = supplAlignmentStart + matchingLength
-            supplAlignmentPos = (supplAlignmentStart, supplAlignmentEnd)
-            supplAlignmentPosList.append(supplAlignmentPos)
-            
-        return supplAlignment.split(',')[0], supplAlignmentPosList
 
 
 class DISCORDANT():
