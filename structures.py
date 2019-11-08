@@ -11,7 +11,48 @@ import log
 import gRanges
 
 ## FUNCTIONS ##
-def create_bin_database(refLengths, eventsDict, threads):
+
+def create_bin_database(refLengths, eventsDict):
+    '''
+    Organize genome wide events into a set of bin databases, one per reference
+
+    Input:
+        1. refLengths: dictionary containing references as keys and their lengths as values
+        2. eventsDict: nested dictionary containing:
+            * FIRST LEVEL KEYS:
+                - REF_1
+                - ...
+
+                * SECOND LEVEL KEYS:
+                    - EVENT_TYPE_1 -> list of objects
+                    - ...
+        
+    Output:
+        1. wgBinDb: dictionary containing references as keys and the corresponding 'bin_database' as value
+    '''    
+    # Initialize dict
+    wgBinDb = {}
+
+    # For each reference
+    for ref, refLen in refLengths.items():
+        
+        # Skip if no events in that particular ref
+        if ref not in eventsDict:
+            continue
+
+        # Define bin sizes
+        binSizes = [300, 1000, 10000, 100000, refLen]
+
+        # Create bin database for reference
+        binDb = create_bin_database_interval(ref, 0, refLen, eventsDict[ref], binSizes)      
+
+        # Add reference bin database to the dictionary
+        wgBinDb[ref] = binDb
+    
+    return wgBinDb
+
+
+def create_bin_database_parallel(refLengths, eventsDict, threads):
     '''
     Organize genome wide events into a set of bin databases, one per reference
 
