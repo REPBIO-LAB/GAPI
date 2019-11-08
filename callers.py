@@ -33,7 +33,7 @@ class SV_caller():
     '''
     Structural variation (SV) caller 
     '''
-    def __init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir, cleanup):
+    def __init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir):
 
         self.mode = mode
         self.bam = bam
@@ -43,15 +43,14 @@ class SV_caller():
         self.confDict = confDict
         self.outDir = outDir
         self.repeatsBinDb = None
-        self.cleanup = cleanup
 
 class SV_caller_long(SV_caller):
     '''
     Structural variation (SV) caller for long read sequencing data
     '''
-    def __init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir, cleanup):
+    def __init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir):
 
-        SV_caller.__init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir, cleanup)
+        SV_caller.__init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir)
 
     def call(self):
         '''
@@ -60,7 +59,6 @@ class SV_caller_long(SV_caller):
 
         ### 1. Create SV clusters 
         msg = '1. Create SV clusters'
-        print (self.cleanup)
         log.header(msg)
         allMetaclusters = self.make_clusters()
 
@@ -85,12 +83,10 @@ class SV_caller_long(SV_caller):
         for SV_type in allMetaclusters:
             
             metaclusters = allMetaclusters[SV_type]
-            ## TODO: DESILENCE
-            #annotation.annotate(metaclusters, steps, refLengths, self.refDir, self.confDict['annovarDir'], self.confDict['processes'], annotDir)
+            annotation.annotate(metaclusters, steps, refLengths, self.refDir, self.confDict['annovarDir'], self.confDict['processes'], annotDir)
 
         # Remove annotation directory
-        if self.cleanup == "TRUE":
-            unix.rm([annotDir])
+        unix.rm([annotDir])
 
         ### 3. Determine what type of sequence has been inserted for INS metaclusters
         msg = '3. Determine what type of sequence has been inserted for INS metaclusters'
@@ -104,17 +100,9 @@ class SV_caller_long(SV_caller):
 
             ## Infer insertion type
             clusters.INS_type_metaclusters(allMetaclusters['INS'], self.reference, refLengths, self.refDir, self.confDict['transductionSearch'], 1, outDir)
-        
-        if 'BND' in allMetaclusters:
-            BNDoutDir = self.outDir + '/BND_TYPE/'
-            unix.mkdir(BNDoutDir)
-            ## Infer BND type
-            clusters.BND_type_metaclusters(allMetaclusters['BND'], self.bam, BNDoutDir)
 
         # Remove output directory
-        if self.cleanup == 'TRUE':
-            unix.rm([outDir])
-            unix.rm([BNDoutDir])
+        unix.rm([outDir])
             
         ### 4. Resolve structure for solo, partnered and orphan transductions
         msg = '4. Resolve structure for solo, partnered and orphan transductions'
@@ -448,8 +436,7 @@ class SV_caller_short(SV_caller):
 
         ## Annotate
         buffer = 100
-        ## TODO: DESILENCE
-        #annotation.repeats_annotation(allDiscordantClusters, self.repeatsBinDb, buffer)
+        annotation.repeats_annotation(allDiscordantClusters, self.repeatsBinDb, buffer)
         
         ## 6. Perform gene-based annotation with ANNOVAR of discordant read pair clusters ##
         # Do gene-based annotation step if enabled
@@ -461,8 +448,7 @@ class SV_caller_short(SV_caller):
 
             ## Annotate
             annotDir = binDir + '/ANNOT/' 
-            ## TODO: DESILENCE
-            #annotation.gene_annotation(allDiscordantClusters, self.confDict['annovarDir'], annotDir)
+            annotation.gene_annotation(allDiscordantClusters, self.confDict['annovarDir'], annotDir)
 
         ### Do cleanup
         unix.rm([binDir])
