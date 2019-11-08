@@ -42,6 +42,8 @@ if __name__ == '__main__':
 	parser.add_argument('--polishing-rounds', default=1, dest='rounds', type=int, help='Number of polishing rounds to be attempted. Default: 1')
 	parser.add_argument('-p', '--processes', default=1, dest='processes', type=int, help='Number of processes. Default: 1')
 	parser.add_argument('-o', '--outDir', default=os.getcwd(), dest='outDir', help='Output directory. Default: current working directory')
+	parser.add_argument('--cleanup', default='TRUE', dest='cleanup', type=str, help='Boolean. If TRUE temp files are removed, they are kept otherwise.')
+
 
 	## BAM processing
 	parser.add_argument('--targetBins', default=None, dest='targetBins', type=str, help='Bed file containing target genomic bins for SV calling. Overrides --binSize and --refs. Default: None')
@@ -91,6 +93,7 @@ if __name__ == '__main__':
 	rounds = args.rounds
 	processes = args.processes
 	outDir = args.outDir
+	cleanup = args.cleanup
 
 	## BAM processing
 	targetBins = args.targetBins
@@ -167,7 +170,8 @@ if __name__ == '__main__':
 	print('gene-annot-dir: ', annovarDir)
 	print('polishing-rounds: ', rounds)
 	print('processes: ', processes)
-	print('outDir: ', outDir, "\n")
+	print('outDir: ', outDir)
+	print('cleanup: ', cleanup, "\n")
 
 	print('** BAM processing **')
 	print('targetBins: ', targetBins)
@@ -254,7 +258,7 @@ if __name__ == '__main__':
 	### Create caller
 	# A) Pacbio or Nanopore long reads 
 	if confDict['technology'] in ['NANOPORE', 'PACBIO']:
-		caller = callers.SV_caller_long(mode, bam, normalBam, reference, refDir, confDict, outDir)
+		caller = callers.SV_caller_long(mode, bam, normalBam, reference, refDir, confDict, outDir, cleanup)
 
 	# B) Illumina short reads
 	elif confDict['technology'] == 'ILLUMINA':

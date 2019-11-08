@@ -11,6 +11,7 @@ import pysam
 import math
 import itertools
 import os
+from cigar import Cigar
 
 # Internal
 import log
@@ -29,6 +30,9 @@ import bkp
 import annotation
 import sequences
 import gRanges
+
+# TODO: Delete this!!!
+import time
 
 ###############
 ## FUNCTIONS ##
@@ -621,7 +625,8 @@ def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transduct
     if True: # at one point include flag for pseudogene search
         annotations2load.append('EXONS')
 
-    annotations = annotation.load_annotations(annotations2load, refLengths, refDir, processes, annotDir)
+    ## TODO: DESILENCE
+    #annotations = annotation.load_annotations(annotations2load, refLengths, refDir, processes, annotDir)
 
     ## Cleanup
     unix.rm([annotDir])
@@ -669,16 +674,17 @@ def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transduct
     msg = '3.3 Align consensus inserted sequences into the viral database'
     log.info(msg)    
 
-    '''
-    SAM_viral = alignment.alignment_bwa(fastaPath, reference, processes, rootOutDir)
-
+   
+   ## TODO: NON HARD-CODED PATH!!!!!
+    start_time = time.time()
+    SAM_viral = alignment.alignment_bwa(fastaPath, '/mnt/lustre/scratch//home/usc/mg/eal/data/databases/U-RVDBv12.2_HBVcomplete/U-RVDBv12.2_HBVcomplete.fa', 'alignments_viral', processes, rootOutDir)
+    print("--- %s seconds SAM_viral ---" % (time.time() - start_time))
+    
     ## Convert SAM to PAF
     PAF_viral = alignment.sam2paf(SAM_viral, 'alignments_viral', rootOutDir)
 
     ## Organize hits according to their corresponding metacluster
-    allHits_viral = organize_hits_paf(PAF_viral) 
-    '''
-    allHits_viral = {}
+    allHits_viral = alignment.organize_hits_paf(PAF_viral) 
 
     ## 4. For each metacluster determine the insertion type
     msg = '4. For each metacluster determine the insertion type'
@@ -712,7 +718,42 @@ def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transduct
             hits_viral = formats.PAF()
 
         ## 4.2 Insertion type inference
-        metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'])
+        ## TODO: DESILENCE (y poner el de abajo)
+        hits_genome = formats.PAF()
+        hits_splicing = []
+        metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, None, None, None)
+
+def BND_type_metaclusters(metaclusters, bam, outDir):
+    '''
+    '''
+    refLengths = bamtools.get_ref_lengths(bam)
+
+    # 4.1 Make dictionary necesary for creating wgBinDb
+    metaclustersPassRefDict_round1 = {}
+    for metacluster in metaclusters:
+        if metacluster.ref not in metaclustersPassRefDict_round1.keys() or 'BND' not in metaclustersPassRefDict_round1.keys():
+            ## TODO: Put here the function (events2dict in events) to do this instead of this piece of code.
+            metaclustersPassRefDict_round1[metacluster.ref]={}
+            metaclustersPassRefDict_round1[metacluster.ref]['BND']={}
+            metaclustersPassRefDict_round1[metacluster.ref]['BND'] = [metacluster]
+        else:
+            metaclustersPassRefDict_round1[metacluster.ref]['BND'].append(metacluster)
+
+    # 4.2 Create wgBinDb
+    chrWgBinDb = structures.create_bin_database(refLengths, metaclustersPassRefDict_round1, 1)
+
+    # 4.3 Look for supplementary pairs
+    ## TODO: method in CLIPPING_cluster; input: wgbnDB; output: all metaclusters of wgbndb that match in metacluster coord.
+    tempSupAligFile = outDir + '/tempSupAlig.tsv'
+    tempSupAligOut = open(tempSupAligFile, 'w')
+    tempSupAligOut.write('metacluster.ref \t metacluster.beg \t metacluster.end \t supAligChrom \t supAligStart \t supAligEnd \t #supAlig \n')
+    for metacluster in metaclusters:
+        if metacluster.supAlignments != None:
+            for chrom, posList in metacluster.supAlignments.items():
+                if chrom in chrWgBinDb.keys():
+                    binDb = chrWgBinDb[chrom]
+                    for pos in posList:
+                        tempSupAligOut.write(str(metacluster.ref) +'\t'+ str(metacluster.beg) +'\t'+ str(metacluster.end) +'\t'+ str(chrom) +'\t'+ str(pos[0]) +'\t'+ str(pos[1]) +'\t'+ str(pos[2]) +'\n')
 
 def structure_inference_parallel(metaclusters, consensusPath, transducedPath, transductionSearch, processes, rootDir):
     '''
@@ -1176,6 +1217,51 @@ class CLIPPING_cluster(cluster):
     def __init__(self, events):
 
         cluster.__init__(self, events, 'CLIPPING')
+    
+    def organizeSupAlign(self, supplAlignmentDict):
+            # Group start positions and end positions, so the previous dictionary will be like this: d[chrom]=[[list of coordinates], [list of coordinates]...]
+            for chrom, supplementaries in supplAlignmentDict.items():
+                startPositionsList = [i[0] for i in supplementaries]
+                endPositionsList = [i[1] for i in supplementaries]
+                if len(startPositionsList) > 1:
+                    supplAlignmentDict[chrom]=gRanges.groupCloseCoord(chrom, startPositionsList)[0]
+                    supplAlignmentDict[chrom].extend(gRanges.groupCloseCoord(chrom, endPositionsList)[0])
+                    #biggestGroup=grouper(chrom, supplementaries)[1]
+                else:
+                    supplAlignmentDict[chrom]=supplementaries
+
+            # NO: Get chromosome and list of lists of the entry with the longest sublist (lambda looks for the longest sublist) TODO: ENSURE THIS IS OK!!!
+            # NO: chromLongest, listLongest = max(supplAlignmentDict.items(), key = lambda x: len(max(x,key=len)))
+
+            # TODO: WRITE THIS IN A BETTER WAY!!!!!!!!
+            newList = []
+            supplAlignmentDict2 = {}
+            for chrom, nestedList in supplAlignmentDict.items():
+                for l in nestedList:
+                    if len(l) > 5:
+                        supAligPos = (min(l),max(l),len(l))
+                        newList.append(supAligPos)
+                supplAlignmentDict2[chrom]=newList
+            
+            return supplAlignmentDict2
+
+
+            '''
+            # Get longest sublist
+            sublistLongest = max(listLongest, key=len)
+
+            # Get supplementary (chr, start, end)
+            potentialSupplementary = (chromLongest, min(sublistLongest), max(sublistLongest))
+
+            print ('chromLongest')
+            print (chromLongest)
+            print ('listLongest')
+            print (listLongest)
+            print ('sublistLongest')
+            print (sublistLongest)
+            print ('potentialSupplementary')
+            print (potentialSupplementary)
+            '''
 
 
 class DISCORDANT_cluster(cluster):
@@ -1222,6 +1308,7 @@ class META_cluster():
 
         # Initialize structures 
         self.SV_features = {}
+        self.supAlignments = {}
 
     def sort(self):
         '''
@@ -1686,6 +1773,27 @@ class META_cluster():
             ## b) Double clippings not support an INS
             else: 
                 self.SV_type = None
+                
+        ## D) Metacluster only composed by one clipping side (left or right)
+        elif all(subClusterType == 'RIGHT-CLIPPING' for subClusterType in subClusterTypes) or all(subClusterType == 'LEFT-CLIPPING' for subClusterType in subClusterTypes):
+            supplAlignmentDict = {}
+            self.SV_type = 'BND'
+            # Create a dictionary: d[chrom]=[(supplAlignmentStart,supplAlignmentEnd),(supplAlignmentStart,supplAlignmentEnd)...]
+            for CLIPPING_event in self.events:
+                if CLIPPING_event.supplAlignment != None:
+                    ## TODO: LIST of chrs instead of only one.
+                    supChrom, supplAlignmentPosList = CLIPPING_event.supAlignments()
+
+                # Create the dictionary
+                if supChrom not in supplAlignmentDict.keys():
+                    supplAlignmentDict[supChrom] = supplAlignmentPosList
+                else:
+                    supplAlignmentDict[supChrom].extend(supplAlignmentPosList)
+
+            ## TODO: It seems that there is only one CLIPPING_cluster, so this for is not useful.
+            for CLIPPING_cluster in self.subclusters.values():
+                self.supAlignments.update(CLIPPING_cluster.organizeSupAlign(supplAlignmentDict))
+
 
         ## D) Other combination -> Unknown SV type (Temporal, extend later)
         else:
@@ -1707,7 +1815,6 @@ class META_cluster():
 
         Output: Add INS type annotation to the attribute SV_features
         ''' 
-
         ## 0. Abort if consensus event not available 
         if self.consensusEvent is None:
             self.SV_features['INS_TYPE'] = 'unknown'
@@ -1747,6 +1854,44 @@ class META_cluster():
             return    
 
         ## 5. Assess if input sequence corresponds to a viral insertion
+        is_VIRUS, INS_features = self.is_VIRUS(hits_viral)
+
+        # Update metacluster with insertion features
+        self.SV_features.update(INS_features) 
+
+        # Stop if insertion is a viral insertion
+        if is_VIRUS:
+            return
+
+    def is_VIRUS(self, PAF):
+        '''
+        Determine if input sequence corresponds to a viral insertion
+
+        Input:
+            1. PAF: PAF object containing input sequence alignments on the reference genome
+        Output:
+            1. VIRUS: Boolean specifying if inserted sequence corresponds to a virus (True) or not (False)
+            2. INS_features: dictionary containing viral insertion features
+        '''
+        INS_features = {}
+
+        ## 0. Abort if no hit available
+        if not PAF.alignments:
+
+            VIRUS = False
+            INS_features['INS_TYPE'] = 'unknown'
+            INS_features['PERC_RESOLVED'] = 0
+
+            return VIRUS, INS_features
+        
+        chain = PAF.chain(300, 20)
+        ## TODO: Only True if perc_resolved if high
+        VIRUS = True
+        INS_features['INS_TYPE'] = 'viral'
+        INS_features['PERC_RESOLVED'] = chain.perc_query_covered()
+        
+        return VIRUS, INS_features
+
 
     def determine_INS_structure(self, consensusPath, transducedPath, transductionSearch, outDir):
         '''

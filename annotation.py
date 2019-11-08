@@ -94,7 +94,6 @@ def annotate(events, steps, refLengths, refDir, annovarDir, processes, outDir):
         ## 1.1 Load repeats database ##
         msg = '1.1 Load repeats database'
         log.info(msg)   
-
         annotations = load_annotations(['REPEATS'], refLengths, refDir, processes, outDir)
 
         ## 1.2 Perform repeats annotation ##
