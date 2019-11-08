@@ -26,7 +26,7 @@ def retrotransposon_structure(FASTA_file, index, outDir):
         
     Output:
         1. structure: dictionary containing insertion structure information
-    '''         
+    '''     
     structure = {}
 
     ## 0. Create logs directory ##
@@ -475,7 +475,7 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
         return INTERSPERSED, INS_features, None
 
     ## 0.2 Abort if sequence does not align on the reference 
-    if not PAF.alignments:
+    if (not PAF.alignments) or (repeatsDb is None):
 
         INTERSPERSED = False
         INS_features['INS_TYPE'] = 'unknown'
@@ -502,7 +502,13 @@ def is_interspersed_ins(sequence, PAF, repeatsDb, transducedDb):
             hit.annot['REPEAT'] = overlaps[0][0] # Select repeat with longest overlap
 
         ## 2.2 Hit matches a transduced region
-        overlaps = annotation.annotate_interval(hit.tName, hit.tBeg, hit.tEnd, transducedDb)
+        # a) database containing transduced regions available
+        if transducedDb is not None:
+            overlaps = annotation.annotate_interval(hit.tName, hit.tBeg, hit.tEnd, transducedDb)
+
+        # b) database containing transduced regions not available
+        else:
+            overlaps = False
 
         if overlaps:
             transducedMatch = True
