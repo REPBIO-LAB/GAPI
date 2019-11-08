@@ -117,7 +117,6 @@ def create_discordantClusters(discordantBinDb, minClusterSize, buffer):
         2. minClusterSize: minimum cluster size
         3. buffer: number of base pairs to extend begin and end coordinates for each discordant prior clustering
 
-
     Output:
         1. discordantClustersDict: dictionary containing for each possible discordant cluster type (keys) a list of clusters (values)
     
@@ -133,6 +132,93 @@ def create_discordantClusters(discordantBinDb, minClusterSize, buffer):
 
     return discordantClustersDict
 
+
+def extra_clustering_by_matePos(discordantClusters, refLengths, minClusterSize):
+    '''
+    Apply an extra clustering step to discordant read pair clusters based on mate position
+
+    Input:
+        1. discordantClusters: dictionary containing for each possible discordant cluster type (keys) a list of clusters (values)
+        2. refLengths: dictionary containing references as keys and their lengths as values
+        3. minClusterSize: minimum cluster size
+
+    Output:
+
+    '''
+    print('INPUT_extra_clustering_by_matePos: ', discordantClusters, refLengths, minClusterSize)
+
+    ## For each discordant cluster type
+    for clusterType, clusters in discordantClusters.items():
+        print('CLUSTER_TYPE: ', clusterType, clusters)
+        
+        ## For each cluster
+        for cluster in clusters:
+
+            print('CLUSTER: ', cluster, len(cluster.events), cluster.events)
+            cluster_discordants_by_matePos(cluster.events, refLengths, minClusterSize)
+
+            print('--------------')
+
+def cluster_discordants_by_matePos(discordants, refLengths, minClusterSize):
+    '''
+    Cluster discordant read pairs based on their mate alignment position
+
+    Input:
+        1. discordants: list of discordant events
+        2. refLengths: dictionary containing references as keys and their lengths as values
+        3. minClusterSize: minimum cluster size
+
+    Output:
+        1. discordantClusters: list of discordant clusters
+
+    '''   
+    print('INPUT_cluster_discordants_by_matePos: ', discordants, refLengths, minClusterSize)
+
+    ## 1. Organize discordant into a dictionary according to supporting read id
+    discordantsDict = {}
+
+    for discordant in discordants:
+
+        ## Note: create method to return readName + mateId (\1 and \2). Use this id as dictionary key. 
+        # Othewise 
+        discordantsDict[discordant.fullReadName()] = discordant
+
+    print('discordantsDict: ', discordantsDict)
+    
+    ## 2. Produce discordant objects for mates:
+    mates = events.discordants2mates(discordants)
+
+    ## 3. Organize mates into a bin database prior clustering
+    ## Create dictionary containing mates
+    matesDict = events.events2dict(mates, 'DISCORDANT_MATE')
+
+    ## Create bin database 
+    matesBinDb = structures.create_bin_database(refLengths, matesDict)
+
+    ## 4. Cluster mates according to their alignment positions
+    mateClusters = []
+
+    # For each reference
+    for ref in matesBinDb:
+        binDb = matesBinDb[ref]
+        binLevel = binDb.binSizes[0]
+        clusters = clustering.distance_clustering(binDb, binLevel, ['DISCORDANT_MATE'], 'DISCORDANT', binLevel, 1)
+        mateClusters = mateClusters + clusters
+    
+    ## 5. Make clusters of discordants based on mate clusters
+    discordantClusters = []
+
+    # For each mate cluster in the reference
+    for mateCluster in mateClusters:
+
+        # Create cluster composed by the discordant read pairs corresponding to the mates
+        discordants = [discordantsDict[mate.fullReadName_mate()] for mate in mateCluster.events]
+
+        # Add group to the list
+        #discordantClusters = discordantClusters + .append(discordants)
+
+    return discordantClusters
+    
 
 def create_clusters(eventsBinDb, confDict):
     '''
@@ -1099,6 +1185,7 @@ class DISCORDANT_cluster(cluster):
     def __init__(self, events):
 
         cluster.__init__(self, events, 'DISCORDANT')
+        self.matesCluster = None
 
 class META_cluster():
     '''
