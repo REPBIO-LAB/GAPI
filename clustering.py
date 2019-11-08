@@ -18,6 +18,7 @@ import structures
 
 
 ## FUNCTIONS ##
+
 def distance_clustering(binDb, binSize, eventTypes, clusterType, maxDist, minClusterSize):
     '''
     Group events located at a given bin size level based on position distance into clusters
@@ -32,7 +33,7 @@ def distance_clustering(binDb, binSize, eventTypes, clusterType, maxDist, minClu
 
     Output:
         1. clustersList: list of created clusters
-    '''
+    '''    
     clustersList = []
     binsInClusters = []
 

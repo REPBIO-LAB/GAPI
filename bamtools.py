@@ -371,7 +371,8 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
         eventsDict['RIGHT-CLIPPING'] = []
     
     if 'DISCORDANT' in confDict['targetSV']:
-        eventsDict['DISCORDANT'] = []
+        eventsDict['PLUS-DISCORDANT'] = []
+        eventsDict['MINUS-DISCORDANT'] = []
 
     ## Open BAM file for reading
     bamFile = pysam.AlignmentFile(bam, "rb")
@@ -426,9 +427,17 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
 
                 DISCORDANTS = collectDISCORDANT(alignmentObj, sample)
 
-                ## Add discordant events
-                eventsDict['DISCORDANT'] = eventsDict['DISCORDANT'] + DISCORDANTS
+                # Add discordant events
+                for discordant in DISCORDANTS:
+
+                    # a) Forward orientation
+                    if discordant.orientation == 'PLUS':
+                        eventsDict['PLUS-DISCORDANT'].append(discordant)
         
+                    # b) Reverse 
+                    else:
+                        eventsDict['MINUS-DISCORDANT'].append(discordant)
+
     ## Close 
     bamFile.close()
 
