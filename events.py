@@ -465,7 +465,7 @@ class DISCORDANT():
         self.beg = int(beg)
         self.end = int(end)
         self.orientation = orientation
-        self.pair = pair
+        self.pair = str(pair)
         self.readName = readName 
         self.sample = sample
         self.clusterId = None
@@ -481,5 +481,22 @@ class DISCORDANT():
             self.mateRef = alignmentObj.next_reference_name
             self.mateStart = alignmentObj.next_reference_start
 
+
+    def fullReadName(self):
+        '''
+        Return the supporting read name including mate info
+        '''
+        fullReadName = self.readName + '/' + self.pair
+
+        return fullReadName
     
+    def fullReadName_mate(self):
+        '''
+        Return the supporting read name including mate info
+        '''
+
+        matePair = '2' if self.pair == '1' else '1'
+        fullReadName = self.readName + '/' + matePair
+
+        return fullReadName    
 
