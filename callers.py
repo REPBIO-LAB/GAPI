@@ -309,7 +309,7 @@ class SV_caller_short(SV_caller):
 
         ## Create bin database
         refLengths = bamtools.get_ref_lengths(self.bam)
-        self.repeatsBinDb = structures.create_bin_database(refLengths, rtAnnot.lines, 1)
+        self.repeatsBinDb = structures.create_bin_database_parallel(refLengths, rtAnnot.lines, 1)
         
         ## 1.2 Create and index viral database
         #self.viralDb, self.viralDbIndex = databases.buildVirusDb(self.refDir, dbDir)
@@ -327,7 +327,7 @@ class SV_caller_short(SV_caller):
             transducedBed.read(transducedPath, 'nestedDict', None)
 
             ## Create bin database
-            self.transducedBinDb = structures.create_bin_database(refLengths, transducedBed.lines, 1)
+            self.transducedBinDb = structures.create_bin_database_parallel(refLengths, transducedBed.lines, 1)
 
         # b) Skip database creation
         else:
@@ -618,10 +618,49 @@ class SV_caller_sureselect(SV_caller):
             unix.rm([binDir])
             return None
         
-        ## 2. Discordant read pair identity ##
-        ## Determine identity
-        discordantsIdentity = events.determine_discordant_identity(eventsDict['DISCORDANT'], self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'])
+        ## 2. Organize discordant read pairs into genomic bins prior clustering ##
+        step = 'BINNING'
+        msg = 'Organize discordant read pairs into genomic bins prior clustering'
+        log.step(step, msg)
 
+        ## Define bin database sizes 
+        ## Note: bigger window sizes are needed for SR (see comments, ask Eva where are the comments?)
+        binSizes = [1000, 10000, 100000, 1000000]
+
+        ## Create bins
+        discordantsBinDb = structures.create_bin_database_interval(ref, beg, end, eventsDict, binSizes)
+
+        ## 3. Group discordant read pairs into clusters based on reciprocal overlap ##
+        step = 'CLUSTERING'
+        msg = 'Group discordant read pairs into clusters based on reciprocal overlap'
+        log.step(step, msg)
+
+        buffer = 100
+        discordantClustersDict = clusters.create_discordantClusters(discordantsBinDb, self.confDict['minClusterSize'], buffer)
+
+        print('discordantClustersDict: ', discordantClustersDict)
+
+        ## 4. Do an extra clustering step based on mate position ##
+        step = 'GROUP-BY-MATE'
+        msg = 'Group discordant read pairs based on mate position'
+        log.step(step, msg)
+
+        ## Compute reference lengths
+        refLengths = bamtools.get_ref_lengths(self.bam)
+
+        ## Make groups
+        clusters.extra_clustering_by_matePos(discordantClustersDict, refLengths, self.confDict['minClusterSize'])
+
+        #discordantGroups = clusters.group_discordants_by_matePos(discordantClustersDict, refLengths)
+
+
+        '''
+        print('discordantGroups: ', len(eventsDict['DISCORDANT']), len(discordantGroups), discordantGroups)
+
+        for group in discordantGroups:
+            print('DISCORDANT_GROUP: ', len(group), group)
+        
+        
         step = 'IDENTITY'
         SV_types = sorted(discordantsIdentity.keys())
         counts = [str(len(discordantsIdentity[SV_type])) for SV_type in SV_types]
@@ -631,7 +670,7 @@ class SV_caller_sureselect(SV_caller):
         if counts == []:
             unix.rm([binDir])
             return None     
-
+        
         
         ## 3. Organize discordant read pairs into genomic bins prior clustering ##
         step = 'BINNING'
@@ -667,7 +706,6 @@ class SV_caller_sureselect(SV_caller):
             print("CLUSTER_TYPE: ", clusterType, len(clusterList))
             for cluster in clusterList:
                 print('CLUSTER: ', cluster.ref, cluster.beg, cluster.end)
-
-
+        '''
 
 
