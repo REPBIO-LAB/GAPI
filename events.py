@@ -9,6 +9,7 @@ Module 'events' - Contains classes for dealing with structural variation events 
 import annotation
 import virus
 import structures
+import bamtools
 
 ###############
 ## FUNCTIONS ##
@@ -450,7 +451,67 @@ class CLIPPING():
             self.supplAlignment = alignmentObj.get_tag('SA') if alignmentObj.has_tag('SA') else None
             self.refLen = alignmentObj.reference_length
 
+    def parse_supplAlignments_field(self):
+        '''
+        Parse supplementary alignment optional field. Create supplementary alignment objects and return them organized into a dictionary 
+        based on the reference where they do align
+    
+        SA:Z:(rname ,pos ,strand ,CIGAR ,mapQ ,NM ;) Other canonical alignments in a chimeric alignment, formatted as a semicolon-delimited list. 
+        Each element in the list represents a part of the chimeric alignment. Conventionally, at a supplementary line, the first element points to 
+        the primary line. Strand is either ‘+’ or ‘-’, indicating forward/reverse strand, corresponding to FLAG bit 0x10. Pos is a 1-based coordinate.
+        
+        Output: 
+            1. supplAlignmentsDict: dictionary containing lists of supplementary alignment objects organized by reference
+        '''
+        
+        ## Return empty list if no supplementary alignment available
+        if self.supplAlignment is None:
+            return {}
 
+        ## Go ahead if supplementary alignments available
+        supplAlignmentsDict = {}
+        
+        # For each supplementary alignment
+        for supplAlignment in self.supplAlignment.split(';')[:-1]:
+
+            # Extract info
+            ref, beg, strand, CIGAR, mapQ, NM = supplAlignment.split(',')
+
+            # Compute suppl. alignment end from CIGAR string
+            alignmentLen = bamtools.alignment_length_cigar(CIGAR)
+            end = int(beg) + alignmentLen
+
+            # Create suppl. alignment object
+            supplObject = SUPPLEMENTARY(ref, beg, end, strand, CIGAR, mapQ, NM, self.readName)
+
+            # Initialize ref if necessary
+            if supplObject.ref not in supplAlignmentsDict:
+                supplAlignmentsDict[supplObject.ref] = []
+            
+            # Add object to the dictionary
+            supplAlignmentsDict[supplObject.ref].append(supplObject)
+        
+        return supplAlignmentsDict
+
+
+class SUPPLEMENTARY():
+    '''
+    Supplementary alignment class
+    '''
+    number = 0 # Number of instances
+    
+    def __init__(self, ref, beg, end, orientation, CIGAR, mapQ, NM, readName):
+        SUPPLEMENTARY.number += 1 # Update instances counter
+        self.id = 'SUPPLEMENTARY_' + str(SUPPLEMENTARY.number)
+        self.ref = str(ref)
+        self.beg = int(beg)
+        self.end = int(end)
+        self.orientation = orientation
+        self.CIGAR = CIGAR
+        self.mapQ = mapQ
+        self.NM = NM
+        self.readName = readName
+        
 class DISCORDANT():
     '''
     Discordant class
