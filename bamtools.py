@@ -7,6 +7,7 @@ Module 'bamtools' - Contains functions for extracting data from bam files
 import pysam
 import subprocess
 import sys
+from cigar import Cigar
 
 # Internal
 import log
@@ -52,6 +53,44 @@ def get_ref_lengths(bam):
     bamFile.close()
 
     return refLengths
+
+
+def alignment_length_cigar(CIGAR):
+    '''
+    Compute alignment on the reference length from CIGAR string
+
+    Input:
+        1. CIGAR: CIGAR string
+
+    Output:
+        1. alignmentLen: alignment on the reference length
+    '''
+    ## 1. Read CIGAR string using proper module
+    cigarTuples = Cigar(CIGAR)
+
+    ## 2. Iterate over the operations and compute the alignment length
+    alignmentLen = 0
+
+    for cigarTuple in list(cigarTuples.items()):
+
+        length = int(cigarTuple[0])
+        operation = cigarTuple[1]
+
+        ### Update position over reference and read sequence
+        ## a) Operations consuming query and reference
+        # - Op M, tag 0, alignment match (can be a sequence match or mismatch)
+        # - Op =, tag 7, sequence match
+        # - Op X, tag 8, sequence mismatch
+        if (operation == 'M') or (operation == '=') or (operation == 'X'):
+            alignmentLen += length
+
+        ## b) Operations only consuming reference
+        # - Op D, tag 2, deletion from the reference
+        # - Op N, tag 3, skipped region from the reference
+        elif (operation == 'D') or (operation == 'N'):
+            alignmentLen += length
+            
+    return alignmentLen
 
 
 def SAM2BAM(SAM, outDir):
