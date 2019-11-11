@@ -53,7 +53,6 @@ def distance_clustering_targetPos(events, maxDist, pos2cluster):
             lastEvent = currentCluster[-1]
             pos = getattr(event, pos2cluster)
             lastPos = getattr(lastEvent, pos2cluster)
-            print('COMPARE: ', event.ref, event.beg, event.end, lastEvent.ref, lastEvent.beg, lastEvent.end, pos - lastPos, maxDist)
 
             # a) Add event to cluster as within max distance
             if (pos - lastPos <= maxDist):
