@@ -19,6 +19,53 @@ import structures
 
 ## FUNCTIONS ##
 
+def distance_clustering_targetPos(events, maxDist, pos2cluster):
+    '''
+    Group events based on their begin or end distances into clusters
+    
+    Input:
+        1. events: list of events to be clustered
+        2. maxDist: maximum distance between two events to be clustered together
+        3. pos2cluster: 'beg' or 'end' to cluster events based on their begin or end positions, respectively
+
+    Output:
+        1. clusters: nested list containing events clustered together
+    '''
+    ## 1. Sort events in increasing beg or end positions
+    operatorObj = operator.attrgetter(pos2cluster) 
+    events.sort(key=operatorObj) 
+
+    ## 2. Make clustering
+    clusters = [[]]
+
+    # For each event
+    for event in events: 
+        currentCluster = clusters[-1]
+
+        # A) Add event to empty cluster
+        if not currentCluster:
+            currentCluster.append(event)
+
+        # B) Not empty cluster
+        else:
+
+            # Compare event coordinates with the coordinates from the last event in cluster 
+            lastEvent = currentCluster[-1]
+            pos = getattr(event, pos2cluster)
+            lastPos = getattr(lastEvent, pos2cluster)
+            print('COMPARE: ', event.ref, event.beg, event.end, lastEvent.ref, lastEvent.beg, lastEvent.end, pos - lastPos, maxDist)
+
+            # a) Add event to cluster as within max distance
+            if (pos - lastPos <= maxDist):
+                currentCluster.append(event)
+        
+            # b) Create new cluster
+            else:
+                cluster = [event]
+                clusters.append(cluster)
+
+    return clusters
+
 def distance_clustering(binDb, binSize, eventTypes, clusterType, maxDist, minClusterSize):
     '''
     Group events located at a given bin size level based on position distance into clusters
