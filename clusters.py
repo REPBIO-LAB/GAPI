@@ -1208,12 +1208,12 @@ class CLIPPING_cluster(cluster):
             supplAlignments = allSupplAlignmentsDict[ref]
 
             ## Cluster suppl. alignments based on their beg and end alignment positions
-            clustersBeg = clustering.distance_clustering_targetPos(supplAlignments, 250, 'beg')
-            clustersEnd = clustering.distance_clustering_targetPos(supplAlignments, 250, 'end')
+            clustersBeg = clustering.distance_clustering_targetPos(supplAlignments, 100, 'beg')
+            clustersEnd = clustering.distance_clustering_targetPos(supplAlignments, 100, 'end')
 
             ## Determine bkp side based on the biggest cluster
-            biggestLenBeg = max([len(cluster) for cluster in clustersBeg])
-            biggestLenEnd = max([len(cluster) for cluster in clustersEnd])
+            biggestLenBeg = max([len(cluster.events) for cluster in clustersBeg])
+            biggestLenEnd = max([len(cluster.events) for cluster in clustersEnd])
 
             # a) Bkp at the beg of supplementary alignment interval
             if biggestLenBeg >= biggestLenEnd:
@@ -1225,6 +1225,16 @@ class CLIPPING_cluster(cluster):
 
             ## Add clusters to the dictionary
             self.supplAlignClusters[ref] = clusters
+            
+
+class SUPPLEMENTARY_cluster(cluster):
+    '''
+    Supplementary alignment cluster subclass
+    '''
+    def __init__(self, events):
+
+        cluster.__init__(self, events, 'SUPPLEMENTARY')
+
 
 class DISCORDANT_cluster(cluster):
     '''
@@ -1744,7 +1754,7 @@ class META_cluster():
             # a) Right clipping cluster
             if 'RIGHT-CLIPPING' in subClusterTypes:
                 self.subclusters['RIGHT-CLIPPING'].cluster_suppl_positions()
-                                
+                         
             # b) Left clipping cluster
             else:
                 self.subclusters['LEFT-CLIPPING'].cluster_suppl_positions()

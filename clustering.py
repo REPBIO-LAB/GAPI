@@ -29,41 +29,42 @@ def distance_clustering_targetPos(events, maxDist, pos2cluster):
         3. pos2cluster: 'beg' or 'end' to cluster events based on their begin or end positions, respectively
 
     Output:
-        1. clusters: nested list containing events clustered together
+        1. clusterList: nested list containing events clustered together
     '''
     ## 1. Sort events in increasing beg or end positions
     operatorObj = operator.attrgetter(pos2cluster) 
     events.sort(key=operatorObj) 
 
     ## 2. Make clustering
-    clusters = [[]]
+    clusterList = []
 
     # For each event
     for event in events: 
-        currentCluster = clusters[-1]
 
-        # A) Add event to empty cluster
-        if not currentCluster:
-            currentCluster.append(event)
+        # A) No cluster available -> Initialize first cluster
+        if not clusterList:
+            currentCluster = clusters.SUPPLEMENTARY_cluster([event])
+            clusterList.append(currentCluster)
 
-        # B) Not empty cluster
+        # B) Clusters available
         else:
-
+    
             # Compare event coordinates with the coordinates from the last event in cluster 
-            lastEvent = currentCluster[-1]
             pos = getattr(event, pos2cluster)
+            
+            lastEvent = currentCluster.events[-1]
             lastPos = getattr(lastEvent, pos2cluster)
 
             # a) Add event to cluster as within max distance
             if (pos - lastPos <= maxDist):
-                currentCluster.append(event)
+                currentCluster.add([event])
         
             # b) Create new cluster
             else:
-                cluster = [event]
-                clusters.append(cluster)
+                currentCluster = clusters.SUPPLEMENTARY_cluster([event])
+                clusterList.append(currentCluster)
 
-    return clusters
+    return clusterList
 
 def distance_clustering(binDb, binSize, eventTypes, clusterType, maxDist, minClusterSize):
     '''
