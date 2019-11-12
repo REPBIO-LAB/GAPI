@@ -493,7 +493,6 @@ class CLIPPING():
         
         return supplAlignmentsDict
 
-
 class SUPPLEMENTARY():
     '''
     Supplementary alignment class

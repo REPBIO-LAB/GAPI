@@ -1235,7 +1235,6 @@ class SUPPLEMENTARY_cluster(cluster):
 
         cluster.__init__(self, events, 'SUPPLEMENTARY')
 
-
 class DISCORDANT_cluster(cluster):
     '''
     Discordant cluster subclass
@@ -1244,6 +1243,7 @@ class DISCORDANT_cluster(cluster):
 
         cluster.__init__(self, events, 'DISCORDANT')
         self.matesCluster = None
+
 
 class META_cluster():
     '''
