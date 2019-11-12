@@ -419,7 +419,7 @@ def lighten_up_metaclusters(metaclusters):
             if 'INS' in metacluster.subclusters:
                 metacluster.cv = metacluster.subclusters['INS'].cv_len()[1]
 
-            ## Remove events and subclusters from metacluster instance
+            # Remove events and subclusters from metacluster instance 
             metacluster.events = None
             metacluster.subclusters = None
 
@@ -1176,56 +1176,7 @@ class CLIPPING_cluster(cluster):
     '''
     def __init__(self, events):
 
-        cluster.__init__(self, events, 'CLIPPING')
-        self.supplAlignClusters = {}
-
-    def cluster_suppl_positions(self):
-        '''
-        Cluster supplementary alignments based on their begin/end alignment positions
-
-        Output:
-            Set 'supplAlignClusters' attribute. Dictionary containing references as keys and nested lists of supplementary 
-            alignment clusters as values.
-        '''
-
-        ## 1. Collect for each clipping event its suppl. alignments
-        supplAlignmentsDictList = []
-                
-        for clipping in self.events:
-            supplAlignmentsDict = clipping.parse_supplAlignments_field()
-            supplAlignmentsDictList.append(supplAlignmentsDict)
-        
-        ## 2. Merge suppl. alignments into a single dictionary
-        allSupplAlignmentsDict = structures.merge_dictionaries(supplAlignmentsDictList)
-
-        ## 3. Cluster suppl. alignments based on breakpoint position
-        clustersDict = {}
-
-        # For each reference
-        for ref in allSupplAlignmentsDict:
-
-            # Collect suppl. alignments list
-            supplAlignments = allSupplAlignmentsDict[ref]
-
-            ## Cluster suppl. alignments based on their beg and end alignment positions
-            clustersBeg = clustering.distance_clustering_targetPos(supplAlignments, 100, 'beg')
-            clustersEnd = clustering.distance_clustering_targetPos(supplAlignments, 100, 'end')
-
-            ## Determine bkp side based on the biggest cluster
-            biggestLenBeg = max([len(cluster.events) for cluster in clustersBeg])
-            biggestLenEnd = max([len(cluster.events) for cluster in clustersEnd])
-
-            # a) Bkp at the beg of supplementary alignment interval
-            if biggestLenBeg >= biggestLenEnd:
-                clusters = clustersBeg
-            
-            # b) Bkp at the end of supplementary alignment interval
-            else:
-                clusters = clustersEnd
-
-            ## Add clusters to the dictionary
-            self.supplAlignClusters[ref] = clusters
-            
+        cluster.__init__(self, events, 'CLIPPING')            
 
 class SUPPLEMENTARY_cluster(cluster):
     '''
@@ -1234,6 +1185,7 @@ class SUPPLEMENTARY_cluster(cluster):
     def __init__(self, events):
 
         cluster.__init__(self, events, 'SUPPLEMENTARY')
+        self.bkpSide = None
 
 class DISCORDANT_cluster(cluster):
     '''
@@ -1278,8 +1230,9 @@ class META_cluster():
         for cluster in clusters:
             cluster.clusterId = self.id
 
-        # Initialize structures 
+        # Initialize dictionaries 
         self.SV_features = {}
+        self.supplAlignClusters = {}
 
     def sort(self):
         '''
@@ -1751,20 +1704,62 @@ class META_cluster():
             self.SV_type = 'BND'
 
             ## Cluster supplementary alignment positions
-            # a) Right clipping cluster
-            if 'RIGHT-CLIPPING' in subClusterTypes:
-                self.subclusters['RIGHT-CLIPPING'].cluster_suppl_positions()
-                         
-            # b) Left clipping cluster
-            else:
-                self.subclusters['LEFT-CLIPPING'].cluster_suppl_positions()
+            self.cluster_suppl_positions()
 
         ## E) Other combination -> Unknown SV type (Temporal, extend later)
         else:
             self.SV_type = None
             self.consensusEvent = None                
             self.consensusFasta = None
-     
+
+
+    def cluster_suppl_positions(self):
+        '''
+        Cluster supplementary alignments based on their begin/end alignment positions
+
+        Output:
+            Set 'supplAlignClusters' attribute. Dictionary containing references as keys and nested lists of supplementary 
+            alignment clusters as values.
+        '''
+
+        ## 1. Collect for each clipping event its suppl. alignments
+        supplAlignmentsDictList = []
+                
+        for clipping in self.events:
+            supplAlignmentsDict = clipping.parse_supplAlignments_field()
+            supplAlignmentsDictList.append(supplAlignmentsDict)
+        
+        ## 2. Merge suppl. alignments into a single dictionary
+        allSupplAlignmentsDict = structures.merge_dictionaries(supplAlignmentsDictList)
+
+        ## 3. Cluster suppl. alignments based on breakpoint position
+        clustersDict = {}
+
+        # For each reference
+        for ref in allSupplAlignmentsDict:
+
+            # Collect suppl. alignments list
+            supplAlignments = allSupplAlignmentsDict[ref]
+
+            ## Cluster suppl. alignments based on their beg and end alignment positions
+            clustersBeg = clustering.distance_clustering_targetPos(supplAlignments, 100, 'beg')
+            clustersEnd = clustering.distance_clustering_targetPos(supplAlignments, 100, 'end')
+
+            ## Determine bkp side based on the biggest cluster
+            biggestLenBeg = max([len(cluster.events) for cluster in clustersBeg])
+            biggestLenEnd = max([len(cluster.events) for cluster in clustersEnd])
+
+            # a) Bkp at the beg of supplementary alignment interval
+            if biggestLenBeg >= biggestLenEnd:
+                clusters = clustersBeg
+            
+            # b) Bkp at the end of supplementary alignment interval
+            else:
+                clusters = clustersEnd
+                
+            ## Add clusters to the dictionary
+            self.supplAlignClusters[ref] = clusters
+
     def determine_INS_type(self, hits_genome, hits_splicing, hits_viral, repeatsDb, transducedDb, exonsDb):
         '''
         Determine the type of insertion based on the alignments of the inserted sequence on the reference genome

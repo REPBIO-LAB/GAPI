@@ -44,6 +44,7 @@ def distance_clustering_targetPos(events, maxDist, pos2cluster):
         # A) No cluster available -> Initialize first cluster
         if not clusterList:
             currentCluster = clusters.SUPPLEMENTARY_cluster([event])
+            currentCluster.bkpSide = pos2cluster
             clusterList.append(currentCluster)
 
         # B) Clusters available
@@ -62,6 +63,7 @@ def distance_clustering_targetPos(events, maxDist, pos2cluster):
             # b) Create new cluster
             else:
                 currentCluster = clusters.SUPPLEMENTARY_cluster([event])
+                currentCluster.bkpSide = pos2cluster                
                 clusterList.append(currentCluster)
 
     return clusterList
