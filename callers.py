@@ -137,7 +137,7 @@ class SV_caller_long(SV_caller):
             clusters.search4bridges_metaclusters(allMetaclusters['BND'], 10000, 80, refLengths, self.refDir, self.confDict['processes'], outDir)
             
             for metacluster in allMetaclusters['BND']:
-                print('metacluster: ', metacluster, metacluster.ref, metacluster.beg, metacluster.end, metacluster.bridgeType, metacluster.bridgeClusters, metacluster.nbTotal, metacluster.nbTumour, metacluster.nbNormal, metacluster.nbCLIPPING)
+                print('metacluster: ', metacluster, metacluster.ref, metacluster.beg, metacluster.end, metacluster.bridgeType, metacluster.mutOrigin, metacluster.bridgeClusters, metacluster.nbTotal, metacluster.nbTumour, metacluster.nbNormal, metacluster.nbCLIPPING)
 
         '''
         ### 6. Apply second round of filtering 
