@@ -1622,13 +1622,13 @@ class META_cluster():
 
             ## 2.2 Define consensus event based on the events resulting from consensus sequence realignment
             ## A) Metacluster supports an INS and realignment leads to one INS event 
-            if (self.SV_type == 'INS') and (len(eventsDict['INS']) == 1):
+            if (self.SV_type == 'INS') and ('INS' in eventsDict) and (len(eventsDict['INS']) == 1):
 
                 ## Convert coordinates
                 self.consensusEvent = alignment.targetered2genomic_coord(eventsDict['INS'][0], self.ref, intervalBeg)
 
             ## B) Metacluster supports an INS and realignment leads to multiple INS events
-            elif (self.SV_type == 'INS') and (len(eventsDict['INS']) > 1):
+            elif (self.SV_type == 'INS') and ('INS' in eventsDict) and (len(eventsDict['INS']) > 1):
 
                 ## Do merging
                 merged = events.merge_INS(eventsDict['INS'])
@@ -1637,7 +1637,7 @@ class META_cluster():
                 self.consensusEvent = alignment.targetered2genomic_coord(merged, self.ref, intervalBeg)
 
             ## C) Metacluster supports a DEL and realignment leads to one DEL event 
-            elif (self.SV_type == 'DEL') and (len(eventsDict['DEL']) == 1):
+            elif (self.SV_type == 'DEL') and ('DEL' in eventsDict) and (len(eventsDict['DEL']) == 1):
 
                 ## Convert coordinates
                 self.consensusEvent = alignment.targetered2genomic_coord(eventsDict['DEL'][0], self.ref, intervalBeg)
