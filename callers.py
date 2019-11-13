@@ -62,6 +62,7 @@ class SV_caller_long(SV_caller):
         log.header(msg)
         allMetaclusters = self.make_clusters()
 
+        
         ### 2. Annotate SV clusters intervals  
         msg = '2. Annotate SV clusters intervals'
         log.header(msg)
@@ -73,6 +74,7 @@ class SV_caller_long(SV_caller):
         # Reference lengths, needed for repeats annotation
         refLengths = bamtools.get_ref_lengths(self.bam)
 
+        '''
         # Define annotation steps
         steps = ['REPEAT']
 
@@ -121,18 +123,34 @@ class SV_caller_long(SV_caller):
 
             # Remove output directory
             unix.rm([outDir])
+        '''
 
-        ### 5. Apply second round of filtering after insertion type inference 
-        msg = '5. Apply second round of filtering after insertion type inference'
+        ### 5. For BND assess if supplementary alignments support a repeat, transduction or viral bridge 
+        msg = '5. For BND assess if supplementary alignments support a repeat, transduction or viral bridge'
+        log.header(msg)
+        
+        if 'BND' in allMetaclusters:
+        
+            # Create output directory
+            outDir = self.outDir + '/BRIDGES/'
+            unix.mkdir(outDir)   
+            clusters.search4bridges_metaclusters(allMetaclusters['BND'], 10000, 80, refLengths, self.refDir, self.confDict['processes'], outDir)
+            
+            for metacluster in allMetaclusters['BND']:
+                print('metacluster: ', metacluster, metacluster.ref, metacluster.beg, metacluster.end, metacluster.bridgeType, metacluster.bridgeClusters, metacluster.nbTotal, metacluster.nbTumour, metacluster.nbNormal, metacluster.nbCLIPPING)
+
+        '''
+        ### 6. Apply second round of filtering 
+        msg = '6. Apply second round of filtering'
         log.header(msg)
         filters2Apply = ['PERC-RESOLVED']
         metaclustersPass, metaclustersFailed = filters.filter_metaclusters(allMetaclusters, filters2Apply, self.confDict)
                 
-        ### 6. Report SV calls into output files
-        msg = '6. Report SV calls into output files'
+        ### 7. Report SV calls into output files
+        msg = '7. Report SV calls into output files'
         log.header(msg)
 
-        ##  6.1 Report INS
+        ##  7.1 Report INS
         if 'INS' in metaclustersPass:
             outFileName = 'INS_MEIGA.PASS.tsv'
             output.write_INS(metaclustersPass['INS'], outFileName, self.outDir)
@@ -141,6 +159,9 @@ class SV_caller_long(SV_caller):
             outFileName = 'INS_MEIGA.FAILED.2.tsv'
             output.write_INS(metaclustersFailed['INS'], outFileName, self.outDir)
 
+        ## 7.2 Report BND
+        '''
+        
     def make_clusters(self):
         '''
         Search for structural variant (SV) clusters 
