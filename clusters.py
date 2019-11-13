@@ -1817,7 +1817,7 @@ class META_cluster():
                 if supplCluster.length() <= maxBridgeLen:
 
                     ### 1. Assess if supplementary cluster spans a transduced region
-                    if 'TRANSDUCTIONS' in annotations:
+                    if ('TRANSDUCTIONS' in annotations) and (ref in annotations['TRANSDUCTIONS']):
                         
                         ## Select transduction bin database for the corresponding ref            
                         tdBinDb = annotations['TRANSDUCTIONS'][ref]
@@ -1849,7 +1849,7 @@ class META_cluster():
                             continue
 
                     ### 2. Assess if supplementary cluster spans an annotated repeat
-                    if 'REPEATS' in annotations:
+                    if ('REPEATS' in annotations) and (ref in annotations['REPEATS']):
 
                         ## Select repeats bin database for the corresponding ref
                         repeatsBinDb = annotations['REPEATS'][ref]
