@@ -27,7 +27,7 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
         5. outDir: Output directory
     
     Output:
-        1. annotations: directory containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
+        1. annotations: dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
     '''
     ## 0. Initialize dictionary
     annotations = {}
@@ -67,7 +67,7 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
 
 def annotate(events, steps, refLengths, refDir, annovarDir, processes, outDir):
     '''
-    Annotate each input event inverval based on different annotation resources.
+    Annotate each input event interval based on different annotation resources.
 
     Input: 
         1. events: list containing input events to be annotated. Events should be objects containing ref, beg and end attributes.
@@ -94,13 +94,11 @@ def annotate(events, steps, refLengths, refDir, annovarDir, processes, outDir):
         ## 1.1 Load repeats database ##
         msg = '1.1 Load repeats database'
         log.info(msg)   
-
         annotations = load_annotations(['REPEATS'], refLengths, refDir, processes, outDir)
 
         ## 1.2 Perform repeats annotation ##
         msg = '1.2 Perform repeats annotation'
         log.info(msg)   
-
         repeats_annotation(events, annotations['REPEATS'], 200)
 
     ## 2. Perform gene-based annotation if enabled
