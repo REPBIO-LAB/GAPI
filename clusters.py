@@ -1838,6 +1838,8 @@ class META_cluster():
                         if tdMatch is not None:
                             supplCluster.annot = tdMatch
 
+                            print('TRANSDUCED_MATCH: ', supplCluster.annot, supplCluster.annot[0], supplCluster.annot[0].optional['cytobandId'])
+
                             # a) First suppl. cluster supporting a transduction bridge -> Initialize list
                             if 'TRANSDUCTION' not in self.bridgeClusters:
                                 self.bridgeClusters['TRANSDUCTION'] = [supplCluster]
@@ -1869,6 +1871,8 @@ class META_cluster():
                         ## Cluster matches annotated repeat area
                         if repeatMatch is not None:
                             supplCluster.annot = repeatMatch
+
+                            print('REPEAT_MATCH: ', supplCluster.annot, supplCluster.annot[0], supplCluster.annot[0].optional['family'])
 
                             # a) First suppl. cluster supporting a repeat bridge -> Initialize list
                             if 'REPEAT' not in self.bridgeClusters:
