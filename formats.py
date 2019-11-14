@@ -13,6 +13,7 @@ import log
 import gRanges
 import structures
 
+
 ## FUNCTIONS ##
 def chrom_lengths_index(index):
     '''

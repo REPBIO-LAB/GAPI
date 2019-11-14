@@ -897,7 +897,7 @@ def assignAligments2metaclusters_sam(metaclusters, SAM_path):
 
     return metaclustersHits
 
-def search4bridges_metaclusters(metaclusters, maxBridgeLen, minMatchPerc, refLengths, refDir, processes, outDir):
+def search4bridges_metaclusters(metaclusters, maxBridgeLen, minMatchPerc, minSupportingReads, refLengths, refDir, processes, outDir):
     '''
     Search for transduction or repeat bridges at BND junctions for a list of metacluster objects
 
@@ -905,10 +905,11 @@ def search4bridges_metaclusters(metaclusters, maxBridgeLen, minMatchPerc, refLen
         1. metaclusters: list of input metacluster objects supporting BND
         2. maxBridgeLen: maximum supplementary cluster length to search for a bridge
         3. minMatchPerc: minimum percentage of the supplementary cluster interval to match in a transduction or repeats database to make a bridge call
-        4. refLengths: dictionary containing reference ids as keys and as values the length for each reference. 
-        5. refDir: directory containing reference databases. 
-        6. processes: number of processes
-        7. outDir: output directory
+        4. minSupportingReads: minimum number of reads supporting the bridge
+        5. refLengths: dictionary containing reference ids as keys and as values the length for each reference. 
+        6. refDir: directory containing reference databases. 
+        7. processes: number of processes
+        8. outDir: output directory
 
     Output: For each metacluster update... attribute
     '''
@@ -921,7 +922,7 @@ def search4bridges_metaclusters(metaclusters, maxBridgeLen, minMatchPerc, refLen
     # For each metacluster
     for metacluster in metaclusters:
 
-        metacluster.search4bridges(maxBridgeLen, minMatchPerc, annotations)
+        metacluster.search4bridges(maxBridgeLen, minMatchPerc, minSupportingReads, annotations)
 
 
 #############
@@ -1220,7 +1221,7 @@ class SUPPLEMENTARY_cluster(cluster):
         cluster.__init__(self, events, 'SUPPLEMENTARY')
         self.bkpSide = None
         self.annot = None
-
+        self.bridge = False
 
 class DISCORDANT_cluster(cluster):
     '''
@@ -1230,7 +1231,6 @@ class DISCORDANT_cluster(cluster):
 
         cluster.__init__(self, events, 'DISCORDANT')
         self.matesCluster = None
-
 
 class META_cluster():
     '''
@@ -1260,7 +1260,6 @@ class META_cluster():
         self.insertHits = None
         self.nbTotal, self.nbTumour, self.nbNormal, self.nbINS, self.nbDEL, self.nbCLIPPING = [None, None, None, None, None, None] 
         self.cv = None
-        self.bridgeClusters = {}
         self.bridgeType = None
 
         # Update input cluster's clusterId attribute
@@ -1269,7 +1268,10 @@ class META_cluster():
 
         # Initialize dictionaries 
         self.SV_features = {}
-        self.supplAlignClusters = {}
+        self.supplClusters = {}
+        self.bridges = {}
+        self.bridges['TRANSDUCTION'] = {}
+        self.bridges['REPEAT'] = {}                
 
     def sort(self):
         '''
@@ -1501,6 +1503,9 @@ class META_cluster():
         return CLIPPING_cluster
         
     def add_clippingEvents(self, ref, binBeg, binEnd, clippingEventsDict, eventTypes, confDict):
+        '''
+
+        '''
         binSizes = [100, 1000]
         clippingBinDb = structures.create_bin_database_interval(ref, binBeg, binEnd, clippingEventsDict, binSizes)
         binSize = clippingBinDb.binSizes[0]
@@ -1754,7 +1759,7 @@ class META_cluster():
         Cluster supplementary alignments based on their begin/end alignment positions
 
         Output:
-            Set 'supplAlignClusters' attribute. Dictionary containing references as keys and nested lists of supplementary 
+            Set 'supplClusters' attribute. Dictionary containing references as keys and nested lists of supplementary 
             alignment clusters as values.
         '''
 
@@ -1794,29 +1799,32 @@ class META_cluster():
                 clusters = clustersEnd
                 
             ## Add clusters to the dictionary
-            self.supplAlignClusters[ref] = clusters
+            self.supplClusters[ref] = clusters
 
-    def search4bridges(self, maxBridgeLen, minMatchPerc, annotations):
+    def search4bridges(self, maxBridgeLen, minMatchPerc, minSupportingReads, annotations):
         '''        
         Search for transduction or repeat bridges at metacluster BND junction
 
         Input:
             1. maxBridgeLen: maximum supplementary cluster length to search for a bridge
             2. minMatchPerc: minimum percentage of the supplementary cluster interval to match in a transduction or repeats database to make a bridge call
-            3. annotations: dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
+            3. minSupportingReads: minimum number of reads supporting the bridge
+            4. annotations: dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
 
         Output: Update 'bridgeClusters' and 'bridgeType' metacluster attributes
         '''
-        ## For each reference        
-        for ref in self.supplAlignClusters:
 
-            ## For each suppl. cluster in the reference
-            for supplCluster in self.supplAlignClusters[ref]:
+        ## 1. Search for bridges
+        # For each reference        
+        for ref in self.supplClusters:
 
-                ## Cluster interval length within limit
+            # For each suppl. cluster in the reference
+            for supplCluster in self.supplClusters[ref]:
+
+                # Cluster interval length within limit
                 if supplCluster.length() <= maxBridgeLen:
 
-                    ### 1. Assess if supplementary cluster spans a transduced region
+                    # 1.1. Assess if supplementary cluster spans a transduced region
                     if ('TRANSDUCTIONS' in annotations) and (ref in annotations['TRANSDUCTIONS']):
                         
                         ## Select transduction bin database for the corresponding ref            
@@ -1825,10 +1833,10 @@ class META_cluster():
                         ## Intersect supplementary cluster interval with transducted regions  
                         tdMatches = tdBinDb.collect_interval(supplCluster.beg, supplCluster.end, 'ALL')
 
-                        ## Sort matches in decreasing coordinates order
+                        ## Sort matches in decreasing match % order
                         sortedTdMatches = sorted(tdMatches, key=itemgetter(2), reverse=True)
 
-                        ## Check if cluster matches a transduced area
+                        ## Check if cluster matches a transduced area (use match with longest %)
                         if sortedTdMatches and sortedTdMatches[0][2] > minMatchPerc:
                             tdMatch = sortedTdMatches[0]
                         else:
@@ -1836,21 +1844,21 @@ class META_cluster():
 
                         ## Stop if suppl. cluster matches transduced area
                         if tdMatch is not None:
+                            sourceElement = tdMatch[0].optional['cytobandId']
+                            supplCluster.bridge = True
                             supplCluster.annot = tdMatch
 
-                            print('TRANSDUCED_MATCH: ', supplCluster.annot, supplCluster.annot[0], supplCluster.annot[0].optional['cytobandId'])
+                            # a) First cluster supporting a transduction bridge from this source element -> Initialize bridge
+                            if sourceElement not in self.bridges['TRANSDUCTION']:
+                                self.bridges['TRANSDUCTION'][sourceElement] = BRIDGE(supplCluster.events)
 
-                            # a) First suppl. cluster supporting a transduction bridge -> Initialize list
-                            if 'TRANSDUCTION' not in self.bridgeClusters:
-                                self.bridgeClusters['TRANSDUCTION'] = [supplCluster]
-
-                            # b) Add suppl. cluster to pre-existing list 
+                            # b) Add events composing the cluster to the pre-existing bridge  
                             else:
-                                self.bridgeClusters['TRANSDUCTION'].append(supplCluster)                             
+                                self.bridges['TRANSDUCTION'][sourceElement].add(supplCluster.events)      
 
                             continue
 
-                    ### 2. Assess if supplementary cluster spans an annotated repeat
+                    # 1.2. Assess if supplementary cluster spans an annotated repeat
                     if ('REPEATS' in annotations) and (ref in annotations['REPEATS']):
 
                         ## Select repeats bin database for the corresponding ref
@@ -1859,10 +1867,10 @@ class META_cluster():
                         ## Intersect supplementary cluster interval with annotated repeats 
                         repeatMatches = repeatsBinDb.collect_interval(supplCluster.beg, supplCluster.end, 'ALL')
 
-                        ## Sort matches in decreasing coordinates order
+                        ## Sort matches in decreasing match % order
                         sortedRepeatMatches = sorted(repeatMatches, key=itemgetter(2), reverse=True)
 
-                        ## Check if cluster matches a transduced area
+                        ## Check if cluster matches a transduced area (use match with longest %)
                         if sortedRepeatMatches and sortedRepeatMatches[0][2] > minMatchPerc:
                             repeatMatch = sortedRepeatMatches[0]
                         else:
@@ -1870,34 +1878,62 @@ class META_cluster():
 
                         ## Cluster matches annotated repeat area
                         if repeatMatch is not None:
+                            family = repeatMatch[0].optional['family']
+                            supplCluster.bridge = True
                             supplCluster.annot = repeatMatch
 
-                            print('REPEAT_MATCH: ', supplCluster.annot, supplCluster.annot[0], supplCluster.annot[0].optional['family'])
+                            # a) First cluster supporting a bridge from this repeat family -> Initialize bridge
+                            if family not in self.bridges['REPEAT']:
+                                self.bridges['REPEAT'][family] = BRIDGE(supplCluster.events)
 
-                            # a) First suppl. cluster supporting a repeat bridge -> Initialize list
-                            if 'REPEAT' not in self.bridgeClusters:
-                                self.bridgeClusters['REPEAT'] = [supplCluster]
-
-                            # b) Add suppl. cluster to pre-existing list 
+                            # b) Add events composing the cluster to the pre-existing bridge  
                             else:
-                                self.bridgeClusters['REPEAT'].append(supplCluster)    
+                                self.bridges['REPEAT'][family].add(supplCluster.events)      
 
-        ### Determine bridge type:        
+                            continue
+ 
+        ## 2. Filter bridges based on number of supporting reads
+        # First create list with bridge subtypes to filter
+        subtypes2filter = []
+
+        for bridgeType in ['TRANSDUCTION', 'REPEAT']:
+
+            for bridgeSubtype in self.bridges[bridgeType]:
+                bridge = self.bridges[bridgeType][bridgeSubtype]
+
+                ## Discard bridge as supported by less than X reads 
+                if bridge.nbReads() < minSupportingReads:
+                    subtypes2filter.append((bridgeType, bridgeSubtype))
+
+        # Based on the list filter the bridges
+        for bridgeType, bridgeSubtype in subtypes2filter:
+            del self.bridges[bridgeType][bridgeSubtype]
+            
+        ## 3. Filter out ambiguous bridges (supported by multiple bridge subtypes)  
+        nbTdBridges = len(self.bridges['TRANSDUCTION'])
+        nbRepeatBridges = len(self.bridges['REPEAT'])            
+        
+        if (nbTdBridges > 1) or (nbRepeatBridges > 1):
+            self.bridges['TRANSDUCTION'] = {}
+            self.bridges['REPEAT'] = {}
+
+        ## 4. Determine bridge type:        
         # a) Partnered transduction (Transduction + repeat) 
-        if ('TRANSDUCTION' in self.bridgeClusters) and ('REPEAT' in self.bridgeClusters):
+        if (nbTdBridges == 1) and (nbRepeatBridges == 1):
             self.bridgeType = 'partnered'
 
         # b) Orphan transduction
-        elif ('TRANSDUCTION' in self.bridgeClusters):
+        elif nbTdBridges == 1:
             self.bridgeType = 'orphan'
 
         # c) Solo repeat
-        elif ('REPEAT' in self.bridgeClusters):
+        elif nbRepeatBridges == 1:
             self.bridgeType = 'repeat'
 
         # d) No bridge
         else:
             self.bridgeType = None
+
 
     def determine_INS_type(self, hits_genome, hits_splicing, hits_viral, repeatsDb, transducedDb, exonsDb):
         '''
@@ -2306,3 +2342,36 @@ class META_cluster():
 
         return PSEUDOGENE, outHits
     
+
+class BRIDGE():
+    '''
+    Rearrangement bridge class
+    '''
+    def __init__(self, supplAlignments):
+
+        self.supplAlignments = supplAlignments
+
+    def add(self, supplAlignments):
+        '''
+        Incorporate additional supplementary alignments into the bridge
+
+        Input:
+            1. supplAlignments: list of supplementary alignments
+        '''
+        self.supplAlignments.extend(supplAlignments)
+        
+    def nbEvents(self):
+        '''
+        Return the number of supplementary alignment events composing the bridge
+        '''
+        return len(self.supplAlignments)
+
+    def nbReads(self):
+        '''
+        Return the number of reads supporting a rearrangement bridge
+        '''
+        readList = [supplAlignment.readName for supplAlignment in self.supplAlignments]
+        nbReads = len(set(readList))
+        return nbReads
+            
+
