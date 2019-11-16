@@ -44,6 +44,7 @@ class SV_caller():
         self.outDir = outDir
         self.repeatsBinDb = None
 
+
 class SV_caller_long(SV_caller):
     '''
     Structural variation (SV) caller for long read sequencing data
@@ -125,19 +126,23 @@ class SV_caller_long(SV_caller):
             unix.rm([outDir])
         '''
 
-        ### 5. For BND assess if supplementary alignments support a repeat, transduction or viral bridge 
-        msg = '5. For BND assess if supplementary alignments support a repeat, transduction or viral bridge'
+        ### 5. Determine BND type
+        msg = '5. Determine BND type'
         log.header(msg)
         
         if 'BND' in allMetaclusters:
         
+            ### Assess if supplementary alignments support a repeat, transduction or viral bridge
             # Create output directory
-            outDir = self.outDir + '/BRIDGES/'
+            outDir = self.outDir + '/BND_TYPE/'
             unix.mkdir(outDir)   
-            clusters.search4bridges_metaclusters(allMetaclusters['BND'], 10000, 80, refLengths, self.refDir, self.confDict['processes'], outDir)
+
+            clusters.search4bridges_metaclusters(allMetaclusters['BND'], 10000, 80, self.confDict['minSupportingReads'], 50, refLengths, self.refDir, self.confDict['processes'], outDir)
             
             for metacluster in allMetaclusters['BND']:
-                print('metacluster: ', metacluster, metacluster.ref, metacluster.beg, metacluster.end, metacluster.bridgeType, metacluster.mutOrigin, metacluster.bridgeClusters, metacluster.nbTotal, metacluster.nbTumour, metacluster.nbNormal, metacluster.nbCLIPPING)
+                print('metacluster: ', metacluster.ref, metacluster.beg, metacluster.end, metacluster.bridgeType, metacluster.mutOrigin, metacluster.bridges, metacluster.nbTotal, metacluster.nbTumour, metacluster.nbNormal, metacluster.nbCLIPPING)
+            
+            ### Determine SV type (INS, TRANS, DEL, DUP, INV)
 
         '''
         ### 6. Apply second round of filtering 
