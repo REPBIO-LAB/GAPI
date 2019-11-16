@@ -416,6 +416,7 @@ def lighten_up_metaclusters(metaclusters):
 
             ## Set some object attributes before lightening up
             metacluster.nbTotal, metacluster.nbTumour, metacluster.nbNormal, metacluster.nbINS, metacluster.nbDEL, metacluster.nbCLIPPING = metacluster.nbEvents()
+            metacluster.nbReads, metacluster.readList = metacluster.supportingReads()
 
             if 'INS' in metacluster.subclusters:
                 metacluster.cv = metacluster.subclusters['INS'].cv_len()[1]
@@ -897,7 +898,7 @@ def assignAligments2metaclusters_sam(metaclusters, SAM_path):
 
     return metaclustersHits
 
-def search4bridges_metaclusters(metaclusters, maxBridgeLen, minMatchPerc, minSupportingReads, refLengths, refDir, processes, outDir):
+def search4bridges_metaclusters(metaclusters, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, refLengths, refDir, processes, outDir):
     '''
     Search for transduction or repeat bridges at BND junctions for a list of metacluster objects
 
@@ -906,14 +907,14 @@ def search4bridges_metaclusters(metaclusters, maxBridgeLen, minMatchPerc, minSup
         2. maxBridgeLen: maximum supplementary cluster length to search for a bridge
         3. minMatchPerc: minimum percentage of the supplementary cluster interval to match in a transduction or repeats database to make a bridge call
         4. minSupportingReads: minimum number of reads supporting the bridge
-        5. refLengths: dictionary containing reference ids as keys and as values the length for each reference. 
-        6. refDir: directory containing reference databases. 
-        7. processes: number of processes
-        8. outDir: output directory
+        5. minPercReads: minimum percentage of clipping cluster supporting reads composing the bridge
+        6. refLengths: dictionary containing reference ids as keys and as values the length for each reference. 
+        7. refDir: directory containing reference databases. 
+        8. processes: number of processes
+        9. outDir: output directory
 
-    Output: For each metacluster update... attribute
-    '''
-    
+    For each metacluster update 'bridgeClusters' and 'bridgeType' attributes
+    '''    
     ## 1. Load repeats annnotation and transduced regions beds
     annot2load = ['REPEATS', 'TRANSDUCTIONS']
     annotations = annotation.load_annotations(annot2load, refLengths, refDir, processes, outDir)
@@ -922,8 +923,32 @@ def search4bridges_metaclusters(metaclusters, maxBridgeLen, minMatchPerc, minSup
     # For each metacluster
     for metacluster in metaclusters:
 
-        metacluster.search4bridges(maxBridgeLen, minMatchPerc, minSupportingReads, annotations)
+        metacluster.search4bridges(maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations)
 
+
+def search4BND_metaclusters(metaclusters, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, refLengths, refDir, processes, outDir):
+    '''
+    Search for BND junctions for a list of input metacluster objects of the type BND.
+
+    Each BND junction will correspond to a connection between the metacluster an another genomic region. 
+    
+    BND junctions are identified based on the analysis of supplementary alignments.
+
+    TO DO!!!
+
+    Input:
+        1. metaclusters: list of input metacluster objects supporting BND
+        2. maxBridgeLen: maximum supplementary cluster length to search for a bridge
+        3. minMatchPerc: minimum percentage of the supplementary cluster interval to match in a transduction or repeats database to make a bridge call
+        4. minSupportingReads: minimum number of reads supporting the bridge
+        5. minPercReads: minimum percentage of clipping cluster supporting reads composing the bridge
+        6. refLengths: dictionary containing reference ids as keys and as values the length for each reference. 
+        7. refDir: directory containing reference databases. 
+        8. processes: number of processes
+        9. outDir: output directory
+
+    For each metacluster update 'bridgeClusters' and 'bridgeType' attributes
+    '''  
 
 #############
 ## CLASSES ##
@@ -1254,6 +1279,8 @@ class META_cluster():
         self.subclusters = self.create_subclusters()
 
         # Set some metacluster properties as None
+        self.nbReads = None
+        self.readList = None
         self.mutOrigin = None
         self.failedFilters = None
         self.consensusEvent = None                
@@ -1411,6 +1438,28 @@ class META_cluster():
                     FASTA.seqDict[event.readName] = event.readSeq 
      
         return FASTA
+
+    def supportingReads(self):
+        '''
+        Compute the total number of metacluster supporting reads and generate a list of supporting read ids
+
+        Output:
+            1. nbReads: Number of metacluster supporting reads
+            2. readList: List containing metacluster supporting reads
+        '''
+        readList = []
+
+        ## 1. Create non-redundant list of metacluster supporting reads
+        for event in self.events: 
+
+            ## Add read name not already included in the list  
+            if event.readName not in readList:
+                readList.append(event.readName)
+
+        ## 2. Compute total number of supporting reads
+        nbReads = len(readList)
+                
+        return nbReads, readList
 
     def nbEvents(self):
         '''
@@ -1801,19 +1850,20 @@ class META_cluster():
             ## Add clusters to the dictionary
             self.supplClusters[ref] = clusters
 
-    def search4bridges(self, maxBridgeLen, minMatchPerc, minSupportingReads, annotations):
-        '''        
+    def search4bridges(self, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations):
+        '''    
+
         Search for transduction or repeat bridges at metacluster BND junction
 
         Input:
             1. maxBridgeLen: maximum supplementary cluster length to search for a bridge
             2. minMatchPerc: minimum percentage of the supplementary cluster interval to match in a transduction or repeats database to make a bridge call
             3. minSupportingReads: minimum number of reads supporting the bridge
-            4. annotations: dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
+            4. minPercReads: minimum percentage of clipping cluster supporting reads composing the bridge
+            5. annotations: dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
 
         Output: Update 'bridgeClusters' and 'bridgeType' metacluster attributes
-        '''
-
+        '''        
         ## 1. Search for bridges
         # For each reference        
         for ref in self.supplClusters:
@@ -1892,7 +1942,7 @@ class META_cluster():
 
                             continue
  
-        ## 2. Filter bridges based on number of supporting reads
+        ## 2. Filter bridges based on read support
         # First create list with bridge subtypes to filter
         subtypes2filter = []
 
@@ -1901,8 +1951,14 @@ class META_cluster():
             for bridgeSubtype in self.bridges[bridgeType]:
                 bridge = self.bridges[bridgeType][bridgeSubtype]
 
-                ## Discard bridge as supported by less than X reads 
-                if bridge.nbReads() < minSupportingReads:
+                ## Compute percentage of metacluster supporting reads composing the bridge 
+                percReads = float(bridge.nbReads()) / self.nbReads * 100
+
+                ## Filter out bridges based on two criteria:
+                #    1) Bridge supported by less than X reads (DONE)
+                #    2) Bridge supported by less than X% of the total number of metacluster supporting reads 
+                if (bridge.nbReads() < minSupportingReads) or (percReads < minPercReads):
+
                     subtypes2filter.append((bridgeType, bridgeSubtype))
 
         # Based on the list filter the bridges
@@ -1933,7 +1989,6 @@ class META_cluster():
         # d) No bridge
         else:
             self.bridgeType = None
-
 
     def determine_INS_type(self, hits_genome, hits_splicing, hits_viral, repeatsDb, transducedDb, exonsDb):
         '''

@@ -175,7 +175,7 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb):
 
     Output:
         1. discordantsIdentity: dictionary containing lists of discordant read pairs organized taking into account their orientation and if the mate aligns in an annotated retrotransposon 
-                               This info is encoded in the dictionary keys as follows. Keys composed by 3 elements separated by '_':
+                                This info is encoded in the dictionary keys as follows. Keys composed by 3 elements separated by '_':
                                 
                                     - Orientation: read orientation (PLUS or MINUS)
                                     - Event type: DISCORDANT   
