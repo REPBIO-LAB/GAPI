@@ -146,19 +146,13 @@ def extra_clustering_by_matePos(discordantClusters, refLengths, minClusterSize):
     Output:
 
     '''
-    print('INPUT_extra_clustering_by_matePos: ', discordantClusters, refLengths, minClusterSize)
-
     ## For each discordant cluster type
     for clusterType, clusters in discordantClusters.items():
-        print('CLUSTER_TYPE: ', clusterType, clusters)
         
         ## For each cluster
         for cluster in clusters:
 
-            print('CLUSTER: ', cluster, len(cluster.events), cluster.events)
             cluster_discordants_by_matePos(cluster.events, refLengths, minClusterSize)
-
-            print('--------------')
 
 def cluster_discordants_by_matePos(discordants, refLengths, minClusterSize):
     '''
@@ -173,8 +167,6 @@ def cluster_discordants_by_matePos(discordants, refLengths, minClusterSize):
         1. discordantClusters: list of discordant clusters
 
     '''   
-    print('INPUT_cluster_discordants_by_matePos: ', discordants, refLengths, minClusterSize)
-
     ## 1. Organize discordant into a dictionary according to supporting read id
     discordantsDict = {}
 
@@ -183,8 +175,6 @@ def cluster_discordants_by_matePos(discordants, refLengths, minClusterSize):
         ## Note: create method to return readName + mateId (\1 and \2). Use this id as dictionary key. 
         # Othewise 
         discordantsDict[discordant.fullReadName()] = discordant
-
-    print('discordantsDict: ', discordantsDict)
     
     ## 2. Produce discordant objects for mates:
     mates = events.discordants2mates(discordants)
@@ -926,7 +916,7 @@ def search4bridges_metaclusters(metaclusters, maxBridgeLen, minMatchPerc, minSup
         metacluster.search4bridges(maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations)
 
 
-def search4BND_metaclusters(metaclusters, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, refLengths, refDir, processes, outDir):
+def search4BND_metaclusters(metaclusters, minFragmentLen, minSupportingReads, minPercReads):
     '''
     Search for BND junctions for a list of input metacluster objects of the type BND.
 
@@ -934,21 +924,19 @@ def search4BND_metaclusters(metaclusters, maxBridgeLen, minMatchPerc, minSupport
     
     BND junctions are identified based on the analysis of supplementary alignments.
 
-    TO DO!!!
-
     Input:
         1. metaclusters: list of input metacluster objects supporting BND
-        2. maxBridgeLen: maximum supplementary cluster length to search for a bridge
-        3. minMatchPerc: minimum percentage of the supplementary cluster interval to match in a transduction or repeats database to make a bridge call
-        4. minSupportingReads: minimum number of reads supporting the bridge
-        5. minPercReads: minimum percentage of clipping cluster supporting reads composing the bridge
-        6. refLengths: dictionary containing reference ids as keys and as values the length for each reference. 
-        7. refDir: directory containing reference databases. 
-        8. processes: number of processes
-        9. outDir: output directory
+        2. minFragmentLen: minimum supplementary alignment cluster interval size
+        3. minSupportingReads: minimum number of reads supporting the BND connection
+        4. minPercReads: minimum percentage of clipping cluster reads supporting the BND
 
-    For each metacluster update 'bridgeClusters' and 'bridgeType' attributes
+    For each metacluster update 'BNDClusters' and '¿?' attributes
     '''  
+    # For each metacluster
+    for metacluster in metaclusters:
+
+        metacluster.search4BND(minFragmentLen, minSupportingReads, minPercReads)
+
 
 #############
 ## CLASSES ##
@@ -1122,6 +1110,13 @@ class cluster():
 
         return nbTotal, nbTumour, nbNormal
 
+    def nbReads(self):
+        '''
+        Return the number of reads supporting a rearrangement bridge
+        '''
+        readList = list(set([event.readName for event in self.events]))
+        nbReads = len(readList)
+        return nbReads
 
 class INS_cluster(cluster):
     '''
@@ -1247,7 +1242,8 @@ class SUPPLEMENTARY_cluster(cluster):
         self.bkpSide = None
         self.annot = None
         self.bridge = False
-
+        self.BND = False
+        
 class DISCORDANT_cluster(cluster):
     '''
     Discordant cluster subclass
@@ -1298,7 +1294,9 @@ class META_cluster():
         self.supplClusters = {}
         self.bridges = {}
         self.bridges['TRANSDUCTION'] = {}
-        self.bridges['REPEAT'] = {}                
+        self.bridges['REPEAT'] = {}   
+        self.BNDs = {} 
+
 
     def sort(self):
         '''
@@ -1852,7 +1850,6 @@ class META_cluster():
 
     def search4bridges(self, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations):
         '''    
-
         Search for transduction or repeat bridges at metacluster BND junction
 
         Input:
@@ -1989,6 +1986,48 @@ class META_cluster():
         # d) No bridge
         else:
             self.bridgeType = None
+
+
+    def search4BND(self, minFragmentLen, minSupportingReads, minPercReads):
+        ''' 
+        Process supplementary alignments to identify BND junctions. 
+    
+        Each BND junction will correspond to a connection between the metacluster an another genomic regions. 
+    
+        Input:
+        1. minFragmentLen: minimum supplementary alignment cluster interval size
+        2. minSupportingReads: minimum number of reads supporting the BND connection
+        3. minPercReads: minimum percentage of clipping cluster reads supporting the BND
+
+        Update 'BNDs' metacluster and 'BND' supplementary cluster attributes
+        '''  
+        ## 1. Search for bridges
+        # For each reference        
+        for ref in self.supplClusters:
+
+            # For each suppl. cluster in the reference
+            for supplCluster in self.supplClusters[ref]:
+
+                ## Compute percentage of metacluster supporting reads composing supplementary alignment cluster
+                percReads = float(supplCluster.nbReads()) / self.nbReads * 100
+ 
+                ## Supplementary cluster supports a BND if fulfills ALL these conditions:
+                #      1) NOT supports a bridge
+                #      2) Interval length >= minFragmentLen
+                #      3) Supported by >= minSupportingReads
+                #      4) Percentage of reads supporting suppl. cluster >= minPercReads
+                if (not supplCluster.bridge) and (supplCluster.length() >= minFragmentLen) and (supplCluster.nbReads() >= minSupportingReads) and (percReads >= minPercReads):
+                    supplCluster.BND = True
+
+                    ## Add suppl cluster to the dict
+                    # a) First BND at this ref, initialize list
+                    if supplCluster.ref not in self.BNDs:
+                        self.BNDs[supplCluster.ref] = [supplCluster]
+                    
+                    # b) There´re BNDs at this ref, add to pre-existing list
+                    else:
+                        self.BNDs[supplCluster.ref].append(supplCluster)
+
 
     def determine_INS_type(self, hits_genome, hits_splicing, hits_viral, repeatsDb, transducedDb, exonsDb):
         '''
@@ -2425,8 +2464,8 @@ class BRIDGE():
         '''
         Return the number of reads supporting a rearrangement bridge
         '''
-        readList = [supplAlignment.readName for supplAlignment in self.supplAlignments]
-        nbReads = len(set(readList))
+        readList = list(set([supplAlignment.readName for supplAlignment in self.supplAlignments]))
+        nbReads = len(readList)
         return nbReads
             
 

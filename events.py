@@ -510,7 +510,7 @@ class SUPPLEMENTARY():
         self.mapQ = mapQ
         self.NM = NM
         self.readName = readName
-        
+          
 class DISCORDANT():
     '''
     Discordant class
@@ -540,7 +540,6 @@ class DISCORDANT():
         else:
             self.mateRef = alignmentObj.next_reference_name
             self.mateStart = alignmentObj.next_reference_start
-
 
     def fullReadName(self):
         '''
