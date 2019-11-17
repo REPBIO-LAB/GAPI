@@ -132,16 +132,19 @@ class SV_caller_long(SV_caller):
         
         if 'BND' in allMetaclusters:
         
-            ### Assess if supplementary alignments support a repeat, transduction or viral bridge
+            ### Search for repeat, transduction or viral bridges
             # Create output directory
             outDir = self.outDir + '/BND_TYPE/'
             unix.mkdir(outDir)   
 
             clusters.search4bridges_metaclusters(allMetaclusters['BND'], 10000, 80, self.confDict['minSupportingReads'], 50, refLengths, self.refDir, self.confDict['processes'], outDir)
             
+            ### Search for BND junctions
+            clusters.search4BND_metaclusters(allMetaclusters['BND'], 5000, self.confDict['minSupportingReads'], 50)
+
             for metacluster in allMetaclusters['BND']:
-                print('metacluster: ', metacluster.ref, metacluster.beg, metacluster.end, metacluster.bridgeType, metacluster.mutOrigin, metacluster.bridges, metacluster.nbTotal, metacluster.nbTumour, metacluster.nbNormal, metacluster.nbCLIPPING)
-            
+                print('metacluster: ', metacluster.ref, metacluster.beg, metacluster.end, metacluster.bridgeType, metacluster.mutOrigin, metacluster.bridges, metacluster.BNDs, metacluster.nbTotal, metacluster.nbTumour, metacluster.nbNormal, metacluster.nbCLIPPING)
+
             ### Determine SV type (INS, TRANS, DEL, DUP, INV)
 
         '''
