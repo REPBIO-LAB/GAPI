@@ -63,7 +63,6 @@ class SV_caller_long(SV_caller):
         log.header(msg)
         allMetaclusters = self.make_clusters()
 
-        
         ### 2. Annotate SV clusters intervals  
         msg = '2. Annotate SV clusters intervals'
         log.header(msg)
@@ -126,26 +125,26 @@ class SV_caller_long(SV_caller):
             unix.rm([outDir])
         '''
 
-        ### 5. Determine BND type
-        msg = '5. Determine BND type'
+        ### 5. Identify BND junctions
+        msg = '5. Identify BND junctions'
         log.header(msg)
-        
+        allJunctions = []
+
         if 'BND' in allMetaclusters:
         
             ### Search for repeat, transduction or viral bridges
             # Create output directory
-            outDir = self.outDir + '/BND_TYPE/'
+            outDir = self.outDir + '/BND_JUNCTIONS/'
             unix.mkdir(outDir)   
 
             clusters.search4bridges_metaclusters(allMetaclusters['BND'], 10000, 80, self.confDict['minSupportingReads'], 50, refLengths, self.refDir, self.confDict['processes'], outDir)
-            
+
             ### Search for BND junctions
-            clusters.search4BND_metaclusters(allMetaclusters['BND'], 5000, self.confDict['minSupportingReads'], 50)
+            allJunctions = clusters.search4junctions_metaclusters(allMetaclusters['BND'], refLengths, self.confDict['processes'], self.confDict['minSupportingReads'], 50)
+            
+            # Remove output directory
+            unix.rm([outDir])
 
-            for metacluster in allMetaclusters['BND']:
-                print('metacluster: ', metacluster.ref, metacluster.beg, metacluster.end, metacluster.bridgeType, metacluster.mutOrigin, metacluster.bridges, metacluster.BNDs, metacluster.nbTotal, metacluster.nbTumour, metacluster.nbNormal, metacluster.nbCLIPPING)
-
-            ### Determine SV type (INS, TRANS, DEL, DUP, INV)
 
         '''
         ### 6. Apply second round of filtering 
@@ -157,8 +156,10 @@ class SV_caller_long(SV_caller):
         ### 7. Report SV calls into output files
         msg = '7. Report SV calls into output files'
         log.header(msg)
+        '''
 
         ##  7.1 Report INS
+        '''
         if 'INS' in metaclustersPass:
             outFileName = 'INS_MEIGA.PASS.tsv'
             output.write_INS(metaclustersPass['INS'], outFileName, self.outDir)
@@ -166,9 +167,13 @@ class SV_caller_long(SV_caller):
         if 'INS' in metaclustersFailed:
             outFileName = 'INS_MEIGA.FAILED.2.tsv'
             output.write_INS(metaclustersFailed['INS'], outFileName, self.outDir)
-
-        ## 7.2 Report BND
         '''
+
+        ## 7.2 Report BND junctions
+        if allJunctions:
+            outFileName = 'BND_junctions_MEIGA.PASS.tsv'
+            output.write_junctions(allJunctions, outFileName, self.outDir)
+
         
     def make_clusters(self):
         '''
