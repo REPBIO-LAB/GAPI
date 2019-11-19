@@ -12,6 +12,7 @@ import math
 import itertools
 import os
 from operator import itemgetter
+from collections import Counter
 
 # Internal
 import log
@@ -345,7 +346,6 @@ def SV_type_metaclusters(metaclusters, minINDELlen, technology, rootOutDir):
             metaclustersSVType[metacluster.SV_type].append(metacluster)    
 
     return metaclustersSVType
-
 
 def create_consensus(metaclusters, confDict, reference, targetSV, rootOutDir):
     '''
@@ -1232,6 +1232,113 @@ class CLIPPING_cluster(cluster):
 
         cluster.__init__(self, events, 'CLIPPING')            
 
+    def infer_breakpoint(self):
+        '''
+        Infer clipping cluster breakpoint position
+
+        Output:
+            1. bkpPos: consensus breakpoint position
+        '''
+        ## Retrieve all positions
+        positions = [clipping.beg for clipping in self.events]
+
+        ## Count the number of reads supporting each position
+        positionCounts = Counter(positions)
+
+        ## Organize positions by degree of support into a dictionary
+        supportDict = {}
+
+        for position in positionCounts:
+            nbReads = positionCounts[position]
+
+            if nbReads not in supportDict:
+                supportDict[nbReads] = [position]
+            else:
+                supportDict[nbReads].append(position)
+        
+        ## Sort by level of support
+        supportLevels = sorted(supportDict.keys(), reverse=True)
+
+        ## Select breakpoints with maximum support level
+        maxSupportLevel = supportLevels[0]
+        maxSupportBkps = supportDict[maxSupportLevel]
+        nbBkps = len(maxSupportBkps)
+
+        ## Resolve breakpoint
+        # A) No ambiguity (single breakpoint maximum read support)
+        if nbBkps == 1:
+            bkpPos = maxSupportBkps[0]
+
+        # B) Ambiguous bkp (several breakpoints with maximum read support)
+        else:
+            ## Compute median
+            medianPos = int(np.median(positions))
+
+            ## Compute breakpoint distance to the median
+            dist2medians = []
+
+            for bkp in maxSupportBkps:
+
+                dist2median = abs(bkp - medianPos)
+                dist2medians.append((dist2median, bkp))
+
+            ## Sort breakpoints in decreasing distance order
+            dist2medians = sorted(dist2medians, key=itemgetter(0))
+
+            ## Select breakpoint closest to the median 
+            # Note: use one arbitrary if still several possibilities
+            bkpPos = dist2medians[0][1]
+
+        return bkpPos
+
+    def cluster_suppl_positions(self):
+        '''
+        Cluster supplementary alignments based on their begin/end alignment positions
+
+        Output:
+            1. supplClusters. Dictionary containing references as keys and nested lists of supplementary 
+            alignment clusters as values.
+        '''
+        ## 1. Collect for each clipping event its suppl. alignments
+        supplAlignmentsDictList = []
+                
+        for clipping in self.events:
+            supplAlignmentsDict = clipping.parse_supplAlignments_field()
+            supplAlignmentsDictList.append(supplAlignmentsDict)
+        
+        ## 2. Merge suppl. alignments into a single dictionary
+        allSupplAlignmentsDict = structures.merge_dictionaries(supplAlignmentsDictList)
+
+        ## 3. Cluster suppl. alignments based on breakpoint position
+        supplClusters = {}
+
+        # For each reference
+        for ref in allSupplAlignmentsDict:
+
+            # Collect suppl. alignments list
+            supplAlignments = allSupplAlignmentsDict[ref]
+
+            ## Cluster suppl. alignments based on their beg and end alignment positions
+            clustersBeg = clustering.distance_clustering_targetPos(supplAlignments, 100, 'beg')
+            clustersEnd = clustering.distance_clustering_targetPos(supplAlignments, 100, 'end')
+
+            ## Determine bkp side based on the biggest cluster
+            biggestLenBeg = max([len(cluster.events) for cluster in clustersBeg])
+            biggestLenEnd = max([len(cluster.events) for cluster in clustersEnd])
+
+            # a) Bkp at the beg of supplementary alignment interval
+            if biggestLenBeg >= biggestLenEnd:
+                clusters = clustersBeg
+            
+            # b) Bkp at the end of supplementary alignment interval
+            else:
+                clusters = clustersEnd
+                
+            ## Add clusters to the dictionary
+            supplClusters[ref] = clusters
+
+        return supplClusters
+
 class SUPPLEMENTARY_cluster(cluster):
     '''
     Supplementary alignment cluster subclass
@@ -1275,6 +1382,7 @@ class META_cluster():
         self.subclusters = self.create_subclusters()
 
         # Set some metacluster properties as None
+        self.bkpPos = None
         self.nbReads = None
         self.readList = None
         self.mutOrigin = None
@@ -1786,67 +1894,31 @@ class META_cluster():
             else: 
                 self.SV_type = None
 
-        ## D) Metacluster only composed by one clipping side (left or right)
+        ## D) Metacluster only composed by one clipping side (left or right) -> break end
         elif (len(subClusterTypes) == 1) and (('RIGHT-CLIPPING' in subClusterTypes) or ('LEFT-CLIPPING' in subClusterTypes)):
 
             self.SV_type = 'BND'
 
+            ## Retrieve clipping cluster
+            # a) Right clipping
+            if 'RIGHT-CLIPPING' in subClusterTypes:
+                clippingCluster = self.subclusters['RIGHT-CLIPPING']
+                
+            # b) Left clipping
+            else:
+                clippingCluster = self.subclusters['LEFT-CLIPPING']
+
+            ## Determine BND breakpoint position
+            self.bkpPos = clippingCluster.infer_breakpoint()
+
             ## Cluster supplementary alignment positions
-            self.cluster_suppl_positions()
+            self.supplClusters =  clippingCluster.cluster_suppl_positions()
 
         ## E) Other combination -> Unknown SV type (Temporal, extend later)
         else:
             self.SV_type = None
             self.consensusEvent = None                
             self.consensusFasta = None
-
-
-    def cluster_suppl_positions(self):
-        '''
-        Cluster supplementary alignments based on their begin/end alignment positions
-
-        Output:
-            Set 'supplClusters' attribute. Dictionary containing references as keys and nested lists of supplementary 
-            alignment clusters as values.
-        '''
-
-        ## 1. Collect for each clipping event its suppl. alignments
-        supplAlignmentsDictList = []
-                
-        for clipping in self.events:
-            supplAlignmentsDict = clipping.parse_supplAlignments_field()
-            supplAlignmentsDictList.append(supplAlignmentsDict)
-        
-        ## 2. Merge suppl. alignments into a single dictionary
-        allSupplAlignmentsDict = structures.merge_dictionaries(supplAlignmentsDictList)
-
-        ## 3. Cluster suppl. alignments based on breakpoint position
-        clustersDict = {}
-
-        # For each reference
-        for ref in allSupplAlignmentsDict:
-
-            # Collect suppl. alignments list
-            supplAlignments = allSupplAlignmentsDict[ref]
-
-            ## Cluster suppl. alignments based on their beg and end alignment positions
-            clustersBeg = clustering.distance_clustering_targetPos(supplAlignments, 100, 'beg')
-            clustersEnd = clustering.distance_clustering_targetPos(supplAlignments, 100, 'end')
-
-            ## Determine bkp side based on the biggest cluster
-            biggestLenBeg = max([len(cluster.events) for cluster in clustersBeg])
-            biggestLenEnd = max([len(cluster.events) for cluster in clustersEnd])
-
-            # a) Bkp at the beg of supplementary alignment interval
-            if biggestLenBeg >= biggestLenEnd:
-                clusters = clustersBeg
-            
-            # b) Bkp at the end of supplementary alignment interval
-            else:
-                clusters = clustersEnd
-                
-            ## Add clusters to the dictionary
-            self.supplClusters[ref] = clusters
 
     def search4bridges(self, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations):
         '''    
@@ -2001,7 +2073,7 @@ class META_cluster():
 
         Update 'BNDs' metacluster and 'BND' supplementary cluster attributes
         '''  
-        ## 1. Search for bridges
+        ## 1. Search for BND junctions
         # For each reference        
         for ref in self.supplClusters:
 
@@ -2019,14 +2091,19 @@ class META_cluster():
                 if (not supplCluster.bridge) and (supplCluster.length() >= minFragmentLen) and (supplCluster.nbReads() >= minSupportingReads) and (percReads >= minPercReads):
                     supplCluster.BND = True
 
-                    ## Add suppl cluster to the dict
+                    ## Create BND junction object
+                    #BND_JUNCTION(refA, bkpA, refB, bkpB, supplCluster.nbReads())
+
+                    ## Infer BND junction type
+
+                    ## Add BND junction to the dict
                     # a) First BND at this ref, initialize list
-                    if supplCluster.ref not in self.BNDs:
-                        self.BNDs[supplCluster.ref] = [supplCluster]
+                    #if supplCluster.ref not in self.BNDs:
+                    #    self.BNDs[supplCluster.ref] = [supplCluster]
                     
                     # b) There´re BNDs at this ref, add to pre-existing list
-                    else:
-                        self.BNDs[supplCluster.ref].append(supplCluster)
+                    #else:
+                    #    self.BNDs[supplCluster.ref].append(supplCluster)
 
 
     def determine_INS_type(self, hits_genome, hits_splicing, hits_viral, repeatsDb, transducedDb, exonsDb):
@@ -2468,4 +2545,3 @@ class BRIDGE():
         nbReads = len(readList)
         return nbReads
             
-
