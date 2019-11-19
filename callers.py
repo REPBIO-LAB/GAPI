@@ -74,7 +74,6 @@ class SV_caller_long(SV_caller):
         # Reference lengths, needed for repeats annotation
         refLengths = bamtools.get_ref_lengths(self.bam)
 
-        '''
         # Define annotation steps
         steps = ['REPEAT']
 
@@ -123,7 +122,6 @@ class SV_caller_long(SV_caller):
 
             # Remove output directory
             unix.rm([outDir])
-        '''
 
         ### 5. Identify BND junctions
         msg = '5. Identify BND junctions'
@@ -145,8 +143,6 @@ class SV_caller_long(SV_caller):
             # Remove output directory
             unix.rm([outDir])
 
-
-        '''
         ### 6. Apply second round of filtering 
         msg = '6. Apply second round of filtering'
         log.header(msg)
@@ -156,10 +152,8 @@ class SV_caller_long(SV_caller):
         ### 7. Report SV calls into output files
         msg = '7. Report SV calls into output files'
         log.header(msg)
-        '''
-
+        
         ##  7.1 Report INS
-        '''
         if 'INS' in metaclustersPass:
             outFileName = 'INS_MEIGA.PASS.tsv'
             output.write_INS(metaclustersPass['INS'], outFileName, self.outDir)
@@ -167,7 +161,6 @@ class SV_caller_long(SV_caller):
         if 'INS' in metaclustersFailed:
             outFileName = 'INS_MEIGA.FAILED.2.tsv'
             output.write_INS(metaclustersFailed['INS'], outFileName, self.outDir)
-        '''
 
         ## 7.2 Report BND junctions
         if allJunctions:
