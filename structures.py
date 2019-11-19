@@ -320,7 +320,7 @@ class bin_database():
             3. eventTypes: list containing target event types. If 'ALL' all event types stored in the target bins will be retrieved
 
          Output:
-            1. events. List of lists. Each list corresponds to one overlapping event and is composed by 3 elements: 
+            1. events. List of lists. Each list corresponds to one overlapping event and is composed by 4 elements: 
                 1. Overlapping event
                 2. Number of overlapping base pairs
                 3. Percentage of base pairs of the input interval that are overlapping  
@@ -474,7 +474,6 @@ class events_bin():
         Sort events in increasing coordinates order
         '''
         self.events.sort(key=lambda event: event.beg)
-
 
 def merge_dictionaries(dictionaries):
     '''
