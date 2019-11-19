@@ -300,7 +300,6 @@ def polish_clusters(clustersBinDb, minClusterSize):
 
     ## 3. Polish CLIPPING clusters (TO DO)
 
-
 def create_metaclusters(clustersBinDb):
     '''    
     Group SV cluster events into metaclusters
@@ -406,8 +405,8 @@ def lighten_up_metaclusters(metaclusters):
 
             ## Set some object attributes before lightening up
             metacluster.nbTotal, metacluster.nbTumour, metacluster.nbNormal, metacluster.nbINS, metacluster.nbDEL, metacluster.nbCLIPPING = metacluster.nbEvents()
-            metacluster.nbReads, metacluster.readList = metacluster.supportingReads()
-
+            metacluster.nbReadsTotal, metacluster.nbReadsTumour, metacluster.nbReadsNormal, metacluster.reads, metacluster.readsTumour, metacluster.readsNormal = metacluster.supportingReads()
+            
             if 'INS' in metacluster.subclusters:
                 metacluster.cv = metacluster.subclusters['INS'].cv_len()[1]
 
@@ -916,26 +915,52 @@ def search4bridges_metaclusters(metaclusters, maxBridgeLen, minMatchPerc, minSup
         metacluster.search4bridges(maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations)
 
 
-def search4BND_metaclusters(metaclusters, minFragmentLen, minSupportingReads, minPercReads):
+def search4junctions_metaclusters(metaclusters, refLengths, processes, minSupportingReads, minPercReads):
     '''
     Search for BND junctions for a list of input metacluster objects of the type BND.
 
-    Each BND junction will correspond to a connection between the metacluster an another genomic region. 
+    Each BND junction will correspond to a connection between two BND metaclusters
     
     BND junctions are identified based on the analysis of supplementary alignments.
 
     Input:
         1. metaclusters: list of input metacluster objects supporting BND
-        2. minFragmentLen: minimum supplementary alignment cluster interval size
-        3. minSupportingReads: minimum number of reads supporting the BND connection
-        4. minPercReads: minimum percentage of clipping cluster reads supporting the BND
+        2. refLengths: dictionary containing reference ids as keys and as values the length for each reference. 
+        3. processes: number of processes
+        4. minSupportingReads: minimum number of reads supporting the BND junction 
+        5. minPercReads: minimum percentage of metacluster and partner metacluster reads supporting the BND junction
 
-    For each metacluster update 'BNDClusters' and '¿?' attributes
-    '''  
-    # For each metacluster
+    Output:
+        1. allJunctions: list of BND junction objects
+    '''
+    ## 1. Organize metaclusters into a dictionary
+    metaclustersDict = events.events2dict(metaclusters, 'BND')
+
+    ## 2. Organize metaclusters into a bin database
+    metaclustersBinDb = structures.create_bin_database_parallel(refLengths, metaclustersDict, processes)
+
+    ## 3. Search for BND junctions for each metacluster
+    allJunctions = []
+    includedJunctions = []
+
+    ## For each metacluster
     for metacluster in metaclusters:
+    
+        # Search for junctions
+        junctions = metacluster.search4junctions(metaclustersBinDb, minSupportingReads, minPercReads)        
 
-        metacluster.search4BND(minFragmentLen, minSupportingReads, minPercReads)
+        # Add junctions to the final list avoiding redundancies
+        for junction in junctions:
+
+            # Skip redundant junctions 
+            if (junction.junctionCoord() in includedJunctions) or (junction.junctionCoord_rev() in includedJunctions):
+                continue
+
+            # Add junction to the list
+            allJunctions.append(junction)
+            includedJunctions.append(junction.junctionCoord())
+    
+    return allJunctions
 
 
 #############
@@ -1349,8 +1374,22 @@ class SUPPLEMENTARY_cluster(cluster):
         self.bkpSide = None
         self.annot = None
         self.bridge = False
-        self.BND = False
+
+    def bkpPos(self):
+        '''
+        Compute and return breakpoint position
+        '''
+        # a) Breakpoint on the left
+        if self.bkpSide == 'beg':
+            bkpPos = self.beg
+
+        # b) Breakpoint on the right
+        else:
+            bkpPos = self.end
         
+        return bkpPos
+        
+
 class DISCORDANT_cluster(cluster):
     '''
     Discordant cluster subclass
@@ -1383,13 +1422,12 @@ class META_cluster():
 
         # Set some metacluster properties as None
         self.bkpPos = None
-        self.nbReads = None
-        self.readList = None
         self.mutOrigin = None
         self.failedFilters = None
         self.consensusEvent = None                
         self.insertHits = None
         self.nbTotal, self.nbTumour, self.nbNormal, self.nbINS, self.nbDEL, self.nbCLIPPING = [None, None, None, None, None, None] 
+        self.nbReadsTotal, self.nbReadsTumour, self.nbReadsNormal, self.reads, self.readsTumour, self.readsNormal = [None, None, None, None, None, None] 
         self.cv = None
         self.bridgeType = None
 
@@ -1403,8 +1441,6 @@ class META_cluster():
         self.bridges = {}
         self.bridges['TRANSDUCTION'] = {}
         self.bridges['REPEAT'] = {}   
-        self.BNDs = {} 
-
 
     def sort(self):
         '''
@@ -1550,22 +1586,46 @@ class META_cluster():
         Compute the total number of metacluster supporting reads and generate a list of supporting read ids
 
         Output:
-            1. nbReads: Number of metacluster supporting reads
-            2. readList: List containing metacluster supporting reads
+            1. nbTotal: Total number of metacluster supporting reads
+            2. nbTumour: Number of metacluster supporting reads in the tumour 
+            3. nbNormal: Number of metacluster supporting reads in the normal
+            4. reads: List containing all the metacluster supporting reads
+            5. readsTumour: List containing metacluster supporting reads in the tumour sample
+            6. readsNormal: List containing metacluster supporting reads in the normal sample
         '''
-        readList = []
+        reads = []
+        readsTumour = []
+        readsNormal = []
 
         ## 1. Create non-redundant list of metacluster supporting reads
         for event in self.events: 
 
-            ## Add read name not already included in the list  
-            if event.readName not in readList:
-                readList.append(event.readName)
+            # Add read name not already included in the list  
+            if event.readName not in reads:
+                reads.append(event.readName)
 
-        ## 2. Compute total number of supporting reads
-        nbReads = len(readList)
-                
-        return nbReads, readList
+            ## Tumour and matched normal
+            # a) Event identified in the TUMOUR sample
+            if event.sample == "TUMOUR":
+            
+                # Add read name not already included in the list  
+                if event.readName not in readsTumour:
+                    readsTumour.append(event.readName)
+            
+            # b) Event identified in the matched NORMAL sample
+            elif event.sample == "NORMAL":
+
+                # Add read name not already included in the list  
+                if event.readName not in readsNormal:
+                    readsNormal.append(event.readName)            
+
+        ## 2. Compute number of supporting reads
+        nbTotal = len(reads) # total
+        nbTumour = len(readsTumour) # tumour
+        nbNormal = len(readsNormal) # normal
+
+        return nbTotal, nbTumour, nbNormal, reads, readsTumour, readsNormal
+
 
     def nbEvents(self):
         '''
@@ -2021,7 +2081,7 @@ class META_cluster():
                 bridge = self.bridges[bridgeType][bridgeSubtype]
 
                 ## Compute percentage of metacluster supporting reads composing the bridge 
-                percReads = float(bridge.nbReads()) / self.nbReads * 100
+                percReads = float(bridge.nbReads()) / self.nbReadsTotal * 100
 
                 ## Filter out bridges based on two criteria:
                 #    1) Bridge supported by less than X reads (DONE)
@@ -2060,51 +2120,67 @@ class META_cluster():
             self.bridgeType = None
 
 
-    def search4BND(self, minFragmentLen, minSupportingReads, minPercReads):
-        ''' 
-        Process supplementary alignments to identify BND junctions. 
-    
-        Each BND junction will correspond to a connection between the metacluster an another genomic regions. 
-    
-        Input:
-        1. minFragmentLen: minimum supplementary alignment cluster interval size
-        2. minSupportingReads: minimum number of reads supporting the BND connection
-        3. minPercReads: minimum percentage of clipping cluster reads supporting the BND
+    def search4junctions(self, metaclustersBinDb, minSupportingReads, minPercReads):
+        '''
+        Use supplementary alignments to identify connections between the metacluster and any other BND metacluster. 
 
-        Update 'BNDs' metacluster and 'BND' supplementary cluster attributes
-        '''  
-        ## 1. Search for BND junctions
+        Each of these connections will be a BND junction
+
+        Input:
+            1. metaclustersBinDb: bin database containing all the BND metaclusters identified in the sample
+            2. minSupportingReads: minimum number of reads supporting the BND junction 
+            3. minPercReads: minimum percentage of metacluster and partner metacluster reads supporting the BND junction
+
+        Output:
+            1. junctions: list of BND_junction objects
+        '''
+        # Initialize list of BND_junction objects
+        junctions = []
+
         # For each reference        
         for ref in self.supplClusters:
 
-            # For each suppl. cluster in the reference
+            # For each supplementary cluster in the reference
             for supplCluster in self.supplClusters[ref]:
+                
+                bkpPos = supplCluster.bkpPos()
 
-                ## Compute percentage of metacluster supporting reads composing supplementary alignment cluster
-                percReads = float(supplCluster.nbReads()) / self.nbReads * 100
- 
-                ## Supplementary cluster supports a BND if fulfills ALL these conditions:
-                #      1) NOT supports a bridge
-                #      2) Interval length >= minFragmentLen
-                #      3) Supported by >= minSupportingReads
-                #      4) Percentage of reads supporting suppl. cluster >= minPercReads
-                if (not supplCluster.bridge) and (supplCluster.length() >= minFragmentLen) and (supplCluster.nbReads() >= minSupportingReads) and (percReads >= minPercReads):
-                    supplCluster.BND = True
+                # Discard supplementary cluster as no metacluster on that reference
+                if supplCluster.ref not in metaclustersBinDb:
+                    continue
+                
+                # Retrieve metacluster bin database on that reference
+                binDbRef = metaclustersBinDb[supplCluster.ref]
 
-                    ## Create BND junction object
-                    #BND_JUNCTION(refA, bkpA, refB, bkpB, supplCluster.nbReads())
+                # Search for BND metaclusters at supplementary cluster breakpoint 
+                buffer = 100
+                partnerMetaclusters = binDbRef.collect_interval(supplCluster.beg - buffer, supplCluster.end + buffer, ['BND'])
 
-                    ## Infer BND junction type
+                # For each metacluster - partner metacluster pair apply filters and create BND junction
+                for match in partnerMetaclusters:
+                    partner = match[0]
 
-                    ## Add BND junction to the dict
-                    # a) First BND at this ref, initialize list
-                    #if supplCluster.ref not in self.BNDs:
-                    #    self.BNDs[supplCluster.ref] = [supplCluster]
-                    
-                    # b) There´re BNDs at this ref, add to pre-existing list
-                    #else:
-                    #    self.BNDs[supplCluster.ref].append(supplCluster)
+                    ## Compute % of metacluster and partner metacluster reads supporting BND junction 
+                    percReadsMeta = float(supplCluster.nbReads()) / self.nbReadsTotal * 100
+                    percReadsPartner = float(supplCluster.nbReads()) / partner.nbReadsTotal * 100 # Note: here % can be >100% (fix issue later by selecting suppl.cluster from the partner)
 
+                    ## Create BND junction if connection fulfills ALL these contitions: 
+                    #      1) NOT supports a bridge
+                    #      2) Supported by >= minSupportingReads
+                    #      3) Percentage of reads supporting supplementary cluster >= minPercReads for both metacluster and partner
+                    if (not supplCluster.bridge) and (supplCluster.nbReads() >= minSupportingReads) and (percReadsMeta >= minPercReads) and (percReadsPartner >= minPercReads):
+
+                        ## Create BND junction
+                        junction = BND_junction(self, partner)
+
+                        ## Add bridges to the junction
+                        junction.bridgeType = self.bridgeType
+                        junction.bridges = self.bridges 
+
+                        ## Add junction to the list
+                        junctions.append(junction)
+        
+        return junctions
 
     def determine_INS_type(self, hits_genome, hits_splicing, hits_viral, repeatsDb, transducedDb, exonsDb):
         '''
@@ -2545,3 +2621,112 @@ class BRIDGE():
         nbReads = len(readList)
         return nbReads
             
+
+class BND_junction():
+    '''
+    Rearrangement bridge class
+    '''
+    def __init__(self, metaclusterA, metaclusterB):
+
+        self.metaclusterA = metaclusterA
+        self.metaclusterB = metaclusterB
+
+        ## Initialize bridge information
+        self.bridgeType = None
+        self.bridges = {}   
+
+    def junctionCoord(self):
+        '''
+        Return a string containing junction coordinates with the following format: 
+            refA:bkpCoordA-refB:bkpCoordB
+        '''
+        coord = self.metaclusterA.ref + ':' + str(self.metaclusterA.bkpPos) + '-' + self.metaclusterB.ref + ':' + str(self.metaclusterB.bkpPos)
+        return coord
+
+    def junctionCoord_rev(self):
+        '''
+        Return a string containing junction coordinates with the following format: 
+            refB:bkpCoordB-refA:bkpCoordA        
+        '''
+        coord = self.metaclusterB.ref + ':' + str(self.metaclusterB.bkpPos) + '-' + self.metaclusterA.ref + ':' + str(self.metaclusterA.bkpPos)
+        return coord
+
+    def junctionType(self):
+        '''
+        Determine BND junctions type.
+
+        Output:
+            1. junctionType: intrachromosomal or interchromosomal (for now... later make code able to differenciate tanden dup, inversions, ...)
+        '''
+
+        # 1) Intrachromosomal
+        if self.metaclusterA.ref == self.metaclusterB.ref:
+            junctionType = 'intrachromosomal'
+
+        # 2) Interchromosomal 
+        else:
+            junctionType = 'interchromosomal'
+
+        return junctionType             
+
+    def bridgeInfo(self):
+        '''
+        Gather information regarding the repeat/transduction bridge at the BND junction
+
+        Output:
+            1. family: repeat family mediating the bridge. None if no repeat bridge was found
+            2. cytobandId: cytoband identifier of the source element mediating the bridge. None if no transduction bridge was found
+            4. nbReadsRepeatBridge: number of reads supporting a repeat bridge
+            3. nbReadsTdBridge: number of reads supporting a transduction bridge
+        '''
+        ## Take into account the type of bridge to collect the info
+        # A) Partnered bridge
+        if self.bridgeType == 'partnered':
+            family = list(self.bridges['REPEAT'].keys())[0]
+            cytobandId = list(self.bridges['TRANSDUCTION'].keys())[0]
+            nbReadsRepeatBridge = self.bridges['REPEAT'][family].nbReads()
+            nbReadsTdBridge = self.bridges['TRANSDUCTION'][cytobandId].nbReads()
+
+        # b) Orphan bridge
+        elif self.bridgeType == 'orphan':
+            family = None
+            cytobandId = list(self.bridges['TRANSDUCTION'].keys())[0]
+            nbReadsRepeatBridge = 0 
+            nbReadsTdBridge = self.bridges['TRANSDUCTION'][cytobandId].nbReads()
+
+        # c) Solo repeat
+        elif self.bridgeType == 'repeat':
+            family = list(self.bridges['REPEAT'].keys())[0]
+            cytobandId = None
+            nbReadsRepeatBridge = self.bridges['REPEAT'][family].nbReads()  
+            nbReadsTdBridge = 0 
+
+        # d) No bridge identified
+        else:
+            family = None
+            cytobandId = None
+            nbReadsRepeatBridge = 0
+            nbReadsTdBridge = 0 
+
+        return family, cytobandId, nbReadsRepeatBridge, nbReadsTdBridge
+        
+    def supportingReads(self):
+        '''
+        Compute the number of reads supporting the BND junction
+
+        Output:
+            1. nbTotal: Total number of metacluster supporting reads
+            2. nbTumour: Number of metacluster supporting reads in the tumour 
+            3. nbNormal: Number of metacluster supporting reads in the normal
+        '''
+        ## Total number of reads
+        nbTotal = len(set(self.metaclusterA.reads + self.metaclusterB.reads))
+
+        ## Number of reads in the tumour
+        nbTumour = len(set(self.metaclusterA.readsTumour + self.metaclusterB.readsTumour))
+
+        ## Number of reads in the normal
+        nbNormal = len(set(self.metaclusterA.readsNormal + self.metaclusterB.readsNormal))
+
+        return nbTotal, nbTumour, nbNormal
+
