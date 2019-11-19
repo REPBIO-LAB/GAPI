@@ -9,6 +9,7 @@ def write_INS(INS_metaclusters, outFileName, outDir):
         1. INS_metaclusters: list containing list of INS metaclusters
         2. outFileName: Output file name
         3. outDir: Output directory
+
     Output: tsv file containing identified metaclusters
     '''
     ## 1. Open output file 
@@ -135,3 +136,45 @@ def writeMetaclusters(metaclustersList, outDir):
          
     ## Close output file ##
     outFile.close()
+
+
+def write_junctions(junctions, outFileName, outDir):
+    '''
+    Write BND junction calls into a tsv file
+
+    Input:
+        1. junctions: list containing list of BND junction objects 
+        2. outFileName: Output file name
+        3. outDir: Output directory
+        
+    Output: tsv file containing identified BND junctions
+    '''
+    ## 1. Open output file 
+    outFilePath = outDir + '/' + outFileName
+    outFile = open(outFilePath, 'w')
+
+    ## 2. Write header 
+    row = "#refA \t bkpA \t refB \t bkpB \t junctionType \t nbReadsTotal \t nbReadsTumour \t nbReadsNormal \t bridgeType \t family \t srcId \t nbReadsRepBridge \t nbReadsTdBridge \n"
+    outFile.write(row)
+
+    ## 3. Write BND junctions  
+    # For each junction
+    for junction in junctions:
+        
+        ## Collect into to write into file:
+        refA = junction.metaclusterA.ref
+        bkpA = junction.metaclusterA.bkpPos
+        refB = junction.metaclusterB.ref
+        bkpB = junction.metaclusterB.bkpPos
+        junctionType = junction.junctionType()
+        nbReadsTotal, nbReadsTumour, nbReadsNormal = junction.supportingReads()
+        bridgeType = junction.bridgeType 
+        family, srcId, nbReadsRepBridge, nbReadsTdBridge = junction.bridgeInfo()
+
+        # Write BND junction call into output file
+        row = "\t".join([refA, str(bkpA), refB, str(bkpB), junctionType, str(nbReadsTotal), str(nbReadsTumour), str(nbReadsNormal), str(bridgeType), str(family), str(srcId), str(nbReadsRepBridge), str(nbReadsTdBridge), "\n"])
+        outFile.write(row)
+
+    ## Close output file ##
+    outFile.close()
+
