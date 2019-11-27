@@ -178,3 +178,66 @@ def write_junctions(junctions, outFileName, outDir):
     ## Close output file ##
     outFile.close()
 
+
+def write_tdCounts_surelect(clusterPerSrc, outDir):
+    '''
+    Compute transduction counts per source element and write into file
+
+    Input:
+        1. clusterPerSrc: list containing list of BND junction objects 
+        2. outDir: Output directory
+        
+    Output: tsv file containing transduction counts per source element
+    '''
+    ## 1. Compute number of transductions per source element
+    counts = []
+
+    for srcId, clusters in clusterPerSrc.items():
+        nbTd = len(clusters)
+        counts.append((srcId, nbTd))
+    
+    ## 2. Sort source elements in decreasing order of counts
+    sortedCounts = sorted(counts, key=lambda x: x[1], reverse=True)
+
+    ## 3. Write header 
+    outFilePath = outDir + '/transduction_counts.tsv'
+    outFile = open(outFilePath, 'w')
+
+    row = "#srcId \t nbTransductions \n"
+    outFile.write(row)
+
+    ## 4. Write counts 
+    for srcId, nbTd in sortedCounts:
+        row = "\t".join([srcId, str(nbTd), "\n"])
+        outFile.write(row)       
+
+
+def write_tdCalls_surelect(clusterPerSrc, outDir):
+    '''
+    Compute transduction counts per source element and write into file
+
+    Input:
+        1. clusterPerSrc: list containing list of BND junction objects 
+        2. outDir: Output directory
+        
+    Output: tsv file containing transduction counts per source element
+    '''
+    ## 1. Write header 
+    outFilePath = outDir + '/transduction_calls.tsv'
+    outFile = open(outFilePath, 'w')
+
+    row = "#ref \t beg \t end \t srcId \t nbReads \n"
+    outFile.write(row)
+
+    ## 4. Write transduction calls 
+    for srcId, clusters in clusterPerSrc.items(): 
+
+        for cluster in clusters:
+            ref = cluster.events[0].mateRef
+            beg, end = cluster.mates_start_interval()
+            nbReads = cluster.nbReads()
+            
+            row = "\t".join([ref, str(beg), str(end), srcId, str(nbReads), "\n"])
+
+            outFile.write(row)
+
