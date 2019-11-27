@@ -2,8 +2,11 @@
 Module 'filters' - Contains functions for filtering clusters
 '''
 
-## [SR CHANGE]
+## External
 import pysam
+
+## Internal
+import gRanges
 
 ###############
 ## FUNCTIONS ##
@@ -234,6 +237,34 @@ def SVTypeFilter(metacluster):
 
     return PASS
 
+
+def filter_discordant_mate_position(discordants, ref, beg, end):
+    '''
+    Filter out discordant cluster if mates align within provided region as input
+
+    Input:
+        1. discordants: list of discordant clusters (clustering of discordant done by proximity and then by mate position)
+        2. ref: reference for excluded region
+        3. beg: begin for excluded region 
+        4. end: end for excluded region
+
+    Output:
+        1. filteredDiscordant: list of filtered discordant clusters
+    '''
+    filteredDiscordant = []
+
+    for cluster in discordants:
+
+        ## Retrieve mates interval of mate positions
+        matesBeg, matesEnd = cluster.mates_start_interval()
+
+        ## Check if mates interval overlaps with excluded region
+        overlap, overlapLen = gRanges.overlap(matesBeg, matesEnd, beg, end)
+
+        if not overlap:
+            filteredDiscordant.append(cluster)
+    
+    return filteredDiscordant
 
 # --------------- SHORT READS -----------------------
 # HACER OTRA PARECIDA A LA QUE ESTABA PARA SHORT READS
