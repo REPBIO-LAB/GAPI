@@ -145,15 +145,25 @@ def extra_clustering_by_matePos(discordantClusters, refLengths, minClusterSize):
         3. minClusterSize: minimum cluster size
 
     Output:
-
+        1. outDiscordantClusters: dictionary containing for each possible discordant cluster type (keys) the list of newly created clusters (values)
     '''
+    outDiscordantClusters = {}
+
     ## For each discordant cluster type
     for clusterType, clusters in discordantClusters.items():
         
+        outDiscordantClusters[clusterType] = []
+
         ## For each cluster
         for cluster in clusters:
 
-            cluster_discordants_by_matePos(cluster.events, refLengths, minClusterSize)
+            ## Cluster by mate position
+            newClusters = cluster_discordants_by_matePos(cluster.events, refLengths, minClusterSize)
+            
+            ## Add newly created clusters to the list
+            outDiscordantClusters[clusterType] = outDiscordantClusters[clusterType] + newClusters
+
+    return outDiscordantClusters
 
 def cluster_discordants_by_matePos(discordants, refLengths, minClusterSize):
     '''
@@ -194,7 +204,7 @@ def cluster_discordants_by_matePos(discordants, refLengths, minClusterSize):
     for ref in matesBinDb:
         binDb = matesBinDb[ref]
         binLevel = binDb.binSizes[0]
-        clusters = clustering.distance_clustering(binDb, binLevel, ['DISCORDANT_MATE'], 'DISCORDANT', binLevel, 1)
+        clusters = clustering.distance_clustering(binDb, binLevel, ['DISCORDANT_MATE'], 'DISCORDANT', binLevel, minClusterSize)
         mateClusters = mateClusters + clusters
     
     ## 5. Make clusters of discordants based on mate clusters
@@ -202,12 +212,15 @@ def cluster_discordants_by_matePos(discordants, refLengths, minClusterSize):
 
     # For each mate cluster in the reference
     for mateCluster in mateClusters:
-
-        # Create cluster composed by the discordant read pairs corresponding to the mates
+        
+        # Retrieve original discordants for mates
         discordants = [discordantsDict[mate.fullReadName_mate()] for mate in mateCluster.events]
 
+        # Create cluster
+        discordantCluster = create_cluster(discordants, 'DISCORDANT')
+
         # Add group to the list
-        #discordantClusters = discordantClusters + .append(discordants)
+        discordantClusters.append(discordantCluster)
 
     return discordantClusters
     
@@ -410,8 +423,6 @@ def lighten_up_metaclusters(metaclusters):
             if 'INS' in metacluster.subclusters:
                 metacluster.cv = metacluster.subclusters['INS'].cv_len()[1]
 
-            # Remove events and subclusters from metacluster instance 
-            metacluster.events = None
             metacluster.subclusters = None
 
 
@@ -1328,9 +1339,12 @@ class CLIPPING_cluster(cluster):
         supplAlignmentsDictList = []
                 
         for clipping in self.events:
+
+            print('CLIPPING_EVENT: ', clipping.clippingType, clipping.clippedSide, clipping.readBkp, clipping.length, clipping.reverse)
             supplAlignmentsDict = clipping.parse_supplAlignments_field()
             supplAlignmentsDictList.append(supplAlignmentsDict)
-        
+            print('----------------------')
+
         ## 2. Merge suppl. alignments into a single dictionary
         allSupplAlignmentsDict = structures.merge_dictionaries(supplAlignmentsDictList)
 
@@ -1398,6 +1412,22 @@ class DISCORDANT_cluster(cluster):
 
         cluster.__init__(self, events, 'DISCORDANT')
         self.matesCluster = None
+
+    def mates_start_interval(self):
+        '''
+        Compute mates start alignment position interval. 
+        
+        Only makes senses if all the mates composing the cluster are clustered 
+        in the same chromosome
+
+        Output:
+            1. beg: interval begin position
+            2. end: interval end position
+        '''
+        starts = [event.mateStart for event in self.events]
+        beg = min(starts)
+        end = max(starts)
+        return beg, end
 
 class META_cluster():
     '''
@@ -1971,6 +2001,7 @@ class META_cluster():
             ## Determine BND breakpoint position
             self.bkpPos = clippingCluster.infer_breakpoint()
 
+            ## 
             ## Cluster supplementary alignment positions
             self.supplClusters =  clippingCluster.cluster_suppl_positions()
 
