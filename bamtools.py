@@ -76,7 +76,7 @@ def alignment_length_cigar(CIGAR):
         length = int(cigarTuple[0])
         operation = cigarTuple[1]
 
-        ### Update position over reference and read sequence
+        ### Update reference alignment length
         ## a) Operations consuming query and reference
         # - Op M, tag 0, alignment match (can be a sequence match or mismatch)
         # - Op =, tag 7, sequence match
@@ -91,6 +91,71 @@ def alignment_length_cigar(CIGAR):
             alignmentLen += length
             
     return alignmentLen
+
+
+def alignment_interval_query(CIGAR, orientation):
+    '''
+    Compute alignment on the reference length from CIGAR string
+
+    Input:
+        1. CIGAR: CIGAR string
+        2. orientation: alignment orientation (+ or -) 
+
+    Output:
+        1. beg: begin position in query
+        2. end: end position in query
+    '''
+    ## 1. Read CIGAR string using proper module
+    cigar = Cigar(CIGAR)
+
+    ## 2. Iterate over the operations and compute query alignment length and start position in query
+    alignmentLen = 0
+    counter = 0 # Count operations
+
+    for cigarTuple in list(cigar.items()):
+
+        length = int(cigarTuple[0])
+        operation = cigarTuple[1]
+
+        ## Set start position in query based on first operation 
+        if counter == 0:
+
+            # a) Soft or Hard clipping
+            if (operation == 'S') or (operation == 'H'):
+                startPos = length
+
+            # b) No clipping
+            else:
+                startPos = 0
+            
+        #### Update query alignment length
+        # - Op M, alignment match (can be a sequence match or mismatch)
+        # - Op =, sequence match
+        # - Op X, sequence mismatch
+        # - Op I, insertion to the reference
+        if (operation == 'M') or (operation == '=') or (operation == 'X') or (operation == 'I'):
+            alignmentLen += length
+
+        ## Update operations counter
+        counter += 1
+
+    ## 3. Compute alignment interval in raw query
+    ## Compute read length
+    readLen = len(cigar)
+
+    # a) Query aligned in +
+    if orientation == '+':
+        beg = startPos
+        end = startPos + alignmentLen
+
+    # b) Query aligned in - (reversed complemented to align)
+    else:
+        beg = readLen - startPos - alignmentLen
+        end = readLen - startPos
+        
+    print('INTERVAL_QUERY: ', beg, end)
+
+    #return beg, end
 
 
 def SAM2BAM(SAM, outDir):
@@ -267,7 +332,7 @@ def binning(targetBins, bam, binSize, targetRefs):
         3. targetRefs: Comma separated list of target references
 
     Output:
-        1. bins: List of bins. Each list item corresponds to a tuple (ref, beg, end)
+        1. bins: List of bins. Each list item corresponds to a list [ref, beg, end]
     '''
 
     # A) Create bins de novo
@@ -280,7 +345,7 @@ def binning(targetBins, bam, binSize, targetRefs):
     else:
         BED = formats.BED()
         BED.read(targetBins, 'List', None)        
-        bins = [ (line.ref, line.beg, line.end) for line in BED.lines]
+        bins = [ [line.ref, line.beg, line.end] for line in BED.lines]
     
     return bins
 
@@ -410,8 +475,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
         eventsDict['RIGHT-CLIPPING'] = []
     
     if 'DISCORDANT' in confDict['targetSV']:
-        eventsDict['PLUS-DISCORDANT'] = []
-        eventsDict['MINUS-DISCORDANT'] = []
+        eventsDict['DISCORDANT'] = []
 
     ## Open BAM file for reading
     bamFile = pysam.AlignmentFile(bam, "rb")
@@ -468,15 +532,8 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
 
                 # Add discordant events
                 for discordant in DISCORDANTS:
-
-                    # a) Forward orientation
-                    if discordant.orientation == 'PLUS':
-                        eventsDict['PLUS-DISCORDANT'].append(discordant)
+                    eventsDict['DISCORDANT'].append(discordant)
         
-                    # b) Reverse 
-                    else:
-                        eventsDict['MINUS-DISCORDANT'].append(discordant)
-
     ## Close 
     bamFile.close()
 
