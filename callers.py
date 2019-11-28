@@ -63,6 +63,7 @@ class SV_caller_long(SV_caller):
         log.header(msg)
         allMetaclusters = self.make_clusters()
 
+        '''
         ### 2. Annotate SV clusters intervals  
         msg = '2. Annotate SV clusters intervals'
         log.header(msg)
@@ -73,6 +74,7 @@ class SV_caller_long(SV_caller):
 
         # Reference lengths, needed for repeats annotation
         refLengths = bamtools.get_ref_lengths(self.bam)
+        
 
         # Define annotation steps
         steps = ['REPEAT']
@@ -123,6 +125,8 @@ class SV_caller_long(SV_caller):
             # Remove output directory
             unix.rm([outDir])
 
+        
+
         ### 5. Identify BND junctions
         msg = '5. Identify BND junctions'
         log.header(msg)
@@ -166,7 +170,7 @@ class SV_caller_long(SV_caller):
         if allJunctions:
             outFileName = 'BND_junctions_MEIGA.PASS.tsv'
             output.write_junctions(allJunctions, outFileName, self.outDir)
-
+        '''
         
     def make_clusters(self):
         '''
@@ -593,27 +597,43 @@ class SV_caller_sureselect(SV_caller):
         Search for structural variants (SV) genome wide or in a set of target genomic regions
         '''
 
-        ### 1. Load reference annotations prior SV calling 
-        annotDir = self.outDir + '/ANNOT/'
-        unix.mkdir(annotDir)
+        ### 1. Create bed file containing source element´s transduced intervals 
+        tdDir = self.outDir + '/TRANSDUCED/'
+        unix.mkdir(tdDir)
+        sourceBed = self.refDir + '/srcElements.bed'
+        transducedPath = databases.create_transduced_bed(sourceBed, 10000, tdDir)
+                
+        ### 2. Define genomic bins to search for SV (will correspond to transduced areas)
+        bins = bamtools.binning(transducedPath, None, None, None)
 
-        refLengths = bamtools.get_ref_lengths(self.bam)
-        #annotations2load = ['TRANSDUCTIONS', 'REPEATS']
-        annotations2load = ['TRANSDUCTIONS']        
-        self.annotations = annotation.load_annotations(annotations2load, refLengths, self.refDir, self.confDict['processes'], annotDir)
+        ### 3. Associate to each bin the src identifier
+        BED = formats.BED()
+        BED.read(transducedPath, 'List', None)   
+
+        for index, coords in enumerate(bins):
+            coords.append(BED.lines[index].optional['cytobandId'])
         
-        ### 2. Define genomic bins to search for SV 
-        bins = bamtools.binning(self.confDict['targetBins'], self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
+        unix.rm([tdDir])
 
-        ### 3. Search for SV clusters in each bin 
+        ### 4. Search for SV clusters in each bin 
         # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
         pool.starmap(self.make_clusters_bin, bins)
-        #discordantClusters = pool.starmap(self.make_clusters_bin, bins)
+        clusterPerSrc = pool.starmap(self.make_clusters_bin, bins)
         pool.close()
         pool.join()
 
-    def make_clusters_bin(self, ref, beg, end):
+        # Convert into dictionary
+        clusterPerSrcDict = {srcId:clusters for srcId,clusters in clusterPerSrc}
+
+        ### 5. Write calls to file
+        ## 5.1 Transduction counts per source element
+        output.write_tdCounts_surelect(clusterPerSrcDict, self.outDir)
+
+        ## 5.2 Transduction calls
+        output.write_tdCalls_surelect(clusterPerSrcDict, self.outDir)
+
+    def make_clusters_bin(self, ref, beg, end, srcId):
         '''
         Search for structural variant (SV) clusters in a genomic bin/window
         '''
@@ -622,9 +642,6 @@ class SV_caller_sureselect(SV_caller):
         binId = '_'.join([str(ref), str(beg), str(end)])
         msg = 'SV calling in bin: ' + binId
         log.subHeader(msg)
-
-        binDir = self.outDir + '/CLUSTER/' + binId
-        unix.mkdir(binDir)
 
         ## 1. Search for SV candidate events in the bam file/s ##
         # a) Single sample mode
@@ -640,10 +657,6 @@ class SV_caller_sureselect(SV_caller):
         counts = [str(len(eventsDict[SV_type])) for SV_type in SV_types]
         msg = 'Number of SV events in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
         log.step(step, msg)
-
-        if counts == []:
-            unix.rm([binDir])
-            return None
         
         ## 2. Organize discordant read pairs into genomic bins prior clustering ##
         step = 'BINNING'
@@ -652,7 +665,7 @@ class SV_caller_sureselect(SV_caller):
 
         ## Define bin database sizes 
         ## Note: bigger window sizes are needed for SR (see comments, ask Eva where are the comments?)
-        binSizes = [1000, 10000, 100000, 1000000]
+        binSizes = [500, 1000, 10000, 100000, 1000000]
 
         ## Create bins
         discordantsBinDb = structures.create_bin_database_interval(ref, beg, end, eventsDict, binSizes)
@@ -665,8 +678,6 @@ class SV_caller_sureselect(SV_caller):
         buffer = 100
         discordantClustersDict = clusters.create_discordantClusters(discordantsBinDb, self.confDict['minClusterSize'], buffer)
 
-        print('discordantClustersDict: ', discordantClustersDict)
-
         ## 4. Do an extra clustering step based on mate position ##
         step = 'GROUP-BY-MATE'
         msg = 'Group discordant read pairs based on mate position'
@@ -676,63 +687,14 @@ class SV_caller_sureselect(SV_caller):
         refLengths = bamtools.get_ref_lengths(self.bam)
 
         ## Make groups
-        clusters.extra_clustering_by_matePos(discordantClustersDict, refLengths, self.confDict['minClusterSize'])
+        discordantClustersDict = clusters.extra_clustering_by_matePos(discordantClustersDict, refLengths, self.confDict['minClusterSize'])
 
-        #discordantGroups = clusters.group_discordants_by_matePos(discordantClustersDict, refLengths)
-
-
-        '''
-        print('discordantGroups: ', len(eventsDict['DISCORDANT']), len(discordantGroups), discordantGroups)
-
-        for group in discordantGroups:
-            print('DISCORDANT_GROUP: ', len(group), group)
-        
-        
-        step = 'IDENTITY'
-        SV_types = sorted(discordantsIdentity.keys())
-        counts = [str(len(discordantsIdentity[SV_type])) for SV_type in SV_types]
-        msg = 'Number of SV events per identity in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
+        ## 5. Filter out those clusters whose mates aligns over source element downstream region ##
+        step = 'FILTER_DOWSTREAM'
+        msg = 'Filter out those clusters whose mates aligns over source element downstream region'
         log.step(step, msg)
 
-        if counts == []:
-            unix.rm([binDir])
-            return None     
-        
-        
-        ## 3. Organize discordant read pairs into genomic bins prior clustering ##
-        step = 'BINNING'
-        msg = 'Organize discordant read pairs into genomic bins prior clustering'
-        log.step(step, msg)
+        filteredDiscordants = filters.filter_discordant_mate_position(discordantClustersDict['DISCORDANT'], ref, beg - 7000, end + 7000)
 
-        ## Define bin database sizes 
-        ## Note: bigger window sizes are needed for SR (see comments, ask Eva where are the comments?)
-        binSizes = [1000, 10000, 100000, 1000000]
-
-        ## Create bins
-        discordantsBinDb = structures.create_bin_database_interval(ref, beg, end, discordantsIdentity, binSizes)
-        print('discordantsBinDb: ', discordantsBinDb)
-        
-        
-        ## 4. Group discordant read pairs into clusters based on their mate identity ##
-        buffer = 100
-        discordantClustersDict = clusters.create_discordantClusters(discordantsBinDb, self.confDict['minClusterSize'], buffer)
-    
-        step = 'DISCORDANT-CLUSTERING'
-        SV_types = sorted(discordantClustersDict.keys())
-        counts = [str(len(discordantClustersDict[SV_type])) for SV_type in SV_types]
-        msg = 'Number of created discordant clusters in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
-        log.step(step, msg)
-
-        if counts == []:
-            unix.rm([binDir])
-            return None
-
-        print('discordantClustersDict: ', discordantClustersDict)
-
-        for clusterType, clusterList in discordantClustersDict.items():
-            print("CLUSTER_TYPE: ", clusterType, len(clusterList))
-            for cluster in clusterList:
-                print('CLUSTER: ', cluster.ref, cluster.beg, cluster.end)
-        '''
-
+        return [srcId, filteredDiscordants]  
 
