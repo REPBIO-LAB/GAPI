@@ -138,7 +138,6 @@ def pick_flanking_seq_CLIPPING(readSeq, readPos, clippedSide, overhang):
 
     return seq, seqPos
 
-
 def determine_clippingType(alignmentObj, clippedSide):
     '''
     Determine if soft or hard clipping
@@ -163,6 +162,7 @@ def determine_clippingType(alignmentObj, clippedSide):
     clippingType = 'soft' if (operation == 4) else 'hard'
 
     return clippingType
+
 
 def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb):
     '''
@@ -476,7 +476,7 @@ class CLIPPING():
 
             # Extract info
             ref, beg, strand, CIGAR, mapQ, NM = supplAlignment.split(',')
-
+            
             # Compute suppl. alignment end from CIGAR string
             alignmentLen = bamtools.alignment_length_cigar(CIGAR)
             end = int(beg) + alignmentLen
@@ -484,6 +484,10 @@ class CLIPPING():
             # Create suppl. alignment object
             supplObject = SUPPLEMENTARY(ref, beg, end, strand, CIGAR, mapQ, NM, self.readName)
 
+            # Test code for obtaining read level alignment coordinates
+            print('supplAlignment: ', supplObject)
+            supplObject.readCoordinates()
+        
             # Initialize ref if necessary
             if supplObject.ref not in supplAlignmentsDict:
                 supplAlignmentsDict[supplObject.ref] = []
@@ -510,6 +514,14 @@ class SUPPLEMENTARY():
         self.mapQ = mapQ
         self.NM = NM
         self.readName = readName
+    
+    def readCoordinates(self):
+        '''
+        Compute read level alignment coordinates
+        '''
+        print('readCoordinates: ', self.ref, self.beg, self.end, self.orientation, self.CIGAR)
+
+        bamtools.alignment_interval_query(self.CIGAR, self.orientation)
           
 class DISCORDANT():
     '''
