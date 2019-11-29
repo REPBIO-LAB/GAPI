@@ -7,6 +7,7 @@ import pysam
 
 ## Internal
 import gRanges
+import bamtools
 
 ###############
 ## FUNCTIONS ##
@@ -265,6 +266,48 @@ def filter_discordant_mate_position(discordants, ref, beg, end):
             filteredDiscordant.append(cluster)
     
     return filteredDiscordant
+
+
+def filter_discordant_mate_MAPQ(discordants, minMAPQ, bam):
+    '''
+    Filter out discordant clusters based on average MAPQ for mate alignments
+
+    Input:
+        1. discordants: list of discordant clusters (clustering of discordant done by proximity and then by mate position)
+        2. minMAPQ: minimum average of mapping quality for mate alignments
+        3. bam: path to bam file containing alignments for discordant cluster supporting reads and their mate
+
+    Output:
+        1. filteredDiscordant: list of filtered discordant clusters
+    '''
+    filteredDiscordant = []
+
+    ## Open BAM file for reading
+    bamFile = pysam.AlignmentFile(bam, "rb")
+
+    for cluster in discordants:
+
+        ## Define interval to search for mate alignment objects
+        matesBeg, matesEnd = cluster.mates_start_interval()
+
+        intervalRef = cluster.events[0].mateRef 
+        intervalBeg = matesBeg - 500
+        intervalEnd = matesEnd + 500
+
+        ## Collect cluster supporting reads
+        nbTotal, nbTumour, nbNormal, readIds, readIdsTumour, readIdsNormal = cluster.supportingReads()
+
+        ## Compute average mapping quality for mates of cluster supporting reads
+        avMAPQ = bamtools.average_MAPQ_reads_interval(intervalRef, intervalBeg, intervalEnd, readIds, bamFile)
+        
+        if avMAPQ >= minMAPQ:
+            filteredDiscordant.append(cluster)
+        
+    ## Close 
+    bamFile.close()
+
+    return filteredDiscordant
+
 
 # --------------- SHORT READS -----------------------
 # HACER OTRA PARECIDA A LA QUE ESTABA PARA SHORT READS
