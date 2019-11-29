@@ -8,6 +8,8 @@ import pysam
 import subprocess
 import sys
 from cigar import Cigar
+import numpy as np
+
 
 # Internal
 import log
@@ -858,3 +860,34 @@ def collectMateSeq(event, bamFile, checkUnmapped, maxMAPQ):
                         log.subHeader(msg)
                         event.mateSeq = alignmentObjMate.query_sequence
                         break
+
+def average_MAPQ_reads_interval(ref, beg, end, readIds, bam):
+    '''
+    Retrieve a set of target reads in a genomic interval. Then compute their average MAPQ
+
+    Input:
+        1. ref: target reference
+        2. beg: interval begin position
+        3. end: interval end position
+        4. readIds: list of target read ids
+        5. bam: pysam filehandler for bam file 
+
+    Output:
+        1. avMAPQ: average mapping quality
+    '''
+    ## 1. Collect alignments in the input interval
+    iterator = bam.fetch(ref, beg, end)
+
+    ## 2. Select only those alignments corresponding to the target reads 
+    alignments = []
+
+    for alignment in iterator:
+        
+        if alignment.query_name in readIds:
+            alignments.append(alignment)
+        
+    ## 3. Compute average MAPQ for mates
+    qualities = [alignment.mapping_quality for alignment in alignments]
+    avMAPQ = np.mean(qualities)
+    
+    return avMAPQ
