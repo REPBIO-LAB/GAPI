@@ -1120,6 +1120,51 @@ class cluster():
 
         return FASTA
 
+    def supportingReads(self):
+        '''
+        Compute the total number of metacluster supporting reads and generate a list of supporting read ids
+
+        Output:
+            1. nbTotal: Total number of metacluster supporting reads
+            2. nbTumour: Number of metacluster supporting reads in the tumour 
+            3. nbNormal: Number of metacluster supporting reads in the normal
+            4. reads: List containing all the metacluster supporting reads
+            5. readsTumour: List containing metacluster supporting reads in the tumour sample
+            6. readsNormal: List containing metacluster supporting reads in the normal sample
+        '''
+        reads = []
+        readsTumour = []
+        readsNormal = []
+
+        ## 1. Create non-redundant list of metacluster supporting reads
+        for event in self.events: 
+
+            # Add read name not already included in the list  
+            if event.readName not in reads:
+                reads.append(event.readName)
+
+            ## Tumour and matched normal
+            # a) Event identified in the TUMOUR sample
+            if event.sample == "TUMOUR":
+            
+                # Add read name not already included in the list  
+                if event.readName not in readsTumour:
+                    readsTumour.append(event.readName)
+            
+            # b) Event identified in the matched NORMAL sample
+            elif event.sample == "NORMAL":
+
+                # Add read name not already included in the list  
+                if event.readName not in readsNormal:
+                    readsNormal.append(event.readName)            
+
+        ## 2. Compute number of supporting reads
+        nbTotal = len(reads) # total
+        nbTumour = len(readsTumour) # tumour
+        nbNormal = len(readsNormal) # normal
+
+        return nbTotal, nbTumour, nbNormal, reads, readsTumour, readsNormal
+        
     def nbEvents(self):
         '''
         Return the number of events composing the cluster
