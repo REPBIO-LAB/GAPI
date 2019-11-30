@@ -5,6 +5,31 @@ Module 'gRanges' - Contains functions to do operations with genomic ranger or co
 ## DEPENDENCIES ##
 
 ## FUNCTIONS ##
+def rangeList2dict(ranges):
+    '''
+    Organize list of ranges into a dictionary  
+
+    Input:
+        1. ranges: list of ranges. Each list item corresponds to a tuple (ref, beg, end)
+
+    Output:
+        1. rangesDict: Dictionary with reference ids as keys and the list of ranges on each reference as values
+    '''    
+    rangesDict = {}
+
+    # For each interval
+    for interval in ranges:
+        ref, beg, end = interval
+
+        # Initialize interval list at reference
+        if ref not in rangesDict:
+            rangesDict[ref] = []
+
+        # Add interval to the list
+        rangesDict[ref].append([beg, end])
+    
+    return rangesDict
+
 def overlap(begA, endA, begB, endB):
     '''
     Check if two ranges overlap    
