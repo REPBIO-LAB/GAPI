@@ -238,16 +238,38 @@ def SVTypeFilter(metacluster):
 
     return PASS
 
-
-def filter_discordant_mate_position(discordants, ref, beg, end):
+def filter_discordant_mate_ref(discordants, targetRefs):
     '''
-    Filter out discordant cluster if mates align within provided region as input
+    Filter out discordant cluster located over not target references
 
     Input:
-        1. discordants: list of discordant clusters (clustering of discordant done by proximity and then by mate position)
-        2. ref: reference for excluded region
-        3. beg: begin for excluded region 
-        4. end: end for excluded region
+        1. discordants: List of discordant clusters (clustering of discordant done by proximity and then by mate position)
+        2. targetRefs: List of target references
+
+    Output:
+        1. filteredDiscordant: list of filtered discordant clusters
+    '''
+    filteredDiscordant = []
+
+    ## For each cluster
+    for cluster in discordants:
+
+        ## Retrieve mates interval of mate positions
+        matesRef = cluster.events[0].mateRef
+
+        if matesRef in targetRefs:
+            filteredDiscordant.append(cluster)
+
+    return filteredDiscordant
+
+def filter_discordant_mate_position(discordants, ranges, buffer):
+    '''
+    Filter out discordant cluster if mates align within one of the provided regions
+
+    Input:
+        1. discordants: List of discordant clusters (clustering of discordant done by proximity and then by mate position)
+        2. ranges: Dictionary with reference ids as keys and the list of ranges on each reference as values
+        3. buffer: Extend each range at their begin and end coordinate by a number of nucleotides == buffer length
 
     Output:
         1. filteredDiscordant: list of filtered discordant clusters
@@ -257,16 +279,35 @@ def filter_discordant_mate_position(discordants, ref, beg, end):
     for cluster in discordants:
 
         ## Retrieve mates interval of mate positions
+        matesRef = cluster.events[0].mateRef
         matesBeg, matesEnd = cluster.mates_start_interval()
 
-        ## Check if mates interval overlaps with excluded region
-        overlap, overlapLen = gRanges.overlap(matesBeg, matesEnd, beg, end)
-
-        if not overlap:
+        ## Do not filter out cluster if no input range on that particular reference 
+        if matesRef not in ranges:
             filteredDiscordant.append(cluster)
-    
-    return filteredDiscordant
+            continue
 
+        ## Assess overlap between mates interval and provided regions. 
+        filterCluster = False
+
+        for interval in ranges[matesRef]:
+            rangeBeg, rangeEnd = interval
+
+            # Add buffer
+            rangeBeg = rangeBeg - buffer
+            rangeEnd = rangeEnd + buffer
+
+            # Assess overlap
+            overlap, overlapLen = gRanges.overlap(matesBeg, matesEnd, rangeBeg, rangeEnd)
+
+            if overlap:
+                filterCluster = True
+
+        ## Filter out cluster if overlap is found
+        if not filterCluster:
+            filteredDiscordant.append(cluster)
+
+    return filteredDiscordant
 
 def filter_discordant_mate_MAPQ(discordants, minMAPQ, bam):
     '''
