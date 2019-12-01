@@ -1,3 +1,8 @@
+
+## DEPENDENCIES ##
+# External
+
+# Internal
 import structures
 
 
@@ -212,32 +217,41 @@ def write_tdCounts_surelect(clusterPerSrc, outDir):
         outFile.write(row)       
 
 
-def write_tdCalls_surelect(clusterPerSrc, outDir):
+def write_tdCalls_surelect(clustersPerSrc, outDir):
     '''
     Compute transduction counts per source element and write into file
 
     Input:
-        1. clusterPerSrc: list containing list of BND junction objects 
+        1. clustersPerSrc: Dictionary containing one key per source element and the list of identified transduction clusters 
         2. outDir: Output directory
         
-    Output: tsv file containing transduction counts per source element
+    Output: tsv file containing transduction counts per source element ordered by chromosome and then by start position
     '''
     ## 1. Write header 
     outFilePath = outDir + '/transduction_calls.tsv'
     outFile = open(outFilePath, 'w')
-
     row = "#ref \t beg \t end \t srcId \t nbReads \n"
     outFile.write(row)
 
-    ## 4. Write transduction calls 
-    for srcId, clusters in clusterPerSrc.items(): 
+    ## 2. Generate list containing transduction calls 
+    calls = []
 
+    # For each source element
+    for srcId, clusters in clustersPerSrc.items(): 
+
+        # For each cluster
         for cluster in clusters:
             ref = cluster.events[0].mateRef
             beg, end = cluster.mates_start_interval()
             nbReads = cluster.nbReads()
             
-            row = "\t".join([ref, str(beg), str(end), srcId, str(nbReads), "\n"])
+            call = [ref, str(beg), str(end), srcId, str(nbReads)]
+            calls.append(call)
 
-            outFile.write(row)
+    ## 3. Sort transduction calls first by chromosome and then by start position
+    calls.sort(key=lambda x: (x[0], int(x[1])))
 
+    ## 4. Write transduction calls into output file
+    for transduction in calls:
+        row = "\t".join(transduction + ["\n"])
+        outFile.write(row)    
