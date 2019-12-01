@@ -673,7 +673,7 @@ class SV_caller_sureselect(SV_caller):
         msg = 'Group discordant read pairs into clusters based on reciprocal overlap'
         log.step(step, msg)
 
-        buffer = 100
+        buffer = 150
         discordantClustersDict = clusters.create_discordantClusters(discordantsBinDb, self.confDict['minClusterSize'], buffer)
 
         ## 4. Do an extra clustering step based on mate position ##

@@ -165,6 +165,7 @@ def extra_clustering_by_matePos(discordantClusters, refLengths, minClusterSize):
 
     return outDiscordantClusters
 
+
 def cluster_discordants_by_matePos(discordants, refLengths, minClusterSize):
     '''
     Cluster discordant read pairs based on their mate alignment position
@@ -313,6 +314,7 @@ def polish_clusters(clustersBinDb, minClusterSize):
 
     ## 3. Polish CLIPPING clusters (TO DO)
 
+
 def create_metaclusters(clustersBinDb):
     '''    
     Group SV cluster events into metaclusters
@@ -358,6 +360,7 @@ def SV_type_metaclusters(metaclusters, minINDELlen, technology, rootOutDir):
             metaclustersSVType[metacluster.SV_type].append(metacluster)    
 
     return metaclustersSVType
+
 
 def create_consensus(metaclusters, confDict, reference, targetSV, rootOutDir):
     '''
@@ -492,6 +495,7 @@ def double_clipping_supports_INS(clusterA, clusterB, minINDELlen, technology, ou
             consensusFasta = None
 
     return boolean, consensusFasta
+
 
 def find_chimeric_alignments(clusterA, clusterB):
     '''
