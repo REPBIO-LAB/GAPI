@@ -24,7 +24,7 @@ import annotation
 import bkp
 import filters
 import alignment
-
+import gRanges
 
 ## FUNCTIONS ##
 
@@ -63,7 +63,6 @@ class SV_caller_long(SV_caller):
         log.header(msg)
         allMetaclusters = self.make_clusters()
 
-        '''
         ### 2. Annotate SV clusters intervals  
         msg = '2. Annotate SV clusters intervals'
         log.header(msg)
@@ -75,7 +74,6 @@ class SV_caller_long(SV_caller):
         # Reference lengths, needed for repeats annotation
         refLengths = bamtools.get_ref_lengths(self.bam)
         
-
         # Define annotation steps
         steps = ['REPEAT']
 
@@ -125,8 +123,6 @@ class SV_caller_long(SV_caller):
             # Remove output directory
             unix.rm([outDir])
 
-        
-
         ### 5. Identify BND junctions
         msg = '5. Identify BND junctions'
         log.header(msg)
@@ -170,7 +166,7 @@ class SV_caller_long(SV_caller):
         if allJunctions:
             outFileName = 'BND_junctions_MEIGA.PASS.tsv'
             output.write_junctions(allJunctions, outFileName, self.outDir)
-        '''
+        
         
     def make_clusters(self):
         '''
@@ -606,6 +602,9 @@ class SV_caller_sureselect(SV_caller):
         ### 2. Define genomic bins to search for SV (will correspond to transduced areas)
         bins = bamtools.binning(transducedPath, None, None, None)
 
+        ## Organize bins into a dictionary
+        self.rangesDict = gRanges.rangeList2dict(bins)
+
         ### 3. Associate to each bin the src identifier
         BED = formats.BED()
         BED.read(transducedPath, 'List', None)   
@@ -618,7 +617,6 @@ class SV_caller_sureselect(SV_caller):
         ### 4. Search for SV clusters in each bin 
         # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
-        pool.starmap(self.make_clusters_bin, bins)
         clusterPerSrc = pool.starmap(self.make_clusters_bin, bins)
         pool.close()
         pool.join()
@@ -689,12 +687,23 @@ class SV_caller_sureselect(SV_caller):
         ## Make groups
         discordantClustersDict = clusters.extra_clustering_by_matePos(discordantClustersDict, refLengths, self.confDict['minClusterSize'])
 
-        ## 5. Filter out those clusters whose mates aligns over source element downstream region ##
-        step = 'FILTER_DOWSTREAM'
-        msg = 'Filter out those clusters whose mates aligns over source element downstream region'
+        ## 5. Filter out those clusters over NOT target reference ##
+        step = 'FILTER-REF'
+        msg = 'Filter out those clusters over NOT target reference'
         log.step(step, msg)
+        filteredDiscordants = filters.filter_discordant_mate_ref(discordantClustersDict['DISCORDANT'], self.confDict['targetRefs'])
 
-        filteredDiscordants = filters.filter_discordant_mate_position(discordantClustersDict['DISCORDANT'], ref, beg - 7000, end + 7000)
+        ## 6. Filter out those clusters whose mates aligns over any source element downstream region ##
+        step = 'FILTER-DOWSTREAM'
+        msg = 'Filter out those clusters whose mates aligns over any source element downstream region'
+        log.step(step, msg)
+        filteredDiscordants = filters.filter_discordant_mate_position(filteredDiscordants, self.rangesDict, 10000)        
+        
+        ## 7. Filter out those clusters based on average MAPQ for mate alignments ##
+        step = 'FILTER-MATE-MAPQ'
+        msg = 'Filter out those clusters based on average MAPQ for mate alignments'
+        log.step(step, msg)
+        filteredDiscordants = filters.filter_discordant_mate_MAPQ(filteredDiscordants, 20, self.bam)
 
         return [srcId, filteredDiscordants]  
 
