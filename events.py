@@ -438,12 +438,15 @@ class CLIPPING():
 
         # Supporting read alignment properties:
         if alignmentObj is None:
+            self.CIGAR = None
             self.reverse = None
             self.secondary = None
             self.supplementary = None
             self.mapQual = None
             self.supplAlignment = None
+
         else:
+            self.CIGAR = alignmentObj.cigarstring
             self.reverse = alignmentObj.is_reverse
             self.secondary = alignmentObj.is_secondary
             self.supplementary = alignmentObj.is_supplementary
@@ -451,6 +454,20 @@ class CLIPPING():
             self.supplAlignment = alignmentObj.get_tag('SA') if alignmentObj.has_tag('SA') else None
             self.refLen = alignmentObj.reference_length
 
+    def readCoordinates(self):
+        '''
+        Compute read level alignment coordinates
+ 
+         Output:
+            1. begQuery: query start alignment position
+            2. endQuery: query end alignment position
+        '''
+        orientation = '-' if self.reverse else '+'
+        begQuery, endQuery = bamtools.alignment_interval_query(self.CIGAR, orientation)
+
+        return begQuery, endQuery
+
+        
     def parse_supplAlignments_field(self):
         '''
         Parse supplementary alignment optional field. Create supplementary alignment objects and return them organized into a dictionary 
@@ -484,10 +501,6 @@ class CLIPPING():
             # Create suppl. alignment object
             supplObject = SUPPLEMENTARY(ref, beg, end, strand, CIGAR, mapQ, NM, self.readName)
 
-            # Test code for obtaining read level alignment coordinates
-            print('supplAlignment: ', supplObject)
-            supplObject.readCoordinates()
-        
             # Initialize ref if necessary
             if supplObject.ref not in supplAlignmentsDict:
                 supplAlignmentsDict[supplObject.ref] = []
@@ -518,11 +531,14 @@ class SUPPLEMENTARY():
     def readCoordinates(self):
         '''
         Compute read level alignment coordinates
-        '''
-        print('readCoordinates: ', self.ref, self.beg, self.end, self.orientation, self.CIGAR)
 
-        bamtools.alignment_interval_query(self.CIGAR, self.orientation)
-          
+        Output:
+            1. begQuery: query start alignment position
+            2. endQuery: query end alignment position
+        '''
+        begQuery, endQuery = bamtools.alignment_interval_query(self.CIGAR, self.orientation)
+        return begQuery, endQuery
+        
 class DISCORDANT():
     '''
     Discordant class
