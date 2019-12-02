@@ -1388,11 +1388,8 @@ class CLIPPING_cluster(cluster):
         supplAlignmentsDictList = []
                 
         for clipping in self.events:
-
-            print('CLIPPING_EVENT: ', clipping.clippingType, clipping.clippedSide, clipping.readBkp, clipping.length, clipping.reverse)
             supplAlignmentsDict = clipping.parse_supplAlignments_field()
             supplAlignmentsDictList.append(supplAlignmentsDict)
-            print('----------------------')
 
         ## 2. Merge suppl. alignments into a single dictionary
         allSupplAlignmentsDict = structures.merge_dictionaries(supplAlignmentsDictList)
@@ -2050,7 +2047,6 @@ class META_cluster():
             ## Determine BND breakpoint position
             self.bkpPos = clippingCluster.infer_breakpoint()
 
-            ## 
             ## Cluster supplementary alignment positions
             self.supplClusters =  clippingCluster.cluster_suppl_positions()
 
