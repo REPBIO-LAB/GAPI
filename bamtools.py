@@ -155,9 +155,7 @@ def alignment_interval_query(CIGAR, orientation):
         beg = readLen - startPos - alignmentLen
         end = readLen - startPos
         
-    print('INTERVAL_QUERY: ', beg, end)
-
-    #return beg, end
+    return beg, end
 
 
 def SAM2BAM(SAM, outDir):
