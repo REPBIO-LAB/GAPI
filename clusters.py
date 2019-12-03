@@ -193,7 +193,7 @@ def cluster_discordants_by_matePos(discordants, refLengths, minClusterSize):
 
     ## 3. Organize mates into a bin database prior clustering
     ## Create dictionary containing mates
-    matesDict = events.events2dict(mates, 'DISCORDANT_MATE')
+    matesDict = events.events2nestedDict(mates, 'DISCORDANT_MATE')
 
     ## Create bin database 
     matesBinDb = structures.create_bin_database(refLengths, matesDict)
@@ -949,7 +949,7 @@ def search4junctions_metaclusters(metaclusters, refLengths, processes, minSuppor
         1. allJunctions: list of BND junction objects
     '''
     ## 1. Organize metaclusters into a dictionary
-    metaclustersDict = events.events2dict(metaclusters, 'BND')
+    metaclustersDict = events.events2nestedDict(metaclusters, 'BND')
 
     ## 2. Organize metaclusters into a bin database
     metaclustersBinDb = structures.create_bin_database_parallel(refLengths, metaclustersDict, processes)
@@ -1376,32 +1376,58 @@ class CLIPPING_cluster(cluster):
 
         return bkpPos
 
-    def cluster_suppl_positions(self):
+    def search4complAlignments(self):
+        '''
+        Search for complementary alignments for each clipping event composing the clipping cluster.
+        
+        A complementary alignment span a piece of the clipped read sequence, so contributes to explain 
+        the full conformation of the read alignment. 
+
+        Output:
+            1. allComplementaryAlignments: complementary alignments identified for all the clipping events composing the cluster. 
+            These are organized into a dictionary with the references as keys and the list of complementary alignments as values 
+        '''
+        ## 1. Collect complementary alignments for each clipping event            
+        complementaryAlignmentsDictList = []
+
+        for clipping in self.events:
+
+            ## 1.1 Retrieve suppl. alignments            
+            supplAlignmentsDict = clipping.parse_supplAlignments_field()
+
+            ## 1.2 Organize suppl. alignments into a simple list
+            supplAlignments = structures.dict2list(supplAlignmentsDict)
+
+            ## 1.3 Search for complementary alignments
+            complementaryAlignments = clipping.search4complAlignments(supplAlignments)
+
+            ## 1.4 Organize complementary alignments into a dictionary
+            complementaryAlignmentsDict = events.events2Dict(complementaryAlignments) 
+            complementaryAlignmentsDictList.append(complementaryAlignmentsDict)
+
+        ## 2. Merge complementary alignments into a single dictionary
+        allComplementaryAlignments = structures.merge_dictionaries(complementaryAlignmentsDictList)
+
+        return allComplementaryAlignments
+
+    def cluster_suppl_positions(self, supplAlignmentsDict):
         '''
         Cluster supplementary alignments based on their begin/end alignment positions
 
+        Input:
+            1. supplAlignmentsDict:
+
         Output:
-            1. supplClusters. Dictionary containing references as keys and nested lists of supplementary 
+            1. supplClusters: Dictionary containing references as keys and nested lists of supplementary 
             alignment clusters as values.
         '''
-        ## 1. Collect for each clipping event its suppl. alignments
-        supplAlignmentsDictList = []
-                
-        for clipping in self.events:
-            supplAlignmentsDict = clipping.parse_supplAlignments_field()
-            supplAlignmentsDictList.append(supplAlignmentsDict)
-
-        ## 2. Merge suppl. alignments into a single dictionary
-        allSupplAlignmentsDict = structures.merge_dictionaries(supplAlignmentsDictList)
-
-        ## 3. Cluster suppl. alignments based on breakpoint position
         supplClusters = {}
 
         # For each reference
-        for ref in allSupplAlignmentsDict:
+        for ref in supplAlignmentsDict:
 
             # Collect suppl. alignments list
-            supplAlignments = allSupplAlignmentsDict[ref]
+            supplAlignments = supplAlignmentsDict[ref]
 
             ## Cluster suppl. alignments based on their beg and end alignment positions
             clustersBeg = clustering.distance_clustering_targetPos(supplAlignments, 100, 'beg')
@@ -2047,8 +2073,11 @@ class META_cluster():
             ## Determine BND breakpoint position
             self.bkpPos = clippingCluster.infer_breakpoint()
 
+            ## For each clipping event composing the cluster select complementary suppl. alignments
+            complementaryAlignments = clippingCluster.search4complAlignments()
+
             ## Cluster supplementary alignment positions
-            self.supplClusters =  clippingCluster.cluster_suppl_positions()
+            self.supplClusters =  clippingCluster.cluster_suppl_positions(complementaryAlignments)
 
         ## E) Other combination -> Unknown SV type (Temporal, extend later)
         else:
