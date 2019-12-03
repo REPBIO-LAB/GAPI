@@ -167,7 +167,6 @@ class SV_caller_long(SV_caller):
             outFileName = 'BND_junctions_MEIGA.PASS.tsv'
             output.write_junctions(allJunctions, outFileName, self.outDir)
         
-        
     def make_clusters(self):
         '''
         Search for structural variant (SV) clusters 
