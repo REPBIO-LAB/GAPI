@@ -10,6 +10,10 @@ import annotation
 import virus
 import structures
 import bamtools
+import formats
+from cigar import Cigar
+import gRanges
+
 
 ###############
 ## FUNCTIONS ##
@@ -255,7 +259,31 @@ def discordants2mates(discordants):
 
     return mates
 
-def events2dict(events, eventType):
+def events2Dict(events):
+    '''
+    Organize a set of input events into a dictionary based on their reference
+
+    Input:
+        1. events: list of input events. Events should contain the ref attribute
+
+    Output:
+        1. eventsDict: dictionary with the references as keys and the list of events from each reference as values
+    '''    
+    eventsDict = {}
+
+    ## For each event
+    for event in events:
+
+        # Initialize list if needed
+        if event.ref not in eventsDict:
+            eventsDict[event.ref] = []
+        
+        # Add event to the list
+        eventsDict[event.ref].append(event)
+
+    return eventsDict
+
+def events2nestedDict(events, eventType):
     '''
     Organize a set of input events into a nested dictionary
 
@@ -467,7 +495,49 @@ class CLIPPING():
 
         return begQuery, endQuery
 
-        
+    def clipped_interval_coordinates(self):
+        '''
+        Compute read level coordinates for the clipped piece of the read sequence
+
+                                   bkp
+                    ######READ######|********CLIPPED********
+                                   beg                     end
+
+                                          bkp
+                    ********CLIPPED********|######READ######
+                    beg                   end
+        '''
+        ### 1. Compute alignment coordinates at read level 
+        alignmentBeg, alignmentEnd = self.readCoordinates()
+
+        ### 2. Compute read length
+        cigar = Cigar(self.CIGAR)
+        readLen = len(cigar)
+
+        ### 3. Obtain clipped interval coordinates 
+        # a) >>>>>>>>>>******CLIPPED******
+        if (not self.reverse) and (self.clippedSide == 'right'):
+            clippedBeg = alignmentEnd
+            clippedEnd = readLen
+
+        # b) ******CLIPPED******<<<<<<<<<<<<<<<
+        elif (self.reverse) and (self.clippedSide == 'left'):
+            clippedBeg = alignmentEnd
+            clippedEnd = readLen
+
+        # c) ******CLIPPED******>>>>>>>>>>
+        elif (not self.reverse) and (self.clippedSide == 'left'):
+            clippedBeg = 0
+            clippedEnd = alignmentBeg
+
+        # d) <<<<<<<<<<<<<<<******CLIPPED******
+        else:
+            clippedBeg = 0
+            clippedEnd = alignmentBeg
+
+        return clippedBeg, clippedEnd
+
+
     def parse_supplAlignments_field(self):
         '''
         Parse supplementary alignment optional field. Create supplementary alignment objects and return them organized into a dictionary 
@@ -509,6 +579,110 @@ class CLIPPING():
             supplAlignmentsDict[supplObject.ref].append(supplObject)
         
         return supplAlignmentsDict
+
+
+    def search4candidateCompl(self, supplAlignments):
+        '''
+        Search for supplementary alignments candidate to be complementary to the clipping event. 
+
+        A suppl. alignment is candidate if the aligned piece of the read corresponds to the 
+        clipped read sequence interval
+
+                                   bkp
+                    ######READ######|********CLIPPED********
+                                     ####SUPPL####           * Candidate
+                                                ##SUPPL##    * Candidate
+                     ###SUPPL###                             * No candidate
+        ####SUPPL####                                        * No candidate
+
+        Input:
+            1. supplAlignments: list of supplementary alignments
+        
+        Output:
+            2. filteredSupplAlignments: list of filtered supplementary alignments
+        '''
+
+        ## 1. Compute clipped read sequence interval coordinates
+        clippedBeg, clippedEnd = self.clipped_interval_coordinates()
+
+        ## 2. Select only those supplementary alignments corresponding to the clipped piece of the read
+        filteredSupplAlignments = []
+
+        for alignment in supplAlignments:
+
+            ## Compute supplementary alignment read level coordinates
+            supplAlignmentBeg, supplAlignmentEnd = alignment.readCoordinates()
+
+            ## Assess overlap 
+            overlap, overlapLen = gRanges.overlap(supplAlignmentBeg, supplAlignmentEnd, clippedBeg, clippedEnd)
+
+            ## Pick alignment if overlap is found
+            if overlap:
+                filteredSupplAlignments.append(alignment)
+        
+        return filteredSupplAlignments
+
+
+    def search4complAlignments(self, supplAlignments):
+        '''
+        Search for supplementary alignments complementary to the clipping event. 
+        
+        A complementary alignment span a piece of the clipped read sequence, so contributes to explain 
+        the full conformation of the read alignment. 
+
+        Input:
+            1. supplAlignments: list of supplementary alignments
+        
+        Output:
+            1. complementaryAlignments: list of complementary alignments
+        '''
+
+        ## 1. Select candidate complementary alignments
+        filteredSupplAlignments = self.search4candidateCompl(supplAlignments)
+
+        ## 2. Initialize PAF
+        PAF = formats.PAF()
+
+        ## 3. Add clipping alignment to PAF
+        # Create PAF alignment
+        clippingBeg, clippingEnd = self.readCoordinates()
+        strand = '-' if self.reverse else '+'
+        fields = ['clipping', 0, clippingBeg, clippingEnd, strand, self.ref, 0, self.beg, self.end, 0, 0, self.mapQual]
+        line = formats.PAF_line(fields)
+
+        # Add alignment
+        PAF.alignments.append(line)
+
+        ## 4. Add supplementary alignments to PAF 
+        supplAlignmentsDict = {}
+
+        # For each supplementary alignment:
+        for index, supplAlignment in enumerate(filteredSupplAlignments):
+        
+            # Create PAF alignment
+            seqName = 'supplementary_' + str(index)
+            supplBeg, supplEnd = supplAlignment.readCoordinates()
+            fields = [seqName, 0, supplBeg, supplEnd, supplAlignment.orientation, supplAlignment.ref, 0, supplAlignment.beg, supplAlignment.end, 0, 0, supplAlignment.mapQ]
+            line = formats.PAF_line(fields)
+
+            # Add PAF alignment to the PAF
+            PAF.alignments.append(line)
+
+            # Add suppl. alignment to the dictionary
+            supplAlignmentsDict[seqName] = supplAlignment
+
+        ## 5. Search for complementariety
+        chain = PAF.chain(50, 20) # Use 50, but consider to increase once Eva´s code is ready!
+
+        ## 6. Create list of complementary alignments
+        targetNames = [alignment.qName for alignment in chain.alignments]
+
+        if 'clipping' in targetNames:
+            targetNames.remove('clipping')
+
+        complementaryAlignments = [supplAlignmentsDict[name] for name in targetNames]
+
+        return complementaryAlignments
 
 class SUPPLEMENTARY():
     '''
