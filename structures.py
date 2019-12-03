@@ -498,3 +498,15 @@ def merge_dictionaries(dictionaries):
             outDict[key] = outDict[key] + elements
 
     return outDict
+
+def dict2list(dictionary):
+    '''
+    Takes as input a dictionary containing lists as values and return a single list containing all 
+    the elements
+    '''
+    allItems = []
+
+    for items in dictionary.values():
+        allItems = allItems + items 
+
+    return allItems
