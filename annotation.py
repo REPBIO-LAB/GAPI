@@ -51,7 +51,7 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
 
         ## Create bed file containing transduced regions
         sourceBed = annotationsDir + '/srcElements.bed'
-        transducedPath = databases.create_transduced_bed(sourceBed, 15000, outDir)
+        transducedPath = databases.create_transduced_bed(sourceBed, 10000, outDir)
 
         ## Load transduced regions into a bin database
         annotations['TRANSDUCTIONS'] = formats.bed2binDb(transducedPath, refLengths, threads)
@@ -409,7 +409,7 @@ def intersect_mate_annotation(discordants, annotation, targetField):
         discordant.identity = featureType
 
         ## Add discordant read pair to the dictionary
-        identity = discordant.side + '_DISCORDANT_' + featureType
+        identity = discordant.orientation + '_DISCORDANT_' + featureType
 
         # a) There are already discordant read pairs with this identity
         if identity in matesIdentity:
