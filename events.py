@@ -636,7 +636,6 @@ class CLIPPING():
         Output:
             1. complementaryAlignments: list of complementary alignments
         '''
-
         ## 1. Select candidate complementary alignments
         filteredSupplAlignments = self.search4candidateCompl(supplAlignments)
 
@@ -672,16 +671,75 @@ class CLIPPING():
             supplAlignmentsDict[seqName] = supplAlignment
 
         ## 5. Search for complementariety
-        chain = PAF.chain(50, 20) # Use 50, but consider to increase once Eva´s code is ready!
+        chain = PAF.chain(10000, 20) 
 
-        ## 6. Create list of complementary alignments
-        targetNames = [alignment.qName for alignment in chain.alignments]
+        ## 6. Collect sorted complementary entries from chain
+        # a) Anchor to the left of the compl. alignments 
+        # ----anchor---->|---complementary_0--->|---complementary_1--->
+        if chain.alignments[0].qName == 'clipping':
+            anchor = chain.alignments[0]
+            anchorSide = 'left'
+            complementaryEntriesPAF = chain.alignments[1:]
+        
+        # b) Anchor to the right of the compl. alignments 
+        # <---complementary_1---|<---complementary_0---|<----anchor----
+        elif chain.alignments[-1].qName == 'clipping':
+            anchor = chain.alignments[-1]
+            anchorSide = 'right'
+            complementaryEntriesPAF = reversed(chain.alignments[:-1])
 
-        if 'clipping' in targetNames:
-            targetNames.remove('clipping')
+        # c) No clipping in the chain
+        else:
+            complementaryEntriesPAF = []
 
-        complementaryAlignments = [supplAlignmentsDict[name] for name in targetNames]
+        ## 7. Generate list of complementary alignments
+        ## For each complementary alignment, set index specifying the order with respect the clipped piece of sequence        
+        # Index 0 for suppl. alignment adjacent to the clipped piece of read squence
+        # Index 1 for the next one, etc... 
+        complementaryAlignments = []
 
+        for index, entry in enumerate(complementaryEntriesPAF):
+            
+            ## Add index and anchor relative position to complementary alignment object 
+            complementary = supplAlignmentsDict[entry.qName]
+            complementary.readIndex = index
+            complementary.anchorSide = anchorSide
+
+            ## For complementary alignment adjacent to anchor (index == 0), 
+            # collect potential inserted sequence at the BND junction
+            if complementary.readIndex == 0:
+            
+                ## Compute distance between both bkp at read level
+                # a) ----anchor---->|---complementary_0--->
+                #         anchor_end|entry_beg                 
+                if anchorSide == 'left':
+                    bkpDist = entry.qBeg - anchor.qEnd
+
+                # b) <---complementary_0---|<----anchor----
+                #                 entry_end|anchor_beg
+                else:
+                    bkpDist = anchor.qBeg - entry.qEnd
+
+                ## Retrieve inserted sequence if dist >= threshold (50)
+                if bkpDist >= 50:
+                    
+                    complementary.insertSize = bkpDist
+                    
+                    # a) Right clipping (###anchor###----clipped----)
+                    if self.clippedSide == 'right':
+                        insertBeg = self.readBkp
+                        insertEnd = self.readBkp + bkpDist
+
+                    # b) Left clipping (----clipped----###anchor###)
+                    else:
+                        insertBeg = self.readBkp - bkpDist
+                        insertEnd = self.readBkp                         
+
+                    complementary.insertSeq = self.readSeq[insertBeg : insertEnd]
+                 
+            ## Add complementary alignment to the list 
+            complementaryAlignments.append(complementary)
+                
         return complementaryAlignments
 
 class SUPPLEMENTARY():
@@ -701,7 +759,11 @@ class SUPPLEMENTARY():
         self.mapQ = mapQ
         self.NM = NM
         self.readName = readName
-    
+        self.readIndex = None
+        self.anchorSide = None
+        self.insertSize = None
+        self.insertSeq = None
+
     def readCoordinates(self):
         '''
         Compute read level alignment coordinates
