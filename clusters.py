@@ -902,7 +902,7 @@ def assignAligments2metaclusters_sam(metaclusters, SAM_path):
 
     return metaclustersHits
 
-def search4bridges_metaclusters(metaclusters, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, refLengths, refDir, processes, outDir):
+def search4bridges_metaclusters(metaclusters, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, refLengths, refDir, processes, rootDir):
     '''
     Search for transduction or repeat bridges at BND junctions for a list of metacluster objects
 
@@ -915,20 +915,49 @@ def search4bridges_metaclusters(metaclusters, maxBridgeLen, minMatchPerc, minSup
         6. refLengths: dictionary containing reference ids as keys and as values the length for each reference. 
         7. refDir: directory containing reference databases. 
         8. processes: number of processes
-        9. outDir: output directory
+        9. rootDir: root output directory
 
     For each metacluster update 'bridgeClusters' and 'bridgeType' attributes
     '''    
     ## 1. Load repeats annnotation and transduced regions beds
     annot2load = ['REPEATS', 'TRANSDUCTIONS']
-    annotations = annotation.load_annotations(annot2load, refLengths, refDir, processes, outDir)
+    annotations = annotation.load_annotations(annot2load, refLengths, refDir, processes, rootDir)
+    #annotations = None
 
-    ## 2. Search for bridges
+    ## 2. Generate index containing consensus retrotranposon sequences + source elements downstream regions
+    ## Consensus retrotransposon sequences
+    consensusPath = refDir + '/consensusDb.fa'
+    consensus = formats.FASTA()
+    consensus.read(consensusPath)
+
+    ## Transduced regions
+    transducedPath = refDir + '/transducedDb.fa.masked'
+    transduced = formats.FASTA()
+    transduced.read(transducedPath)
+    
+    ## Merge in a single fasta
+    allSeqs = formats.FASTA()
+    allSeqs.seqDict = {**consensus.seqDict, **transduced.seqDict}
+
+    ## Write fasta
+    fastaPath = rootDir + '/reference_sequences.fa'
+    allSeqs.write(fastaPath)
+
+    ## Index fasta 
+    fileName = 'reference_sequences'  
+    index = alignment.index_minimap2(fastaPath, fileName, rootDir)
+
+    ## 3. Search for bridges
     # For each metacluster
     for metacluster in metaclusters:
 
-        metacluster.search4bridges(maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations)
+        metaInterval = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])
+        outDir = rootDir + '/' + metaInterval
+        unix.mkdir(outDir)
 
+        metacluster.search4bridge(maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, outDir)
+        
+        unix.rm([outDir])
 
 def search4junctions_metaclusters(metaclusters, refLengths, processes, minSupportingReads, minPercReads):
     '''
@@ -1415,7 +1444,7 @@ class CLIPPING_cluster(cluster):
         Cluster supplementary alignments based on their begin/end alignment positions
 
         Input:
-            1. supplAlignmentsDict:
+            1. supplAlignmentsDict: dictionary with the references as keys and the list of supplementary alignments as values 
 
         Output:
             1. supplClusters: Dictionary containing references as keys and nested lists of supplementary 
@@ -1457,9 +1486,11 @@ class SUPPLEMENTARY_cluster(cluster):
     def __init__(self, events):
 
         cluster.__init__(self, events, 'SUPPLEMENTARY')
+        self.representative = None
         self.bkpSide = None
         self.annot = None
         self.bridge = False
+        self.bridgeInfo = {}
 
     def bkpPos(self):
         '''
@@ -1475,6 +1506,229 @@ class SUPPLEMENTARY_cluster(cluster):
         
         return bkpPos
         
+    def clusterIndex(self):
+        '''
+        Compute supplementary cluster read level index. Index relative to the clipping
+        cluster
+
+        ########################################## Hipothetical consensus read
+        ------------- ------------ ---------------
+         -----------   ----------   -------------
+        ------------   ----------   -------------
+      clipping_cluster suppl_cluster suppl_cluster
+                        (index: 0)    (index: 1)
+
+        Output:
+            1. index: read level index relative to the clipping cluster
+        '''
+        ## 1. Generate list containing index position for all the suppl. alignments composing the cluster
+        indexes = [supplementary.readIndex for supplementary in self.events]
+
+        ## 2. Count number occurrences for each index
+        occurences = [[index ,indexes.count(index)] for index in set(indexes)]
+
+        ## 3. Sort indexes in decreasing order of occurrences
+        occurences.sort(key = lambda x: x[1], reverse = True) 
+
+        # 4. Select index with maximum number of instances
+        index = occurences[0][0]
+
+        ## Note: return an ambiguous flag if several possible maximum
+        return index
+
+    def support_bridge(self, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, outDir):
+        '''
+        Assess if supplementary cluster supports bridge or not. 
+
+        Input:
+            1. maxBridgeLen: maximum supplementary cluster length to search for a bridge
+            2. minMatchPerc: minimum percentage of the supplementary cluster interval to match in a transduction or repeats database to make a bridge call
+            3. minSupportingReads: minimum number of reads supporting the bridge
+            4. minPercReads: minimum percentage of clipping cluster supporting reads composing the bridge
+            5. annotations: dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
+            6. index: minimap2 index for consensus retrotransposon sequences + source element downstream regions
+            7. outDir: output directory
+
+        Output: 
+
+        '''
+
+        ## 1. Search for unaligned bridge sequence at BND junction (algorithm 1)
+        self.bridge, supportType, bridgeType, bridgeLen, family, srcId = self.supports_unaligned_bridge(index, outDir)
+
+        ## 2. If bridge not found search for supplementary alignment supporting a bridge (algorithm 2)
+        if not self.bridge:
+            self.bridge, supportType, bridgeType, bridgeLen, family, srcId = self.supports_aligned_bridge(maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations)
+
+        self.bridgeInfo['supportType'] = supportType
+        self.bridgeInfo['bridgeType'] = bridgeType
+        self.bridgeInfo['bridgeLen'] = bridgeLen
+        self.bridgeInfo['family'] = family
+        self.bridgeInfo['srcId'] = srcId
+
+    def supports_unaligned_bridge(self, index, outDir):
+        '''
+        Assess of supplementary cluster supports an unaligned bridge sequence. 
+        In this case there will be an unaligned piece of sequence between read level
+        breakpoints for clipping and supplementary alignmnet BND junction   
+
+        Input:
+            1. index: minimap2 index for consensus retrotransposon sequences + source element downstream regions
+            2. outDir: output directory     
+
+        Output: 
+            1. bridge:
+            2. supportType:
+            3. bridgeType:
+            4. bridgeLen:
+            5. family:
+            6. srcId:
+        '''    
+        bridge = False 
+        supportType = None
+        bridgeType = None  
+        bridgeLen = None
+        family = None 
+        srcId = None 
+
+        ## 1. Remove None events
+        insertSizes = [event.insertSize for event in self.events if event.insertSize] 
+
+        ## 2. Supported by less than X events -> Abort, no bridge
+        nbEvents = len(insertSizes)
+
+        if nbEvents < 2:
+            return bridge, supportType, bridgeType, bridgeLen, family, srcId
+
+        ## 3. Assess bridge size consistency between supporting events
+        # AND select representative event if bridge found
+        meanLen = np.mean(insertSizes)
+        std = np.std(insertSizes)
+        cv = std / meanLen * 100 
+
+        ## Consistent bridge sizes -> bridge candidate
+        if cv <= 25:
+
+            ## Compute median bridge size
+            medianSize = np.median(insertSizes)
+
+            ## Select event closest to the median size as representative
+            closestSize = min(insertSizes, key=lambda x:abs(x-medianSize))
+
+            for event in self.events:
+
+                if event.insertSize == closestSize:
+                    self.representative = event
+                    break
+
+            ## 4. Infer bridge structure 
+            ## Generate fasta containing representative inserted sequence at BND junction
+            fasta = formats.FASTA()
+            fasta.seqDict['insert'] = self.representative.insertSeq
+            insertPath = outDir + '/insert.fa'
+            fasta.write(insertPath)
+
+            ## Infer structure
+            structure = retrotransposons.retrotransposon_structure(insertPath, index, outDir)
+            
+            # Resolved structure -> Call bridge
+            if structure['PERC_RESOLVED'] >= 70:
+                bridge = True
+                supportType = 'unaligned'
+                bridgeType = structure['INS_TYPE']  
+                bridgeLen = self.representative.insertSize
+                family = ','.join(structure['FAMILY']) 
+                srcId = ','.join(structure['CYTOBAND']) if ('CYTOBAND' in structure and structure['CYTOBAND']) else None
+
+        return bridge, supportType, bridgeType, bridgeLen, family, srcId    
+    
+    def supports_aligned_bridge(self, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations):
+        '''
+        Assess of supplementary cluster supports a bridge sequence aligning 
+        over an annotated L1 or transduced region on the reference genome
+
+        Input:
+            1. maxBridgeLen: maximum supplementary cluster length to search for a bridge
+            2. minMatchPerc: minimum percentage of the supplementary cluster interval to match in a transduction or repeats database to make a bridge call
+            3. minSupportingReads: minimum number of reads supporting the bridge
+            4. minPercReads: minimum percentage of clipping cluster supporting reads composing the bridge
+            5. annotations: dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
+
+        Output: 
+            1. bridge:
+            2. supportType:
+            3. bridgeType:
+            4. bridgeLen:
+            5. family:
+            6. srcId:        
+        '''
+        bridge = False ## Boolean: True, False (Suppl. alignment supports bridge)
+        supportType = None
+        bridgeType = None  ## solo, transduction
+        bridgeLen = None
+        family = None ## L1, Alu, ...
+        srcId = None # Source element identifier
+
+        # Cluster interval length within limit
+        if self.length() <= 10000:
+
+            ## 1. Assess if supplementary cluster spans a transduced region
+            if ('TRANSDUCTIONS' in annotations) and (self.ref in annotations['TRANSDUCTIONS']):
+                        
+                ## Select transduction bin database for the corresponding ref            
+                tdBinDb = annotations['TRANSDUCTIONS'][self.ref]
+
+                ## Intersect supplementary cluster interval with transducted regions  
+                tdMatches = tdBinDb.collect_interval(self.beg, self.end, 'ALL')
+
+                ## Sort matches in decreasing match % order
+                sortedTdMatches = sorted(tdMatches, key=itemgetter(2), reverse=True)
+
+                ## Check if cluster matches a transduced area (use match with longest %)
+                if sortedTdMatches and sortedTdMatches[0][2] > minMatchPerc:
+                    tdMatch = sortedTdMatches[0]
+                
+                else:
+                    tdMatch = None
+
+                ## Stop if suppl. cluster matches transduced area
+                if tdMatch is not None:
+
+                    bridge = True
+                    supportType = 'aligned'
+                    bridgeType = 'transduced'
+                    bridgeLen = self.length()
+                    family = 'L1'
+                    srcId = tdMatch[0].optional['cytobandId']
+
+            ## 2. Assess if supplementary cluster spans an annotated repeat
+            if ('REPEATS' in annotations) and (self.ref in annotations['REPEATS']):
+
+                ## Select repeats bin database for the corresponding ref
+                repeatsBinDb = annotations['REPEATS'][self.ref]
+
+                ## Intersect supplementary cluster interval with annotated repeats 
+                repeatMatches = repeatsBinDb.collect_interval(self.beg, self.end, 'ALL')
+
+                ## Sort matches in decreasing match % order
+                sortedRepeatMatches = sorted(repeatMatches, key=itemgetter(2), reverse=True)
+
+                ## Check if cluster matches a repeat (use match with longest %)
+                if sortedRepeatMatches and sortedRepeatMatches[0][2] > minMatchPerc:
+                    repeatMatch = sortedRepeatMatches[0]
+                else:
+                    repeatMatch = None
+
+                ## Cluster matches annotated repeat area
+                if repeatMatch is not None:
+                    bridge = True
+                    supportType = 'aligned'
+                    bridgeType = 'solo'
+                    bridgeLen = self.length()
+                    family = repeatMatch[0].optional['family']
+
+        return bridge, supportType, bridgeType, bridgeLen, family, srcId
+
 
 class DISCORDANT_cluster(cluster):
     '''
@@ -1531,7 +1785,6 @@ class META_cluster():
         self.nbTotal, self.nbTumour, self.nbNormal, self.nbINS, self.nbDEL, self.nbCLIPPING = [None, None, None, None, None, None] 
         self.nbReadsTotal, self.nbReadsTumour, self.nbReadsNormal, self.reads, self.readsTumour, self.readsNormal = [None, None, None, None, None, None] 
         self.cv = None
-        self.bridgeType = None
 
         # Update input cluster's clusterId attribute
         for cluster in clusters:
@@ -1540,9 +1793,7 @@ class META_cluster():
         # Initialize dictionaries 
         self.SV_features = {}
         self.supplClusters = {}
-        self.bridges = {}
-        self.bridges['TRANSDUCTION'] = {}
-        self.bridges['REPEAT'] = {}   
+        self.bridge = None
 
     def sort(self):
         '''
@@ -2085,9 +2336,9 @@ class META_cluster():
             self.consensusEvent = None                
             self.consensusFasta = None
 
-    def search4bridges(self, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations):
+    def search4bridge(self, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, outDir):
         '''    
-        Search for transduction or repeat bridges at metacluster BND junction
+        Search for a transduction or solo repeat bridge at metacluster BND junction
 
         Input:
             1. maxBridgeLen: maximum supplementary cluster length to search for a bridge
@@ -2095,135 +2346,148 @@ class META_cluster():
             3. minSupportingReads: minimum number of reads supporting the bridge
             4. minPercReads: minimum percentage of clipping cluster supporting reads composing the bridge
             5. annotations: dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
+            6. index: minimap2 index for consensus retrotransposon sequences + source element downstream regions
+            7. outDir: output directory
 
         Output: Update 'bridgeClusters' and 'bridgeType' metacluster attributes
-        '''        
-        ## 1. Search for bridges
-        # For each reference        
-        for ref in self.supplClusters:
+        '''   
+        ## 1. Generate list containing all the clusters of suppl. alignments
+        # Note: consider to organize the clusters directly in a list, so not conversion will be needed
+        supplClusters = structures.dict2list(self.supplClusters)
 
-            # For each suppl. cluster in the reference
-            for supplCluster in self.supplClusters[ref]:
+        ## 2. Collect all the suppl. cluster supporting a bridge
+        bridgeClusters = {}
+        bridgeClusters['aligned'] = [] 
+        bridgeClusters['unaligned'] = []
 
-                # Cluster interval length within limit
-                if supplCluster.length() <= maxBridgeLen:
+        ## For each cluster
+        for cluster in supplClusters:
 
-                    # 1.1. Assess if supplementary cluster spans a transduced region
-                    if ('TRANSDUCTIONS' in annotations) and (ref in annotations['TRANSDUCTIONS']):
-                        
-                        ## Select transduction bin database for the corresponding ref            
-                        tdBinDb = annotations['TRANSDUCTIONS'][ref]
+            cluster.support_bridge(maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, outDir)
 
-                        ## Intersect supplementary cluster interval with transducted regions  
-                        tdMatches = tdBinDb.collect_interval(supplCluster.beg, supplCluster.end, 'ALL')
+            ## Add cluster supporting bridge to the dictionary
+            # a) Aligned bridge
+            if (cluster.bridge) and (cluster.bridgeInfo['supportType'] == 'aligned'):
+                bridgeClusters['aligned'].append(cluster)
 
-                        ## Sort matches in decreasing match % order
-                        sortedTdMatches = sorted(tdMatches, key=itemgetter(2), reverse=True)
+            # b) Unaligned bridge
+            elif (cluster.bridge) and (cluster.bridgeInfo['supportType'] == 'unaligned'):
+                bridgeClusters['unaligned'].append(cluster)
 
-                        ## Check if cluster matches a transduced area (use match with longest %)
-                        if sortedTdMatches and sortedTdMatches[0][2] > minMatchPerc:
-                            tdMatch = sortedTdMatches[0]
-                        else:
-                            tdMatch = None
+        ## 3. Create bridge based on supporting suppl. alignments
+        # Compute number of suppl. clusters supporting aligned and unaligned bridge
+        nbAligned = len(bridgeClusters['aligned'])
+        nbUnaligned = len(bridgeClusters['unaligned'])
 
-                        ## Stop if suppl. cluster matches transduced area
-                        if tdMatch is not None:
-                            sourceElement = tdMatch[0].optional['cytobandId']
-                            supplCluster.bridge = True
-                            supplCluster.annot = tdMatch
+        ## A) No bridge found if:
+        # 1. No suppl. cluster supporting bridge found OR
+        # 2. Multipe clusters supporting an unaligned bridge (ambigous, only one expected..)
+        if (nbAligned == 0 and nbUnaligned == 0) or (nbUnaligned > 1):
+            self.bridge = None
 
-                            # a) First cluster supporting a transduction bridge from this source element -> Initialize bridge
-                            if sourceElement not in self.bridges['TRANSDUCTION']:
-                                self.bridges['TRANSDUCTION'][sourceElement] = BRIDGE(supplCluster.events)
+        ## B) A single cluster supporting an unaligned bridge was found 
+        elif nbUnaligned == 1:
 
-                            # b) Add events composing the cluster to the pre-existing bridge  
-                            else:
-                                self.bridges['TRANSDUCTION'][sourceElement].add(supplCluster.events)      
+            ## Create bridge based on unaligned bridge information
+            supplUnaligned = bridgeClusters['unaligned'][0]
+            self.bridge = BRIDGE(supplUnaligned.events, supplUnaligned.bridgeInfo)
 
-                            continue
+            ## Incorporate suppl. alignments providing alignment support to the bridge 
+            # For each suppl. alignment
+            for cluster in bridgeClusters['aligned']:
 
-                    # 1.2. Assess if supplementary cluster spans an annotated repeat
-                    if ('REPEATS' in annotations) and (ref in annotations['REPEATS']):
+                ## Add suppl. alignment to bridge if it is consistent
+                # a) Solo bridge
+                if self.bridge.bridgeType == 'solo':
 
-                        ## Select repeats bin database for the corresponding ref
-                        repeatsBinDb = annotations['REPEATS'][ref]
+                    ## Consistent if same bridge type and family
+                    if (cluster.bridgeInfo['bridgeType'] == 'solo') and (self.bridge.family == cluster.bridgeInfo['family']):
+                        self.bridge.add(cluster.events)
 
-                        ## Intersect supplementary cluster interval with annotated repeats 
-                        repeatMatches = repeatsBinDb.collect_interval(supplCluster.beg, supplCluster.end, 'ALL')
+                # b) Orphan bridge
+                elif self.bridge.bridgeType == 'orphan':
 
-                        ## Sort matches in decreasing match % order
-                        sortedRepeatMatches = sorted(repeatMatches, key=itemgetter(2), reverse=True)
+                    ## Consistent if same bridge type and source element
+                    if (cluster.bridgeInfo['bridgeType'] == 'transduced') and (self.bridge.srcId == cluster.bridgeInfo['srcId']):
+                        self.bridge.add(cluster.events)
 
-                        ## Check if cluster matches a transduced area (use match with longest %)
-                        if sortedRepeatMatches and sortedRepeatMatches[0][2] > minMatchPerc:
-                            repeatMatch = sortedRepeatMatches[0]
-                        else:
-                            repeatMatch = None
+                # c) Partnered bridge
+                elif self.bridge.bridgeType == 'partnered':
 
-                        ## Cluster matches annotated repeat area
-                        if repeatMatch is not None:
-                            family = repeatMatch[0].optional['family']
-                            supplCluster.bridge = True
-                            supplCluster.annot = repeatMatch
+                    ## Consistent if solo and same family
+                    if (cluster.bridgeInfo['bridgeType'] == 'solo') and (self.bridge.family == cluster.bridgeInfo['family']):
+                        self.bridge.add(cluster.events)
 
-                            # a) First cluster supporting a bridge from this repeat family -> Initialize bridge
-                            if family not in self.bridges['REPEAT']:
-                                self.bridges['REPEAT'][family] = BRIDGE(supplCluster.events)
+                    ## Consistent if transduced and same source element
+                    elif (cluster.bridgeInfo['bridgeType'] == 'transduced') and (self.bridge.srcId == cluster.bridgeInfo['srcId']):
+                        self.bridge.add(cluster.events)
 
-                            # b) Add events composing the cluster to the pre-existing bridge  
-                            else:
-                                self.bridges['REPEAT'][family].add(supplCluster.events)      
-
-                            continue
- 
-        ## 2. Filter bridges based on read support
-        # First create list with bridge subtypes to filter
-        subtypes2filter = []
-
-        for bridgeType in ['TRANSDUCTION', 'REPEAT']:
-
-            for bridgeSubtype in self.bridges[bridgeType]:
-                bridge = self.bridges[bridgeType][bridgeSubtype]
-
-                ## Compute percentage of metacluster supporting reads composing the bridge 
-                percReads = float(bridge.nbReads()) / self.nbReadsTotal * 100
-
-                ## Filter out bridges based on two criteria:
-                #    1) Bridge supported by less than X reads (DONE)
-                #    2) Bridge supported by less than X% of the total number of metacluster supporting reads 
-                if (bridge.nbReads() < minSupportingReads) or (percReads < minPercReads):
-
-                    subtypes2filter.append((bridgeType, bridgeSubtype))
-
-        # Based on the list filter the bridges
-        for bridgeType, bridgeSubtype in subtypes2filter:
-            del self.bridges[bridgeType][bridgeSubtype]
-            
-        ## 3. Filter out ambiguous bridges (supported by multiple bridge subtypes)  
-        nbTdBridges = len(self.bridges['TRANSDUCTION'])
-        nbRepeatBridges = len(self.bridges['REPEAT'])            
-        
-        if (nbTdBridges > 1) or (nbRepeatBridges > 1):
-            self.bridges['TRANSDUCTION'] = {}
-            self.bridges['REPEAT'] = {}
-
-        ## 4. Determine bridge type:        
-        # a) Partnered transduction (Transduction + repeat) 
-        if (nbTdBridges == 1) and (nbRepeatBridges == 1):
-            self.bridgeType = 'partnered'
-
-        # b) Orphan transduction
-        elif nbTdBridges == 1:
-            self.bridgeType = 'orphan'
-
-        # c) Solo repeat
-        elif nbRepeatBridges == 1:
-            self.bridgeType = 'repeat'
-
-        # d) No bridge
+        ## C) One or multiple suppl. clusters supporting an aligned bridge
         else:
-            self.bridgeType = None
+            
+            ## Determine bridge type
+            types = list(set([cluster.bridgeInfo['bridgeType'] for cluster in bridgeClusters['aligned']]))
+            nbTypes = len(types)
 
+            # a) Partnered
+            if all(bridgeType in types for bridgeType in ['solo', 'transduced']):
+                bridgeType = 'partnered'
+
+            # b) Solo
+            elif (nbTypes == 1) and ('solo' in types):
+                bridgeType = 'solo'
+
+            # c) Orphan
+            elif (nbTypes == 1) and ('transduced' in types):
+                bridgeType = 'transduced'
+
+            # d) Unasigned type
+            else:
+                bridgeType = None
+            
+            ## Assess suppl. clusters bridge info consistency
+            families = list(set([cluster.bridgeInfo['family'] for cluster in bridgeClusters['aligned'] if cluster.bridgeInfo['family']]))
+            nbFamilies = len(families)
+
+            srcIds = list(set([cluster.bridgeInfo['srcId'] for cluster in bridgeClusters['aligned'] if cluster.bridgeInfo['srcId']]))
+            nbSrcIds = len(srcIds)
+
+            ## a) Create bridge if consistent info:
+            # 1. Bridge type determined
+            # 2. Number of families not greater than 1
+            # 3. Number of source elements not greater than 1
+            if (bridgeType is not None) and (nbFamilies <= 1) and (nbSrcIds <= 1):
+            
+                ## Create a list with all the bridge supporting events
+                eventsNested = [cluster.events for cluster in bridgeClusters['aligned']]
+                events = list(itertools.chain.from_iterable(eventsNested))
+
+                ## Create dictionary containing bridge information
+                bridgeInfo = {}
+                bridgeInfo['bridgeType'] = bridgeType
+                bridgeInfo['family'] = families[0]
+                bridgeInfo['srcId'] = None if bridgeType == 'solo' else srcIds[0]
+                bridgeInfo['bridgeLen'] = np.mean([cluster.bridgeInfo['bridgeLen'] for cluster in bridgeClusters['aligned']])
+                
+                ## Create bridge
+                self.bridge = BRIDGE(events, bridgeInfo)
+
+            ## b) Inconsistent info
+            else:
+                self.bridge = None
+
+        ## 4. Apply read support filter to the bridge 
+        ## Bridge available
+        if self.bridge is not None:
+
+            ## Compute percentage of metacluster supporting reads composing the bridge 
+            percReads = float(self.bridge.nbReads()) / self.nbReadsTotal * 100
+
+            ## Filter out bridge if:
+            #    1) Bridge supported by < X reads OR
+            #    2) Bridge supported by < X% of the total number of metacluster supporting reads 
+            if (self.bridge.nbReads() < minSupportingReads) or (percReads < minPercReads):
+                self.bridge = None
 
     def search4junctions(self, metaclustersBinDb, minSupportingReads, minPercReads):
         '''
@@ -2699,9 +2963,13 @@ class BRIDGE():
     '''
     Rearrangement bridge class
     '''
-    def __init__(self, supplAlignments):
+    def __init__(self, supplAlignments, info):
 
         self.supplAlignments = supplAlignments
+        self.bridgeType = info['bridgeType']
+        self.family = info['family']
+        self.srcId = info['srcId']
+        self.bridgeLen = info['bridgeLen']
 
     def add(self, supplAlignments):
         '''
