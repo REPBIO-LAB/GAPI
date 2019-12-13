@@ -159,7 +159,7 @@ def write_junctions(junctions, outFileName, outDir):
     outFile = open(outFilePath, 'w')
 
     ## 2. Write header 
-    row = "#refA \t bkpA \t refB \t bkpB \t junctionType \t nbReadsTotal \t nbReadsTumour \t nbReadsNormal \t bridgeType \t family \t srcId \t nbReadsRepBridge \t nbReadsTdBridge \n"
+    row = "#refA \t bkpA \t refB \t bkpB \t junctionType \t nbReadsTotal \t nbReadsTumour \t nbReadsNormal \t bridgeType \t family \t srcId \t supportTypes \t bridgeLen \t nbReadsBridge \n"
     outFile.write(row)
 
     ## 3. Write BND junctions  
@@ -167,17 +167,23 @@ def write_junctions(junctions, outFileName, outDir):
     for junction in junctions:
         
         ## Collect into to write into file:
+        # Metacluster info
         refA = junction.metaclusterA.ref
         bkpA = junction.metaclusterA.bkpPos
         refB = junction.metaclusterB.ref
         bkpB = junction.metaclusterB.bkpPos
-        junctionType = junction.junctionType()
         nbReadsTotal, nbReadsTumour, nbReadsNormal = junction.supportingReads()
-        bridgeType = junction.bridgeType 
-        family, srcId, nbReadsRepBridge, nbReadsTdBridge = junction.bridgeInfo()
+        
+        # Bridge info
+        bridgeType = junction.bridge.bridgeType if junction.bridge is not None else None
+        family = junction.bridge.family if junction.bridge is not None else None
+        srcId = junction.bridge.srcId if junction.bridge is not None else None
+        supportTypes = ','.join(junction.bridge.support_types()) if junction.bridge is not None else None
+        bridgeLen = int(junction.bridge.bridgeLen) if junction.bridge is not None else None
+        nbReadsBridge = junction.bridge.nbReads() if junction.bridge is not None else None       
 
         # Write BND junction call into output file
-        row = "\t".join([refA, str(bkpA), refB, str(bkpB), junctionType, str(nbReadsTotal), str(nbReadsTumour), str(nbReadsNormal), str(bridgeType), str(family), str(srcId), str(nbReadsRepBridge), str(nbReadsTdBridge), "\n"])
+        row = "\t".join([refA, str(bkpA), refB, str(bkpB), junction.junctionType(), str(nbReadsTotal), str(nbReadsTumour), str(nbReadsNormal), str(bridgeType), str(family), str(srcId), str(supportTypes), str(bridgeLen), str(nbReadsBridge), "\n"])
         outFile.write(row)
 
     ## Close output file ##
