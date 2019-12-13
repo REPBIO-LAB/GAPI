@@ -1550,8 +1550,7 @@ class SUPPLEMENTARY_cluster(cluster):
             6. index: minimap2 index for consensus retrotransposon sequences + source element downstream regions
             7. outDir: output directory
 
-        Output: 
-
+        Output: Update 'bridge' and 'bridgeInfo' attributes
         '''
 
         ## 1. Search for unaligned bridge sequence at BND junction (algorithm 1)
@@ -1578,12 +1577,12 @@ class SUPPLEMENTARY_cluster(cluster):
             2. outDir: output directory     
 
         Output: 
-            1. bridge:
-            2. supportType:
-            3. bridgeType:
-            4. bridgeLen:
-            5. family:
-            6. srcId:
+            1. bridge: boolean specifying if unaligned bridge found (True) or not (False)
+            2. supportType: 'unaligned' or None
+            3. bridgeType: type of bridge (solo, partnered or orphan)
+            4. bridgeLen: bridge length
+            5. family: retrotransposon family
+            6. srcId: source element identifier
         '''    
         bridge = False 
         supportType = None
@@ -1656,19 +1655,19 @@ class SUPPLEMENTARY_cluster(cluster):
             5. annotations: dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
 
         Output: 
-            1. bridge:
-            2. supportType:
-            3. bridgeType:
-            4. bridgeLen:
-            5. family:
-            6. srcId:        
+            1. bridge: boolean specifying if unaligned bridge found (True) or not (False)
+            2. supportType: 'aligned' or None
+            3. bridgeType: type of bridge (solo, partnered or orphan)
+            4. bridgeLen: bridge length
+            5. family: retrotransposon family
+            6. srcId: source element identifier        
         '''
-        bridge = False ## Boolean: True, False (Suppl. alignment supports bridge)
+        bridge = False 
         supportType = None
-        bridgeType = None  ## solo, transduction
+        bridgeType = None  
         bridgeLen = None
-        family = None ## L1, Alu, ...
-        srcId = None # Source element identifier
+        family = None 
+        srcId = None 
 
         # Cluster interval length within limit
         if self.length() <= 10000:

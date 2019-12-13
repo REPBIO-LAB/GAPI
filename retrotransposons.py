@@ -188,7 +188,6 @@ def infer_strand_polyA(sequence, chain):
         1. strand: Insertion strand (+, - or None) 
         2. polyA: boolean specifying if polyA/T sequence was found
     '''
-    
     ### Set up configuration parameters
     windowSize = 8
     maxWindowDist = 2
