@@ -1633,7 +1633,7 @@ class SUPPLEMENTARY_cluster(cluster):
             structure = retrotransposons.retrotransposon_structure(insertPath, index, outDir)
             
             # Resolved structure -> Call bridge
-            if structure['PERC_RESOLVED'] >= 70:
+            if ('PERC_RESOLVED' in structure) and (structure['PERC_RESOLVED'] >= 70):
                 bridge = True
                 supportType = 'unaligned'
                 bridgeType = structure['INS_TYPE']  
