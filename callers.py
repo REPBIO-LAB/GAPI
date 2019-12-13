@@ -135,7 +135,7 @@ class SV_caller_long(SV_caller):
             outDir = self.outDir + '/BRIDGES/'
             unix.mkdir(outDir)   
 
-            clusters.search4bridges_metaclusters(allMetaclusters['BND'], 10000, 80, self.confDict['minSupportingReads'], 50, refLengths, self.refDir, self.confDict['processes'], outDir)
+            allMetaclusters['BND'] = clusters.search4bridges_metaclusters_parallel(allMetaclusters['BND'], 10000, 80, self.confDict['minSupportingReads'], 50, refLengths, self.refDir, self.confDict['processes'], outDir)
 
             ### Search for BND junctions
             allJunctions = clusters.search4junctions_metaclusters(allMetaclusters['BND'], refLengths, self.confDict['processes'], self.confDict['minSupportingReads'], 50)

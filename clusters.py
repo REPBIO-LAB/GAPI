@@ -833,7 +833,6 @@ def insertedSeq2fasta(metaclusters, outDir):
 
     return fastaPath
 
-
 def assignAligments2metaclusters_paf(metaclusters, PAF_path):
     '''
     Map alignments to their corresponding metacluster. 
@@ -902,7 +901,7 @@ def assignAligments2metaclusters_sam(metaclusters, SAM_path):
 
     return metaclustersHits
 
-def search4bridges_metaclusters(metaclusters, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, refLengths, refDir, processes, rootDir):
+def search4bridges_metaclusters_parallel(metaclusters, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, refLengths, refDir, processes, rootDir):
     '''
     Search for transduction or repeat bridges at BND junctions for a list of metacluster objects
 
@@ -922,7 +921,6 @@ def search4bridges_metaclusters(metaclusters, maxBridgeLen, minMatchPerc, minSup
     ## 1. Load repeats annnotation and transduced regions beds
     annot2load = ['REPEATS', 'TRANSDUCTIONS']
     annotations = annotation.load_annotations(annot2load, refLengths, refDir, processes, rootDir)
-    #annotations = None
 
     ## 2. Generate index containing consensus retrotranposon sequences + source elements downstream regions
     ## Consensus retrotransposon sequences
@@ -947,17 +945,53 @@ def search4bridges_metaclusters(metaclusters, maxBridgeLen, minMatchPerc, minSup
     fileName = 'reference_sequences'  
     index = alignment.index_minimap2(fastaPath, fileName, rootDir)
 
-    ## 3. Search for bridges
-    # For each metacluster
+    ## 3. Create tuple list for multiprocessing
+    tupleList = []
+
     for metacluster in metaclusters:
-
-        metaInterval = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])
-        outDir = rootDir + '/' + metaInterval
-        unix.mkdir(outDir)
-
-        metacluster.search4bridge(maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, outDir)
         
-        unix.rm([outDir])
+        ## Add to the list
+        fields = (metacluster, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, rootDir)
+        tupleList.append(fields)
+
+    ## 4. Search for bridges
+    pool = mp.Pool(processes=processes)
+    metaclusters = pool.starmap(search4bridges_metacluster, tupleList)
+    pool.close()
+    pool.join()
+
+    return metaclusters
+
+def search4bridges_metacluster(metacluster, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, rootDir):
+    '''
+    Search for transduction or repeat bridges at BND junctions for a metacluster object
+
+    Input:
+        1. metacluster: metacluster object
+        2. maxBridgeLen: maximum supplementary cluster length to search for a bridge
+        3. minMatchPerc: minimum percentage of the supplementary cluster interval to match in a transduction or repeats database to make a bridge call
+        4. minSupportingReads: minimum number of reads supporting the bridge
+        5. minPercReads: minimum percentage of clipping cluster supporting reads composing the bridge
+        6. annotations: dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
+        7. index: minimap2 index for consensus retrotransposon sequences + transduced regions database
+        8. rootDir: root output directory
+
+    Output:
+        1. metacluster: metacluster object with updated bridge information
+    '''
+    ## 1. Create output directory
+    metaInterval = '_'.join([str(metacluster.ref), str(metacluster.beg), str(metacluster.end)])
+    outDir = rootDir + '/' + metaInterval
+    unix.mkdir(outDir)
+
+    ## 2. Search for bridge
+    metacluster.search4bridge(maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, outDir)
+
+    ## 3. Remove output directory        
+    unix.rm([outDir])
+
+    return metacluster
+
 
 def search4junctions_metaclusters(metaclusters, refLengths, processes, minSupportingReads, minPercReads):
     '''
