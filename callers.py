@@ -62,7 +62,7 @@ class SV_caller_long(SV_caller):
         msg = '1. Create SV clusters'
         log.header(msg)
         allMetaclusters = self.make_clusters()
-
+        
         ### 2. Annotate SV clusters intervals  
         msg = '2. Annotate SV clusters intervals'
         log.header(msg)
@@ -132,7 +132,7 @@ class SV_caller_long(SV_caller):
         
             ### Search for repeat, transduction or viral bridges
             # Create output directory
-            outDir = self.outDir + '/BND_JUNCTIONS/'
+            outDir = self.outDir + '/BRIDGES/'
             unix.mkdir(outDir)   
 
             clusters.search4bridges_metaclusters(allMetaclusters['BND'], 10000, 80, self.confDict['minSupportingReads'], 50, refLengths, self.refDir, self.confDict['processes'], outDir)
