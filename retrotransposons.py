@@ -129,7 +129,7 @@ def insertion_type(chain):
 
     ## e) Unknown insertion type
     else:
-        insType = None
+        insType = 'unknown'
         family = []
         srcId = [] 
 
