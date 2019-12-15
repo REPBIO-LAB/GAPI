@@ -1037,7 +1037,7 @@ def search4junctions_metaclusters(metaclusters, refLengths, processes, minSuppor
             # Add junction to the list
             allJunctions.append(junction)
             includedJunctions.append(junction.junctionCoord())
-        
+                
     return allJunctions
     
 
@@ -1588,14 +1588,15 @@ class SUPPLEMENTARY_cluster(cluster):
         '''
 
         ## 1. Search for unaligned bridge sequence at BND junction (algorithm 1)
-        self.bridge, supportType, bridgeType, bridgeLen, family, srcId = self.supports_unaligned_bridge(index, outDir)
+        self.bridge, supportType, bridgeType, bridgeSeq, bridgeLen, family, srcId = self.supports_unaligned_bridge(index, outDir)
 
         ## 2. If bridge not found search for supplementary alignment supporting a bridge (algorithm 2)
-        if not self.bridge:
-            self.bridge, supportType, bridgeType, bridgeLen, family, srcId = self.supports_aligned_bridge(maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations)
+        if self.bridge is False:
+            self.bridge, supportType, bridgeType, bridgeSeq, bridgeLen, family, srcId = self.supports_aligned_bridge(maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations)
 
         self.bridgeInfo['supportType'] = supportType
         self.bridgeInfo['bridgeType'] = bridgeType
+        self.bridgeInfo['bridgeSeq'] = bridgeSeq
         self.bridgeInfo['bridgeLen'] = bridgeLen
         self.bridgeInfo['family'] = family
         self.bridgeInfo['srcId'] = srcId
@@ -1614,13 +1615,15 @@ class SUPPLEMENTARY_cluster(cluster):
             1. bridge: boolean specifying if unaligned bridge found (True) or not (False)
             2. supportType: 'unaligned' or None
             3. bridgeType: type of bridge (solo, partnered or orphan)
-            4. bridgeLen: bridge length
-            5. family: retrotransposon family
-            6. srcId: source element identifier
+            4. bridgeSeq: bridge sequence
+            5. bridgeLen: bridge length
+            6. family: retrotransposon family
+            7. srcId: source element identifier
         '''    
         bridge = False 
         supportType = None
         bridgeType = None  
+        bridgeSeq = None
         bridgeLen = None
         family = None 
         srcId = None 
@@ -1632,7 +1635,7 @@ class SUPPLEMENTARY_cluster(cluster):
         nbEvents = len(insertSizes)
 
         if nbEvents < 2:
-            return bridge, supportType, bridgeType, bridgeLen, family, srcId
+            return bridge, supportType, bridgeType, bridgeSeq, bridgeLen, family, srcId
 
         ## 3. Assess bridge size consistency between supporting events
         # AND select representative event if bridge found
@@ -1640,8 +1643,8 @@ class SUPPLEMENTARY_cluster(cluster):
         std = np.std(insertSizes)
         cv = std / meanLen * 100 
 
-        ## Consistent bridge sizes -> bridge candidate
-        if cv <= 25:
+        ## Consistent bridge sizes -> call bridge 
+        if cv <= 40:
 
             ## Compute median bridge size
             medianSize = np.median(insertSizes)
@@ -1664,17 +1667,28 @@ class SUPPLEMENTARY_cluster(cluster):
 
             ## Infer structure
             structure = retrotransposons.retrotransposon_structure(insertPath, index, outDir)
-            
-            # Resolved structure -> Call bridge
-            if ('PERC_RESOLVED' in structure) and (structure['PERC_RESOLVED'] >= 70):
+
+            # a) Resolved structure
+            if ('INS_TYPE' in structure) and (structure['INS_TYPE'] is not 'unknown') and ('PERC_RESOLVED' in structure) and (structure['PERC_RESOLVED'] >= 60):
                 bridge = True
                 supportType = 'unaligned'
                 bridgeType = structure['INS_TYPE']  
+                bridgeSeq = self.representative.insertSeq
                 bridgeLen = self.representative.insertSize
                 family = ','.join(structure['FAMILY']) 
                 srcId = ','.join(structure['CYTOBAND']) if ('CYTOBAND' in structure and structure['CYTOBAND']) else None
 
-        return bridge, supportType, bridgeType, bridgeLen, family, srcId    
+            # b) Unresolved structure
+            else:
+                bridge = True
+                supportType = 'unaligned'
+                bridgeType = 'unknown'
+                bridgeSeq = self.representative.insertSeq
+                bridgeLen = self.representative.insertSize
+                family = None
+                srcId = None
+
+        return bridge, supportType, bridgeType, bridgeSeq, bridgeLen, family, srcId    
 
     def supports_aligned_bridge(self, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations):
         '''
@@ -1699,6 +1713,7 @@ class SUPPLEMENTARY_cluster(cluster):
         bridge = False 
         supportType = None
         bridgeType = None  
+        bridgeSeq = None        
         bridgeLen = None
         family = None 
         srcId = None 
@@ -1717,7 +1732,7 @@ class SUPPLEMENTARY_cluster(cluster):
 
                 ## Sort matches in decreasing match % order
                 sortedTdMatches = sorted(tdMatches, key=itemgetter(2), reverse=True)
-
+            
                 ## Check if cluster matches a transduced area (use match with longest %)
                 if sortedTdMatches and sortedTdMatches[0][2] > minMatchPerc:
                     tdMatch = sortedTdMatches[0]
@@ -1761,7 +1776,7 @@ class SUPPLEMENTARY_cluster(cluster):
                     bridgeLen = self.length()
                     family = repeatMatch[0].optional['family']
 
-        return bridge, supportType, bridgeType, bridgeLen, family, srcId
+        return bridge, supportType, bridgeType, bridgeSeq, bridgeLen, family, srcId
 
     def is_junction_partner(self, bridgeReadIds, minPercReads):
         '''
@@ -2497,6 +2512,12 @@ class META_cluster():
                     elif (cluster.bridgeInfo['bridgeType'] == 'transduced') and (self.bridge.srcId == cluster.bridgeInfo['srcId']):
                         self.bridge.add([cluster])
 
+                # d) Unknown bridge type
+                elif self.bridge.bridgeType == 'unknown':
+                
+                    ## Improve later to infer bridge type based on aligned info
+                    self.bridge.add([cluster])
+
         ## C) One or multiple suppl. clusters supporting an aligned bridge
         else:
             
@@ -2626,7 +2647,7 @@ class META_cluster():
                 binDbRef = metaclustersBinDb[partner.ref]
 
                 ## Search for BND metaclusters at supplementary cluster breakpoint 
-                buffer = 50
+                buffer = 100
                 partnerMetaclusters = binDbRef.collect_interval(partner.bkpPos() - buffer, partner.bkpPos() + buffer, ['BND'])
 
                 ## Create BND junction candidate tuple for each metacluster - partner metacluster pair 
@@ -2652,7 +2673,7 @@ class META_cluster():
             #      1) Supported by >= minSupportingReads
             #      2) Percentage of reads supporting supplementary cluster >= minPercReads for both metacluster and partner
             if (nbReads >= minSupportingReads) and (percReadsMeta >= minPercReads) and (percReadsPartner >= minPercReads):
-
+                                
                 ## Create BND junction 
                 junction = BND_junction(meta, metaPartner)
                 
@@ -2661,6 +2682,7 @@ class META_cluster():
 
                 ## Add junction to the list
                 junctions.append(junction)
+
 
         return junctions
         
@@ -3082,6 +3104,7 @@ class BRIDGE():
         self.bridgeType = info['bridgeType']
         self.family = info['family']
         self.srcId = info['srcId']
+        self.bridgeSeq = info['bridgeSeq']
         self.bridgeLen = info['bridgeLen']
 
     def add(self, supplClusters):
