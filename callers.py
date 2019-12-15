@@ -122,7 +122,7 @@ class SV_caller_long(SV_caller):
 
             # Remove output directory
             unix.rm([outDir])
-
+        
         ### 5. Identify BND junctions
         msg = '5. Identify BND junctions'
         log.header(msg)
@@ -135,10 +135,10 @@ class SV_caller_long(SV_caller):
             outDir = self.outDir + '/BRIDGES/'
             unix.mkdir(outDir)   
 
-            allMetaclusters['BND'] = clusters.search4bridges_metaclusters_parallel(allMetaclusters['BND'], 10000, 80, self.confDict['minSupportingReads'], 50, refLengths, self.refDir, self.confDict['processes'], outDir)
+            allMetaclusters['BND'] = clusters.search4bridges_metaclusters_parallel(allMetaclusters['BND'], 10000, 80, self.confDict['minSupportingReads'], 25, refLengths, self.refDir, self.confDict['processes'], outDir)
 
             ### Search for BND junctions
-            allJunctions = clusters.search4junctions_metaclusters(allMetaclusters['BND'], refLengths, self.confDict['processes'], self.confDict['minSupportingReads'], 50)
+            allJunctions = clusters.search4junctions_metaclusters(allMetaclusters['BND'], refLengths, self.confDict['processes'], self.confDict['minSupportingReads'], 25)
             
             # Remove output directory
             unix.rm([outDir])
