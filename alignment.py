@@ -42,7 +42,19 @@ def index_minimap2(fastaPath, fileName, outDir):
     
     return indexPath
 
+def index_bwa(fastaPath, outDir):
+    '''
+    Wrapper to generate BWA index for fasta file
+    '''
+    err = open(outDir + '/index.err', 'w') 
+    command = 'bwa index ' + fastaPath 
+    status = subprocess.call(command, stderr=err, shell=True)
 
+    if status != 0:
+        step = 'INDEX'
+        msg = 'BWA indexing failed' 
+        log.step(step, msg)
+    
 def minimap2_presets(technology):
     '''
     Set minimap2 preset according to the sequencing technology
