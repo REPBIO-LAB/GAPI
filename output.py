@@ -159,7 +159,7 @@ def write_junctions(junctions, outFileName, outDir):
     outFile = open(outFilePath, 'w')
 
     ## 2. Write header 
-    row = "#refA \t bkpA \t refB \t bkpB \t junctionType \t nbReadsTotal \t nbReadsTumour \t nbReadsNormal \t bridgeType \t family \t srcId \t supportTypes \t bridgeLen \t nbReadsBridge \n"
+    row = "#refA \t bkpA \t refB \t bkpB \t junctionType \t nbReadsTotal \t nbReadsTumour \t nbReadsNormal \t bridgeType \t family \t srcId \t supportTypes \t bridgeLen \t nbReadsBridge \t bridgeSeq \n"
     outFile.write(row)
 
     ## 3. Write BND junctions  
@@ -181,9 +181,10 @@ def write_junctions(junctions, outFileName, outDir):
         supportTypes = ','.join(junction.bridge.support_types()) if junction.bridge is not None else None
         bridgeLen = int(junction.bridge.bridgeLen) if junction.bridge is not None else None
         nbReadsBridge = junction.bridge.nbReads() if junction.bridge is not None else None       
+        bridgeSeq = junction.bridge.bridgeSeq if junction.bridge is not None else None
 
         # Write BND junction call into output file
-        row = "\t".join([refA, str(bkpA), refB, str(bkpB), junction.junctionType(), str(nbReadsTotal), str(nbReadsTumour), str(nbReadsNormal), str(bridgeType), str(family), str(srcId), str(supportTypes), str(bridgeLen), str(nbReadsBridge), "\n"])
+        row = "\t".join([refA, str(bkpA), refB, str(bkpB), junction.junctionType(), str(nbReadsTotal), str(nbReadsTumour), str(nbReadsNormal), str(bridgeType), str(family), str(srcId), str(supportTypes), str(bridgeLen), str(nbReadsBridge), str(bridgeSeq), "\n"])
         outFile.write(row)
 
     ## Close output file ##
