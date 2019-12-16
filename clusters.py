@@ -2560,7 +2560,8 @@ class META_cluster():
                 bridgeInfo['family'] = families[0]
                 bridgeInfo['srcId'] = None if bridgeType == 'solo' else srcIds[0]
                 bridgeInfo['bridgeLen'] = np.mean([cluster.bridgeInfo['bridgeLen'] for cluster in bridgeClusters['aligned']])
-                
+                bridgeInfo['bridgeSeq'] = None
+
                 ## Create bridge
                 self.bridge = BRIDGE(bridgeClusters['aligned'], bridgeInfo)
 
