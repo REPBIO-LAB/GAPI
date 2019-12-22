@@ -1719,6 +1719,7 @@ class SUPPLEMENTARY_cluster(cluster):
         srcId = None 
 
         # Cluster interval length within limit
+        # NOTE: request clusterIndex == 0
         if self.length() <= 10000:
 
             ## 1. Assess if supplementary cluster spans a transduced region
@@ -2535,7 +2536,7 @@ class META_cluster():
 
             # c) Orphan
             elif (nbTypes == 1) and ('transduced' in types):
-                bridgeType = 'transduced'
+                bridgeType = 'orphan'
 
             # d) Unasigned type
             else:
@@ -2683,7 +2684,6 @@ class META_cluster():
 
                 ## Add junction to the list
                 junctions.append(junction)
-
 
         return junctions
         
