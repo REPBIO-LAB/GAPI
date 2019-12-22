@@ -486,53 +486,56 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
     # For each read alignment
     for alignmentObj in iterator:
 
-        ### Select good quality alignments not having any of these properties:
-        # - Unmapped
-        # - Secondary alignment (disabled, explore the possibility of including this filter)
-        # - PCR or optical duplicate
-        # - Read sequence not available
-        # - Mapping quality < threshold
-        MAPQ = int(alignmentObj.mapping_quality)
+        ### 1. Filter out alignments based on different criteria:
+        MAPQ = int(alignmentObj.mapping_quality) # Mapping quality
 
-        '''
-        IMPORTANT: do not remove duplicates... ask Eva to explain this better... See her comment bellow:
-        ESTE READ:  HWI-ST672:129:D0DF0ACXX:7:2307:1853:126943 (BIN: 2_105457202_105457974, SAMPLE: RK107, MODE: SINGLE)
-        Es duplicado, pero es que resulta que un duplicado esta map y el otro no, entonces no la coge de ninguna de las maneras y no funciona lo demas!
-        '''
-        #if (alignmentObj.is_unmapped == False) and (alignmentObj.is_duplicate == False) and (alignmentObj.query_sequence != None) and (MAPQ >= confDict['minMAPQ']):
-        if (alignmentObj.is_unmapped == False) and (alignmentObj.query_sequence != None) and (MAPQ >= confDict['minMAPQ']):
-         
-            ## 1. Collect CLIPPINGS
-            if 'CLIPPING' in confDict['targetSV']:
+        ## Unmapped reads   
+        if alignmentObj.is_unmapped == True:
+            continue
 
-                left_CLIPPING, right_CLIPPING = collectCLIPPING(alignmentObj, confDict['minCLIPPINGlen'], targetInterval, sample)
+        ## No query sequence available
+        if alignmentObj.query_sequence == None:
+            continue
 
-                # Left CLIPPING found
-                if left_CLIPPING != None:
-                    eventsDict['LEFT-CLIPPING'].append(left_CLIPPING)
+        ## Aligments with MAPQ < threshold
+        if (MAPQ < confDict['minMAPQ']):
+            continue
+
+        ## Duplicates filtering enabled and duplicate alignment
+        if (confDict['filterDuplicates'] == True) and (alignmentObj.is_duplicate == True):
+            continue
         
-                # Right CLIPPING found
-                if right_CLIPPING != None:
+        ## 2. Collect CLIPPINGS
+        if 'CLIPPING' in confDict['targetSV']:
+
+            left_CLIPPING, right_CLIPPING = collectCLIPPING(alignmentObj, confDict['minCLIPPINGlen'], targetInterval, sample)
+
+            # Left CLIPPING found
+            if left_CLIPPING != None:
+                eventsDict['LEFT-CLIPPING'].append(left_CLIPPING)
+        
+            # Right CLIPPING found
+            if right_CLIPPING != None:
                     
-                    eventsDict['RIGHT-CLIPPING'].append(right_CLIPPING)
+                eventsDict['RIGHT-CLIPPING'].append(right_CLIPPING)
                     
-            ## 2. Collect INDELS
-            if ('INS' in confDict['targetSV']) or ('DEL' in confDict['targetSV']):
+        ## 3. Collect INDELS
+        if ('INS' in confDict['targetSV']) or ('DEL' in confDict['targetSV']):
 
-                INDEL_events = collectINDELS(alignmentObj, confDict['targetSV'], confDict['minINDELlen'], targetInterval, confDict['overhang'], sample)
+            INDEL_events = collectINDELS(alignmentObj, confDict['targetSV'], confDict['minINDELlen'], targetInterval, confDict['overhang'], sample)
 
-                # Add events to the pre-existing lists                
-                for INDEL_type, events in INDEL_events.items():
-                    eventsDict[INDEL_type] = eventsDict[INDEL_type] + events
+            # Add events to the pre-existing lists                
+            for INDEL_type, events in INDEL_events.items():
+                eventsDict[INDEL_type] = eventsDict[INDEL_type] + events
 
-            ## 3. Collect DISCORDANT
-            if 'DISCORDANT' in confDict['targetSV']:
+        ## 4. Collect DISCORDANT
+        if 'DISCORDANT' in confDict['targetSV']:
 
-                DISCORDANTS = collectDISCORDANT(alignmentObj, sample)
+            DISCORDANTS = collectDISCORDANT(alignmentObj, sample)
 
-                # Add discordant events
-                for discordant in DISCORDANTS:
-                    eventsDict['DISCORDANT'].append(discordant)
+            # Add discordant events
+            for discordant in DISCORDANTS:
+                eventsDict['DISCORDANT'].append(discordant)
         
     ## Close 
     bamFile.close()
