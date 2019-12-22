@@ -237,7 +237,7 @@ def write_tdCalls_surelect(clustersPerSrc, outDir):
     ## 1. Write header 
     outFilePath = outDir + '/transduction_calls.tsv'
     outFile = open(outFilePath, 'w')
-    row = "#ref \t beg \t end \t srcId \t nbReads \n"
+    row = "#ref \t beg \t end \t srcId \t nbReads \t readIds \n"
     outFile.write(row)
 
     ## 2. Generate list containing transduction calls 
@@ -250,9 +250,10 @@ def write_tdCalls_surelect(clustersPerSrc, outDir):
         for cluster in clusters:
             ref = cluster.events[0].mateRef
             beg, end = cluster.mates_start_interval()
-            nbReads = cluster.nbReads()
-            
-            call = [ref, str(beg), str(end), srcId, str(nbReads)]
+            nbReads, readIds = cluster.nbReads()
+            readIds = ','.join(readIds)
+
+            call = [ref, str(beg), str(end), srcId, str(nbReads), readIds]
             calls.append(call)
 
     ## 3. Sort transduction calls first by chromosome and then by start position
