@@ -128,7 +128,7 @@ def create_discordantClusters(discordantBinDb, minClusterSize, buffer):
 
     # For each discordant read pair cluster type
     for clusterType in discordantBinDb.eventTypes:
-        
+                
         # Do clustering based on reciprocal overlap
         discordantClustersDict[clusterType] = clustering.reciprocal_overlap_clustering(discordantBinDb, 1, minClusterSize, [clusterType], buffer, clusterType)
 

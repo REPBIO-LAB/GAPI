@@ -591,7 +591,7 @@ class SV_caller_sureselect(SV_caller):
         clusterPerSrc = pool.starmap(self.make_clusters_bin, bins)
         pool.close()
         pool.join()
-
+        
         # Convert into dictionary
         clusterPerSrcDict = {srcId:clusters for srcId,clusters in clusterPerSrc}
 
@@ -601,6 +601,7 @@ class SV_caller_sureselect(SV_caller):
 
         ## 5.2 Transduction calls
         output.write_tdCalls_surelect(clusterPerSrcDict, self.outDir)
+        
 
     def make_clusters_bin(self, ref, beg, end, srcId):
         '''
@@ -677,4 +678,5 @@ class SV_caller_sureselect(SV_caller):
         filteredDiscordants = filters.filter_discordant_mate_MAPQ(filteredDiscordants, 20, self.bam)
 
         return [srcId, filteredDiscordants]  
+
 
