@@ -31,6 +31,8 @@ import bkp
 import annotation
 import sequences
 import gRanges
+import stats
+
 
 ###############
 ## FUNCTIONS ##
@@ -1265,6 +1267,24 @@ class cluster():
         nbTotal = len(self.events)
 
         return nbTotal, nbTumour, nbNormal
+    
+    def dupPercentage(self):
+        '''
+        Return the percentage of duplicates in cluster
+        '''
+        
+        nbDup = 0
+        nbTotal = len(self.events)
+        
+        for event in self.events:
+            
+            if event.isDup == True:
+                nbDup += 1
+        
+        dupPercentage = stats.fraction(nbDup, nbTotal) * 100
+        
+        return dupPercentage
+        
 
 
 class INS_cluster(cluster):
@@ -1363,6 +1383,7 @@ class INS_cluster(cluster):
                     subclusters.append(subcluster)
 
         return subclusters     
+
 
 class DEL_cluster(cluster):
     '''

@@ -472,7 +472,8 @@ class CLIPPING():
             self.supplementary = None
             self.mapQual = None
             self.supplAlignment = None
-
+            self.isDup = None
+            
         else:
             self.CIGAR = alignmentObj.cigarstring
             self.reverse = alignmentObj.is_reverse
@@ -481,6 +482,7 @@ class CLIPPING():
             self.mapQual = alignmentObj.mapping_quality
             self.supplAlignment = alignmentObj.get_tag('SA') if alignmentObj.has_tag('SA') else None
             self.refLen = alignmentObj.reference_length
+            self.isDup = alignmentObj.is_duplicate
 
     def readCoordinates(self):
         '''
@@ -799,9 +801,11 @@ class DISCORDANT():
         self.mateSeq = None
 
         if alignmentObj is None:
+            self.isDup = None
             self.mateRef = None
             self.mateStart = None           
         else:
+            self.isDup = alignmentObj.is_duplicate
             self.mateRef = alignmentObj.next_reference_name
             self.mateStart = alignmentObj.next_reference_start
 

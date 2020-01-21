@@ -8,6 +8,8 @@ import pysam
 ## Internal
 import gRanges
 import bamtools
+import stats
+
 
 ###############
 ## FUNCTIONS ##
@@ -472,8 +474,8 @@ def area(cluster,confDict,bam):
             nbReads += 1
     
     ## Calculate percentages
-    percMAPQ = fraction(lowMAPQ, nbReads)
-    percSMSReads = fraction(SMSReads, nbReads)
+    percMAPQ = stats.fraction(lowMAPQ, nbReads)
+    percSMSReads = stats.fraction(SMSReads, nbReads)
 
     ## If the percentage of low MQ reads is lower than the threshold pass the filter.
     if percMAPQ < float(maxRegionlowMQ):
@@ -538,13 +540,86 @@ def areaSMS(alignmentObj):
 
     return SMSRead
 
-## TODO: WHERE CAN WE PUT THIS FUNCTION??
-def fraction(counts, total):
+
     
-    ## Percentage of SMS reads
-    if counts > 0:
-        perc = counts/total
-    else:
-        perc = 0
+
+def filter_highDup_clusters(discordants, dupPerc_threshold):
+    '''
+    Filter out those clusters formed by more than a percentage of duplicates
     
-    return perc
+    Input:
+    1. discordant: list of discordant clusters formed by DISCORDANT events
+    2. dupPerc_threshold: Percentage of duplicates by cluster to filter out
+    
+    Output:
+    1. filteredDiscordant: list of discordant clusters with no more than a percentage of duplicates  
+    '''
+    
+    filteredDiscordant = []
+    
+    for cluster in discordants:
+        
+        dupPerc = cluster.dupPercentage()
+        
+        if dupPerc < dupPerc_threshold:
+            
+            filteredDiscordant.append(cluster)
+                
+    return filteredDiscordant
+
+
+    
+def filter_INS_unspecificRegions(discordants, threshold, bam):
+    '''
+    Filter out those clusters whose mates are located in regions captured unspecifically
+    Insertion points where there is more than discordant reads are likely to be false positives
+    Example of recurrent false positive filtered: chr6:29765954 (hg19)
+    
+    Input:
+    1. discordant: list of discordant clusters formed by DISCORDANT events
+    2. threshold: ratio of nbDiscordant reads between nbTotal reads
+    
+    
+    Output:
+    1. filteredDiscordant: list of discordant clusters that have more than a percentage of discordant reads in the insertion point
+    '''
+    
+    filteredDiscordant = []
+    
+    # Open BAM file for reading
+    bamFile = pysam.AlignmentFile(bam, "rb")
+    
+    for cluster in discordants:
+        
+        nbProperPair = 0
+        nbDiscordants = len(cluster.events)
+        
+        buffer = 200
+        
+        ref = cluster.events[0].mateRef
+        beg, end = cluster.mates_start_interval()
+        
+        # Extract alignments
+        iterator = bamFile.fetch(ref, beg - buffer, end + buffer)
+        
+        # Count properly paired reads in region
+        for alignmentObj in iterator:
+            
+            if alignmentObj.is_proper_pair:
+                
+                nbProperPair += 1
+        
+        # if there is properly paired reads around insertion
+        if nbProperPair > 0:
+            
+            # if the ratio discordants/properly paired reads is greater than threshold
+            if nbDiscordants/nbProperPair > threshold:
+            
+                filteredDiscordant.append(cluster)
+                
+        else:
+            
+            filteredDiscordant.append(cluster)
+            
+    return filteredDiscordant
+
