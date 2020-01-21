@@ -627,7 +627,7 @@ class SV_caller_sureselect(SV_caller):
         counts = [str(len(eventsDict[SV_type])) for SV_type in SV_types]
         msg = 'Number of SV events in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
         log.step(step, msg)
-        
+                                      
         ## 2. Organize discordant read pairs into genomic bins prior clustering ##
         step = 'BINNING'
         msg = 'Organize discordant read pairs into genomic bins prior clustering'
@@ -676,7 +676,19 @@ class SV_caller_sureselect(SV_caller):
         msg = 'Filter out those clusters based on average MAPQ for mate alignments'
         log.step(step, msg)
         filteredDiscordants = filters.filter_discordant_mate_MAPQ(filteredDiscordants, 20, self.bam)
-
-        return [srcId, filteredDiscordants]  
+            
+        ## 8. Filter out clusters based on duplicate percentage (Ex: 50%) ##
+        step = 'FILTER-DUP'
+        msg = 'Filter out clusters formed by more than %X duplicates'
+        log.step(step, msg)
+        filteredDiscordants = filters.filter_highDup_clusters(filteredDiscordants, 50)
+            
+        ## 9. Filter out insertions in unspecific regions ##
+        step = 'FILTER-UNSPECIFIC-FP'
+        msg = 'Filter out insertions in unspecific regions'
+        log.step(step, msg)
+        filteredDiscordants = filters.filter_INS_unspecificRegions(filteredDiscordants, 0.2, self.bam)
+        
+        return [srcId, filteredDiscordants]
 
 

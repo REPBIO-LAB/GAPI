@@ -1,6 +1,7 @@
 
 ## DEPENDENCIES ##
 # External
+import pybedtools
 
 # Internal
 import structures
@@ -237,7 +238,7 @@ def write_tdCalls_surelect(clustersPerSrc, outDir):
     ## 1. Write header 
     outFilePath = outDir + '/transduction_calls.tsv'
     outFile = open(outFilePath, 'w')
-    row = "#ref \t beg \t end \t srcId \t nbReads \t readIds \n"
+    row = "#ref \t beg \t end \t srcId \t nbReads \t readIds \t dupPerc\n"
     outFile.write(row)
 
     ## 2. Generate list containing transduction calls 
@@ -252,8 +253,9 @@ def write_tdCalls_surelect(clustersPerSrc, outDir):
             beg, end = cluster.mates_start_interval()
             nbReads, readIds = cluster.nbReads()
             readIds = ','.join(readIds)
+            dupPerc = round(cluster.dupPercentage(), 2)
 
-            call = [ref, str(beg), str(end), srcId, str(nbReads), readIds]
+            call = [ref, str(beg), str(end), srcId, str(nbReads), readIds, str(dupPerc)]
             calls.append(call)
 
     ## 3. Sort transduction calls first by chromosome and then by start position
@@ -261,5 +263,18 @@ def write_tdCalls_surelect(clustersPerSrc, outDir):
 
     ## 4. Write transduction calls into output file
     for transduction in calls:
-        row = "\t".join(transduction + ["\n"])
-        outFile.write(row)    
+        row = "\t".join(transduction) + "\n"
+        outFile.write(row)
+    
+    outFile.close()
+    
+    ## 5. Collapse calls when pointing to the same MEI. It happens when source elements are too close.
+    outFile = pybedtools.BedTool(outFilePath)
+    
+    # Columns to collapse (without ref, beg and end columns)
+    colList = list(range(4, len(call)+1))
+    colFormat = ['collapse'] * (len(call) - 3)
+
+    mergedOutput = outFile.merge(c=colList, o=colFormat, header=True)
+    mergedOutput.saveas(outFilePath)
+
