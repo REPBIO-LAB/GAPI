@@ -168,13 +168,13 @@ def write_junctions(junctions, outFileName, outDir):
     for junction in junctions:
         
         ## Collect into to write into file:
-        # Metacluster info
         refA = junction.metaclusterA.ref
         bkpA = junction.metaclusterA.bkpPos
         refB = junction.metaclusterB.ref
         bkpB = junction.metaclusterB.bkpPos
+        junctionType = junction.junctionType()
         nbReadsTotal, nbReadsTumour, nbReadsNormal = junction.supportingReads()
-        
+
         # Bridge info
         bridgeType = junction.bridge.bridgeType if junction.bridge is not None else None
         family = junction.bridge.family if junction.bridge is not None else None

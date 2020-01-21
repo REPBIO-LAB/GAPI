@@ -62,7 +62,7 @@ class SV_caller_long(SV_caller):
         msg = '1. Create SV clusters'
         log.header(msg)
         allMetaclusters = self.make_clusters()
-        
+
         ### 2. Annotate SV clusters intervals  
         msg = '2. Annotate SV clusters intervals'
         log.header(msg)
@@ -132,7 +132,7 @@ class SV_caller_long(SV_caller):
         
             ### Search for repeat, transduction or viral bridges
             # Create output directory
-            outDir = self.outDir + '/BRIDGES/'
+            outDir = self.outDir + '/BND_JUNCTIONS/'
             unix.mkdir(outDir)   
 
             allMetaclusters['BND'] = clusters.search4bridges_metaclusters_parallel(allMetaclusters['BND'], 10000, 80, self.confDict['minSupportingReads'], 25, refLengths, self.refDir, self.confDict['processes'], outDir)
@@ -166,6 +166,7 @@ class SV_caller_long(SV_caller):
         if allJunctions:
             outFileName = 'BND_junctions_MEIGA.PASS.tsv'
             output.write_junctions(allJunctions, outFileName, self.outDir)
+        
         
     def make_clusters(self):
         '''
@@ -324,18 +325,47 @@ class SV_caller_short(SV_caller):
         Search for structural variants (SV) genome wide or in a set of target genomic regions
         '''
         ### 1. Create, index and load reference databases prior SV calling ##
-        annotDir = self.outDir + '/ANNOT/'
-        refLengths = bamtools.get_ref_lengths(self.bam)
-        self.annotations = annotation.load_annotations(['REPEATS', 'TRANSDUCTIONS'], refLengths, self.refDir, self.confDict['processes'], annotDir)
+        dbDir = self.outDir + '/DATABASES/'
+        unix.mkdir(dbDir)
 
+        ## 1.1 Load annotated retrotransposons into a bin database
+        ## Read bed
+        rtAnnotBed = self.refDir + '/retrotransposons_repeatMasker.bed'
+        rtAnnot = formats.BED()
+        rtAnnot.read(rtAnnotBed, 'nestedDict', None)
+
+        ## Create bin database
+        refLengths = bamtools.get_ref_lengths(self.bam)
+        self.repeatsBinDb = structures.create_bin_database_parallel(refLengths, rtAnnot.lines, 1)
+        
         ## 1.2 Create and index viral database
         #self.viralDb, self.viralDbIndex = databases.buildVirusDb(self.refDir, dbDir)
         
+        ## 1.3 Create transduced regions database
+        # a) Create database if transduction search enabled
+        if self.confDict['transductionSearch']:
+
+            ## Create bed file
+            sourceBed = self.refDir + '/srcElements.bed'
+            transducedPath = databases.create_transduced_bed(sourceBed, 15000, dbDir)
+
+            ## Read bed
+            transducedBed = formats.BED()
+            transducedBed.read(transducedPath, 'nestedDict', None)
+
+            ## Create bin database
+            self.transducedBinDb = structures.create_bin_database_parallel(refLengths, transducedBed.lines, 1)
+
+        # b) Skip database creation
+        else:
+            self.transducedBinDb = None
+
         ### 2. Define genomic bins to search for SV ##
         bins = bamtools.binning(self.confDict['targetBins'], self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
 
         ### 3. Search for SV clusters in each bin ##
         # Genomic bins will be distributed into X processes
+        # TODO: mirar que pasa cuando tienes 2 dictionarios
         pool = mp.Pool(processes=self.confDict['processes'])
         discordantClusters = pool.starmap(self.make_clusters_bin, bins)
         pool.close()
@@ -368,7 +398,7 @@ class SV_caller_short(SV_caller):
         # b) Paired sample mode (tumour & matched normal)
         else:
             discordantDict = bamtools.collectSV_paired(ref, beg, end, self.bam, self.normalBam, self.confDict)
-        
+
         step = 'COLLECT'
         SV_types = sorted(discordantDict.keys())
         counts = [str(len(discordantDict[SV_type])) for SV_type in SV_types]
@@ -378,10 +408,10 @@ class SV_caller_short(SV_caller):
         if counts == []:
             unix.rm([binDir])
             return None
-        
+                
         ## 2. Discordant read pair identity ##
         ## Determine identity
-        discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'])
+        discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], self.repeatsBinDb, self.transducedBinDb)
 
         step = 'IDENTITY'
         SV_types = sorted(discordantsIdentity.keys())
@@ -392,7 +422,7 @@ class SV_caller_short(SV_caller):
         if counts == []:
             unix.rm([binDir])
             return None
-              
+                
         ## 3. Organize discordant read pairs into genomic bins prior clustering ##
         step = 'BINNING'
         msg = 'Organize discordant read pairs into genomic bins prior clustering'
@@ -433,7 +463,7 @@ class SV_caller_short(SV_caller):
 
         ## Annotate
         buffer = 100
-        annotation.repeats_annotation(allDiscordantClusters, self.annotations['REPEATS'], buffer)
+        annotation.repeats_annotation(allDiscordantClusters, self.repeatsBinDb, buffer)
         
         ## 6. Perform gene-based annotation with ANNOVAR of discordant read pair clusters ##
         # Do gene-based annotation step if enabled
@@ -451,7 +481,6 @@ class SV_caller_short(SV_caller):
         unix.rm([binDir])
 
         return discordantClustersDict
-        
         
         '''
         Eva will further polish next steps!
@@ -584,7 +613,7 @@ class SV_caller_sureselect(SV_caller):
             coords.append(BED.lines[index].optional['cytobandId'])
         
         unix.rm([tdDir])
-
+        
         ### 4. Search for SV clusters in each bin 
         # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
@@ -621,7 +650,7 @@ class SV_caller_sureselect(SV_caller):
         # b) Paired sample mode (tumour & matched normal)
         else:
             eventsDict = bamtools.collectSV_paired(ref, beg, end, self.bam, self.normalBam, self.confDict)
-
+                        
         step = 'COLLECT'
         SV_types = sorted(eventsDict.keys())
         counts = [str(len(eventsDict[SV_type])) for SV_type in SV_types]
@@ -645,9 +674,9 @@ class SV_caller_sureselect(SV_caller):
         msg = 'Group discordant read pairs into clusters based on reciprocal overlap'
         log.step(step, msg)
 
-        buffer = 150
+        buffer = 200
         discordantClustersDict = clusters.create_discordantClusters(discordantsBinDb, self.confDict['minClusterSize'], buffer)
-
+                        
         ## 4. Do an extra clustering step based on mate position ##
         step = 'GROUP-BY-MATE'
         msg = 'Group discordant read pairs based on mate position'
@@ -671,24 +700,30 @@ class SV_caller_sureselect(SV_caller):
         log.step(step, msg)
         filteredDiscordants = filters.filter_discordant_mate_position(filteredDiscordants, self.rangesDict, 10000)        
         
-        ## 7. Filter out those clusters based on average MAPQ for mate alignments ##
+        ## 7. Filter out clusters based on average MAPQ for mate alignments ##
         step = 'FILTER-MATE-MAPQ'
-        msg = 'Filter out those clusters based on average MAPQ for mate alignments'
+        msg = 'Filter out clusters based on average MAPQ for mate alignments'
         log.step(step, msg)
-        filteredDiscordants = filters.filter_discordant_mate_MAPQ(filteredDiscordants, 20, self.bam)
+        filteredDiscordants = filters.filter_discordant_mate_MAPQ(filteredDiscordants, 20, self.bam, self.normalBam)
+        
+        ## 8. If running in paired mode, filter out clusters formed by tumour and normal reads. Discard germline variation ##
+        if self.mode == 'PAIRED':
             
-        ## 8. Filter out clusters based on duplicate percentage (Ex: 50%) ##
+            step = 'FILTER-GERMLINE-TDs'
+            msg = 'Filter out those clusters formed by tumour and normal reads'
+            log.step(step, msg)
+            filteredDiscordants = filters.filter_germline_discordants(filteredDiscordants, self.confDict['minNormalSupportingReads'])
+            
+        ## 9. Filter out clusters based on duplicate percentage (Ex: 50%) ##
         step = 'FILTER-DUP'
         msg = 'Filter out clusters formed by more than %X duplicates'
         log.step(step, msg)
         filteredDiscordants = filters.filter_highDup_clusters(filteredDiscordants, 50)
             
-        ## 9. Filter out insertions in unspecific regions ##
+        ## 10. Filter out insertions in unspecific regions ##
         step = 'FILTER-UNSPECIFIC-FP'
         msg = 'Filter out insertions in unspecific regions'
         log.step(step, msg)
         filteredDiscordants = filters.filter_INS_unspecificRegions(filteredDiscordants, 0.2, self.bam)
         
         return [srcId, filteredDiscordants]
-
-

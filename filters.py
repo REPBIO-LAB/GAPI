@@ -311,7 +311,7 @@ def filter_discordant_mate_position(discordants, ranges, buffer):
 
     return filteredDiscordant
 
-def filter_discordant_mate_MAPQ(discordants, minMAPQ, bam):
+def filter_discordant_mate_MAPQ(discordants, minMAPQ, bam, normalBam):
     '''
     Filter out discordant clusters based on average MAPQ for mate alignments
 
@@ -319,15 +319,18 @@ def filter_discordant_mate_MAPQ(discordants, minMAPQ, bam):
         1. discordants: list of discordant clusters (clustering of discordant done by proximity and then by mate position)
         2. minMAPQ: minimum average of mapping quality for mate alignments
         3. bam: path to bam file containing alignments for discordant cluster supporting reads and their mate
+        4. normalBam: path to the matched normal bam file. If running in single mode, set to 'None' 
 
     Output:
         1. filteredDiscordant: list of filtered discordant clusters
     '''
     filteredDiscordant = []
 
-    ## Open BAM file for reading
+    ## Open BAM files for reading
     bamFile = pysam.AlignmentFile(bam, "rb")
-
+    if normalBam != None:
+        bamFile_normal = pysam.AlignmentFile(normalBam, "rb")
+        
     for cluster in discordants:
 
         ## Define interval to search for mate alignment objects
@@ -341,14 +344,60 @@ def filter_discordant_mate_MAPQ(discordants, minMAPQ, bam):
         nbTotal, nbTumour, nbNormal, readIds, readIdsTumour, readIdsNormal = cluster.supportingReads()
 
         ## Compute average mapping quality for mates of cluster supporting reads
-        avMAPQ = bamtools.average_MAPQ_reads_interval(intervalRef, intervalBeg, intervalEnd, readIds, bamFile)
         
-        if avMAPQ >= minMAPQ:
-            filteredDiscordant.append(cluster)
+        # if running in single mode or running in paired but no reads from the normal are found in this interval
+        if (normalBam == None or (normalBam != None and readIdsNormal == [])):
+            
+            avMAPQ = bamtools.average_MAPQ_reads_interval(intervalRef, intervalBeg, intervalEnd, readIds, bamFile)
+            
+            if avMAPQ >= minMAPQ:
+                filteredDiscordant.append(cluster)
+                
+        # if running in paired mode and there is reads in the interval belonging to the normal bam
+        else:
+            
+            avMAPQ = bamtools.average_MAPQ_reads_interval(intervalRef, intervalBeg, intervalEnd, readIdsTumour, bamFile)
+            avMAPQ_normal = bamtools.average_MAPQ_reads_interval(intervalRef, intervalBeg, intervalEnd, readIdsNormal, bamFile_normal)
+            
+            # tumor and normal MAPQ average
+            avMAPQ_pair = (avMAPQ * len(readIdsTumour) + avMAPQ_normal * len(readIdsNormal))/len(readIdsTumour + readIdsNormal)          
+             
+            if avMAPQ_pair >= minMAPQ:
+                filteredDiscordant.append(cluster)
         
     ## Close 
     bamFile.close()
+    if normalBam != None:
+        bamFile_normal.close()
+        
+    return filteredDiscordant
 
+
+def filter_germline_discordants(discordants, minNormalSupportingReads):
+    '''
+    Filter out those clusters formed by tumour and normal reads
+    
+    Input:
+    1. discordants: list of discordant clusters (clustering of discordant done by proximity and then by mate position)
+    2. minNormalSupportingReads: minimum number of reads supporting a SV in normal sample
+    
+    Output:
+    1. filteredDiscordant: list of discordant clusters with no reads present in the normal
+    '''
+    
+    filteredDiscordant = []
+    
+    for cluster in discordants:
+        count = 0
+        
+        for event in cluster.events:
+            
+            if event.sample == 'NORMAL':
+                count += 1
+                
+        if count < minNormalSupportingReads:
+            filteredDiscordant.append(cluster)
+        
     return filteredDiscordant
 
 
@@ -535,6 +584,7 @@ def areaSMS(alignmentObj):
     #  Note: soft (Operation=4) or hard clipped (Operation=5)     
     if ((firstOperation == 4) or (firstOperation == 5)) and ((lastOperation == 4) or (lastOperation == 5)):
         SMSRead = True
+        
     if ((lastOperation == 4) or (lastOperation == 5)) and ((firstOperation != 4) and (firstOperation != 5)):
         SMSRead = True
 
@@ -548,11 +598,11 @@ def filter_highDup_clusters(discordants, dupPerc_threshold):
     Filter out those clusters formed by more than a percentage of duplicates
     
     Input:
-    1. discordant: list of discordant clusters formed by DISCORDANT events
-    2. dupPerc_threshold: Percentage of duplicates by cluster to filter out
+        1. discordant: list of discordant clusters formed by DISCORDANT events
+        2. dupPerc_threshold: Percentage of duplicates by cluster to filter out
     
     Output:
-    1. filteredDiscordant: list of discordant clusters with no more than a percentage of duplicates  
+        1. filteredDiscordant: list of discordant clusters with no more than a percentage of duplicates  
     '''
     
     filteredDiscordant = []
@@ -576,12 +626,11 @@ def filter_INS_unspecificRegions(discordants, threshold, bam):
     Example of recurrent false positive filtered: chr6:29765954 (hg19)
     
     Input:
-    1. discordant: list of discordant clusters formed by DISCORDANT events
-    2. threshold: ratio of nbDiscordant reads between nbTotal reads
-    
+        1. discordant: list of discordant clusters formed by DISCORDANT events
+        2. threshold: ratio of nbDiscordant reads between nbTotal reads
     
     Output:
-    1. filteredDiscordant: list of discordant clusters that have more than a percentage of discordant reads in the insertion point
+        1. filteredDiscordant: list of discordant clusters that have more than a percentage of discordant reads in the insertion point
     '''
     
     filteredDiscordant = []
@@ -622,4 +671,3 @@ def filter_INS_unspecificRegions(discordants, threshold, bam):
             filteredDiscordant.append(cluster)
             
     return filteredDiscordant
-
