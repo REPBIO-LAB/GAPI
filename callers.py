@@ -84,7 +84,8 @@ class SV_caller_long(SV_caller):
         for SV_type in allMetaclusters:
             
             metaclusters = allMetaclusters[SV_type]
-            annotation.annotate(metaclusters, steps, refLengths, self.refDir, self.confDict['annovarDir'], self.confDict['processes'], annotDir)
+            ## TODO: DESILENCE
+            #annotation.annotate(metaclusters, steps, refLengths, self.refDir, self.confDict['annovarDir'], self.confDict['processes'], annotDir)
 
         # Remove annotation directory
         unix.rm([annotDir])
@@ -100,8 +101,7 @@ class SV_caller_long(SV_caller):
         if 'INS' in allMetaclusters:
 
             ## Infer insertion type
-            clusters.INS_type_metaclusters(allMetaclusters['INS'], self.reference, refLengths, self.refDir, self.confDict['transductionSearch'], 1, outDir)
-
+            clusters.INS_type_metaclusters(allMetaclusters['INS'], self.reference, refLengths, self.refDir, self.confDict['transductionSearch'], 1, self.confDict['viralDb'], outDir)
         # Remove output directory
         unix.rm([outDir])
             
@@ -134,11 +134,9 @@ class SV_caller_long(SV_caller):
             # Create output directory
             outDir = self.outDir + '/BND_JUNCTIONS/'
             unix.mkdir(outDir)   
-
-            allMetaclusters['BND'] = clusters.search4bridges_metaclusters_parallel(allMetaclusters['BND'], 10000, 80, self.confDict['minSupportingReads'], 25, refLengths, self.refDir, self.confDict['processes'], outDir)
-
+            allMetaclusters['BND'] = clusters.search4bridges_metaclusters_parallel(allMetaclusters['BND'], 10000, 80, self.confDict['minSupportingReads'], 25, refLengths, self.refDir, self.confDict['viralDb'], self.confDict['processes'], outDir)
             ### Search for BND junctions
-            allJunctions = clusters.search4junctions_metaclusters(allMetaclusters['BND'], refLengths, self.confDict['processes'], self.confDict['minSupportingReads'], 25)
+            allJunctions = clusters.search4junctions_metaclusters(allMetaclusters['BND'], refLengths, self.confDict['processes'], self.confDict['minSupportingReads'], 25, self.refDir, outDir)
             
             # Remove output directory
             unix.rm([outDir])
@@ -463,7 +461,8 @@ class SV_caller_short(SV_caller):
 
         ## Annotate
         buffer = 100
-        annotation.repeats_annotation(allDiscordantClusters, self.repeatsBinDb, buffer)
+        ## TODO: DESILENCE
+        #annotation.repeats_annotation(allDiscordantClusters, self.repeatsBinDb, buffer)
         
         ## 6. Perform gene-based annotation with ANNOVAR of discordant read pair clusters ##
         # Do gene-based annotation step if enabled
@@ -475,7 +474,8 @@ class SV_caller_short(SV_caller):
 
             ## Annotate
             annotDir = binDir + '/ANNOT/' 
-            annotation.gene_annotation(allDiscordantClusters, self.confDict['annovarDir'], annotDir)
+            ## TODO: DESILENCE
+            #annotation.gene_annotation(allDiscordantClusters, self.confDict['annovarDir'], annotDir)
 
         ### Do cleanup
         unix.rm([binDir])
