@@ -405,7 +405,7 @@ def create_consensus(metaclusters, confDict, reference, targetSV, rootOutDir):
             metacluster.consensus_event(confDict, reference, 10000, outDir)
 
             ## Cleanup
-            unix.rm([outDir])
+            #unix.rm([outDir])
     
 
 def lighten_up_metaclusters(metaclusters):
@@ -636,7 +636,7 @@ def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transduct
     #annotations = annotation.load_annotations(annotations2load, refLengths, refDir, processes, annotDir)
 
     ## Cleanup
-    unix.rm([annotDir])
+    #unix.rm([annotDir])
 
     ## 2. Create fasta containing all consensus inserted sequences 
     msg = '2. Create fasta containing all consensus inserted sequences'
@@ -804,7 +804,7 @@ def structure_inference(metacluster, consensusPath, transducedPath, transduction
     metacluster.SV_features.update(structure) 
     
     # Remove output directory
-    unix.rm([outDir])
+    #unix.rm([outDir])
 
     return metacluster
 
@@ -999,12 +999,12 @@ def search4bridges_metacluster(metacluster, maxBridgeLen, minMatchPerc, minSuppo
     metacluster.search4bridge(maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, viralDb, outDir)
 
     ## 3. Remove output directory        
-    unix.rm([outDir])
+    ##unix.rm([outDir])
 
     return metacluster
 
 
-def search4junctions_metaclusters(metaclusters, refLengths, processes, minSupportingReads, minPercReads, refDir, outDir):
+def search4junctions_metaclusters(metaclusters, refLengths, processes, minSupportingReads, minPercReads, reference, refDir, viralDb, outDir):
     '''
     Search for BND junctions for a list of input metacluster objects of the type BND.
 
@@ -1050,69 +1050,56 @@ def search4junctions_metaclusters(metaclusters, refLengths, processes, minSuppor
             # Add junction to the list
             allJunctions.append(junction)
             includedJunctions.append(junction.junctionCoord())
+    
+    analyse_BNDjunction_structure(allJunctions, reference, viralDb, outDir)
+    
+    return allJunctions
 
 
-    # STARS TRIAL PART TO ANALYSE BRIDGES!!!!
+def analyse_BNDjunction_structure(allJunctions, reference, viralDb, outDir):
+    '''
+    Function to analyse BND_junction structure
+    Input:
+        - allJunctions: List containing BND_junctions objects
+    Output:
+        - This function has no output. It changes junction atributes:
+            - junction.junctionConsSeq
+            - junction.bridge.bridgeType
+            - junction.bridge.family
+            - junction.bridge.srcId
+            - junction.bkpsConsSupport
+    '''
+
     for junction in allJunctions:
         # TODO: REMOVE this line: junction = BND_junction
         # TODO: REMOVE this line: junction.bridge = <clusters.BRIDGE object at 0x7f7d9cf8f940> antes: {'TRANSDUCTION': {'6p24.1': <clusters.BRIDGE object at 0x7f891bff6b38>}, 'REPEAT': {}}
 
-        # Pick reads supporting the BND_junction
-        readNamesJunction = junction.extractSupportingRead()
-
+        # Pick reads supporting the BND_junction  
+        junctionsList = junction.extractSupportingRead()
 
         # Pick the event that is present in both metaclusters and all bridges (which is the one with the highest number in junctionsList[1]) and, from those, pick the one with the lowest number os suppAlignments (which is the one with the lowest number in junctionsList[2])
         # If there are many that match these conditions, just pick the first one.
-        junctionsList = []
-        for junctionsLists in readNamesJunction.values():
-            junctionsList.append(junctionsLists)
-        junctionsList = sorted(junctionsList, key = lambda x: (-x[1], x[2]))
-
-
-        # TODO: delete readNamesJunction
-
         # Pick metacluster events of the read that will be used as a template
         metaclustersEvents = junctionsList[0][0]
+
         # Pick the read coordinates that delimit the BND_junction
         junctionInterval=[]
         for metaclusterEvent in metaclustersEvents:
             junctionInterval.append(metaclusterEvent.readBkp)
+
         # Pick event which sequence will be used as template
         templateEvent = junctionsList[0][0][0]
 
-        # Make fasta with template sequence
-        templateFastaObj = formats.FASTA()
-        templateFastaObj.seqDict[templateEvent.readName] = templateEvent.readSeq
-        templateFastaPath = outDir + '/template_sequence.fa'
-        templateFastaObj.write(templateFastaPath)
+        # Get consensus sequence from all reads
+        polishedFastaEntireSequence = get_consensus_BNDjunction(templateEvent, junctionsList, outDir)
 
-        # Make fasta with supporting reads
-        supportingReadsFastaObj = formats.FASTA()
-        for sublist in junctionsList[1:]:
-            supportingReadsFastaObj.seqDict[sublist[0][0].readName] = sublist[0][0].readSeq
-        
-        supportingReadsFastaPath = outDir + '/supporting_sequences.fa'
-        supportingReadsFastaObj.write(supportingReadsFastaPath)
+        # TODO: remove junctionsList
+        # Get consensus sequence that spans the BND_junction +- 1000bp
+        polishedFastaInterval, polishedFastaIntervalObj = junction.get_consensus_BNDInterval(polishedFastaEntireSequence, junctionInterval, outDir)
 
-        # TODO: change the following lines: 
-        #polishedFasta = assembly.polish_racon(templateFastaPath, supportingReadsFastaPath, confDict['technology'], confDict['rounds'], outDir)
-        polishedFastaEntireSequence = assembly.polish_racon(templateFastaPath, supportingReadsFastaPath, 'NANOPORE', 1, outDir)
-
-        # Pick from polished fasta only the region involving the junction (using a buffer of 1000bp)
-        polishedFastaIntervalDict = {}
-        polishedFastaObj = formats.FASTA()
-        polishedFastaObj.read(polishedFastaEntireSequence)
-        for key, value in polishedFastaObj.seqDict.items():
-            beg = min(junctionInterval)-1000 if min(junctionInterval) > 1000 else 0
-            polishedFastaIntervalDict[key]=value[beg:max(junctionInterval)+1000]
-
-        polishedFastaInterval = polishedFastaEntireSequence + 'fasta' 
-        polishedFastaIntervalObj = formats.FASTA()
-        polishedFastaIntervalObj.seqDict = polishedFastaIntervalDict
-        polishedFastaIntervalObj.write(polishedFastaInterval)
-
+        # Get reference coordinates to perform target alignment
         targetIntervalList = []
-        # Local alignment for bkp metaclusterA
+        # metaclusterA
         offset = 1000
         intervalBeg = junction.metaclusterA.beg - offset
         intervalBeg = intervalBeg if intervalBeg >= 0 else 0 ## Set lower bound
@@ -1120,11 +1107,7 @@ def search4junctions_metaclusters(metaclusters, refLengths, processes, minSuppor
         intervalCoord = junction.metaclusterA.ref + ':' + str(intervalBeg) + '-' + str(intervalEnd)
 
         targetIntervalList.append(intervalCoord)
-
-        
-        # TODO: fix reference file
-
-        # Local alignment for bkp metaclusterB
+        # metaclusterB
         # TODO: PUT THIS IN A FUNCTION SO WE DONT HAVE TO REPEAT IT
         offset = 1000
         intervalBeg = junction.metaclusterB.beg - offset
@@ -1136,181 +1119,15 @@ def search4junctions_metaclusters(metaclusters, refLengths, processes, minSuppor
 
         # TODO: fix reference file
         #target = sequences.create_targeted_fasta(targetIntervalList, reference, outDir)
-        target = sequences.create_targeted_fasta(targetIntervalList, '/mnt/netapp2/mobilegenomes/0/0_reference/0_homo_sapiens/hg_19_hs37d5/hs37d5.fa', outDir)
+        # Target reference from coordinates to perform target alignment
+        target = sequences.create_targeted_fasta(targetIntervalList, reference, outDir)
 
-        if junction.bridge:
-            # Merge target and tr fasta in one:
-            
-            # TODO: Make the difference bewteen partnered, orphan and repeat
-            if junction.bridge.bridgeType == 'partnered' or junction.bridge.bridgeType == 'orphan' or junction.bridge.bridgeType == 'repeat':
-                targetFasta = formats.FASTA()
-                targetFasta.read(target)
-
-                refSeqsIndex = outDir + '/reference_sequences.fa'
-                refSeqsIndexFasta = formats.FASTA()
-                refSeqsIndexFasta.read(refSeqsIndex)
-
-                trueFasta = formats.merge_FASTA([targetFasta, refSeqsIndexFasta])
-                trueFastaPath = outDir + 'trueFasta.fa'
-                trueFasta.write(trueFastaPath)
-
-                junctionPAFPath = alignment.alignment_minimap2(polishedFastaInterval, trueFastaPath, 'alljunctions', 1, outDir)
-                if os.path.getsize(junctionPAFPath) > 0:
-
-                    # Make junction chain
-                    junctionPAF = formats.PAF()
-                    junctionPAF.read(junctionPAFPath)
-
-                    # TODO: ensure that these parameters are ok!!!
-                    junctionPAFChain = junctionPAF.chain(50,30)
-            
-            elif 'viral' in junction.bridge.bridgeType:
-                targetFasta = formats.FASTA()
-                targetFasta.read(target)
-
-                # TODO: change db path
-                refSeqsIndex = '/mnt/lustre/scratch//home/usc/mg/eal/data/databases/RVDBv16.0/U-RVDBv16/U-RVDBv16_groupByFamily_SORT/U-RVDBv16_groupByFamily_DB/U-RVDBv16_groupByFamily_woEmpties_woRep.fa.masked'
-                refSeqsIndexFasta = formats.FASTA()
-                refSeqsIndexFasta.read(refSeqsIndex)
-
-                trueFasta = formats.merge_FASTA([targetFasta, refSeqsIndexFasta])
-                trueFastaPath = outDir + 'trueFasta.fa'
-                trueFasta.write(trueFastaPath)
-
-                junctionPAFPath = alignment.alignment_minimap2(polishedFastaInterval, trueFastaPath, 'alljunctions', 1, outDir)
-                if os.path.getsize(junctionPAFPath) > 0:
-
-                    # Make junction chain
-                    junctionPAF = formats.PAF()
-                    junctionPAF.read(junctionPAFPath)
-
-                    # TODO: ensure that these parameters are ok!!!
-                    junctionPAFChain = junctionPAF.chain(100,30)
-
-        else:
-            junctionPAFPath = alignment.alignment_minimap2(polishedFastaInterval, target, 'alljunctions', 1, outDir)
-            if os.path.getsize(junctionPAFPath) > 0:
-                # Make junction chain
-                junctionPAF = formats.PAF()
-                junctionPAF.read(junctionPAFPath)
-
-                # TODO: ensure that these parameters are ok!!!
-                junctionPAFChain = junctionPAF.chain(50,30)
-        
-
+        junctionPAFChain = junction.get_BNDjunction_chain(polishedFastaInterval, target, viralDb, outDir)
+        print (junctionPAFChain)
         if junctionPAFChain:
-            for alig in junctionPAFChain.alignments:
-                print ('HOOOOY')
-                print (alig.qName)
-                print (alig.qBeg)
-                print (alig.tName)
-
-            consensusSequence = ""
-            aligTNames = []
-            aligCoordinates = []
-            for alig2 in junctionPAFChain.alignments:
-                # Mark consensus sequence and save it
-                # Read polished fasta:
-                polishedSequence = list(polishedFastaIntervalObj.seqDict.values())[0]
-
-                polishedSequenceSeg = polishedSequence[min([alig2.qBeg,alig2.qEnd]):max([alig2.qBeg,alig2.qEnd])]
-                if consensusSequence == "":
-                    consensusSequence = polishedSequenceSeg
-                else:
-                    consensusSequence = consensusSequence + '|' + polishedSequenceSeg
-                # TODO: This is a temp fix for unclass that has an space on its name, but it should be fixed in another way
-                if '|' in alig2.tName or 'unclass' in alig2.tName or 'environ' in alig2.tName:
-
-                    aligTNames.append(alig2.tName)
-                    aligCoordinates.append(alig2.qBeg)
-                    aligCoordinates.append(alig2.qEnd)
-            
-            # Save consSeq +-1000 indicating where is the bkp ("|") and chain as attributes de BND_junction
-            junction.junctionConsSeq = consensusSequence
-
-            # TODO: Check if we are loosing something due to this second condition:
-            if junction.bridge and len (aligTNames) > 0:
-
-                print ('aligCoordinates')
-                print (aligCoordinates)
-                print ('aligTNames')
-                print (aligTNames)
-                # Pick from polishedFastaInterval only the region involving the bridge
-                polishedFastaBridgeDict = {}
-                polishedFastaBridgeObj = formats.FASTA()
-                for key, value in polishedFastaIntervalObj.seqDict.items():
-                    polishedFastaBridgeDict[key]=value[min(aligCoordinates):max(aligCoordinates)]
-                polishedFastaBridgePath = outDir + 'polishedFastaBridge.fa'
-                polishedFastaBridgeObj.seqDict = polishedFastaBridgeDict
-                polishedFastaBridgeObj.write(polishedFastaBridgePath)
-
-                if any('consensus' in x for x in aligTNames) or any('transduced' in x for x in aligTNames):
-                    # Look for retrotransposon_structure
-                    # NOTE (EVA): This function was run before (in supports_unaligned_bridge) and I think it's quite redundant
-                    structure = retrotransposons.retrotransposon_structure(polishedFastaBridgePath, refSeqsIndex, outDir)
-
-
-                    # a) Resolved structure
-                    if ('INS_TYPE' in structure) and (structure['INS_TYPE'] is not 'unknown') and ('PERC_RESOLVED' in structure) and (structure['PERC_RESOLVED'] >= 60):
-                        junction.bridge.bridgeType = structure['INS_TYPE'] 
-                        # TODO: put consensus sequence
-                        #junction.bridge.bridgeInfo['bridgeSeq'] = bridgeSeq
-                        #junction.bridge.bridgeInfo['bridgeLen'] = bridgeLen
-                        junction.bridge.family = ','.join(structure['FAMILY']) 
-                        junction.bridge.srcId = ','.join(structure['CYTOBAND']) if ('CYTOBAND' in structure and structure['CYTOBAND']) else None
-            
-                # For the moment, only Rt and viruses have this structure:
-                else:
-                    # Look for viral structure
-                    # TODO: change db path
-                    # NOTE (EVA): This function was run before (in supports_unaligned_bridge) and I think it's quite redundant
-                    structure = virus.virus_structure(polishedFastaBridgePath, '/mnt/lustre/scratch//home/usc/mg/eal/data/databases/RVDBv16.0/U-RVDBv16/U-RVDBv16_groupByFamily_SORT/U-RVDBv16_groupByFamily_DB/U-RVDBv16_groupByFamily_woEmpties_woRep.fa.masked', outDir)
-
-                    if ('INS_TYPE' in structure) and (structure['INS_TYPE'] is not 'unknown') and ('PERC_RESOLVED' in structure) and (structure['PERC_RESOLVED'] >= 60):
-                        # b) Unresolved structure
-                        ## TODO: VIRUSES STRUCTURE!!!
-                        junction.bridge.bridgeType = structure['INS_TYPE'] 
-                        # TODO: put consensus sequence
-                        #junction.bridge.bridgeInfo['bridgeSeq'] = bridgeSeq
-                        #junction.bridge.bridgeInfo['bridgeLen'] = bridgeLen
-                        junction.bridge.family = ','.join(structure['FAMILY']) 
-                        junction.bridge.srcId = ','.join(structure['CYTOBAND']) if ('CYTOBAND' in structure and structure['CYTOBAND']) else None
-                    else:
-                        junction.bridge.bridgeType = 'unknown'
-                        junction.bridge.family = None
-                        junction.bridge.srcId = None
-
-            # Check if consensus alignment supports junction structure.
-            consensusFirsttName = junctionPAFChain.alignments[0].tName.split(':')[1].split('-')[0]
-            consensusLasttName = junctionPAFChain.alignments[-1].tName.split(':')[1].split('-')[0]
-
-            consensusFirstStrand = junctionPAFChain.alignments[0].strand
-            consensusLastStrand = junctionPAFChain.alignments[-1].strand
-
-            if consensusFirstStrand == '+':
-                consensusBeg = int(consensusFirsttName) + junctionPAFChain.alignments[0].tEnd
-            else:
-                consensusBeg = int(consensusFirsttName) + junctionPAFChain.alignments[0].tBeg
-
-            if consensusLastStrand == '+':
-                consensusEnd = int(consensusLasttName) + junctionPAFChain.alignments[-1].tBeg
-            else:
-                consensusEnd = int(consensusLasttName) + junctionPAFChain.alignments[-1].tEnd
-
-            # Sort in order to compare always the same:
-            metaclustersBkps = [junction.metaclusterA.bkpPos, junction.metaclusterB.bkpPos]
-            consensusBkps = [consensusBeg,consensusEnd]
-            metaclustersBkps.sort()
-            consensusBkps.sort()
-
-            # Two ifs: Check if always consensusBeg is always bkpA and viceversa
-            # TODO: mal!!! revisar"!!!!
-            if abs(metaclustersBkps[0] - consensusBkps[0]) > 1500 or abs(metaclustersBkps[1] - consensusBkps[1]) > 1500:
-                print ('Consensus aligment dont support junction structure')
-                junction.bkpsConsSupport = False
-            else:
-                print ('Consensus aligment support junction structure')
-                junction.bkpsConsSupport = True
+            aligTNames, aligCoordinates = junction.get_consensus_BNDSeq(junctionPAFChain, polishedFastaIntervalObj)
+            junction.analyse_BNDjunction_bridge(aligTNames, aligCoordinates, polishedFastaIntervalObj, viralDb, outDir)
+            junction.consensusBNDjunction_support_Bkps(junctionPAFChain)
 
             '''
             # TODO: think if necessary
@@ -1332,7 +1149,40 @@ def search4junctions_metaclusters(metaclusters, refLengths, processes, minSuppor
             '''
             # TODO: Check if bridge element correponds to bridge type: if not WARNING.
 
-    return allJunctions
+def get_consensus_BNDjunction(templateEvent, junctionsList, outDir):
+    '''
+    Function to get consensus sequence that completely spans a BND_junction
+    Input:
+        - templateEvent: event supporting the BND_junction that will be used as template
+        - junctionsList:
+                - field 0: list of metaclusters that contain the same read
+                - field 1: times that the read appears in a different events
+                - field 2: number of supplementary alignments of the read.
+        - outDir
+    Output:
+        - Fasta file containing consensus sequence that completely spans a BND_junction
+    '''
+
+    # 1. Make fasta with template sequence
+    templateFastaObj = formats.FASTA()
+    templateFastaObj.seqDict[templateEvent.readName] = templateEvent.readSeq
+    templateFastaPath = outDir + '/template_sequence.fa'
+    templateFastaObj.write(templateFastaPath)
+
+    # 2. Make fasta with supporting reads
+    supportingReadsFastaObj = formats.FASTA()
+    for sublist in junctionsList[1:]:
+        supportingReadsFastaObj.seqDict[sublist[0][0].readName] = sublist[0][0].readSeq
+    
+    supportingReadsFastaPath = outDir + '/supporting_sequences.fa'
+    supportingReadsFastaObj.write(supportingReadsFastaPath)
+
+    # 3. POlish with racon
+    # TODO: change the following lines: 
+    #polishedFasta = assembly.polish_racon(templateFastaPath, supportingReadsFastaPath, confDict['technology'], confDict['rounds'], outDir)
+    polishedFastaEntireSequence = assembly.polish_racon(templateFastaPath, supportingReadsFastaPath, 'NANOPORE', 1, outDir)
+
+    return polishedFastaEntireSequence
     
 ## CLASSES ##
     
@@ -3636,24 +3486,32 @@ class BND_junction():
     
     def extractSupportingRead(self):
         '''
-        Method for extracting all read names (and events) that support the BND_junction
+        Method for extracting the events that completely span the BND_junction 
         Output: 
-            - Dictionary:
-                - keys: read names supporting the BND_junction
-                - values: list:
-                    - field 0: list conteining event objects corresponding to read name (only metaclsuterA and metaclsuterB events are kept, no bridge events)
-                    - field 1: number of times that this read name is repeated in the BND_junction components
-                    - field 2: number of read supplementary alignments 
+            - junctionsList:
+                - field 0: list of metaclusters that contain the same read
+                - field 1: times that the read appears in a different events
+                - field 2: number of supplementary alignments of the read.
         '''
 
         readNamesJunction={}
-        # make a list of readNames of events of metaclusterA
+        '''
+        - Dictionary:
+        - keys: read names supporting the BND_junction
+        - values: list:
+            - field 0: list containing event objects corresponding to read name (only metaclsuterA and metaclsuterB events are kept, no bridge events)
+            - field 1: number of times that this read name is repeated in the BND_junction components
+            - field 2: number of read supplementary alignments 
+        '''
+
+        # 1. Make a list of readNames of events of metaclusterA
         for event in self.metaclusterA.events:
             try:
                 readNamesJunction[event.readName]=[[event], 1, event.supplAlignment.count(';')]
             except AttributeError:
                 readNamesJunction[event.readName]=[[event], 1, 0]
-        # add to the list of readNames those from events of metaclusterB
+
+        # 2. Add to the list of readNames those from events of metaclusterB
         for event in self.metaclusterB.events:
             try:
                 readNamesJunction[event.readName][0].append(event)
@@ -3665,7 +3523,7 @@ class BND_junction():
                     readNamesJunction[event.readName]=[[event], 1, 0]
 
         if self.bridge:
-            # add to the list of readNames those from events of bridge
+            # 3. Add to the list of readNames those from events of bridge
             for SUPPLEMENTARY_cluster in self.bridge.supplClusters:
                 for event in SUPPLEMENTARY_cluster.events:
                     try:
@@ -3673,4 +3531,245 @@ class BND_junction():
                     except KeyError:
                         readNamesJunction[event.readName]=[event, 1, event.supplAlignment.count(';')]
         
-        return readNamesJunction
+        # TODO: delete readNamesJunction
+
+        # 4. Make list from dictionary, excluding readNames.
+        junctionsList = []
+        for junctionsLists in readNamesJunction.values():
+            junctionsList.append(junctionsLists)
+        junctionsList = sorted(junctionsList, key = lambda x: (-x[1], x[2]))
+
+        return junctionsList
+
+    def get_consensus_BNDInterval(self, polishedFastaEntireSequence, junctionInterval, outDir):
+        '''
+        From a BND_junction consensus fasta file, get only the sequence containing bkps +- 1000
+        Input:
+            - polishedFastaEntireSequence: consensus fasta file of the entire sequence
+            - junctionInterval: bkps of BND_junction
+        Output:
+            - polishedFastaInterval: Path to the consensus BND_junction fasta file
+            - polishedFastaIntervalObj: object of the consensus BND_junction fasta file
+        '''
+
+        # Pick from polished fasta only the region involving the junction (using a buffer of 1000bp)
+        polishedFastaIntervalDict = {}
+        polishedFastaObj = formats.FASTA()
+        polishedFastaObj.read(polishedFastaEntireSequence)
+        for key, value in polishedFastaObj.seqDict.items():
+            beg = min(junctionInterval)-1000 if min(junctionInterval) > 1000 else 0
+            polishedFastaIntervalDict[key]=value[beg:max(junctionInterval)+1000]
+
+        polishedFastaInterval = polishedFastaEntireSequence + 'fasta' 
+        polishedFastaIntervalObj = formats.FASTA()
+        polishedFastaIntervalObj.seqDict = polishedFastaIntervalDict
+        polishedFastaIntervalObj.write(polishedFastaInterval)
+
+        return polishedFastaInterval, polishedFastaIntervalObj
+    
+    def get_BNDjunction_chain(self, polishedFastaInterval, target, viralDb, outDir):
+        '''
+        Perform local aligments of BND_junction and get a PAF chain
+        Input: 
+            - polishedFastaInterval: Path to the consensus BND_junction fasta file
+            - target: Path to targeted reference regions
+            - outDir
+        Output:
+            - junctionPAFChain: consensus BND_junction PAF chain (None no chain made)
+        '''
+        junctionPAFChain = None
+        if self.bridge:
+            # Merge target and tr fasta in one:
+            
+            # TODO: Make the difference bewteen partnered, orphan and repeat
+            if self.bridge.bridgeType == 'partnered' or self.bridge.bridgeType == 'orphan' or self.bridge.bridgeType == 'repeat':
+                targetFasta = formats.FASTA()
+                targetFasta.read(target)
+
+                refSeqsIndex = outDir + '/reference_sequences.fa'
+                refSeqsIndexFasta = formats.FASTA()
+                refSeqsIndexFasta.read(refSeqsIndex)
+
+                trueFasta = formats.merge_FASTA([targetFasta, refSeqsIndexFasta])
+                trueFastaPath = outDir + 'trueFasta.fa'
+                trueFasta.write(trueFastaPath)
+
+                junctionPAFPath = alignment.alignment_minimap2(polishedFastaInterval, trueFastaPath, 'alljunctions', 1, outDir)
+                if os.path.getsize(junctionPAFPath) > 0:
+
+                    # Make junction chain
+                    junctionPAF = formats.PAF()
+                    junctionPAF.read(junctionPAFPath)
+
+                    # TODO: ensure that these parameters are ok!!!
+                    junctionPAFChain = junctionPAF.chain(50,30)
+            
+            elif 'viral' in self.bridge.bridgeType:
+                targetFasta = formats.FASTA()
+                targetFasta.read(target)
+
+                # TODO: change db path
+                refSeqsIndex = viralDb
+                refSeqsIndexFasta = formats.FASTA()
+                refSeqsIndexFasta.read(refSeqsIndex)
+
+                trueFasta = formats.merge_FASTA([targetFasta, refSeqsIndexFasta])
+                trueFastaPath = outDir + 'trueFasta.fa'
+                trueFasta.write(trueFastaPath)
+
+                junctionPAFPath = alignment.alignment_minimap2(polishedFastaInterval, trueFastaPath, 'alljunctions', 1, outDir)
+                if os.path.getsize(junctionPAFPath) > 0:
+
+                    # Make junction chain
+                    junctionPAF = formats.PAF()
+                    junctionPAF.read(junctionPAFPath)
+
+                    # TODO: ensure that these parameters are ok!!!
+                    junctionPAFChain = junctionPAF.chain(100,30)
+
+        else:
+            junctionPAFPath = alignment.alignment_minimap2(polishedFastaInterval, target, 'alljunctions', 1, outDir)
+            if os.path.getsize(junctionPAFPath) > 0:
+                # Make junction chain
+                junctionPAF = formats.PAF()
+                junctionPAF.read(junctionPAFPath)
+
+                # TODO: ensure that these parameters are ok!!!
+                junctionPAFChain = junctionPAF.chain(50,30)
+
+        return junctionPAFChain
+
+    def get_consensus_BNDSeq(self, junctionPAFChain, polishedFastaIntervalObj):
+        '''
+        Get junction consensus sequence(junctionConsSeq) and names and coordinates of bridge sequences
+        Input:
+            - junctionPAFChain
+            - polishedFastaIntervalObj: object of the consensus BND_junction fasta file
+        Output:
+            - aligTNames: list of names of bridge sequences
+            - aligCoordinates: list of read coordinates of bridge sequences
+        '''
+        consensusSequence = ""
+        aligTNames = []
+        aligCoordinates = []
+        for alig2 in junctionPAFChain.alignments:
+            # Mark consensus sequence and save it
+            # Read polished fasta:
+            polishedSequence = list(polishedFastaIntervalObj.seqDict.values())[0]
+
+            polishedSequenceSeg = polishedSequence[min([alig2.qBeg,alig2.qEnd]):max([alig2.qBeg,alig2.qEnd])]
+            if consensusSequence == "":
+                consensusSequence = polishedSequenceSeg
+            else:
+                consensusSequence = consensusSequence + '|' + polishedSequenceSeg
+            # TODO: This is a temp fix for unclass that has an space on its name, but it should be fixed in another way
+            if '|' in alig2.tName or 'unclass' in alig2.tName or 'environ' in alig2.tName:
+
+                aligTNames.append(alig2.tName)
+                aligCoordinates.append(alig2.qBeg)
+                aligCoordinates.append(alig2.qEnd)
+        
+        # Save consSeq +-1000 indicating where is the bkp ("|") and chain as attributes de BND_junction
+        self.junctionConsSeq = consensusSequence
+
+        return aligTNames, aligCoordinates
+
+    def analyse_BNDjunction_bridge(self, aligTNames, aligCoordinates, polishedFastaIntervalObj, viralDb, outDir):
+        '''
+        Realing BND_junction bridge and analyse its sequence.
+        - Input:
+            - aligTNames: list of names of bridge sequences
+            - aligCoordinates: list of read coordinates of bridge sequences
+            - polishedFastaIntervalObj: object of the consensus BND_junction fasta file
+            - outDir
+        - Output:
+            This function only modifies bridge features:
+        '''
+
+        # TODO: Check if we are loosing something due to this second condition:
+        if self.bridge and len (aligTNames) > 0:
+            # Pick from polishedFastaInterval only the region involving the bridge
+            polishedFastaBridgeDict = {}
+            polishedFastaBridgeObj = formats.FASTA()
+            for key, value in polishedFastaIntervalObj.seqDict.items():
+                polishedFastaBridgeDict[key]=value[min(aligCoordinates):max(aligCoordinates)]
+            polishedFastaBridgePath = outDir + 'polishedFastaBridge.fa'
+            polishedFastaBridgeObj.seqDict = polishedFastaBridgeDict
+            polishedFastaBridgeObj.write(polishedFastaBridgePath)
+
+            if any('consensus' in x for x in aligTNames) or any('transduced' in x for x in aligTNames):
+                # Look for retrotransposon_structure
+                # NOTE (EVA): This function was run before (in supports_unaligned_bridge) and I think it's quite redundant
+                refSeqsIndex = outDir + '/reference_sequences.fa'
+                structure = retrotransposons.retrotransposon_structure(polishedFastaBridgePath, refSeqsIndex, outDir)
+
+
+                # a) Resolved structure
+                if ('INS_TYPE' in structure) and (structure['INS_TYPE'] is not 'unknown') and ('PERC_RESOLVED' in structure) and (structure['PERC_RESOLVED'] >= 60):
+                    self.bridge.bridgeType = structure['INS_TYPE'] 
+                    # TODO: put consensus sequence
+                    #self.bridge.bridgeInfo['bridgeSeq'] = bridgeSeq
+                    #self.bridge.bridgeInfo['bridgeLen'] = bridgeLen
+                    self.bridge.family = ','.join(structure['FAMILY']) 
+                    self.bridge.srcId = ','.join(structure['CYTOBAND']) if ('CYTOBAND' in structure and structure['CYTOBAND']) else None
+        
+            # For the moment, only Rt and viruses have this structure:
+            else:
+                # Look for viral structure
+                # TODO: change db path
+                # NOTE (EVA): This function was run before (in supports_unaligned_bridge) and I think it's quite redundant
+                structure = virus.virus_structure(polishedFastaBridgePath, viralDb, outDir)
+
+                if ('INS_TYPE' in structure) and (structure['INS_TYPE'] is not 'unknown') and ('PERC_RESOLVED' in structure) and (structure['PERC_RESOLVED'] >= 60):
+                    # b) Unresolved structure
+                    ## TODO: VIRUSES STRUCTURE!!!
+                    self.bridge.bridgeType = structure['INS_TYPE'] 
+                    # TODO: put consensus sequence
+                    #self.bridge.bridgeInfo['bridgeSeq'] = bridgeSeq
+                    #self.bridge.bridgeInfo['bridgeLen'] = bridgeLen
+                    self.bridge.family = ','.join(structure['FAMILY']) 
+                    self.bridge.srcId = ','.join(structure['CYTOBAND']) if ('CYTOBAND' in structure and structure['CYTOBAND']) else None
+                else:
+                    self.bridge.bridgeType = 'unknown'
+                    self.bridge.family = None
+                    self.bridge.srcId = None
+
+    def consensusBNDjunction_support_Bkps(self, junctionPAFChain):
+        '''
+        Check if consensus BND_junction realignment against reference supports previuos bkps.
+        Input:
+            - junctionPAFChain
+        Output:
+            - Boolean: True if bkps are supported, False otherwise
+        '''
+        # Check if consensus alignment supports junction structure.
+        consensusFirsttName = junctionPAFChain.alignments[0].tName.split(':')[1].split('-')[0]
+        consensusLasttName = junctionPAFChain.alignments[-1].tName.split(':')[1].split('-')[0]
+
+        consensusFirstStrand = junctionPAFChain.alignments[0].strand
+        consensusLastStrand = junctionPAFChain.alignments[-1].strand
+
+        if consensusFirstStrand == '+':
+            consensusBeg = int(consensusFirsttName) + junctionPAFChain.alignments[0].tEnd
+        else:
+            consensusBeg = int(consensusFirsttName) + junctionPAFChain.alignments[0].tBeg
+
+        if consensusLastStrand == '+':
+            consensusEnd = int(consensusLasttName) + junctionPAFChain.alignments[-1].tBeg
+        else:
+            consensusEnd = int(consensusLasttName) + junctionPAFChain.alignments[-1].tEnd
+
+        # Sort in order to compare always the same:
+        metaclustersBkps = [self.metaclusterA.bkpPos, self.metaclusterB.bkpPos]
+        consensusBkps = [consensusBeg,consensusEnd]
+        metaclustersBkps.sort()
+        consensusBkps.sort()
+
+        # Two ifs: Check if always consensusBeg is always bkpA and viceversa
+        if abs(metaclustersBkps[0] - consensusBkps[0]) > 1500 or abs(metaclustersBkps[1] - consensusBkps[1]) > 1500:
+            print ('Consensus aligment dont support junction structure')
+            self.bkpsConsSupport = False
+        else:
+            print ('Consensus aligment support junction structure')
+            self.bkpsConsSupport = True
+

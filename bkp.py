@@ -83,7 +83,7 @@ def analyzeMetaclusters(clustersBinDb, confDict, bam, normalBam, mode, db, index
             dictMetaclusters[metacluster]['intRightBkp'] = bkpINT(metacluster, rightIntConsensusPath, db, bkpDir)
 
         ### Do cleanup
-        unix.rm([bkpDir])
+        #unix.rm([bkpDir])
 
         return dictMetaclusters
 

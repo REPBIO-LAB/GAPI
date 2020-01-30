@@ -236,7 +236,7 @@ def gene_annotation(events, annovarDir, outDir):
     addGnAnnot2events(events, out1)
     
     ## Do cleanup
-    unix.rm([annovarInput, out1, out2])
+    #unix.rm([annovarInput, out1, out2])
 
 def addGnAnnot2events(events, out1):
     '''
