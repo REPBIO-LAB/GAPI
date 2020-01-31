@@ -220,7 +220,7 @@ def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir, outFor
     BAM = bamtools.SAM2BAM(SAM, outDir)
 
     ## 4. Do cleanup
-    #unix.rm([target, SAM])
+    unix.rm([target, SAM])
 
     return BAM    
 

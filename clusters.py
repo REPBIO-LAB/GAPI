@@ -405,7 +405,7 @@ def create_consensus(metaclusters, confDict, reference, targetSV, rootOutDir):
             metacluster.consensus_event(confDict, reference, 10000, outDir)
 
             ## Cleanup
-            #unix.rm([outDir])
+            unix.rm([outDir])
     
 
 def lighten_up_metaclusters(metaclusters):
@@ -636,7 +636,7 @@ def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transduct
     #annotations = annotation.load_annotations(annotations2load, refLengths, refDir, processes, annotDir)
 
     ## Cleanup
-    #unix.rm([annotDir])
+    unix.rm([annotDir])
 
     ## 2. Create fasta containing all consensus inserted sequences 
     msg = '2. Create fasta containing all consensus inserted sequences'
@@ -804,7 +804,7 @@ def structure_inference(metacluster, consensusPath, transducedPath, transduction
     metacluster.SV_features.update(structure) 
     
     # Remove output directory
-    #unix.rm([outDir])
+    unix.rm([outDir])
 
     return metacluster
 
@@ -999,7 +999,7 @@ def search4bridges_metacluster(metacluster, maxBridgeLen, minMatchPerc, minSuppo
     metacluster.search4bridge(maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, viralDb, outDir)
 
     ## 3. Remove output directory        
-    ##unix.rm([outDir])
+    #unix.rm([outDir])
 
     return metacluster
 
@@ -1083,12 +1083,11 @@ def analyse_BNDjunction_structure(allJunctions, reference, viralDb, outDir):
         metaclustersEvents = junctionsList[0][0]
 
         # Pick the read coordinates that delimit the BND_junction
+        # TODO: int instead of a list
         junctionInterval=[]
-        for metaclusterEvent in metaclustersEvents:
-            junctionInterval.append(metaclusterEvent.readBkp)
-
         # Pick event which sequence will be used as template
         templateEvent = junctionsList[0][0][0]
+        junctionInterval.append(templateEvent.readBkp)
 
         # Get consensus sequence from all reads
         polishedFastaEntireSequence = get_consensus_BNDjunction(templateEvent, junctionsList, outDir)
@@ -1101,19 +1100,18 @@ def analyse_BNDjunction_structure(allJunctions, reference, viralDb, outDir):
         targetIntervalList = []
         # metaclusterA
         offset = 1000
-        intervalBeg = junction.metaclusterA.beg - offset
-        intervalBeg = intervalBeg if intervalBeg >= 0 else 0 ## Set lower bound
-        intervalEnd = junction.metaclusterA.end + offset
-        intervalCoord = junction.metaclusterA.ref + ':' + str(intervalBeg) + '-' + str(intervalEnd)
+        intervalBeg = junction.metaclusterA.bkpPos - offset if junction.metaclusterA.bkpPos - offset >= 0 else 0 ## Set lower bound
+        intervalEnd = junction.metaclusterA.bkpPos + offset if junction.metaclusterA.bkpPos + offset >= 0 else 0 ## Set lower bound
+        intervalCoord = junction.metaclusterA.ref + ':' + str(min([intervalBeg,intervalEnd])) + '-' + str(max([intervalBeg,intervalEnd]))
 
         targetIntervalList.append(intervalCoord)
         # metaclusterB
         # TODO: PUT THIS IN A FUNCTION SO WE DONT HAVE TO REPEAT IT
         offset = 1000
-        intervalBeg = junction.metaclusterB.beg - offset
-        intervalBeg = intervalBeg if intervalBeg >= 0 else 0 ## Set lower bound
-        intervalEnd = junction.metaclusterB.end + offset
-        intervalCoord = junction.metaclusterB.ref + ':' + str(intervalBeg) + '-' + str(intervalEnd)
+        intervalBeg = junction.metaclusterB.bkpPos - offset if junction.metaclusterB.bkpPos - offset >= 0 else 0 ## Set lower bound
+        intervalEnd = junction.metaclusterB.bkpPos + offset if junction.metaclusterB.bkpPos + offset >= 0 else 0 ## Set lower bound
+        intervalCoord = junction.metaclusterB.ref + ':' + str(min([intervalBeg,intervalEnd])) + '-' + str(max([intervalBeg,intervalEnd]))
+        
 
         targetIntervalList.append(intervalCoord)
 
@@ -1123,7 +1121,7 @@ def analyse_BNDjunction_structure(allJunctions, reference, viralDb, outDir):
         target = sequences.create_targeted_fasta(targetIntervalList, reference, outDir)
 
         junctionPAFChain = junction.get_BNDjunction_chain(polishedFastaInterval, target, viralDb, outDir)
-        print (junctionPAFChain)
+
         if junctionPAFChain:
             aligTNames, aligCoordinates = junction.get_consensus_BNDSeq(junctionPAFChain, polishedFastaIntervalObj)
             junction.analyse_BNDjunction_bridge(aligTNames, aligCoordinates, polishedFastaIntervalObj, viralDb, outDir)
@@ -1861,8 +1859,6 @@ class SUPPLEMENTARY_cluster(cluster):
                     bridgeType = structure['INS_TYPE']
                     bridgeSeq = self.representative.insertSeq
                     bridgeLen = self.representative.insertSize
-                    print ('bridgeSeq')
-                    print (bridgeSeq)
                     family = ','.join(structure['FAMILY']) 
                     ## TODO: add virusDsc to output
                     srcId = ','.join(structure['CYTOBAND']) if ('CYTOBAND' in structure and structure['CYTOBAND']) else None
@@ -2963,7 +2959,6 @@ class META_cluster():
         chain = PAF.chain(300, 20)
         ## Identify it as a viral insertion if percentage of query covered is higher than 0.80
         percVirus = chain.perc_query_covered()
-        print ('percVirus ' + str(percVirus))
         if percVirus > 0:
         	VIRUS = True
         	INS_features['INS_TYPE'] = 'viral'
@@ -3557,8 +3552,8 @@ class BND_junction():
         polishedFastaObj = formats.FASTA()
         polishedFastaObj.read(polishedFastaEntireSequence)
         for key, value in polishedFastaObj.seqDict.items():
-            beg = min(junctionInterval)-1000 if min(junctionInterval) > 1000 else 0
-            polishedFastaIntervalDict[key]=value[beg:max(junctionInterval)+1000]
+            beg = min(junctionInterval)-5000 if min(junctionInterval) > 5000 else 0
+            polishedFastaIntervalDict[key]=value[beg:max(junctionInterval)+5000]
 
         polishedFastaInterval = polishedFastaEntireSequence + 'fasta' 
         polishedFastaIntervalObj = formats.FASTA()

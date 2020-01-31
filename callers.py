@@ -88,7 +88,7 @@ class SV_caller_long(SV_caller):
             #annotation.annotate(metaclusters, steps, refLengths, self.refDir, self.confDict['annovarDir'], self.confDict['processes'], annotDir)
 
         # Remove annotation directory
-        #unix.rm([annotDir])
+        unix.rm([annotDir])
 
         ### 3. Determine what type of sequence has been inserted for INS metaclusters
         msg = '3. Determine what type of sequence has been inserted for INS metaclusters'
@@ -103,7 +103,7 @@ class SV_caller_long(SV_caller):
             ## Infer insertion type
             clusters.INS_type_metaclusters(allMetaclusters['INS'], self.reference, refLengths, self.refDir, self.confDict['transductionSearch'], 1, self.confDict['viralDb'], outDir)
         # Remove output directory
-        #unix.rm([outDir])
+        unix.rm([outDir])
             
         ### 4. Resolve structure for solo, partnered and orphan transductions
         msg = '4. Resolve structure for solo, partnered and orphan transductions'
@@ -121,7 +121,7 @@ class SV_caller_long(SV_caller):
             allMetaclusters['INS'] = clusters.structure_inference_parallel(allMetaclusters['INS'], consensus, transduced, self.confDict['transductionSearch'], self.confDict['processes'], outDir)
 
             # Remove output directory
-            #unix.rm([outDir])
+            unix.rm([outDir])
         
         ### 5. Identify BND junctions
         msg = '5. Identify BND junctions'
@@ -139,7 +139,7 @@ class SV_caller_long(SV_caller):
             allJunctions = clusters.search4junctions_metaclusters(allMetaclusters['BND'], refLengths, self.confDict['processes'], self.confDict['minSupportingReads'], 25, self.reference, self.refDir, self.confDict['viralDb'], outDir)
             
             # Remove output directory
-            #unix.rm([outDir])
+            unix.rm([outDir])
 
         ### 6. Apply second round of filtering 
         msg = '6. Apply second round of filtering'
@@ -187,7 +187,7 @@ class SV_caller_long(SV_caller):
         pool.join()
 
         # Remove output directory
-        #unix.rm([self.outDir + '/CLUSTER/'])
+        unix.rm([self.outDir + '/CLUSTER/'])
 
         ### 3. Collapse metaclusters in a single dict and report metaclusters that failed filtering
         metaclustersPass = structures.merge_dictionaries(metaclustersPassList)
@@ -273,7 +273,7 @@ class SV_caller_long(SV_caller):
         metaclustersSVType = clusters.SV_type_metaclusters(metaclusters, self.confDict['minINDELlen'], self.confDict['technology'], outDir)
         
         # Do cleanup
-        #unix.rm([outDir])
+        unix.rm([outDir])
 
         ## 7. Filter metaclusters ##
         step = 'FILTER'
@@ -299,7 +299,7 @@ class SV_caller_long(SV_caller):
         clusters.lighten_up_metaclusters(metaclustersSVTypeFailed)
         
         # Do cleanup
-        #unix.rm([outDir, binDir])
+        unix.rm([outDir, binDir])
 
         ## Print time taken to process bin
         end = time.time()
@@ -373,7 +373,7 @@ class SV_caller_short(SV_caller):
         output.write_DISCORDANT(discordantClusters, self.outDir)
 
         ### 5. Do cleanup
-        #unix.rm([dbDir])
+        unix.rm([dbDir])
 
     def make_clusters_bin(self, ref, beg, end):
         '''
@@ -404,7 +404,7 @@ class SV_caller_short(SV_caller):
         log.step(step, msg)
 
         if counts == []:
-            #unix.rm([binDir])
+            unix.rm([binDir])
             return None
                 
         ## 2. Discordant read pair identity ##
@@ -418,7 +418,7 @@ class SV_caller_short(SV_caller):
         log.step(step, msg)
 
         if counts == []:
-            #unix.rm([binDir])
+            unix.rm([binDir])
             return None
                 
         ## 3. Organize discordant read pairs into genomic bins prior clustering ##
@@ -444,7 +444,7 @@ class SV_caller_short(SV_caller):
         log.step(step, msg)
 
         if counts == []:
-            #unix.rm([binDir])
+            unix.rm([binDir])
             return None
 
         ## 5. Check if annotated retrotransposon on the reference genome at cluster intervals ##
@@ -478,7 +478,7 @@ class SV_caller_short(SV_caller):
             #annotation.gene_annotation(allDiscordantClusters, self.confDict['annovarDir'], annotDir)
 
         ### Do cleanup
-        #unix.rm([binDir])
+        unix.rm([binDir])
 
         return discordantClustersDict
         
@@ -500,7 +500,7 @@ class SV_caller_short(SV_caller):
         log.subHeader(msg)
 
         if counts == []:
-            #unix.rm([binDir])
+            unix.rm([binDir])
             return None
 
         # vuelvo a hacer la bindb que contiene ya solo los clusters que pasaron los filtros
@@ -575,7 +575,7 @@ class SV_caller_short(SV_caller):
         dictMetaclusters = bkp.analyzeMetaclusters(metaclustersBinDb, self.confDict, self.bam, self.normalBam, self.mode, self.viralDb, self.viralDbIndex, binDir)
 
         ### Do cleanup
-        #unix.rm([binDir])
+        unix.rm([binDir])
 
         return dictMetaclusters
         '''
@@ -612,7 +612,7 @@ class SV_caller_sureselect(SV_caller):
         for index, coords in enumerate(bins):
             coords.append(BED.lines[index].optional['cytobandId'])
         
-        #unix.rm([tdDir])
+        unix.rm([tdDir])
         
         ### 4. Search for SV clusters in each bin 
         # Genomic bins will be distributed into X processes
