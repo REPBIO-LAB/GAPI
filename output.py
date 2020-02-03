@@ -1,6 +1,7 @@
 
 ## DEPENDENCIES ##
 # External
+import itertools
 
 # Internal
 import structures
@@ -95,7 +96,7 @@ def write_DISCORDANT(discordantClusters, outDir):
 
         # Iterate over the cluster types
         for key, clusterList in discordantDict.items():
-            orientation, clusterType, family = key.split('_')
+            orientation, clusterType, family = key.split('-')
             clusterType = orientation + '_' + clusterType
 
             # For each cluster from a given cluster type
@@ -113,35 +114,37 @@ def write_DISCORDANT(discordantClusters, outDir):
                     row = "\t".join([DISCORDANT.ref, str(DISCORDANT.beg), str(DISCORDANT.end), clusterType, family, str(nbTotal), str(nbTumour), str(nbNormal), str(DISCORDANT.repeatAnnot), region, gene, "\n"])
                     outFile.write(row)
 
-def writeMetaclusters(metaclustersList, outDir):
+def writeMetaclusters(metaclustersLoL, outFileName, outDir):
     '''
     Write structural variation clusters into a tsv file
     '''
 
     ## Open output file ##
-    fileName = "metaclusters.tsv"
-    outFilePath = outDir + '/' + fileName
+    outFilePath = outDir + '/' + outFileName
     outFile = open(outFilePath, 'w')
-
+    '''
     for dictMetacluster in metaclustersList:
         if dictMetacluster != None:
             for metacluster,d2 in dictMetacluster.items():
                 row = 'METACLUSTER: ' + str(metacluster) +' '+ str(len(metacluster.events)) +' '+ str(metacluster.ref) +' '+ str(metacluster.beg) +' '+ str(metacluster.end) +' '+ str(metacluster.intOrigin) + '\n'
                 outFile.write(row)
-                for event in metacluster.events:
-                        if event.type == 'DISCORDANT':
-                            row = str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.identity) + ' ' + str(event.side) + ' ' + str(event.sample) + '\n'
-                            outFile.write (row)
-                        else:
-                            row = str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' None ' + str(event.clippedSide) + ' ' + str(event.sample) + '\n'
-                            outFile.write (row)
-                for k,v in d2.items():
-                    row = str(k) + ' = ' + str(v) + '\n'
-                    outFile.write (row)  
+    '''
+    metaclustersList = list(itertools.chain(*metaclustersLoL))
+
+    for metacluster in metaclustersList:
+        for event in metacluster.events:
+                if event.type == 'DISCORDANT':
+                    row = str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.identity) + ' ' + str(event.orientation) + ' ' + str(event.sample) + '\n'
+                    outFile.write (row)
+                else:
+                    row = str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' None ' + str(event.clippedSide) + ' ' + str(event.sample) + '\n'
+                    outFile.write (row)
+                #for k,v in d2.items():
+                    #row = str(k) + ' = ' + str(v) + '\n'
+                    #outFile.write (row)  
          
     ## Close output file ##
     outFile.close()
-
 
 def write_junctions(junctions, outFileName, outDir):
     '''

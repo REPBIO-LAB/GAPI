@@ -32,7 +32,7 @@ def separate(events):
             eventType = 'LEFT-CLIPPING' if event.clippedSide == 'left' else 'RIGHT-CLIPPING'
 
         elif event.type == 'DISCORDANT':
-            eventType = 'MINUS-DISCORDANT' if event.side == 'MINUS' else 'PLUS-DISCORDANT'
+            eventType = 'MINUS-DISCORDANT' if event.orientation == 'MINUS' else 'PLUS-DISCORDANT'
 
         else:
             eventType = event.type
@@ -168,7 +168,7 @@ def determine_clippingType(alignmentObj, clippedSide):
     return clippingType
 
 
-def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb):
+def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, bam, normalBam, binDir, viralDbIndex):
     '''
     Determine discortant read pair identity based on the mapping position of anchor´s mate
 
@@ -185,7 +185,9 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb):
                                     - Event type: DISCORDANT   
                                     - Type: identity type. It can be retrotransposon family (L1, Alu, ...), source element (22q, 5p, ...), viral strain (HPV, ...)
     '''
-    
+    # TODO: Check if it is a virus only if it is not a RT.
+    # TODO: DESILENCE
+    '''
     ## 1. Assess if discordant read pairs support transduction insertion if transduction database provided
     if transducedBinDb is not None:
         discordantsTd = annotation.intersect_mate_annotation(discordants, transducedBinDb, 'cytobandId')
@@ -193,13 +195,13 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb):
         ## Separate discordants matching from those not matching source elements
         discordants = []
 
-        if 'PLUS_DISCORDANT_None' in discordantsTd:
-            discordants = discordants + discordantsTd['PLUS_DISCORDANT_None']
-            discordantsTd.pop('PLUS_DISCORDANT_None', None)
+        if 'PLUS-DISCORDANT-None' in discordantsTd:
+            discordants = discordants + discordantsTd['PLUS-DISCORDANT-None']
+            discordantsTd.pop('PLUS-DISCORDANT-None', None)
 
-        if 'MINUS_DISCORDANT_None' in discordantsTd:
-            discordants = discordants + discordantsTd['MINUS_DISCORDANT_None']
-            discordantsTd.pop('MINUS_DISCORDANT_None', None)
+        if 'MINUS-DISCORDANT-None' in discordantsTd:
+            discordants = discordants + discordantsTd['MINUS-DISCORDANT-None']
+            discordantsTd.pop('MINUS-DISCORDANT-None', None)
     else:
 
         discordantsTd = {}
@@ -208,36 +210,33 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb):
     if repeatsBinDb is not None:
         discordantsRt = annotation.intersect_mate_annotation(discordants, repeatsBinDb, 'family')
 
-        if 'PLUS_DISCORDANT_None' in discordantsRt:
-            discordantsRt.pop('PLUS_DISCORDANT_None', None)
+        if 'PLUS-DISCORDANT-None' in discordantsRt:
+            discordantsRt.pop('PLUS-DISCORDANT-None', None)
 
-        if 'MINUS_DISCORDANT_None' in discordantsRt:
-            discordantsRt.pop('MINUS_DISCORDANT_None', None)
+        if 'MINUS-DISCORDANT-None' in discordantsRt:
+            discordantsRt.pop('MINUS-DISCORDANT-None', None)
 
     else:
         discordantsRt = {}
 
     ## 3. Merge discordant read pairs supporting RT and transduction insertions if transduction database provided    
-    discordantsIdentity = structures.merge_dictionaries([discordantsTd, discordantsRt])
-
+    discordantsIdentity1 = structures.merge_dictionaries([discordantsTd, discordantsRt])
     '''
+
+
     ## 2. Assess if discordant read pairs support viral insertion
 
     # Create a list containing all discordant events:
-    discordantEvents = []
-    for eventType in discordantDict.keys():
-    discordantEvents.extend(discordantDict[eventType])
+    #discordantEvents = []
+    #for eventType in discordantDict.keys():
+    #discordantEvents.extend(discordantDict[eventType])
 
-    # a) Single sample mode
-    if self.mode == "SINGLE":
-        discordantEventsIdent = virus.is_virusSR(discordantEvents, self.bam, None, binDir, self.viralDbIndex)
+    discordantEventsIdent = virus.is_virusSR(discordants, bam, normalBam, binDir, viralDbIndex)
+    #discordantsIdentity = structures.merge_dictionaries([discordantEventsIdent, discordantsIdentity1])
 
-    # b) Paired sample mode (tumour & matched normal)
-    else:
-        discordantEventsIdent = virus.is_virusSR(discordantEvents, self.bam, self.normalBam, binDir, self.viralDbIndex)
-    '''
-
-    return discordantsIdentity
+    # TODO: fix this error
+    #return discordantsIdentity
+    return discordantEventsIdent
 
 def discordants2mates(discordants):
     '''

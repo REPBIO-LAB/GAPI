@@ -12,7 +12,7 @@ import sequences
 import assembly
 
 
-def analyzeMetaclusters(clustersBinDb, confDict, bam, normalBam, mode, db, indexDb, outDir):
+def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir):
     '''
     SPANISH:
     1. Por cada evento en la binDB (en este caso especificamente por cada metacluster)
@@ -42,7 +42,7 @@ def analyzeMetaclusters(clustersBinDb, confDict, bam, normalBam, mode, db, index
 
     dictMetaclusters = {}
 
-    for metacluster in clustersBinDb.collect(['METACLUSTERS']):
+    for metacluster in metaclusters:
 
         leftIntConsensusSeq = None
         rightIntConsensusSeq = None
@@ -53,39 +53,46 @@ def analyzeMetaclusters(clustersBinDb, confDict, bam, normalBam, mode, db, index
         unix.mkdir(bkpDir)
 
         # a. Add supporting clipping to discordant metacluster.
-        CLIPPING_cluster = metacluster.supportingCLIPPING(100, confDict, bam, normalBam, mode)
+        # TODO: Reduce region for looking at CLIPPING
+        # TODO: Different for IC.
+        CLIPPING_cluster = metacluster.supportingCLIPPING(200, confDict, bam, normalBam, mode)
 
         # b. Look for reference breakpoint (most supported coordinate by clipping events added above) and remove those clipping events that dont support the bkp
-        dictMetaclusters[metacluster]['refLeftBkp'], dictMetaclusters[metacluster]['refRightBkp'] = clippingBkp(CLIPPING_cluster)
+        if CLIPPING_cluster is not None:
+            dictMetaclusters[metacluster]['refLeftBkp'], dictMetaclusters[metacluster]['refRightBkp'] = clippingBkp(CLIPPING_cluster)
 
         # c. Make sequences of integrations for each bkp.
         #dictMetaclusters[metacluster]['leftSeq'], dictMetaclusters[metacluster]['rightSeq'] = makeConsSeqs(CLIPPING_cluster, 'REF', db, indexDb, bkpDir)
-        leftRefConsensusSeq = makeConsSeqs(CLIPPING_cluster, 'left', 'REF', db, indexDb, bkpDir)[1]
-        rightRefConsensusSeq = makeConsSeqs(CLIPPING_cluster, 'right', 'REF', db, indexDb, bkpDir)[1]
+            # TODO: alig only inserted side not everything
+            leftRefConsensusSeq = makeConsSeqs(CLIPPING_cluster, 'left', 'REF', bkpDir)[1]
+            rightRefConsensusSeq = makeConsSeqs(CLIPPING_cluster, 'right', 'REF', bkpDir)[1]
 
-        leftIntConsensusPath, leftIntConsensusSeq = makeConsSeqs(CLIPPING_cluster, 'left', 'INT', db, indexDb, bkpDir)
-        rightIntConsensusPath, rightIntConsensusSeq = makeConsSeqs(CLIPPING_cluster, 'right', 'INT', db, indexDb, bkpDir)
+            leftIntConsensusPath, leftIntConsensusSeq = makeConsSeqs(CLIPPING_cluster, 'left', 'INT', bkpDir)
+            rightIntConsensusPath, rightIntConsensusSeq = makeConsSeqs(CLIPPING_cluster, 'right', 'INT', bkpDir)
 
-        if leftIntConsensusSeq != None:
-            leftSeq = leftIntConsensusSeq + '<[INT]' + leftRefConsensusSeq
+            if leftIntConsensusSeq != None:
+                leftSeq = leftIntConsensusSeq + '<[INT]' + leftRefConsensusSeq
+            else:
+                leftSeq = None
+            if rightIntConsensusSeq != None:
+                rightSeq = rightRefConsensusSeq + '[INT]>' + rightIntConsensusSeq
+            else:
+                rightSeq = None
+
+            dictMetaclusters[metacluster]['leftSeq'], dictMetaclusters[metacluster]['rightSeq'] = leftSeq, rightSeq
+
+            if leftIntConsensusPath != None:
+                dictMetaclusters[metacluster]['intLeftBkp'] =  bkpINT(metacluster, leftIntConsensusPath, confDict['viralDb'], bkpDir)
+            if rightIntConsensusPath != None:
+                dictMetaclusters[metacluster]['intRightBkp'] = bkpINT(metacluster, rightIntConsensusPath, confDict['viralDb'], bkpDir)
+
         else:
-            leftSeq = None
-        if rightIntConsensusSeq != None:
-            rightSeq = rightRefConsensusSeq + '[INT]>' + rightIntConsensusSeq
-        else:
-            rightSeq = None
-
-        dictMetaclusters[metacluster]['leftSeq'], dictMetaclusters[metacluster]['rightSeq'] = leftSeq, rightSeq
-
-        if leftIntConsensusPath != None:
-            dictMetaclusters[metacluster]['intLeftBkp'] =  bkpINT(metacluster, leftIntConsensusPath, db, bkpDir)
-        if rightIntConsensusPath != None:
-            dictMetaclusters[metacluster]['intRightBkp'] = bkpINT(metacluster, rightIntConsensusPath, db, bkpDir)
+            dictMetaclusters[metacluster]['refLeftBkp'], dictMetaclusters[metacluster]['refRightBkp'], dictMetaclusters[metacluster]['leftSeq'], dictMetaclusters[metacluster]['rightSeq'], dictMetaclusters[metacluster]['intLeftBkp'], dictMetaclusters[metacluster]['intRightBkp'] = None, None, None, None, None, None
 
         ### Do cleanup
         unix.rm([bkpDir])
 
-        return dictMetaclusters
+    return dictMetaclusters
 
 def clippingBkp(CLIPPING_cluster):
     '''
@@ -127,7 +134,7 @@ def clippingBkp(CLIPPING_cluster):
     return leftBkp, rightBkp
 
 
-def makeConsSeqs(CLIPPING_cluster, clippedSide, seqSide, db, indexDb, outDir):
+def makeConsSeqs(CLIPPING_cluster, clippedSide, seqSide, outDir):
     '''
     Make consesus sequence of one of the sides of the clipping cluster.
 
@@ -147,12 +154,12 @@ def makeConsSeqs(CLIPPING_cluster, clippedSide, seqSide, db, indexDb, outDir):
 
     if len (clippingEvents) > 0:
 
-        consensusPath, consensusSeq = clippingConsensusSeq(clippingEvents, CLIPPING_cluster.id, clippedSide, seqSide, db, indexDb, outDir)
+        consensusPath, consensusSeq = clippingConsensusSeq(clippingEvents, CLIPPING_cluster.id, clippedSide, seqSide, outDir)
     
     return consensusPath, consensusSeq
 
 
-def clippingConsensusSeq(clippingEvents, CLIPPING_clusterID, clippedSide, seqSide, db, indexDb, outDir):
+def clippingConsensusSeq(clippingEvents, CLIPPING_clusterID, clippedSide, seqSide, outDir):
 
     # Retrieve fasta file with sequence from match or clipped side of clipping reads
     supportingReadsFasta = clippingSeq(clippingEvents, CLIPPING_clusterID, clippedSide, seqSide, outDir)
@@ -199,15 +206,15 @@ def clippingSeq(clippingEvents, CLIPPING_clusterID, clippedSide, seqSide, outDir
 
 def bkpINT(metacluster, consensusPath, db, outDir):
 
-    indexDbSpecificIdentity = databases.buildIdentityDb(metacluster, db, outDir)   
+    #indexDbSpecificIdentity = databases.buildIdentityDb(metacluster, db, outDir)   
 
-    PAF_file = sequences.getPAFAlign(consensusPath, indexDbSpecificIdentity, outDir)
+    PAF_file = sequences.getPAFAlign(consensusPath, db, outDir)
     PAFObj = formats.PAF()
     PAFObj.read(PAF_file)
 
     if not os.stat(PAF_file).st_size == 0:
         # DE AQUI SACAMOS LA INFO QUE QUERAMOS DEL VIRUS
-        intBkp = [line.tBeg for line in PAFObj.lines][0]
+        intBkp = [line.tBeg for line in PAFObj.alignments][0]
     else:
         intBkp = None
 

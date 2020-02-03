@@ -1069,7 +1069,9 @@ class cluster():
 
         # Cluster filtering
         self.filters = None
+        self.failedFilters = None
         self.nbOutliers = 0
+        
 
         # Update event's clusterId attribute
         for event in events:
@@ -1974,6 +1976,38 @@ class META_cluster():
         for cluster in clusters2add:
             cluster.clusterId = self.id
 
+    def addEvents(self, eventsList):
+        '''
+
+        Input:
+            1. events: List of events to be added to the metacluster
+        '''
+        ## 1. Add events to the cluster ##
+        previous = self.events
+        self.events = self.events + eventsList
+
+        ## 2. Resort and redefine cluster begin and end coordinates ##
+        self.ref, self.beg, self.end = self.coordinates()
+
+        ## 3. Separate events according to their type into multiple lists ##
+        eventTypes = events.separate(eventsList)
+
+        ## 4. Add events to the subclusters ##
+        for eventType, eventList in eventTypes.items():
+            
+            # a) Create subcluster if not pre-existing one
+            if eventType not in self.subclusters:
+         
+                ## Create subcluster
+                subcluster = create_cluster(eventList, eventType) 
+            
+                ## Add subcluster to the dict
+                self.subclusters[eventType] = subcluster 
+
+            # b) Add events to pre-existing subcluster
+            else:
+                self.subclusters[eventType].add(eventList)
+
     def remove(self, events2remove):
         '''
         Remove a list of events from the metacluster and corresponding subclusters
@@ -2124,7 +2158,7 @@ class META_cluster():
         # Make custom conf. dict for only selecting duplicates
         clippingConfDict = dict(confDict)
         clippingConfDict['targetSV'] = ['CLIPPING']
-        clippingConfDict['minMAPQ'] = 0
+        clippingConfDict['minMAPQ'] = 10
 
         clippingEventsDict = {}
 
@@ -2137,19 +2171,19 @@ class META_cluster():
         ref = self.ref
 
         if mode == "SINGLE":
-            clippingEventsDict = bamtools.collectSV(ref, binBeg, binEnd, bam, clippingConfDict, None)
+            clippingEventsDict = bamtools.collectSV(ref, binBeg, binEnd, bam, clippingConfDict, None, False)
         elif mode == "PAIRED":
             clippingEventsDict = bamtools.collectSV_paired(ref, binBeg, binEnd, bam, normalBam, clippingConfDict)
 
         ## When the discordant cluster is RIGHT, add the biggest right clipping cluster if any:
-        if all (event.side == 'PLUS' for event in self.events):
+        if all (event.orientation == 'PLUS' for event in self.events):
             
             ## Get clipping clusters:
             clippingRightEventsDict = dict((key,value) for key, value in clippingEventsDict.items() if key == 'RIGHT-CLIPPING')
             CLIPPING_cluster = self.add_clippingEvents(ref, binBeg, binEnd, clippingRightEventsDict, ['RIGHT-CLIPPING'], confDict)
 
         ## When the discordant cluster is LEFT, add the biggest left clipping cluster if any:
-        elif all (event.side == 'MINUS' for event in self.events):
+        elif all (event.orientation == 'MINUS' for event in self.events):
             
             ## Get clipping clusters:
             clippingLeftEventsDict = dict((key,value) for key, value in clippingEventsDict.items() if key == 'LEFT-CLIPPING')
@@ -2165,10 +2199,11 @@ class META_cluster():
         '''
 
         '''
+        # TODO: add only most supported cluster (and keep cluster number for futher filtering)
         binSizes = [100, 1000]
         clippingBinDb = structures.create_bin_database_interval(ref, binBeg, binEnd, clippingEventsDict, binSizes)
         binSize = clippingBinDb.binSizes[0]
-        CLIPPING_clusters = clustering.distance_clustering(clippingBinDb, binSize, eventTypes, 'CLIPPING', confDict['maxEventDist'], confDict['minClusterSize']) 
+        CLIPPING_clusters = clustering.distance_clustering(clippingBinDb, binSize, eventTypes, 'CLIPPING', confDict['maxBkpDist'], confDict['minClusterSize']) 
 
         # If there is a clipping cluster
         if len (CLIPPING_clusters) > 0:
@@ -2179,7 +2214,7 @@ class META_cluster():
             CLIPPING_cluster = [cluster for cluster in CLIPPING_clusters if len(cluster.events) == max([len(cluster.events) for cluster in CLIPPING_clusters])][0]
 
             ## Add cluster's reads to the discordant metacluster:
-            self.add(CLIPPING_cluster.events)
+            self.addEvents(CLIPPING_cluster.events)
 
             return CLIPPING_cluster
 
@@ -2282,7 +2317,7 @@ class META_cluster():
             clusterIntervalLen = self.end - self.beg
             targetBeg = offset - overhang
             targetEnd = offset + clusterIntervalLen + overhang            
-            eventsDict = bamtools.collectSV(intervalCoord, targetBeg, targetEnd, BAM, confDict, None)
+            eventsDict = bamtools.collectSV(intervalCoord, targetBeg, targetEnd, BAM, confDict, None, True)
 
             ## 2.2 Define consensus event based on the events resulting from consensus sequence realignment
             ## A) Metacluster supports an INS and realignment leads to one INS event 

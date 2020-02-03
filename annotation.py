@@ -409,7 +409,7 @@ def intersect_mate_annotation(discordants, annotation, targetField):
         discordant.identity = featureType
 
         ## Add discordant read pair to the dictionary
-        identity = discordant.orientation + '_DISCORDANT_' + featureType
+        identity = discordant.orientation + '-DISCORDANT-' + featureType
 
         # a) There are already discordant read pairs with this identity
         if identity in matesIdentity:

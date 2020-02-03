@@ -417,10 +417,10 @@ def collectSV_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict):
             * DISCORDANT -> list of DISCORDANT objects  
     '''
     ## Search for SV events in the tumour
-    eventsDict_T = collectSV(ref, binBeg, binEnd, tumourBam, confDict, 'TUMOUR')
+    eventsDict_T = collectSV(ref, binBeg, binEnd, tumourBam, confDict, 'TUMOUR', True)
 
     ## Search for SV events in the normal
-    eventsDict_N = collectSV(ref, binBeg, binEnd, normalBam, confDict, 'NORMAL')
+    eventsDict_N = collectSV(ref, binBeg, binEnd, normalBam, confDict, 'NORMAL', True)
 
     ## Join tumour and normal lists
     eventsDict = {}
@@ -431,7 +431,7 @@ def collectSV_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict):
     return eventsDict
 
 
-def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
+def collectSV(ref, binBeg, binEnd, bam, confDict, sample, supplementary):
     '''
     Collect structural variant (SV) events in a genomic bin from a bam file
 
@@ -447,6 +447,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             * minINDELlen    -> minimum INS and DEL lenght
             * overhang       -> Number of flanking base pairs around the INDEL events to be collected from the supporting read. If 'None' the complete read sequence will be collected)
         6. sample: type of sample (TUMOUR, NORMAL or None)
+        # TODO: explain supplementary AND DO THE SAME FOR PAIRED MODE
 
     Output:
         1. eventsDict: dictionary containing list of SV events grouped according to the SV type (only those types included in confDict[targetSV]):
@@ -503,6 +504,10 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
 
         ## Duplicates filtering enabled and duplicate alignment
         if (confDict['filterDuplicates'] == True) and (alignmentObj.is_duplicate == True):
+            continue
+
+        # Filter supplementary alignments if TRUE. (Neccesary to avoid pick supplementary clipping reads while adding to discordant clusters in short reads mode)
+        if supplementary == False and alignmentObj.is_supplementary == True:
             continue
         
         ## 2. Collect CLIPPINGS
@@ -784,8 +789,8 @@ def collectMatesSeq(events, tumourBam, normalBam, checkUnmapped, maxMAPQ):
     bamFile = pysam.AlignmentFile(tumourBam, "rb")
 
     # TODO: First and second conditions can be together, since they have same outcome.
-    msg = 'LEN EVENTTTS: ' + str(len(events))
-    log.subHeader(msg)
+    #msg = 'LEN EVENTTTS: ' + str(len(events))
+    #log.subHeader(msg)
     for event in events:
         counter += 1
         if event.sample == None:
@@ -795,8 +800,8 @@ def collectMatesSeq(events, tumourBam, normalBam, checkUnmapped, maxMAPQ):
         elif event.sample == 'NORMAL':
             collectMateSeq(event, normalBam, checkUnmapped, maxMAPQ)
 
-    msg = '[COUNTER OF collectMatesSeq LOOP] '+ str(counter)
-    log.subHeader(msg)
+    #msg = '[COUNTER OF collectMatesSeq LOOP] '+ str(counter)
+    #log.subHeader(msg)
 
 
 def collectMateSeq(event, bamFile, checkUnmapped, maxMAPQ):
@@ -811,8 +816,8 @@ def collectMateSeq(event, bamFile, checkUnmapped, maxMAPQ):
     Output:
         1. It doesnt return anything, just add the mate sequence to event.mateSeq attribute.
     '''
-    msg = '[Start collectMateSeq]'
-    log.subHeader(msg)
+    #msg = '[Start collectMateSeq]'
+    #log.subHeader(msg)
     
     ## 1. Define bin coordinates based on mate position
     mateRef = event.mateRef
@@ -833,22 +838,22 @@ def collectMateSeq(event, bamFile, checkUnmapped, maxMAPQ):
         # Check if the aligment has same query_name but different orientation (to ensure that its the mate and not the read itself)
         if readName == alignmentObjMate.query_name:
             
-            msg = '[collectMateSeq: if readName == alignmentObjMate.query_name]' + str(binBegMate)
-            log.subHeader(msg)
+            #msg = '[collectMateSeq: if readName == alignmentObjMate.query_name]' + str(binBegMate)
+            #log.subHeader(msg)
             
             matePair = '1' if alignmentObjMate.is_read1 else '2'
             
             if matePair != event.pair:
-                msg = 'if matePair != event.pair' + str(binBegMate)
-                log.subHeader(msg)
+                #msg = 'if matePair != event.pair' + str(binBegMate)
+                #log.subHeader(msg)
 
                 MAPQ = int(alignmentObjMate.mapping_quality)
                 
                 # Pick only those sequences that are unmmapped or with mapping quality < maxMAPQ
                 if checkUnmapped == True:
                     if (alignmentObjMate.is_unmapped == True) or (MAPQ < maxMAPQ):
-                        msg = 'if (alignmentObjMate.is_unmapped == True) or (MAPQ < maxMAPQ)' + str(binBegMate)
-                        log.subHeader(msg)
+                        #msg = 'if (alignmentObjMate.is_unmapped == True) or (MAPQ < maxMAPQ)' + str(binBegMate)
+                        #log.subHeader(msg)
 
                         #if len(alignmentObjMate.query_sequence) > 100:
                         event.mateSeq = alignmentObjMate.query_sequence
@@ -857,8 +862,8 @@ def collectMateSeq(event, bamFile, checkUnmapped, maxMAPQ):
                 # Pick only those sequences with mapping quality < maxMAPQ
                 else:
                     if MAPQ < maxMAPQ:
-                        msg = 'if MAPQ < maxMAPQ' + str(binBegMate)
-                        log.subHeader(msg)
+                        #msg = 'if MAPQ < maxMAPQ' + str(binBegMate)
+                        #log.subHeader(msg)
                         event.mateSeq = alignmentObjMate.query_sequence
                         break
 

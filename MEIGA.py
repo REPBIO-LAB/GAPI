@@ -47,7 +47,7 @@ if __name__ == '__main__':
 	parser.add_argument('--targetBins', default=None, dest='targetBins', type=str, help='Bed file containing target genomic bins for SV calling. Overrides --binSize and --refs. Default: None')
 	parser.add_argument('-bS', '--binSize', default=1000000, dest='binSize', type=int, help='Input bams will be analised in genomic bins of this size. Default: 1000000')
 	parser.add_argument('--refs', default="ALL", dest='refs', type=str, help='Comma separated list of target references to call SV (i.e. 1,2,3,X). Default: All references included in the bam file')
-	parser.add_argument('--SV', default="INS,CLIPPING", dest='SV', type=str, help='Comma separated list of SV event types to collect (INS, DEL and CLIPPING). Default: INS,CLIPPING')
+	parser.add_argument('--SV', default="INS,CLIPPING", dest='SV', type=str, help='Comma separated list of SV event types to collect (INS, DEL, CLIPPING, DISCORDANT). Default: INS,CLIPPING')
 	parser.add_argument('--no-duplicates', action="store_true", default=False, dest='filterDuplicates', help='Filter out reads marked as duplicates if filter enabled')
 	parser.add_argument('--minMAPQ', default=10, dest='minMAPQ', type=int, help='Minimum mapping quality required for each read. Default: 10')
 	parser.add_argument('--readFilters', default="SMS", dest='readFilters', type=str, help='Comma separated list of read filters to apply (SMS)')
@@ -59,6 +59,9 @@ if __name__ == '__main__':
 	parser.add_argument('--INSdist', default=250, dest='maxInsDist', type=int, help='Maximum distance bewteen two adjacent INS to be clustered together (Between 0-999). Default: 250')
 	parser.add_argument('--BKPdist', default=50, dest='maxBkpDist', type=int, help='Maximum distance bewteen two adjacent breakpoints for CLIPPING clustering (Between 0-999). Default: 250')
 	parser.add_argument('--minPercOverlap', default=70, dest='minPercRcplOverlap', type=int, help='Minimum percentage of reciprocal overlap for DEL clustering. Default: 70')
+
+	## Databases
+	parser.add_argument('--viralDb', default=2, dest='viralDb', type=str, help='Viral database in fasta format or minimap index.')
 
 	## Filtering
 	# Long
@@ -109,6 +112,9 @@ if __name__ == '__main__':
 	maxInsDist = args.maxInsDist
 	maxBkpDist = args.maxBkpDist
 	minPercRcplOverlap = args.minPercRcplOverlap
+
+	# Databases
+	viralDb = args.viralDb
 
 	## Filtering thresholds
 	# Long
@@ -188,6 +194,9 @@ if __name__ == '__main__':
 	print('maxBkpDist: ', maxBkpDist)
 	print('minPercOverlap: ', minPercRcplOverlap, "\n")
 
+	print('** Databases **')
+	print('viralDb: ', viralDb, "\n")
+
 	print('** Filtering **')
 	print('minClusterSize: ', minClusterSize)
 	print('maxClusterSize: ', maxClusterSize)
@@ -235,6 +244,9 @@ if __name__ == '__main__':
 	confDict['maxInsDist'] = maxInsDist
 	confDict['maxBkpDist'] = maxBkpDist
 	confDict['minPercRcplOverlap'] = minPercRcplOverlap
+
+	## Databases
+	confDict['viralDb'] = viralDb
 
 	## Filtering thresholds
 	# Long

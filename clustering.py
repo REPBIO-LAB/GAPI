@@ -240,6 +240,7 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
 
                     # Add events to the cluster
                     clusterId = clustersOverlapA[0]
+                    print ('UNO SOLOOOOOOOOOOOOOOOO')
                     clustersDict[clusterId].add(events2Cluster)
 
                 # B) Multiple clusters overlap A -> Merge clusters and add A and its overlapping events into the merged cluster
@@ -398,19 +399,31 @@ def KMeans_multiK(data, Ks):
 
 def reciprocal(binDb, minPercOverlap, minClusterSize, buffer):
     '''
+    Make reciprocal clusters from PLUS and MINUS discordant clusters. 
+    Those clusters that have opposite orientation, are close (according to buffer parameter) and have the same identity are clustered together.
+
+    Input:
+        1. binDb: data structure containing a set of events organized in genomic bins 
+        2. minPercOverlap: minimum percentage of reciprocal overlap to cluster two events together
+        3. minClusterSize: minimum number of events clustering together for creating a cluster
+        4. buffer: number of nucleotides used to extend cluster begin and end coordinates prior evaluating reciprocal overlap 
+        
+    Output:
+        1. reciprocalDict: dictionary containing list of clusters grouped according to their type. The type is defined by ORIENTATION-EVENTSTYPE-IDENTITY (i.e. PLUS-DISCORDANT-HBV, RECIPROCAL-DISCORDANT-HBV, MINUS-DISCORDANT-HBV)
     '''
+
     eventsMinusDict = {} 
     eventsPlusDict = {}
     reciprocalDict = {}
+
+    # Collect all event types present in the binDb
+    commonEventTypes = set([i.split('-', 1)[1] for i in binDb.eventTypes])
 
     # For each window size/level
     for windowSize in binDb.binSizes:
 
         # For each bin in the current window size
         for index in binDb.data[windowSize]:
-
-            # Collect all event types present in the binDb
-            commonEventTypes = set([i.split('-', 1)[1] for i in binDb.eventTypes])
 
             for commonEventType in commonEventTypes:
                 # cogo solo las partes comunes de los eventTypes
@@ -471,9 +484,10 @@ def reciprocal(binDb, minPercOverlap, minClusterSize, buffer):
                                 overlapDict[eventMinus] = overlapLen
                         # Una vez que tengo mirado, para un eventPlus, los eventMinus que lo solapan (lo he comparado con todos), cojo el que tenga mayor overlapLen (pq significa que estan mas cerca)
                         # Cojo la key del overlap dict cuyo value sea mayor (pq significa que overlapan mas, sera la pareja)
-                        eventMinusReciprocal, eventMinusReciprocalOverlapLen = max(overlapDict.items(), key=operator.itemgetter(1))
+                        if overlapDict:
+                            eventMinusReciprocal, eventMinusReciprocalOverlapLen = max(overlapDict.items(), key=operator.itemgetter(1))
 
-                        eventsPlusDict[eventPlus][eventMinusReciprocal]=eventMinusReciprocalOverlapLen
+                            eventsPlusDict[eventPlus][eventMinusReciprocal]=eventMinusReciprocalOverlapLen
 
                     # VER EXPLANATIOOOOOOOOOOOOON
                     # Una vez que tengo mirados todos los eventPlus, cojo el mejor eventPlus para cada eventMinus.
@@ -487,31 +501,26 @@ def reciprocal(binDb, minPercOverlap, minClusterSize, buffer):
                     # Y me quedo solo con aquellos eventsPlus que tengan la mayor overlapLen, asi ya tengo los pares
                     for eventMinus,nestDict in eventsMinusDict.items():
                         #reciprocalDict[eventMinus] = {}
-                        reciprocalDict[commonEventType] = []
+                        reciprocalDict['RECIPROCAL-' + commonEventType] = []
                         #reciprocalDict[commonEventType].append(eventMinus)
-                        reciprocalDict[commonEventType].extend(eventMinus.events)
+                        reciprocalDict['RECIPROCAL-' + commonEventType].append(eventMinus)
                         if len(nestDict) > 1:
                             eventPlus_to_add, overlapLen_to_add = max(nestDict.items(), key=operator.itemgetter(1))
                             #reciprocalDict[eventMinus][eventPlus_to_add] = overlapLen_to_add
                             #reciprocalDict[commonEventType].append(eventPlus_to_add)
-                            reciprocalDict[commonEventType].extend(eventPlus_to_add.events)
+                            reciprocalDict['RECIPROCAL-' + commonEventType].append(eventPlus_to_add)
                         else:
                             #reciprocalDict[eventMinus] = nestDict
                             #reciprocalDict[commonEventType].append(*nestDict)
                             eventPlus = *nestDict,[0]
-                            reciprocalDict[commonEventType].extend(eventPlus[0].events)
+                            reciprocalDict['RECIPROCAL-' + commonEventType].append(eventPlus[0])
 
                 elif len(plusEvents) > 0:
 
-                    for eventPlus in plusEvents:
-                        reciprocalDict[commonEventType] = []
-                        reciprocalDict[commonEventType].extend(eventPlus.events)
+                    reciprocalDict['PLUS-' + commonEventType] = plusEvents
 
                 elif len(minusEvents) > 0:
-
-                    for eventMinus in minusEvents:
-                        reciprocalDict[commonEventType] = []
-                        reciprocalDict[commonEventType].extend(eventMinus.events)
+                    reciprocalDict['MINUS-' + commonEventType] = minusEvents
 
     # Example of reciprocalDict
     # reciprocalDict = {'DISCORDANT-Hepatitis': [<clusters.DISCORDANT_cluster object at 0x7f32a07230b8>, <clusters.DISCORDANT_cluster object at 0x7f32a079ad68>], 'DISCORDANT-UNVERIFIED:': [<clusters.DISCORDANT_cluster object at 0x7f32a07230b8>, <clusters.DISCORDANT_cluster object at 0x7f32a079ad68>], 'DISCORDANT-HBV': [<clusters.DISCORDANT_cluster object at 0x7f32a07230f0>, <clusters.DISCORDANT_cluster object at 0x7f32a079ad68>]}

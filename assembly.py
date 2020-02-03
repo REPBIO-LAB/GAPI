@@ -199,13 +199,14 @@ def getConsensusSeq(FASTA_file, outDir):
         
         # 2. Make multiple sequence alignment
         msfPath = FASTA_file.replace("fa", "msf")
-        command = 'muscle -in ' + FASTA_file + ' -out ' + msfPath + ' -msf' 
+        # TODO: Add muscle to environment
+        command = '/mnt/netapp2/uscmg_aplic/0_external_tools/13_MUSCLE/3.8.31/muscle -in ' + FASTA_file + ' -out ' + msfPath + ' -msf' 
         status = subprocess.call(command, shell=True)
 
         # 3. Generate consensus sequence (cons tool from EMBOSS package)
         consensusPath = FASTA_file.replace("_supportingReads", "_consensus")
-
-        command = 'cons -sequence ' + msfPath + ' -outseq ' + consensusPath + ' -identity 0 -plurality 0'
+        # TODO: Add emboss to environment
+        command = '/mnt/netapp2/uscmg_aplic/0_external_tools/98_EMBOSS/EMBOSS-6.6.0/emboss/cons -sequence ' + msfPath + ' -outseq ' + consensusPath + ' -identity 0 -plurality 0'
         status = subprocess.call(command, shell=True)
 
         # 4. Check that consensus file is not empty

@@ -25,6 +25,8 @@ import bkp
 import filters
 import alignment
 import gRanges
+import virus
+import clustering
 
 ## FUNCTIONS ##
 
@@ -216,7 +218,7 @@ class SV_caller_long(SV_caller):
         ## 1. Search for SV candidate events in the bam file/s ##
         # a) Single sample mode
         if self.mode == "SINGLE":
-            eventsDict = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, None)
+            eventsDict = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, None, True)
 
         # b) Paired sample mode (tumour & matched normal)
         else:
@@ -321,31 +323,95 @@ class SV_caller_short(SV_caller):
 
     def call(self):
         '''
-        Search for structural variants (SV) genome wide or in a set of target genomic regions
+        Search for integrations genome wide or in a set of target genomic regions
         '''
-        ### 1. Create, index and load reference databases prior SV calling ##
+
+        # TODO: DESILENCE
+        '''
         annotDir = self.outDir + '/ANNOT/'
         refLengths = bamtools.get_ref_lengths(self.bam)
         self.annotations = annotation.load_annotations(['REPEATS', 'TRANSDUCTIONS'], refLengths, self.refDir, self.confDict['processes'], annotDir)
+        '''
+
+        ### 1. Create integration clusters 
+        msg = '1. Create integration clusters'
+        log.header(msg)
+        allMetaclusters = self.make_clusters()
+
+        ### 2. Annotate SV clusters intervals
+        msg = '2. Annotate SV clusters intervals'
+        log.header(msg)
+
+        ## 5. Check if annotated retrotransposon on the reference genome at cluster intervals ##
+        # COMMENT: This is temporary and will be incorporated into the filtering function at one point
+        step = 'ANNOTATE-REPEATS'
+        msg = 'Check if annotated retrotransposon on the reference genome at cluster intervals'
+        log.step(step, msg)
+
+        ## Create a list containing all discordant read pair events:
+        allDiscordantClusters = []
+
+        for eventType in allMetaclusters.keys():
+            allDiscordantClusters.extend(allMetaclusters[eventType])
+
+        # TODO: DESILENCE
+        '''
+        ## Annotate
+        buffer = 100
+        annotation.repeats_annotation(allDiscordantClusters, self.annotations['REPEATS'], buffer)
+        
+        ## 6. Perform gene-based annotation with ANNOVAR of discordant read pair clusters ##
+        # Do gene-based annotation step if enabled
+        if self.confDict['annovarDir'] is not None:
+
+            step = 'ANNOTATE'
+            msg = 'Perform gene-based annotation with ANNOVAR of discordant read-pair clusters'
+            log.step(step, msg)
+
+            ## Annotate
+            annotation.gene_annotation(allDiscordantClusters, self.confDict['annovarDir'], annotDir)
+
+        # Remove annotation directory
+        unix.rm([annotDir])
+        '''
 
         ## 1.2 Create and index viral database
         #self.viralDb, self.viralDbIndex = databases.buildVirusDb(self.refDir, dbDir)
         
-        ### 2. Define genomic bins to search for SV ##
+  
+        # Report integrations calls into output files
+        #output.write_DISCORDANT(discordantClusters, self.outDir)
+        metaclustersList = list(allMetaclusters.values())
+        outFileName = 'metaclusters.PASS.tsv'
+        output.writeMetaclusters(metaclustersList, outFileName, self.outDir)
+
+    def make_clusters(self):
+        ### 1. Define genomic bins to search for SV ##
         bins = bamtools.binning(self.confDict['targetBins'], self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
 
-        ### 3. Search for SV clusters in each bin ##
+        ### 2. Search for SV clusters in each bin ##
+        # Create output directory
+        unix.mkdir(self.outDir + '/CLUSTER/')
+
         # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
-        discordantClusters = pool.starmap(self.make_clusters_bin, bins)
+        metaclustersPassList, metaclustersFailedList = zip(*pool.starmap(self.make_clusters_bin, bins))
         pool.close()
         pool.join()
-    
-        # Report SV calls into output files
-        output.write_DISCORDANT(discordantClusters, self.outDir)
 
-        ### 5. Do cleanup
-        unix.rm([dbDir])
+        # Remove output directory
+        unix.rm([self.outDir + '/CLUSTER/'])
+
+        ### 3. Collapse metaclusters in a single dict and report metaclusters that failed filtering
+        metaclustersPass = structures.merge_dictionaries(metaclustersPassList)
+        metaclustersFailed = structures.merge_dictionaries(metaclustersFailedList)
+
+        if metaclustersFailed:
+            metaclustersFailedList = list(metaclustersFailed.values())
+            outFileName = 'metaclusters.FAILED.tsv'
+            output.writeMetaclusters(metaclustersFailedList, outFileName, self.outDir)
+
+        return metaclustersPass
 
     def make_clusters_bin(self, ref, beg, end):
         '''
@@ -356,32 +422,40 @@ class SV_caller_short(SV_caller):
         binId = '_'.join([str(ref), str(beg), str(end)])
         msg = 'SV calling in bin: ' + binId
         log.subHeader(msg)
+        start = time.time()
 
         binDir = self.outDir + '/CLUSTER/' + binId
         unix.mkdir(binDir)
 
-        ## 1. Search for SV candidate events in the bam file/s ##
+        ## 1. Search for integration candidate events in the bam file/s ##
         # a) Single sample mode
         if self.mode == "SINGLE":
-            discordantDict = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, None)
+            discordantDict = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, None, True)
 
         # b) Paired sample mode (tumour & matched normal)
         else:
             discordantDict = bamtools.collectSV_paired(ref, beg, end, self.bam, self.normalBam, self.confDict)
-        
-        step = 'COLLECT'
+
         SV_types = sorted(discordantDict.keys())
         counts = [str(len(discordantDict[SV_type])) for SV_type in SV_types]
+        
+        step = 'COLLECT'
         msg = 'Number of SV events in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
         log.step(step, msg)
-
-        if counts == []:
-            unix.rm([binDir])
-            return None
         
         ## 2. Discordant read pair identity ##
         ## Determine identity
-        discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'])
+        if self.mode == "SINGLE":
+            # TODO: DESILENCE
+            #discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'],self.bam, None, binDir, self.confDict['viralDb'])
+            discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], None, None,self.bam, None, binDir, self.confDict['viralDb'])
+        else:
+            # TODO: DESILENCE
+            #discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'],self.bam, None, binDir, self.confDict['viralDb'])
+            discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], None, None,self.bam, None, binDir, self.confDict['viralDb'])
+
+        for discirdant in discordantDict['DISCORDANT']:
+            print ('DISCORDAAAAAAAAANT' +' '+ str(discirdant.beg) +' '+ str(discirdant.end)  +' '+ str(discirdant.orientation) +' '+ str(discirdant.pair) +' '+ str(discirdant.readName)  +' '+ str(discirdant.identity))
 
         step = 'IDENTITY'
         SV_types = sorted(discordantsIdentity.keys())
@@ -389,25 +463,32 @@ class SV_caller_short(SV_caller):
         msg = 'Number of SV events per identity in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
         log.step(step, msg)
 
-        if counts == []:
-            unix.rm([binDir])
-            return None
-              
         ## 3. Organize discordant read pairs into genomic bins prior clustering ##
         step = 'BINNING'
         msg = 'Organize discordant read pairs into genomic bins prior clustering'
         log.step(step, msg)
 
+        ## NOTE: bigger window sizes are needed for SR (see comments, ask Eva where are the comments?)
         ## Define bin database sizes 
-        ## Note: bigger window sizes are needed for SR (see comments, ask Eva where are the comments?)
-        binSizes = [1000, 10000, 100000, 1000000]
+        minBinSize = min([self.confDict['maxInsDist'], self.confDict['maxBkpDist']])
+        binSizes = [minBinSize, 1000, 10000, 100000, 1000000]
 
         ## Create bins
         discordantsBinDb = structures.create_bin_database_interval(ref, beg, end, discordantsIdentity, binSizes)
-        
+
         ## 4. Group discordant read pairs into clusters based on their mate identity ##
         buffer = 100
         discordantClustersDict = clusters.create_discordantClusters(discordantsBinDb, self.confDict['minClusterSize'], buffer)
+
+        '''
+        # TODO: Remove this print
+        for dis in discordantClustersDict.values():
+            for discirdant in dis:
+                print ('DISCORDAAAAAAAAANT')
+                print (discirdant.beg)
+                print (discirdant.end)
+                print (discirdant.clusterType)
+        '''
     
         step = 'DISCORDANT-CLUSTERING'
         SV_types = sorted(discordantClustersDict.keys())
@@ -415,10 +496,11 @@ class SV_caller_short(SV_caller):
         msg = 'Number of created discordant clusters in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
         log.step(step, msg)
 
-        if counts == []:
-            unix.rm([binDir])
-            return None
+        #if counts == []:
+            #unix.rm([binDir])
+            #return None
 
+        '''
         ## 5. Check if annotated retrotransposon on the reference genome at cluster intervals ##
         # COMMENT: This is temporary and will be incorporated into the filtering function at one point
         step = 'ANNOTATE-REPEATS'
@@ -446,12 +528,30 @@ class SV_caller_short(SV_caller):
             ## Annotate
             annotDir = binDir + '/ANNOT/' 
             annotation.gene_annotation(allDiscordantClusters, self.confDict['annovarDir'], annotDir)
+        '''
 
         ### Do cleanup
-        unix.rm([binDir])
+        #unix.rm([binDir])
 
-        return discordantClustersDict
-        
+        #return discordantClustersDict
+
+
+        ## 5. Filter discordant clusters ##
+        step = 'FILTER'
+        msg = 'Filter out metaclusters' 
+        log.step(step, msg)
+        filters2Apply = ['MIN-NBREADS', 'MAX-NBREADS', 'AREAMAPQ', 'AREASMS']
+        discordantClustersDict, discordantClustersDictFailed = filters.filter_clusters(discordantClustersDict, filters2Apply, self.confDict, self.bam)
+
+        '''
+        # TODO: Remove this print
+        for dis in discordantClustersDict.values():
+            for discirdant in dis:
+                print ('DISCORDAAAAAAAAANT AFTER FILTERRRIIIING')
+                print (discirdant.beg)
+                print (discirdant.end)
+                print (discirdant.clusterType)
+        '''
         
         '''
         Eva will further polish next steps!
@@ -473,30 +573,55 @@ class SV_caller_short(SV_caller):
         if counts == []:
             unix.rm([binDir])
             return None
+        '''
+        ## 6. Organize discordant clusters in bin database structure ##
+        discordantClustersBinDb = structures.create_bin_database_interval(ref, beg, end, discordantClustersDict, binSizes)
+        discordantClustersFailedBinDb = structures.create_bin_database_interval(ref, beg, end, discordantClustersDictFailed, binSizes)
 
-        # vuelvo a hacer la bindb que contiene ya solo los clusters que pasaron los filtros
-        discordantClustersBinDb = structures.create_bin_database_interval(ref, beg, end, newDiscordantClustersDict, binSizes)
-
-        ## 7. Making reciprocal clusters ##
+        ## 7. Make reciprocal clusters ##
         # TODO: AJUSTAR ESTOS PARAMETROS!!! (PASARLOS SI ESO COMO OPCION EN LOS ARGUMENTOS)
-        reciprocalEventsDict = clustering.reciprocal(discordantClustersBinDb, 1, 1, 300)
+        reciprocalClustersDict = clustering.reciprocal(discordantClustersBinDb, 1, 1, 300)
+        reciprocalClustersFailedDict = clustering.reciprocal(discordantClustersFailedBinDb, 1, 1, 300)
 
-        ## 8. Put reciprocal and independent clusters into bins ##
+        '''
+        # TODO: Remove this print
+        for dis in reciprocalClustersDict.values():
+            for discirdant in dis:
+                print ('DISCORDAAAAAAAAANT AFTER RECIPROCAAAL')
+                print (discirdant.beg)
+                print (discirdant.end)
+                print (discirdant.clusterType)
+        '''
 
-        reciprocalEventsBinDb = structures.create_bin_database_interval(ref, beg, end, reciprocalEventsDict, binSizes)
-        '''
-      
-        '''
+        ## 8. Organize reciprocal and independent discordant clusters in bin database structure ##
+        reciprocalClustersBinDb = structures.create_bin_database_interval(ref, beg, end, reciprocalClustersDict, binSizes)
+        reciprocalClustersFailedBinDb = structures.create_bin_database_interval(ref, beg, end, reciprocalClustersFailedDict, binSizes)
+        buffer=300
+
+
         # HASTA AQUI YO CREO QUE ESTA TODO BIEN!!!! A PARTIR DE AQUI HAY QUE REPASAR!!
 
-        ## 8. Create metaclusters from reciprocal and independent clusters ##
+        ## 9. Create metaclusters from reciprocal and independent discordant clusters ##
 
-        metaclustersBinDb = clusters.create_metaclusters(reciprocalEventsBinDb, self.confDict)
+        # Mirar aqui pq habra que ajustar varios parametros
+
+        metaclusters = clusters.create_metaclusters(reciprocalClustersBinDb)
+        metaclustersFailed = clusters.create_metaclusters(reciprocalClustersFailedBinDb)
+
+        '''
+        # TODO: Remove this print
+        for metacluster in metaclusters:
+                print ('METACLSUTERSSSSSS')
+                print (metacluster.beg)
+                print (metacluster.end)
+                print (metacluster.events)
+                print (metacluster.subclusters)
+        '''
 
         step = 'META-CLUSTERING'
-        msg = '[META-CLUSTERING] Number of created metaclusters: ' + str(metaclustersBinDb.nbEvents()[0])
-        log.subHeader(msg)
-        '''
+        #msg = '[META-CLUSTERING] Number of created metaclusters: ' + str(metaclustersBinDb.nbEvents()[0])
+        #log.subHeader(msg)
+
         '''
         LO ULTIMO QUE HICE FUE RETORNAR EVENTS DE LA RECIPROCAL EN VEZ DE CLUSTERS, Y FUNCIONA, PERO HAY EN ALGUN MOMENTO QUE SE MEZCLAN LOS DE DISTINTO TIPO AL HACER LA RECIPROCAL, ASI QUE TENGO QUE REPASARLO!
         
@@ -529,27 +654,59 @@ class SV_caller_short(SV_caller):
         <clusters.DISCORDANT_cluster object at 0x7f73aeae64a8> HWI-ST672:120:D0CF5ACXX:8:2104:17314:11147/1 2 105457619 DISCORDANT HBV MINUS
         <clusters.DISCORDANT_cluster object at 0x7f73aeae64a8> HWI-ST672:120:D0CF5ACXX:8:2104:17314:11147/1 2 105457619 DISCORDANT HBV MINUS
 
-        '''
 
-        '''
-        dictMetaclustersLEFT = bkp.analizeBkp(metaclustersBinDb, self.viralDb, self.reference, 'LEFT', binDir)
-        dictMetaclustersRIGHT = bkp.analizeBkp(metaclustersBinDb, self.viralDb, self.reference, 'RIGHT', binDir)
 
         
+        dictMetaclustersLEFT = bkp.analizeBkp(metaclustersBinDb,'/mnt/lustre/scratch/home/usc/mg/eal/results/MEIGA_ShortReads/consensusHBV_goodHeaders.fa', self.reference, 'LEFT', binDir)
+        dictMetaclustersRIGHT = bkp.analizeBkp(metaclustersBinDb, '/mnt/lustre/scratch/home/usc/mg/eal/results/MEIGA_ShortReads/consensusHBV_goodHeaders.fa', self.reference, 'RIGHT', binDir)
+
+
         print ('LEFT')
         print (dictMetaclustersLEFT)
 
         print ('RIGHT')
         print (dictMetaclustersRIGHT)
         '''
+
+        ## 10. Analyse metaclusters features and add supporting clipping reads ##
+        dictMetaclusters = bkp.analyzeMetaclusters(metaclusters, self.confDict, self.bam, self.normalBam, self.mode, binDir)
+        dictMetaclustersFailed = bkp.analyzeMetaclusters(metaclustersFailed, self.confDict, self.bam, self.normalBam, self.mode, binDir)
+
+        metaclustersSVType = {}
+        metaclustersSVTypeFailed = {}
+
+        # TODO: Mirar si aqui solo pueden ser discordant
+        if dictMetaclusters:
+            metaclustersSVType['DISCORDANT'] = list(dictMetaclusters.keys())
+        else:
+            metaclustersSVType['DISCORDANT'] = []
+
+        if dictMetaclustersFailed:
+            metaclustersSVTypeFailed['DISCORDANT'] = list(dictMetaclustersFailed.keys())
+        else:
+            metaclustersSVTypeFailed['DISCORDANT'] = []
+
         '''
-        dictMetaclusters = bkp.analyzeMetaclusters(metaclustersBinDb, self.confDict, self.bam, self.normalBam, self.mode, self.viralDb, self.viralDbIndex, binDir)
+        # TODO: Remove this print
+        for metacluster in dictMetaclusters.keys():
+                print ('METACLSUTERSSSSSS AFTER BKP!!!')
+                print (metacluster.beg)
+                print (metacluster.end)
+                print (metacluster.events)
+                print (metacluster.subclusters)
+        '''
 
         ### Do cleanup
         unix.rm([binDir])
 
-        return dictMetaclusters
-        '''
+        ## 11. Lighten up metaclusters  ##
+        ## Metaclusters passing all the filters
+        clusters.lighten_up_metaclusters(metaclustersSVType)
+
+        ## Filtered metaclusters
+        clusters.lighten_up_metaclusters(metaclustersSVTypeFailed)
+
+        return metaclustersSVType, metaclustersSVTypeFailed
 
 class SV_caller_sureselect(SV_caller):
     '''
@@ -615,7 +772,7 @@ class SV_caller_sureselect(SV_caller):
         ## 1. Search for SV candidate events in the bam file/s ##
         # a) Single sample mode
         if self.mode == "SINGLE":
-            eventsDict = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, None)
+            eventsDict = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, None, True)
 
         # b) Paired sample mode (tumour & matched normal)
         else:
