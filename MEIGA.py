@@ -1,24 +1,25 @@
 #!/usr/bin/env python
 #coding: utf-8
 
-####################
-## Import modules ##
-####################
-
-# External
-import argparse
-import sys
-import os
-import multiprocessing as mp
-
-# Internal
-import callers
-import log
-import bamtools
-
-
+# import basic internal module
+import check_dependencies as cd
 if __name__ == '__main__':
 	
+	## Check dependencies, true if there are some missing dependencies ##
+	missing_dependencies=cd.missing_python_dependencies() or cd.missing_program_dependencies()
+
+	####################
+	## Import modules ##
+	####################
+
+	# External
+	import argparse
+	import sys
+	import os
+	import multiprocessing as mp
+
+	#internal modules import delayed until dependency check. ()
+
 	mp.set_start_method('spawn')
     
 	######################
@@ -123,6 +124,22 @@ if __name__ == '__main__':
 	minReadsRegionMQ = args.minReadsRegionMQ
 	maxRegionlowMQ = args.maxRegionlowMQ
 	maxRegionSMS = args.maxRegionSMS
+
+    ## Check file dependencies (list with the paths) ##
+	missing_dependencies = missing_dependencies or  cd.missing_needed_files((bam,reference,refDir,normalBam,annovarDir,outDir))
+
+	if missing_dependencies:
+		exit()
+
+	###################################################################
+	# lazy load of the modules to avoid problems with the dependences #
+	###################################################################
+	
+	# load Internal
+	import callers
+	import log
+	import bamtools
+
 
 	# If no reference is specified, get all that are present in the bam file.
 	if refs == 'ALL':
