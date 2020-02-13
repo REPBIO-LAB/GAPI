@@ -9,7 +9,7 @@ Module 'check_dependencies' - function to check if all the program dependencies 
 
 ## DEPENDENCIES ##
 # External
-import pip
+import pkg_resources
 import shutil
 import os
 
@@ -28,16 +28,20 @@ def missing_python_dependencies():
         
     ''' 
     ## 1 list of needed python packages
-    needed_python_packages=["pysam","cigar","numpy","sklearn","six","cython","pybedtools"]
+    needed_python_packages=["pysam","cigar","numpy","sklearn","six","Cython","pybedtools"]
     
     ## 2. load packages information
-    installed_packages = pip.get_installed_distributions()
-    ## 3. get only the names
-    installed_package_names = [i.key for i in installed_packages]
-    #print(installed_package_names)
+    installed_packages = []   
+    dists = [str(d).split(" ")[0] for d in pkg_resources.working_set]
+
+    ## 3. create a list 
+    for i in dists:
+        installed_packages.append(i)
+  
+    #print(installed_packages)
     
     ## 4. Select not founded packages
-    missing_packages=set(needed_python_packages)-set(installed_package_names)
+    missing_packages=set(needed_python_packages)-set(installed_packages)
 
     ## 5. check if the set is not empty 
     if bool(missing_packages):
