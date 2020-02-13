@@ -241,10 +241,11 @@ def write_tdCalls_surelect(clustersPerSrc, outDir):
     row = "#ref \t beg \t end \t srcId \t nbReads \t readIds \t dupPerc\n"
     outFile.write(row)
 
-    ## 2. Generate list containing transduction calls 
+    ## 2. Generate list containing transduction calls
+    call = None 
     calls = []
 
-    # For each source element
+    # For each source element
     for srcId, clusters in clustersPerSrc.items(): 
 
         # For each cluster
@@ -269,12 +270,14 @@ def write_tdCalls_surelect(clustersPerSrc, outDir):
     outFile.close()
     
     ## 5. Collapse calls when pointing to the same MEI. It happens when source elements are too close.
-    outFile = pybedtools.BedTool(outFilePath)
     
-    # Columns to collapse (without ref, beg and end columns)
-    colList = list(range(4, len(call)+1))
-    colFormat = ['collapse'] * (len(call) - 3)
+    if call is not None:
+    
+    	outFile = pybedtools.BedTool(outFilePath)
+    
+    	# Columns to collapse (without ref, beg and end columns)
+    	colList = list(range(4, len(call)+1))
+    	colFormat = ['collapse'] * (len(call) - 3)
 
-    mergedOutput = outFile.merge(c=colList, o=colFormat, header=True)
-    mergedOutput.saveas(outFilePath)
-
+    	mergedOutput = outFile.merge(c=colList, o=colFormat, header=True)
+    	mergedOutput.saveas(outFilePath)
