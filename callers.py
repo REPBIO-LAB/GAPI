@@ -9,6 +9,9 @@ import multiprocessing as mp
 import os
 import pysam
 import time
+import libyay
+# External
+import subprocess
 
 # Internal
 import log
@@ -27,6 +30,7 @@ import alignment
 import gRanges
 import virus
 import clustering
+import os
 
 ## FUNCTIONS ##
 
@@ -335,9 +339,11 @@ class SV_caller_short(SV_caller):
 
         ### 1. Create integration clusters 
         msg = '1. Create integration clusters'
-        log.header(msg)
+        log.header(msg)      
         allMetaclusters = self.make_clusters()
 
+        # TODO: TEMP
+        return
         ### 2. Annotate SV clusters intervals
         msg = '2. Annotate SV clusters intervals'
         log.header(msg)
@@ -385,7 +391,87 @@ class SV_caller_short(SV_caller):
         outFileName = 'metaclusters.PASS.tsv'
         output.writeMetaclusters(metaclustersList, outFileName, self.outDir)
 
+
     def make_clusters(self):
+        #listMates = ['/mnt/netapp2/mobilegenomes/0/1_projects/1020_CELL-LINES-PE/2_alignment/Ca-ski/Ca-ski.sorted.dedup.bam', '/mnt/netapp2/mobilegenomes/0/1_projects/1020_CELL-LINES-PE/2_alignment/Ca-ski/Ca-ski.sorted.dedup.bam.bai', 'hs37d5;1103894;1103895;ST-E00181:606:HMWM2CCXY:3:2223:13301:52344']
+        #libyay.abreBam(listMates)
+        #print (libyay.massadd(listMates))
+        #libyay.abrirBam(listMates)
+        #print ('libyay.abrirGlob DONE')
+        #libyay.massadd(listMates)
+        #print ('libyay.massadd 1 DONE')
+        #print (os.getpid())
+        #libyay.cerrarGlob()
+
+        # TODO: Make this an option
+
+        # Collect from all bam refs
+        # TODO: DESILENCE
+        '''
+        bins = bamtools.makeGenomicBins(self.bam, self.confDict['binSize'], None)
+
+        # TODO: Pass more arguments
+        pool = mp.Pool(processes=self.confDict['processes'])
+        pool.starmap(self.collectSeq, bins)
+        pool.close()
+        pool.join()
+
+        #TODO: merge fastas:
+        filenames = []
+        for bine in bins:
+            window = self.outDir + '/FASTAS/' + str(bine[0]) +"_"+ str(bine[1])+"_"+str(bine[2])+".fasta"
+            filenames.append(window)
+        '''
+
+        allFastas = self.outDir + "/allFastas.fasta"
+        # TODO: DESILENCE
+        '''
+        with open(allFastas, 'w') as outfile:
+            for fname in filenames:
+                with open(fname) as infile:
+                    for line in infile:
+                        outfile.write(line)
+
+
+        # Remove fastas:
+        fastasDir = self.outDir + '/FASTAS/'
+        unix.rm([fastasDir])
+        '''
+
+        # bwa allFastas vs viralDb keep only mapped
+        # TODO: usar una funcion ya hecha ( o hacer una) y mirar si el -T vale para algo
+        BAM = self.outDir + '/' + 'viralAligment' + '.bam'
+
+        # TODO: DESILENCE
+        '''
+        err = open(self.outDir + '/align.err', 'w') 
+        # TODO: set processes as argument
+        command = 'bwa mem -Y -t 5 ' + self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools sort -O BAM   > ' + BAM
+        status = subprocess.call(command, stderr=err, shell=True)
+
+        if status != 0:
+            step = 'ALIGN'
+            msg = 'Alignment failed' 
+            log.step(step, msg)
+
+        command = 'samtools index ' + BAM
+        status = subprocess.call(command, stderr=err, shell=True)
+
+        # TODO: borro allfastas
+        #unix.rm([allFastas])
+        '''
+
+
+        # TODO: leer resultado y meterlo en un atributo de la clase y ya borro el file
+        bamFile = pysam.AlignmentFile(BAM, 'rb')
+
+        iterator = bamFile.fetch()
+        
+        self.viralSeqs= {}
+        # For each read alignment
+        for alignmentObj in iterator:
+            self.viralSeqs[alignmentObj.query_name] = alignmentObj.reference_name
+        
         ### 1. Define genomic bins to search for SV ##
         bins = bamtools.binning(self.confDict['targetBins'], self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
 
@@ -398,9 +484,14 @@ class SV_caller_short(SV_caller):
         metaclustersPassList, metaclustersFailedList = zip(*pool.starmap(self.make_clusters_bin, bins))
         pool.close()
         pool.join()
+        #print (libyay.massadd(listMates))
+        #print (os.getpid())
+        #libyay.cerrarGlob()
 
         # Remove output directory
         unix.rm([self.outDir + '/CLUSTER/'])
+
+        #print (libyay.massadd(listMates))
 
         ### 3. Collapse metaclusters in a single dict and report metaclusters that failed filtering
         metaclustersPass = structures.merge_dictionaries(metaclustersPassList)
@@ -412,6 +503,78 @@ class SV_caller_short(SV_caller):
             output.writeMetaclusters(metaclustersFailedList, outFileName, self.outDir)
 
         return metaclustersPass
+
+    def collectSeq(self, ref, binBeg, binEnd):
+        '''
+        '''
+        # TODO: PASS this variables as argument
+        #filterDuplicates = True
+        maxMAPQ = 20
+        checkUnmapped = True
+        supplementary = True
+
+        ## Initialize dictionary to store SV events
+        eventsSeqDict = {}
+
+        ## Open BAM file for reading
+        bamFile = pysam.AlignmentFile(self.bam, "rb")
+
+        ## Extract alignments
+        iterator = bamFile.fetch(ref, binBeg, binEnd)
+        
+        # For each read alignment
+        for alignmentObj in iterator:
+
+            ### 1. Filter out alignments based on different criteria:
+            MAPQ = int(alignmentObj.mapping_quality) # Mapping quality
+
+            ## No query sequence available
+            if alignmentObj.query_sequence == None:
+                continue
+
+            ## Aligments with MAPQ < threshold
+            if (MAPQ > maxMAPQ):
+                continue
+
+            # TODO: make this work
+            ## Duplicates filtering enabled and duplicate alignment
+            #if (confDict['filterDuplicates'] == True) and (alignmentObj.is_duplicate == True):
+                #continue
+
+            # Filter supplementary alignments if TRUE. (Neccesary to avoid pick supplementary clipping reads while adding to discordant clusters in short reads mode)
+            if supplementary == False and alignmentObj.is_supplementary == True:
+                continue
+            
+            ## 4. Collect DISCORDANT
+
+            if not alignmentObj.is_proper_pair:
+
+                # Pick only those sequences that are unmmapped or with mapping quality < maxMAPQ
+                if checkUnmapped == True:
+                    if (alignmentObj.is_unmapped == True) or (MAPQ < maxMAPQ):
+                        eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
+                else:
+                    if MAPQ < maxMAPQ:
+                        eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
+            
+        ## Close 
+        bamFile.close()
+
+        # Write FASTA:
+        fastasDir = self.outDir + '/FASTAS/'
+        unix.mkdir(fastasDir)
+
+        seqsFastaObj= formats.FASTA()
+        seqsFastaObj.seqDict = eventsSeqDict
+
+
+        outputFasta = self.outDir + '/FASTAS/' + str(ref) +"_"+ str(binBeg) +"_"+ str(binEnd) +".fasta"
+        seqsFastaObj.write(outputFasta)
+
+        # return sv candidates
+        return
+
+
 
     def make_clusters_bin(self, ref, beg, end):
         '''
@@ -430,11 +593,12 @@ class SV_caller_short(SV_caller):
         ## 1. Search for integration candidate events in the bam file/s ##
         # a) Single sample mode
         if self.mode == "SINGLE":
-            discordantDict = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, None, True)
+            discordantDict = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, True, self.viralSeqs)
 
+        #   TODO: ADAPT FOR PAIRED!
         # b) Paired sample mode (tumour & matched normal)
-        else:
-            discordantDict = bamtools.collectSV_paired(ref, beg, end, self.bam, self.normalBam, self.confDict)
+        #else:
+            #discordantDict = bamtools.collectSV_paired(ref, beg, end, self.bam, self.normalBam, self.confDict)
 
         SV_types = sorted(discordantDict.keys())
         counts = [str(len(discordantDict[SV_type])) for SV_type in SV_types]
@@ -445,18 +609,20 @@ class SV_caller_short(SV_caller):
         
         ## 2. Discordant read pair identity ##
         ## Determine identity
+        # TODO: HACER EL DICT COMO ESTABA ANTES
         if self.mode == "SINGLE":
+            # TODO: DESILENCE AND DO THIS OLNY FOR RT!!!
+            #discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'],self.bam, None, binDir, self.confDict['viralDb'])
+            discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], None, None,self.bam, None, binDir)
+        #else:
             # TODO: DESILENCE
             #discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'],self.bam, None, binDir, self.confDict['viralDb'])
-            discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], None, None,self.bam, None, binDir, self.confDict['viralDb'])
-        else:
-            # TODO: DESILENCE
-            #discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'],self.bam, None, binDir, self.confDict['viralDb'])
-            discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], None, None,self.bam, None, binDir, self.confDict['viralDb'])
+            #discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], None, None,self.bam, None, binDir, self.confDict['viralDb'])
 
         for discirdant in discordantDict['DISCORDANT']:
             print ('DISCORDAAAAAAAAANT' +' '+ str(discirdant.beg) +' '+ str(discirdant.end)  +' '+ str(discirdant.orientation) +' '+ str(discirdant.pair) +' '+ str(discirdant.readName)  +' '+ str(discirdant.identity))
-
+        
+        # TODO: FILTER LOS QUE SON NONE!!!
         step = 'IDENTITY'
         SV_types = sorted(discordantsIdentity.keys())
         counts = [str(len(discordantsIdentity[SV_type])) for SV_type in SV_types]
@@ -574,6 +740,8 @@ class SV_caller_short(SV_caller):
             unix.rm([binDir])
             return None
         '''
+
+
         ## 6. Organize discordant clusters in bin database structure ##
         discordantClustersBinDb = structures.create_bin_database_interval(ref, beg, end, discordantClustersDict, binSizes)
         discordantClustersFailedBinDb = structures.create_bin_database_interval(ref, beg, end, discordantClustersDictFailed, binSizes)
@@ -594,9 +762,27 @@ class SV_caller_short(SV_caller):
         '''
 
         ## 8. Organize reciprocal and independent discordant clusters in bin database structure ##
+        # Colecto los 3ros de todas las keys
+
+        metaclusters=[]
+        metaclustersFailed=[]
         reciprocalClustersBinDb = structures.create_bin_database_interval(ref, beg, end, reciprocalClustersDict, binSizes)
         reciprocalClustersFailedBinDb = structures.create_bin_database_interval(ref, beg, end, reciprocalClustersFailedDict, binSizes)
         buffer=300
+
+        identities = set([iden.split('-')[2] for iden in reciprocalClustersBinDb.eventTypes])
+        identitiesFailed = set([iden.split('-')[2] for iden in reciprocalClustersFailedBinDb.eventTypes])
+
+
+        # Create metaclusters but indicating eventType. TODO: function de discodant metaclusters o algo
+        for iden in identities:
+            currentEventTypes = [eventType for eventType in reciprocalClustersBinDb.eventTypes if (iden in eventType)]
+            metaclusters.extend(clusters.create_discordant_metaclusters(reciprocalClustersBinDb, currentEventTypes))
+
+
+        for idenF in identitiesFailed:
+            currentEventTypes = [eventType for eventType in reciprocalClustersFailedBinDb.eventTypes if (idenF in eventType)]
+            metaclustersFailed.extend(clusters.create_discordant_metaclusters(reciprocalClustersFailedBinDb, currentEventTypes))
 
 
         # HASTA AQUI YO CREO QUE ESTA TODO BIEN!!!! A PARTIR DE AQUI HAY QUE REPASAR!!
@@ -605,18 +791,9 @@ class SV_caller_short(SV_caller):
 
         # Mirar aqui pq habra que ajustar varios parametros
 
-        metaclusters = clusters.create_metaclusters(reciprocalClustersBinDb)
-        metaclustersFailed = clusters.create_metaclusters(reciprocalClustersFailedBinDb)
+        #metaclusters = clusters.create_metaclusters(reciprocalClustersBinDb)
+        #metaclustersFailed = clusters.create_metaclusters(reciprocalClustersFailedBinDb)
 
-        '''
-        # TODO: Remove this print
-        for metacluster in metaclusters:
-                print ('METACLSUTERSSSSSS')
-                print (metacluster.beg)
-                print (metacluster.end)
-                print (metacluster.events)
-                print (metacluster.subclusters)
-        '''
 
         step = 'META-CLUSTERING'
         #msg = '[META-CLUSTERING] Number of created metaclusters: ' + str(metaclustersBinDb.nbEvents()[0])

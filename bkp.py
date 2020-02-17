@@ -55,8 +55,9 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir):
         # a. Add supporting clipping to discordant metacluster.
         # TODO: Reduce region for looking at CLIPPING
         # TODO: Different for IC.
-        CLIPPING_cluster = metacluster.supportingCLIPPING(200, confDict, bam, normalBam, mode)
-
+        # TODO: DESILENCE
+        #CLIPPING_cluster = metacluster.supportingCLIPPING(200, confDict, bam, normalBam, mode)
+        CLIPPING_cluster = None
         # b. Look for reference breakpoint (most supported coordinate by clipping events added above) and remove those clipping events that dont support the bkp
         if CLIPPING_cluster is not None:
             dictMetaclusters[metacluster]['refLeftBkp'], dictMetaclusters[metacluster]['refRightBkp'] = clippingBkp(CLIPPING_cluster)

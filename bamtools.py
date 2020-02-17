@@ -9,7 +9,8 @@ import subprocess
 import sys
 from cigar import Cigar
 import numpy as np
-
+import time
+import os
 
 # Internal
 import log
@@ -18,6 +19,7 @@ import events
 import gRanges
 import formats
 import sequences
+import libyay
 
 ## FUNCTIONS ##
 def get_refs(bam):
@@ -474,9 +476,10 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample, supplementary):
     if 'CLIPPING' in confDict['targetSV']:
         eventsDict['LEFT-CLIPPING'] = []
         eventsDict['RIGHT-CLIPPING'] = []
-    
+    '''
     if 'DISCORDANT' in confDict['targetSV']:
         eventsDict['DISCORDANT'] = []
+    '''
 
     ## Open BAM file for reading
     bamFile = pysam.AlignmentFile(bam, "rb")
@@ -533,6 +536,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample, supplementary):
             for INDEL_type, events in INDEL_events.items():
                 eventsDict[INDEL_type] = eventsDict[INDEL_type] + events
 
+        '''
         ## 4. Collect DISCORDANT
         if 'DISCORDANT' in confDict['targetSV']:
 
@@ -541,6 +545,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample, supplementary):
             # Add discordant events
             for discordant in DISCORDANTS:
                 eventsDict['DISCORDANT'].append(discordant)
+        '''
         
     ## Close 
     bamFile.close()
@@ -690,8 +695,7 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang,
 
     return INDEL_events
 
-
-def collectDISCORDANT(alignmentObj, sample):
+def collectDISCORDANT(ref, binBeg, binEnd, bam, confDict, sample, supplementary, viralSeqs):
     '''
     For a read alignment check if the read is discordant (not proper in pair) and return the corresponding discordant objects
 
@@ -701,74 +705,265 @@ def collectDISCORDANT(alignmentObj, sample):
 
     Output:
         1. DISCORDANTS: list of discordant read pair events
+        TODO: cambiar desciption
 
     '''
+
+    # Define target interval
+    targetInterval = (binBeg, binEnd)
+
+    ## Initialize dictionary to store SV events
+    discordantDict = {}
+    discordantDict['DISCORDANT'] = []
     # Initialize discordant events list
     DISCORDANTS = []
 
-    # If not proper pair (== discordant)
-    if not alignmentObj.is_proper_pair:
 
-        ## 1. Determine discordant orientation
-        # a) Minus
-        if alignmentObj.is_reverse:
-            orientation = 'MINUS'
+    ## Open BAM file for reading
+    bamFile = pysam.AlignmentFile(bam, "rb")
 
-        # b) Plus
-        else:
-            orientation = 'PLUS'
+    ## Extract alignments
+    iterator = bamFile.fetch(ref, binBeg, binEnd)
+    
+    # For each read alignment
+    for alignmentObj in iterator:
 
-        ## 2. Determine if discordant is mate 1 or 2
-        if alignmentObj.is_read1:
-            pair = '1'
+        ### 1. Filter out alignments based on different criteria:
+        MAPQ = int(alignmentObj.mapping_quality) # Mapping quality
 
-        else:
-            pair = '2'
+        ## Unmapped reads   
+        if alignmentObj.is_unmapped == True:
+            continue
 
-        ## 3. Determine number of alignment blocks
-        operations = [t[0] for t in alignmentObj.cigartuples]
-        nbBlocks = operations.count(3) + 1 
+        ## No query sequence available
+        if alignmentObj.query_sequence == None:
+            continue
 
-        ## 4. Create discordant event
-        # A) Read aligning in a single block (WG or RNA-seq read no spanning a splice junction)
-        if nbBlocks == 1:
-            DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, orientation, pair, alignmentObj.query_name, alignmentObj, sample)
-            DISCORDANTS.append(DISCORDANT)
+        ## Aligments with MAPQ < threshold
+        if (MAPQ < confDict['minMAPQ']):
+            continue
 
-        # B) Read alignning in multiple blocks (RNA-seq read spanning one or multiple splice junctions) -> Create one discordant event per block
-        else:
+        ## Duplicates filtering enabled and duplicate alignment
+        if (confDict['filterDuplicates'] == True) and (alignmentObj.is_duplicate == True):
+            continue
 
-            blockBeg = alignmentObj.reference_start
-            blockEnd = blockBeg
+        # Filter supplementary alignments if TRUE. (Neccesary to avoid pick supplementary clipping reads while adding to discordant clusters in short reads mode)
+        if supplementary == False and alignmentObj.is_supplementary == True:
+            continue
 
-            # For each operation
-            for cigarTuple in alignmentObj.cigartuples:
+        # If not proper pair (== discordant)
+        if not alignmentObj.is_proper_pair:
 
-                operation = int(cigarTuple[0])
-                length = int(cigarTuple[1])
+            ## 1. Determine discordant orientation
+            # a) Minus
+            if alignmentObj.is_reverse:
+                orientation = 'MINUS'
 
-                # a) End of the block -> End current block by creating a discordant event and Initiate a new block
-                if operation == 3:
+            # b) Plus
+            else:
+                orientation = 'PLUS'
 
-                    # Create discordant event for the block
-                    DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, blockBeg, blockEnd, orientation, pair, alignmentObj.query_name, alignmentObj, sample)
-                    DISCORDANTS.append(DISCORDANT)
+            ## 2. Determine if discordant is mate 1 or 2
+            if alignmentObj.is_read1:
+                pair = '1'
 
-                    # Initialize new block
-                    blockBeg = blockEnd + length
-                    blockEnd = blockEnd + length
+            else:
+                pair = '2'
 
-                # b) Extend current block
-                else:
-                    blockEnd = blockEnd + length   
+            ## 3. Determine number of alignment blocks
+            operations = [t[0] for t in alignmentObj.cigartuples]
+            nbBlocks = operations.count(3) + 1 
 
-            ## End last block by creating a discordant
-            DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, blockBeg, blockEnd, orientation, pair, alignmentObj.query_name, alignmentObj, sample)
-            DISCORDANTS.append(DISCORDANT)
+            if alignmentObj.query_name in viralSeqs.keys():
+                identity = viralSeqs[alignmentObj.query_name]
+            else:
+                identity = None
 
-    return DISCORDANTS
+            ## 4. Create discordant event
+            # A) Read aligning in a single block (WG or RNA-seq read no spanning a splice junction)
+            if nbBlocks == 1:
+                DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, orientation, pair, alignmentObj.query_name, alignmentObj, sample, identity)
+                DISCORDANTS.append(DISCORDANT)
+
+            # B) Read alignning in multiple blocks (RNA-seq read spanning one or multiple splice junctions) -> Create one discordant event per block
+            else:
+
+                blockBeg = alignmentObj.reference_start
+                blockEnd = blockBeg
+
+                # For each operation
+                for cigarTuple in alignmentObj.cigartuples:
+
+                    operation = int(cigarTuple[0])
+                    length = int(cigarTuple[1])
+
+                    # a) End of the block -> End current block by creating a discordant event and Initiate a new block
+                    if operation == 3:
+
+                        # Create discordant event for the block
+                        DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, blockBeg, blockEnd, orientation, pair, alignmentObj.query_name, alignmentObj, sample, identity)
+                        DISCORDANTS.append(DISCORDANT)
+
+                        # Initialize new block
+                        blockBeg = blockEnd + length
+                        blockEnd = blockEnd + length
+
+                    # b) Extend current block
+                    else:
+                        blockEnd = blockEnd + length   
+
+                ## End last block by creating a discordant
+                DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, blockBeg, blockEnd, orientation, pair, alignmentObj.query_name, alignmentObj, sample, identity)
+                DISCORDANTS.append(DISCORDANT)
+
+    for discordant in DISCORDANTS:
+        discordantDict['DISCORDANT'].append(discordant)
+
+    return discordantDict
 
 
+# def collectMatesSeq(events, tumourBam, normalBam, checkUnmapped, maxMAPQ):
+#     '''
+#     From a list of events, get the mate sequence for each event.
+    
+#     Input:
+#         1. events: list of events
+#         2. tumourBam
+#         3. normalBam
+#         4. checkUnmapped: boolean. True -> collect only the sequence of those mates that are unmapped, False -> dont take into account if they are unmapped or not.
+#         5. maxMAPQ: collect only the sequence of those mates witn MAPQ < maxMAPQ
+#     Output:
+#         1. It doesnt return anything, just add the mate sequence to event.mateSeq attribute.
+#     '''
+
+#     counter = 0
+
+#     ## 2. Open BAM file for reading
+#     start = time.time()
+#     bamFile = pysam.AlignmentFile(tumourBam, "rb")
+#     end = time.time()
+#     print("TIEMPO DE bamFile = pysam.AlignmentFile" + str(end - start))
+
+#     '''
+#     listMates = []
+#     bamIndex = tumourBam + '.bai'
+#     listMates.append(tumourBam)
+#     listMates.append(bamIndex)
+#     for event in events:
+#         mateEnd = event.mateStart + 1
+#         cadena = str(event.mateRef) + ";" + str(event.mateStart) + ";" + str(mateEnd) + ";" + event.readName.split('/')[0]
+#         listMates.append(cadena)
+#     #print (listMates)
+    
+
+    
+#     #start = timer()
+#     # TODO: MAPQ ESTA COMO FIJO, PONER PARAMETRO!! (pero funcionar funciona, comprobado)
+#     matesSeqsString = libyay.massadd(listMates)
+#     #end = timer()
+#     #print("TIEMPO DE LIBYAY " + str(end - start))
+#     print (type(matesSeqsString))
+#     print(matesSeqsString)
+#     matesSeqsList = matesSeqsString.split(";")
+
+#     i = 0
+#     for event in events:
+#         if event.readName == matesSeqsList[i]:
+#             pruebaMateSeq = matesSeqsList[i+1]
+#             print('pruebaMateSeq')
+#             print (pruebaMateSeq)
+#             i = i+2
+#     '''
+    
+#     # TODO: First and second conditions can be together, since they have same outcome.
+#     #msg = 'LEN EVENTTTS: ' + str(len(events))
+#     #log.subHeader(msg)
+#     start = time.time()
+#     for event in events:
+#         counter += 1
+#         if event.sample == None:
+#             collectMateSeq(event, bamFile, checkUnmapped, maxMAPQ)
+#         elif event.sample == 'TUMOUR':
+#             collectMateSeq(event, tumourBam, checkUnmapped, maxMAPQ)
+#         elif event.sample == 'NORMAL':
+#             collectMateSeq(event, normalBam, checkUnmapped, maxMAPQ)
+
+#     end = time.time()
+#     print("TIEMPO DE event in events mates" + str(end - start))
+
+#     msg = '[COUNTER OF collectMatesSeq LOOP] '+ str(counter)
+#     log.subHeader(msg)
+
+
+# def collectMateSeq(event, bamFile, checkUnmapped, maxMAPQ):
+#     '''
+#     Get mate sequence for an event.
+    
+#     Input:
+#         1. event: DISCORDANT event
+#         2. bam file
+#         3. checkUnmapped: boolean. True -> Pick only those sequences that are unmmapped or with mapping quality < maxMAPQ. False -> Pick only those sequences with mapping quality < maxMAPQ
+#         4. maxMAPQ: int. Pick only those reads with MAPQ < maxMAPQ.
+#     Output:
+#         1. It doesnt return anything, just add the mate sequence to event.mateSeq attribute.
+#     '''
+#     #msg = '[Start collectMateSeq]'
+#     #log.subHeader(msg)
+    
+#     ## 1. Define bin coordinates based on mate position
+#     mateRef = event.mateRef
+#     mateStart = event.mateStart
+
+#     binBegMate = mateStart
+#     binEndMate = mateStart + 1
+
+#     readName = event.readName.split('/')[0]
+#     #readName = 'ST-E00181:606:HMWM2CCXY:3:2224:3366:11048'
+
+#     ## 2. Open BAM file for reading
+#     # Extract alignments   
+#     iteratorMate = bamFile.fetch(mateRef, binBegMate, binEndMate)
+#     #iteratorMate = bamFile.fetch('hs37d5', 12994840, 12994841)
+    
+#     # 3. For each read alignment
+#     for alignmentObjMate in iteratorMate:
+        
+#         # Check if the aligment has same query_name but different orientation (to ensure that its the mate and not the read itself)
+#         if readName == alignmentObjMate.query_name:
+            
+#             #msg = '[collectMateSeq: if readName == alignmentObjMate.query_name]' + str(binBegMate)
+#             #log.subHeader(msg)
+            
+#             matePair = '1' if alignmentObjMate.is_read1 else '2'
+            
+#             if matePair != event.pair:
+#                 #msg = 'if matePair != event.pair' + str(binBegMate)
+#                 #log.subHeader(msg)
+
+#                 MAPQ = int(alignmentObjMate.mapping_quality)
+                
+#                 # Pick only those sequences that are unmmapped or with mapping quality < maxMAPQ
+#                 if checkUnmapped == True:
+#                     if (alignmentObjMate.is_unmapped == True) or (MAPQ < maxMAPQ):
+#                         #msg = 'if (alignmentObjMate.is_unmapped == True) or (MAPQ < maxMAPQ)' + str(binBegMate)
+#                         #log.subHeader(msg)
+
+#                         #if len(alignmentObjMate.query_sequence) > 100:
+#                         event.mateSeq = alignmentObjMate.query_sequence
+#                         print (event.mateSeq)
+#                         break
+                    
+#                 # Pick only those sequences with mapping quality < maxMAPQ
+#                 else:
+#                     if MAPQ < maxMAPQ:
+#                         #msg = 'if MAPQ < maxMAPQ' + str(binBegMate)
+#                         #log.subHeader(msg)
+#                         event.mateSeq = alignmentObjMate.query_sequence
+#                         print (event.mateSeq)
+#                         break
+
+##############################
+#TODO REPE EN FAST!!
 def collectMatesSeq(events, tumourBam, normalBam, checkUnmapped, maxMAPQ):
     '''
     From a list of events, get the mate sequence for each event.
@@ -783,89 +978,61 @@ def collectMatesSeq(events, tumourBam, normalBam, checkUnmapped, maxMAPQ):
         1. It doesnt return anything, just add the mate sequence to event.mateSeq attribute.
     '''
 
+    listMates = []
+ 
+    bamIndex = tumourBam + '.bai'
+    listMates.append(tumourBam)
+    listMates.append(bamIndex)
     counter = 0
 
-    ## 2. Open BAM file for reading
-    bamFile = pysam.AlignmentFile(tumourBam, "rb")
-
-    # TODO: First and second conditions can be together, since they have same outcome.
-    #msg = 'LEN EVENTTTS: ' + str(len(events))
-    #log.subHeader(msg)
     for event in events:
-        counter += 1
-        if event.sample == None:
-            collectMateSeq(event, bamFile, checkUnmapped, maxMAPQ)
-        elif event.sample == 'TUMOUR':
-            collectMateSeq(event, tumourBam, checkUnmapped, maxMAPQ)
-        elif event.sample == 'NORMAL':
-            collectMateSeq(event, normalBam, checkUnmapped, maxMAPQ)
+        mateEnd = event.mateStart + 1
+        cadena = str(event.mateRef) + ";" + str(event.mateStart) + ";" + str(mateEnd) + ";" + str(event.beg)
+        #print ('event.readName.split')
+        #print (event.readName.split('/')[0])
+        listMates.append(cadena)   
+        counter += 1 
+    print ('counter')
+    print (counter)
 
-    #msg = '[COUNTER OF collectMatesSeq LOOP] '+ str(counter)
-    #log.subHeader(msg)
-
-
-def collectMateSeq(event, bamFile, checkUnmapped, maxMAPQ):
-    '''
-    Get mate sequence for an event.
     
-    Input:
-        1. event: DISCORDANT event
-        2. bam file
-        3. checkUnmapped: boolean. True -> Pick only those sequences that are unmmapped or with mapping quality < maxMAPQ. False -> Pick only those sequences with mapping quality < maxMAPQ
-        4. maxMAPQ: int. Pick only those reads with MAPQ < maxMAPQ.
-    Output:
-        1. It doesnt return anything, just add the mate sequence to event.mateSeq attribute.
-    '''
-    #msg = '[Start collectMateSeq]'
-    #log.subHeader(msg)
     
-    ## 1. Define bin coordinates based on mate position
-    mateRef = event.mateRef
-    mateStart = event.mateStart
+    #listMates = ['/mnt/netapp2/mobilegenomes/0/1_projects/1020_CELL-LINES-PE/2_alignment/Ca-ski/Ca-ski.sorted.dedup.bam', '/mnt/netapp2/mobilegenomes/0/1_projects/1020_CELL-LINES-PE/2_alignment/Ca-ski/Ca-ski.sorted.dedup.bam.bai', '11;88756760;88756761;ST-E00181:606:HMWM2CCXY:1:1120:32329:31511', '11;88756760;88756761;ST-E00181:606:HMWM2CCXY:1:1120:31923:31582', '1;26783406;26783407;ST-E00181:606:HMWM2CCXY:2:1116:22983:20032', '8;37092223;37092224;ST-E00181:606:HMWM2CCXY:3:1110:8988:30457', '1;26783116;26783117;ST-E00181:606:HMWM2CCXY:2:1116:22983:20032', '1;26783116;26783117;ST-E00181:606:HMWM2CCXY:2:1116:22983:20032', '2;115861748;115861749;ST-E00181:606:HMWM2CCXY:2:2221:24809:8886', '1;26784068;26784069;ST-E00181:606:HMWM2CCXY:3:2110:3173:32971', '1;26784093;26784094;ST-E00181:606:HMWM2CCXY:3:1123:12459:64105', '1;26785508;26785509;ST-E00181:606:HMWM2CCXY:1:1118:22353:39686', '1;26785865;26785866;ST-E00181:606:HMWM2CCXY:2:2210:25175:54700']
+    #listMates = ['/mnt/netapp2/mobilegenomes/0/1_projects/1020_CELL-LINES-PE/2_alignment/Ca-ski/Ca-ski.sorted.dedup.bam', '/mnt/netapp2/mobilegenomes/0/1_projects/1020_CELL-LINES-PE/2_alignment/Ca-ski/Ca-ski.sorted.dedup.bam.bai', 'hs37d5;12994840;12994840;1']
+    print (listMates)
 
-    binBegMate = mateStart
-    binEndMate = mateStart + 1
+    # TODO: MAPQ ESTA COMO FIJO, PONER PARAMETRO!! (pero funcionar funciona, comprobado)
+    start = time.time()
+    #matesSeqsString = libyay.massadd(listMates)
+    #print (os.getpid())
+    libyay.massadd(listMates)
+    matesSeqsString = ""
+    end = time.time()
+    print("TIEMPO DE massadd" + str(end - start))
 
-    readName = event.readName.split('/')[0]
 
-    ## 2. Open BAM file for reading
-    # Extract alignments   
-    iteratorMate = bamFile.fetch(mateRef, binBegMate, binEndMate)
-    
-    # 3. For each read alignment
-    for alignmentObjMate in iteratorMate:
-        
-        # Check if the aligment has same query_name but different orientation (to ensure that its the mate and not the read itself)
-        if readName == alignmentObjMate.query_name:
-            
-            #msg = '[collectMateSeq: if readName == alignmentObjMate.query_name]' + str(binBegMate)
-            #log.subHeader(msg)
-            
-            matePair = '1' if alignmentObjMate.is_read1 else '2'
-            
-            if matePair != event.pair:
-                #msg = 'if matePair != event.pair' + str(binBegMate)
-                #log.subHeader(msg)
+    matesSeqsList = matesSeqsString.split(";")
+    print ('LENGTHEVA')
+    #print (len(matesSeqsList))
+    print (matesSeqsList)
 
-                MAPQ = int(alignmentObjMate.mapping_quality)
-                
-                # Pick only those sequences that are unmmapped or with mapping quality < maxMAPQ
-                if checkUnmapped == True:
-                    if (alignmentObjMate.is_unmapped == True) or (MAPQ < maxMAPQ):
-                        #msg = 'if (alignmentObjMate.is_unmapped == True) or (MAPQ < maxMAPQ)' + str(binBegMate)
-                        #log.subHeader(msg)
+    #for i in len(events):
+    #for i in range(0,counter):
+        #events[i].mateSeq = matesSeqsList[i]
+        #print ('NEW')
+        #print (events[i].readName)
+        #print (events[i].mateSeq)
 
-                        #if len(alignmentObjMate.query_sequence) > 100:
-                        event.mateSeq = alignmentObjMate.query_sequence
-                        break
-                    
-                # Pick only those sequences with mapping quality < maxMAPQ
-                else:
-                    if MAPQ < maxMAPQ:
-                        #msg = 'if MAPQ < maxMAPQ' + str(binBegMate)
-                        #log.subHeader(msg)
-                        event.mateSeq = alignmentObjMate.query_sequence
-                        break
+    # i = 0
+    # for event in events:
+    #     if event.readName == matesSeqsList[i]:
+    #         event.mateSeq = matesSeqsList[i+1]
+    #         print (event.readName)
+    #         print (event.mateSeq)
+    #         i = i+2
+            # BREAK Y QUITARLO DE LA LISTA
+###############################
+
 
 def average_MAPQ_reads_interval(ref, beg, end, readIds, bam):
     '''
@@ -897,3 +1064,6 @@ def average_MAPQ_reads_interval(ref, beg, end, readIds, bam):
     avMAPQ = np.mean(qualities)
     
     return avMAPQ
+
+
+#def collectSeq(ref, binBeg, binEnd, bam, filterDuplicates, maxMAPQ, checkUnmapped, supplementary):

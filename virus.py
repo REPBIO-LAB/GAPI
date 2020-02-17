@@ -3,6 +3,7 @@ Module 'virus' - for dealing with virus specific needs
 '''
 ## External
 import subprocess
+import time
 
 ## Internal
 import bamtools
@@ -15,14 +16,39 @@ import filters
 import os
 import re
 
-def is_virusSR(events, tumourBam, normalBam, outDir, viralDb):
+def is_virusSR(events):
     '''
+    TODO: NOW THIS IS SAME AS IN RT, SO I SHOULD DO ONLY 1!!
     '''
+    matesIdentity = {}
 
+    for discordant in events:
+
+        if discordant.identity:
+            featureType = discordant.identity
+        else:
+            featureType = 'None'
+
+        ## Add discordant read pair to the dictionary
+        identity = discordant.orientation + '-DISCORDANT-' + featureType
+
+        # a) There are already discordant read pairs with this identity
+        if identity in matesIdentity:
+            matesIdentity[identity].append(discordant)
+
+        # b) First discordant read pair with this identity
+        else:
+            matesIdentity[identity] = [ discordant ] 
+    
+    return matesIdentity
+    '''
     ## 1. Collect mate sequence of discordant events ##
     msg = '[Start bamtools.collectMatesSeq]'
     log.subHeader(msg)
+    start = time.time()
     bamtools.collectMatesSeq(events, tumourBam, normalBam, True, 20)
+    end = time.time()
+    print("TIEMPO DE collectMatesSeq" + str(end - start))
     msg = '[End bamtools.collectMatesSeq]'
     log.subHeader(msg)
 
@@ -34,8 +60,9 @@ def is_virusSR(events, tumourBam, normalBam, outDir, viralDb):
     log.subHeader(msg)
 
     return eventsIdentityDict
+    '''
 
-
+# TODO: UNUSED FUNCTION
 def identifySequence(events, outDir, viralDb):
     '''
     From a list of events, perform a search with their sequence in order to find out its identity.

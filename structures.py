@@ -278,6 +278,7 @@ class bin_database():
 
         return events
 
+
     def collect_bin(self, binSize, binIndex, eventTypes):
         '''
         Collect all the events of target event types that are stored 
@@ -309,6 +310,37 @@ class bin_database():
         events.sort(key=lambda event: event.beg)
 
         return events
+
+    def collect_binDbEventType(self, eventTypes):
+        '''
+        Collect all the events of target event types that are stored 
+        in the bin database structure
+        
+         Input:
+            1. eventTypes: list containing target event types
+
+         Output:
+            2. events. List of events
+        '''  
+        binDbEventType = {}
+
+        # For each bin size
+        for binSize in self.binSizes:
+
+            # For each bin
+            for binIndex in self.data[binSize].keys():
+                
+                # For each target event type
+                for eventType in eventTypes:
+
+                    # There are events of the target event type in the bin 
+                    if eventType in self.data[binSize][binIndex]:
+
+                        binDbEventType[binSize]={}
+                        binDbEventType[binSize][binIndex]={}
+                        binDbEventType[binSize][binIndex][eventType] = self.data[binSize][binIndex][eventType].events
+
+        return binDbEventType
 
     def collect_interval(self, beg, end, eventTypes):
         '''

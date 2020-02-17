@@ -329,6 +329,21 @@ def create_metaclusters(clustersBinDb):
 
     return metaclusters
 
+def create_discordant_metaclusters(clustersBinDb, eventTypes):
+    '''    
+    Group SV cluster events into metaclusters
+
+    Input:
+        1. clustersBinDb: Data structure containing a set of clusters organized in genomic bins  
+
+    Output:
+        1. metaclusters: list containing newly created metaclusters
+    '''
+    metaclusters = clustering.reciprocal_overlap_clustering(clustersBinDb, 1, 1, eventTypes, 50, 'META')
+
+    return metaclusters
+
+
 
 def SV_type_metaclusters(metaclusters, minINDELlen, technology, rootOutDir):
     '''
@@ -1859,6 +1874,7 @@ class META_cluster():
         '''
         META_cluster.number += 1 # Update instances counter
         self.id = 'META_' + str(META_cluster.number)
+        print ('CREADO ' + self.id + 'proccess ' + str(os.getpid()))
 
         # Define list of events composing the cluster 
         self.events = list(itertools.chain(*[cluster.events for cluster in clusters]))

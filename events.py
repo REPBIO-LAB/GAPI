@@ -168,7 +168,7 @@ def determine_clippingType(alignmentObj, clippedSide):
     return clippingType
 
 
-def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, bam, normalBam, binDir, viralDbIndex):
+def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, bam, normalBam, binDir):
     '''
     Determine discortant read pair identity based on the mapping position of anchor´s mate
 
@@ -231,7 +231,7 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
     #for eventType in discordantDict.keys():
     #discordantEvents.extend(discordantDict[eventType])
 
-    discordantEventsIdent = virus.is_virusSR(discordants, bam, normalBam, binDir, viralDbIndex)
+    discordantEventsIdent = virus.is_virusSR(discordants)
     #discordantsIdentity = structures.merge_dictionaries([discordantEventsIdent, discordantsIdentity1])
 
     # TODO: fix this error
@@ -780,7 +780,7 @@ class DISCORDANT():
     '''
     number = 0 # Number of instances
     
-    def __init__(self, ref, beg, end, orientation, pair, readName, alignmentObj, sample):
+    def __init__(self, ref, beg, end, orientation, pair, readName, alignmentObj, sample, identity):
         DISCORDANT.number += 1 # Update instances counter
         self.id = 'DISCORDANT_' + str(DISCORDANT.number)
         self.type = 'DISCORDANT'
@@ -792,7 +792,7 @@ class DISCORDANT():
         self.readName = readName 
         self.sample = sample
         self.clusterId = None
-        self.identity = None
+        self.identity = identity
         
         ## Mate info
         self.mateSeq = None
