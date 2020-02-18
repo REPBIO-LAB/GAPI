@@ -342,8 +342,8 @@ class SV_caller_short(SV_caller):
         log.header(msg)      
         allMetaclusters = self.make_clusters()
 
-        # TODO: TEMP
-        return
+        # TODO: DESILENCE
+        '''
         ### 2. Annotate SV clusters intervals
         msg = '2. Annotate SV clusters intervals'
         log.header(msg)
@@ -354,14 +354,14 @@ class SV_caller_short(SV_caller):
         msg = 'Check if annotated retrotransposon on the reference genome at cluster intervals'
         log.step(step, msg)
 
+
         ## Create a list containing all discordant read pair events:
         allDiscordantClusters = []
 
         for eventType in allMetaclusters.keys():
             allDiscordantClusters.extend(allMetaclusters[eventType])
 
-        # TODO: DESILENCE
-        '''
+
         ## Annotate
         buffer = 100
         annotation.repeats_annotation(allDiscordantClusters, self.annotations['REPEATS'], buffer)
@@ -393,19 +393,10 @@ class SV_caller_short(SV_caller):
 
 
     def make_clusters(self):
-        #listMates = ['/mnt/netapp2/mobilegenomes/0/1_projects/1020_CELL-LINES-PE/2_alignment/Ca-ski/Ca-ski.sorted.dedup.bam', '/mnt/netapp2/mobilegenomes/0/1_projects/1020_CELL-LINES-PE/2_alignment/Ca-ski/Ca-ski.sorted.dedup.bam.bai', 'hs37d5;1103894;1103895;ST-E00181:606:HMWM2CCXY:3:2223:13301:52344']
-        #libyay.abreBam(listMates)
-        #print (libyay.massadd(listMates))
-        #libyay.abrirBam(listMates)
-        #print ('libyay.abrirGlob DONE')
-        #libyay.massadd(listMates)
-        #print ('libyay.massadd 1 DONE')
-        #print (os.getpid())
-        #libyay.cerrarGlob()
 
-        # TODO: Make this an option
+        # TODO SR: Make analyse RT or viruses options
 
-        # Collect from all bam refs
+        # If viruses option is select, collect read name and sequence of discordant low quality reads from all bam refs
         # TODO: DESILENCE
         '''
         bins = bamtools.makeGenomicBins(self.bam, self.confDict['binSize'], None)
@@ -422,6 +413,7 @@ class SV_caller_short(SV_caller):
             window = self.outDir + '/FASTAS/' + str(bine[0]) +"_"+ str(bine[1])+"_"+str(bine[2])+".fasta"
             filenames.append(window)
         '''
+        
 
         allFastas = self.outDir + "/allFastas.fasta"
         # TODO: DESILENCE
@@ -439,7 +431,7 @@ class SV_caller_short(SV_caller):
         '''
 
         # bwa allFastas vs viralDb keep only mapped
-        # TODO: usar una funcion ya hecha ( o hacer una) y mirar si el -T vale para algo
+        # TODO: usar una funcion ya hecha (o hacer una) y mirar si el -T vale para algo
         BAM = self.outDir + '/' + 'viralAligment' + '.bam'
 
         # TODO: DESILENCE
@@ -462,7 +454,7 @@ class SV_caller_short(SV_caller):
         '''
 
 
-        # TODO: leer resultado y meterlo en un atributo de la clase y ya borro el file
+        # Read bwa result and store in a dictionary
         bamFile = pysam.AlignmentFile(BAM, 'rb')
 
         iterator = bamFile.fetch()
@@ -506,8 +498,9 @@ class SV_caller_short(SV_caller):
 
     def collectSeq(self, ref, binBeg, binEnd):
         '''
+        Collect read names and sequences from reads below maxMAPQ
         '''
-        # TODO: PASS this variables as argument
+        # TODO SR: PASS this variables as argument
         #filterDuplicates = True
         maxMAPQ = 20
         checkUnmapped = True
@@ -536,7 +529,7 @@ class SV_caller_short(SV_caller):
             if (MAPQ > maxMAPQ):
                 continue
 
-            # TODO: make this work
+            # TODO SR: make this work
             ## Duplicates filtering enabled and duplicate alignment
             #if (confDict['filterDuplicates'] == True) and (alignmentObj.is_duplicate == True):
                 #continue
@@ -566,6 +559,8 @@ class SV_caller_short(SV_caller):
 
         seqsFastaObj= formats.FASTA()
         seqsFastaObj.seqDict = eventsSeqDict
+
+        del eventsSeqDict
 
 
         outputFasta = self.outDir + '/FASTAS/' + str(ref) +"_"+ str(binBeg) +"_"+ str(binEnd) +".fasta"
@@ -662,6 +657,15 @@ class SV_caller_short(SV_caller):
         msg = 'Number of created discordant clusters in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
         log.step(step, msg)
 
+        counter1 = 0
+        
+        for lista in discordantClustersDict.values():
+            for clustereva in lista:
+                for ebent in clustereva.events:
+                    print (ebent.readName)
+                    counter1 += 1 
+        print ('discordantClustersDict0 ' + str(counter1))
+
         #if counts == []:
             #unix.rm([binDir])
             #return None
@@ -709,6 +713,22 @@ class SV_caller_short(SV_caller):
         filters2Apply = ['MIN-NBREADS', 'MAX-NBREADS', 'AREAMAPQ', 'AREASMS']
         discordantClustersDict, discordantClustersDictFailed = filters.filter_clusters(discordantClustersDict, filters2Apply, self.confDict, self.bam)
 
+        counter2 = 0
+        for lista in discordantClustersDict.values():
+            for clustereva in lista:
+                for ebent in clustereva.events:
+                    print (ebent.readName)
+                    counter2 += 1
+        print ('discordantClustersDictAfterFilter ' + str(counter2))
+
+        counter3 = 0
+        for lista1 in discordantClustersDictFailed.values():
+            for clustereva1 in lista1:
+                for ebent1 in clustereva1.events:
+                    print (ebent1.readName)
+                    counter3 += 1
+        print ('discordantClustersDictFailed ' + str(counter3))
+
         '''
         # TODO: Remove this print
         for dis in discordantClustersDict.values():
@@ -751,6 +771,14 @@ class SV_caller_short(SV_caller):
         reciprocalClustersDict = clustering.reciprocal(discordantClustersBinDb, 1, 1, 300)
         reciprocalClustersFailedDict = clustering.reciprocal(discordantClustersFailedBinDb, 1, 1, 300)
 
+        counter4 = 0
+        for lista2 in reciprocalClustersDict.values():
+            for clustereva2 in lista2:
+                for ebent2 in clustereva2.events:
+                    print (ebent2.readName)
+                    counter4 += 1
+        print ('reciprocalClustersDict ' + str(counter4))
+
         '''
         # TODO: Remove this print
         for dis in reciprocalClustersDict.values():
@@ -762,7 +790,6 @@ class SV_caller_short(SV_caller):
         '''
 
         ## 8. Organize reciprocal and independent discordant clusters in bin database structure ##
-        # Colecto los 3ros de todas las keys
 
         metaclusters=[]
         metaclustersFailed=[]
@@ -774,7 +801,7 @@ class SV_caller_short(SV_caller):
         identitiesFailed = set([iden.split('-')[2] for iden in reciprocalClustersFailedBinDb.eventTypes])
 
 
-        # Create metaclusters but indicating eventType. TODO: function de discodant metaclusters o algo
+        # Create metaclusters taking into account viral identities eventType.
         for iden in identities:
             currentEventTypes = [eventType for eventType in reciprocalClustersBinDb.eventTypes if (iden in eventType)]
             metaclusters.extend(clusters.create_discordant_metaclusters(reciprocalClustersBinDb, currentEventTypes))

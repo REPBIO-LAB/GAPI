@@ -792,7 +792,15 @@ class DISCORDANT():
         self.readName = readName 
         self.sample = sample
         self.clusterId = None
-        self.identity = identity
+        if identity == None:
+            self.identity = None
+            self.specificIdentity = None
+        else:
+            self.identity = identity.split("|")[0]
+            try:
+                self.specificIdentity = identity.split("|")[1]
+            except IndexError:
+                self.specificIdentity = None
         
         ## Mate info
         self.mateSeq = None

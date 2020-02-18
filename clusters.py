@@ -1874,7 +1874,6 @@ class META_cluster():
         '''
         META_cluster.number += 1 # Update instances counter
         self.id = 'META_' + str(META_cluster.number)
-        print ('CREADO ' + self.id + 'proccess ' + str(os.getpid()))
 
         # Define list of events composing the cluster 
         self.events = list(itertools.chain(*[cluster.events for cluster in clusters]))
