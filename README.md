@@ -45,12 +45,13 @@ Dependencies.
 
 Python packages
 
-* pysam
-* cigar
 * numpy
-* sklearn
-* six
+* scipy
+* pysam
+* mappy
+* cigar
 * pybedtools
+
 
 Examples 
 

@@ -28,7 +28,7 @@ def missing_python_dependencies():
         
     ''' 
     ## 1 list of needed python packages
-    needed_python_packages=["pysam","cigar","numpy","sklearn","six","Cython","pybedtools"]
+    needed_python_packages=["numpy", "scipy", "pysam", "mappy", "cigar", "pybedtools"]
     
     ## 2. load packages information
     installed_packages = []   
@@ -37,19 +37,18 @@ def missing_python_dependencies():
     ## 3. create a list 
     for i in dists:
         installed_packages.append(i)
-  
-    #print(installed_packages)
-    
+      
     ## 4. Select not founded packages
     missing_packages=set(needed_python_packages)-set(installed_packages)
 
     ## 5. check if the set is not empty 
     if bool(missing_packages):
         print("\n\n\n*** ERROR **** Meiga dependencies not satisfied\nPython packages missing : install them with")
-        ## 06. print list of shell commands to install the missing packages
+        
+        ## 6. print list of shell commands to install the missing packages
         for missing_package in missing_packages:
             print("pip3 install "+ missing_package)
-        ## 07. exit until fixed
+        ## 7. exit until fixed
         print("\n\n")
         return True
 
