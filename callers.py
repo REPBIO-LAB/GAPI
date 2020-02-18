@@ -401,13 +401,13 @@ class SV_caller_short(SV_caller):
         '''
         bins = bamtools.makeGenomicBins(self.bam, self.confDict['binSize'], None)
 
-        # TODO: Pass more arguments
+        # TODO SR: Pass more arguments
         pool = mp.Pool(processes=self.confDict['processes'])
         pool.starmap(self.collectSeq, bins)
         pool.close()
         pool.join()
 
-        #TODO: merge fastas:
+        # Merge fastas:
         filenames = []
         for bine in bins:
             window = self.outDir + '/FASTAS/' + str(bine[0]) +"_"+ str(bine[1])+"_"+str(bine[2])+".fasta"
@@ -449,10 +449,9 @@ class SV_caller_short(SV_caller):
         command = 'samtools index ' + BAM
         status = subprocess.call(command, stderr=err, shell=True)
 
-        # TODO: borro allfastas
+        # Borro allfastas
         #unix.rm([allFastas])
         '''
-
 
         # Read bwa result and store in a dictionary
         bamFile = pysam.AlignmentFile(BAM, 'rb')
@@ -590,7 +589,7 @@ class SV_caller_short(SV_caller):
         if self.mode == "SINGLE":
             discordantDict = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, True, self.viralSeqs)
 
-        #   TODO: ADAPT FOR PAIRED!
+        #   TODO SR: ADAPT FOR PAIRED!
         # b) Paired sample mode (tumour & matched normal)
         #else:
             #discordantDict = bamtools.collectSV_paired(ref, beg, end, self.bam, self.normalBam, self.confDict)
@@ -604,7 +603,7 @@ class SV_caller_short(SV_caller):
         
         ## 2. Discordant read pair identity ##
         ## Determine identity
-        # TODO: HACER EL DICT COMO ESTABA ANTES
+        # TODO SR: ADAPT FOR PAIRED!
         if self.mode == "SINGLE":
             # TODO: DESILENCE AND DO THIS OLNY FOR RT!!!
             #discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'],self.bam, None, binDir, self.confDict['viralDb'])
@@ -617,7 +616,6 @@ class SV_caller_short(SV_caller):
         for discirdant in discordantDict['DISCORDANT']:
             print ('DISCORDAAAAAAAAANT' +' '+ str(discirdant.beg) +' '+ str(discirdant.end)  +' '+ str(discirdant.orientation) +' '+ str(discirdant.pair) +' '+ str(discirdant.readName)  +' '+ str(discirdant.identity))
         
-        # TODO: FILTER LOS QUE SON NONE!!!
         step = 'IDENTITY'
         SV_types = sorted(discordantsIdentity.keys())
         counts = [str(len(discordantsIdentity[SV_type])) for SV_type in SV_types]
@@ -656,15 +654,6 @@ class SV_caller_short(SV_caller):
         counts = [str(len(discordantClustersDict[SV_type])) for SV_type in SV_types]
         msg = 'Number of created discordant clusters in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
         log.step(step, msg)
-
-        counter1 = 0
-        
-        for lista in discordantClustersDict.values():
-            for clustereva in lista:
-                for ebent in clustereva.events:
-                    print (ebent.readName)
-                    counter1 += 1 
-        print ('discordantClustersDict0 ' + str(counter1))
 
         #if counts == []:
             #unix.rm([binDir])
@@ -705,29 +694,13 @@ class SV_caller_short(SV_caller):
 
         #return discordantClustersDict
 
-
+        # TODO: FILTER LOS QUE SON NONE!!!
         ## 5. Filter discordant clusters ##
         step = 'FILTER'
-        msg = 'Filter out metaclusters' 
+        msg = 'Filter out clusters' 
         log.step(step, msg)
-        filters2Apply = ['MIN-NBREADS', 'MAX-NBREADS', 'AREAMAPQ', 'AREASMS']
+        filters2Apply = ['MIN-NBREADS', 'MAX-NBREADS', 'AREAMAPQ', 'AREASMS', 'IDENTITY']
         discordantClustersDict, discordantClustersDictFailed = filters.filter_clusters(discordantClustersDict, filters2Apply, self.confDict, self.bam)
-
-        counter2 = 0
-        for lista in discordantClustersDict.values():
-            for clustereva in lista:
-                for ebent in clustereva.events:
-                    print (ebent.readName)
-                    counter2 += 1
-        print ('discordantClustersDictAfterFilter ' + str(counter2))
-
-        counter3 = 0
-        for lista1 in discordantClustersDictFailed.values():
-            for clustereva1 in lista1:
-                for ebent1 in clustereva1.events:
-                    print (ebent1.readName)
-                    counter3 += 1
-        print ('discordantClustersDictFailed ' + str(counter3))
 
         '''
         # TODO: Remove this print
@@ -740,7 +713,6 @@ class SV_caller_short(SV_caller):
         '''
         
         '''
-        Eva will further polish next steps!
 
         ## 6. Filter discordant metaclusters ##
 
@@ -767,17 +739,9 @@ class SV_caller_short(SV_caller):
         discordantClustersFailedBinDb = structures.create_bin_database_interval(ref, beg, end, discordantClustersDictFailed, binSizes)
 
         ## 7. Make reciprocal clusters ##
-        # TODO: AJUSTAR ESTOS PARAMETROS!!! (PASARLOS SI ESO COMO OPCION EN LOS ARGUMENTOS)
+        # TODO SR: AJUSTAR ESTOS PARAMETROS!!! (PASARLOS SI ESO COMO OPCION EN LOS ARGUMENTOS)
         reciprocalClustersDict = clustering.reciprocal(discordantClustersBinDb, 1, 1, 300)
         reciprocalClustersFailedDict = clustering.reciprocal(discordantClustersFailedBinDb, 1, 1, 300)
-
-        counter4 = 0
-        for lista2 in reciprocalClustersDict.values():
-            for clustereva2 in lista2:
-                for ebent2 in clustereva2.events:
-                    print (ebent2.readName)
-                    counter4 += 1
-        print ('reciprocalClustersDict ' + str(counter4))
 
         '''
         # TODO: Remove this print
@@ -790,96 +754,42 @@ class SV_caller_short(SV_caller):
         '''
 
         ## 8. Organize reciprocal and independent discordant clusters in bin database structure ##
-
-        metaclusters=[]
-        metaclustersFailed=[]
         reciprocalClustersBinDb = structures.create_bin_database_interval(ref, beg, end, reciprocalClustersDict, binSizes)
         reciprocalClustersFailedBinDb = structures.create_bin_database_interval(ref, beg, end, reciprocalClustersFailedDict, binSizes)
-        buffer=300
 
+        ## 9. Get all identities ##
         identities = set([iden.split('-')[2] for iden in reciprocalClustersBinDb.eventTypes])
         identitiesFailed = set([iden.split('-')[2] for iden in reciprocalClustersFailedBinDb.eventTypes])
 
-
-        # Create metaclusters taking into account viral identities eventType.
-        for iden in identities:
-            currentEventTypes = [eventType for eventType in reciprocalClustersBinDb.eventTypes if (iden in eventType)]
+        metaclusters=[]
+        metaclustersFailed=[]
+        ## Create metaclusters from reciprocal and independent discordant clusters taking into account identities (eventType = those eventTypes (MINUS, PLUS and RECIPROCAL) that correspond to identity).
+        ## By this way, only clusters with same identity are metaclustered toguether.
+        # TODO: Mirar aqui pq habra que ajustar varios parametros
+        for identity in identities:
+            currentEventTypes = [eventType for eventType in reciprocalClustersBinDb.eventTypes if (identity in eventType)]
             metaclusters.extend(clusters.create_discordant_metaclusters(reciprocalClustersBinDb, currentEventTypes))
 
-
-        for idenF in identitiesFailed:
-            currentEventTypes = [eventType for eventType in reciprocalClustersFailedBinDb.eventTypes if (idenF in eventType)]
-            metaclustersFailed.extend(clusters.create_discordant_metaclusters(reciprocalClustersFailedBinDb, currentEventTypes))
-
-
-        # HASTA AQUI YO CREO QUE ESTA TODO BIEN!!!! A PARTIR DE AQUI HAY QUE REPASAR!!
-
-        ## 9. Create metaclusters from reciprocal and independent discordant clusters ##
-
-        # Mirar aqui pq habra que ajustar varios parametros
-
-        #metaclusters = clusters.create_metaclusters(reciprocalClustersBinDb)
-        #metaclustersFailed = clusters.create_metaclusters(reciprocalClustersFailedBinDb)
-
+        for identityFailed in identitiesFailed:
+            currentEventTypesFailed = [eventType for eventType in reciprocalClustersFailedBinDb.eventTypes if (identityFailed in eventType)]
+            metaclustersFailed.extend(clusters.create_discordant_metaclusters(reciprocalClustersFailedBinDb, currentEventTypesFailed))
 
         step = 'META-CLUSTERING'
         #msg = '[META-CLUSTERING] Number of created metaclusters: ' + str(metaclustersBinDb.nbEvents()[0])
         #log.subHeader(msg)
 
-        '''
-        LO ULTIMO QUE HICE FUE RETORNAR EVENTS DE LA RECIPROCAL EN VEZ DE CLUSTERS, Y FUNCIONA, PERO HAY EN ALGUN MOMENTO QUE SE MEZCLAN LOS DE DISTINTO TIPO AL HACER LA RECIPROCAL, ASI QUE TENGO QUE REPASARLO!
-        
-        {'DISCORDANT-Hepatitis': [<events.DISCORDANT object at 0x7f73aeb5c208>, <events.DISCORDANT object at 0x7f73aeb5c780>, <events.DISCORDANT object at 0x7f73aeb55780>, <events.DISCORDANT object at 0x7f73aeb55a58>], 'DISCORDANT-UNVERIFIED:': [<events.DISCORDANT object at 0x7f73aeb5c208>, <events.DISCORDANT object at 0x7f73aeb5c780>, <events.DISCORDANT object at 0x7f73aeb55780>, <events.DISCORDANT object at 0x7f73aeb55a58>], 'DISCORDANT-HBV': [<events.DISCORDANT object at 0x7f73aeb5c2b0>, <events.DISCORDANT object at 0x7f73aeb5c2b0>, <events.DISCORDANT object at 0x7f73aeb55780>, <events.DISCORDANT object at 0x7f73aeb55a58>]}
-        METACLUSTER:  <clusters.DISCORDANT_cluster object at 0x7f73aeae6390> 2 2 105457243 105457870
-        <clusters.DISCORDANT_cluster object at 0x7f73aeae6390> HWI-ST672:120:D0CF5ACXX:8:2308:15074:2709/2 2 105457243 DISCORDANT UNVERIFIED: PLUS
-        <clusters.DISCORDANT_cluster object at 0x7f73aeae6390> HWI-ST672:129:D0DF0ACXX:8:2306:14996:36787/1 2 105457769 DISCORDANT UNVERIFIED: MINUS
-        METACLUSTER:  <clusters.DISCORDANT_cluster object at 0x7f73aeae63c8> 5 2 105457243 105457870
-        <clusters.DISCORDANT_cluster object at 0x7f73aeae63c8> HWI-ST672:120:D0CF5ACXX:8:2308:15074:2709/2 2 105457243 DISCORDANT UNVERIFIED: PLUS
-        <clusters.DISCORDANT_cluster object at 0x7f73aeae63c8> HWI-ST672:129:D0DF0ACXX:8:2107:19576:151218/2 2 105457376 DISCORDANT UNVERIFIED: PLUS
-        <clusters.DISCORDANT_cluster object at 0x7f73aeae63c8> HWI-ST672:129:D0DF0ACXX:8:2107:19576:151218/2 2 105457376 DISCORDANT UNVERIFIED: PLUS
-        <clusters.DISCORDANT_cluster object at 0x7f73aeae63c8> HWI-ST672:129:D0DF0ACXX:7:2108:9935:21524/1 2 105457573 DISCORDANT UNVERIFIED: MINUS
-        <clusters.DISCORDANT_cluster object at 0x7f73aeae63c8> HWI-ST672:129:D0DF0ACXX:8:2306:14996:36787/1 2 105457769 DISCORDANT UNVERIFIED: MINUS
-        METACLUSTER:  <clusters.DISCORDANT_cluster object at 0x7f73aeae6400> 2 2 105457243 105457870
-        <clusters.DISCORDANT_cluster object at 0x7f73aeae6400> HWI-ST672:120:D0CF5ACXX:8:2308:15074:2709/2 2 105457243 DISCORDANT UNVERIFIED: PLUS
-        <clusters.DISCORDANT_cluster object at 0x7f73aeae6400> HWI-ST672:129:D0DF0ACXX:8:2306:14996:36787/1 2 105457769 DISCORDANT UNVERIFIED: MINUS
-        METACLUSTER:  <clusters.DISCORDANT_cluster object at 0x7f73aeae6438> 5 2 105457243 105457870
-        <clusters.DISCORDANT_cluster object at 0x7f73aeae6438> HWI-ST672:120:D0CF5ACXX:8:2308:15074:2709/2 2 105457243 DISCORDANT UNVERIFIED: PLUS
-        <clusters.DISCORDANT_cluster object at 0x7f73aeae6438> HWI-ST672:129:D0DF0ACXX:8:2107:19576:151218/2 2 105457376 DISCORDANT UNVERIFIED: PLUS
-        <clusters.DISCORDANT_cluster object at 0x7f73aeae6438> HWI-ST672:129:D0DF0ACXX:8:2107:19576:151218/2 2 105457376 DISCORDANT UNVERIFIED: PLUS
-        <clusters.DISCORDANT_cluster object at 0x7f73aeae6438> HWI-ST672:129:D0DF0ACXX:7:2108:9935:21524/1 2 105457573 DISCORDANT UNVERIFIED: MINUS
-        <clusters.DISCORDANT_cluster object at 0x7f73aeae6438> HWI-ST672:129:D0DF0ACXX:8:2306:14996:36787/1 2 105457769 DISCORDANT UNVERIFIED: MINUS
-        METACLUSTER:  <clusters.DISCORDANT_cluster object at 0x7f73aeae6470> 2 2 105457243 105457720
-        <clusters.DISCORDANT_cluster object at 0x7f73aeae6470> HWI-ST672:120:D0CF5ACXX:8:2308:15074:2709/2 2 105457243 DISCORDANT UNVERIFIED: PLUS
-        <clusters.DISCORDANT_cluster object at 0x7f73aeae6470> HWI-ST672:120:D0CF5ACXX:8:2104:17314:11147/1 2 105457619 DISCORDANT HBV MINUS
-        METACLUSTER:  <clusters.DISCORDANT_cluster object at 0x7f73aeae64a8> 5 2 105457243 105457720
-        <clusters.DISCORDANT_cluster object at 0x7f73aeae64a8> HWI-ST672:120:D0CF5ACXX:8:2308:15074:2709/2 2 105457243 DISCORDANT UNVERIFIED: PLUS
-        <clusters.DISCORDANT_cluster object at 0x7f73aeae64a8> HWI-ST672:129:D0DF0ACXX:8:2107:19576:151218/2 2 105457376 DISCORDANT UNVERIFIED: PLUS
-        <clusters.DISCORDANT_cluster object at 0x7f73aeae64a8> HWI-ST672:129:D0DF0ACXX:8:2107:19576:151218/2 2 105457376 DISCORDANT UNVERIFIED: PLUS
-        <clusters.DISCORDANT_cluster object at 0x7f73aeae64a8> HWI-ST672:120:D0CF5ACXX:8:2104:17314:11147/1 2 105457619 DISCORDANT HBV MINUS
-        <clusters.DISCORDANT_cluster object at 0x7f73aeae64a8> HWI-ST672:120:D0CF5ACXX:8:2104:17314:11147/1 2 105457619 DISCORDANT HBV MINUS
-
-
-
-        
-        dictMetaclustersLEFT = bkp.analizeBkp(metaclustersBinDb,'/mnt/lustre/scratch/home/usc/mg/eal/results/MEIGA_ShortReads/consensusHBV_goodHeaders.fa', self.reference, 'LEFT', binDir)
-        dictMetaclustersRIGHT = bkp.analizeBkp(metaclustersBinDb, '/mnt/lustre/scratch/home/usc/mg/eal/results/MEIGA_ShortReads/consensusHBV_goodHeaders.fa', self.reference, 'RIGHT', binDir)
-
-
-        print ('LEFT')
-        print (dictMetaclustersLEFT)
-
-        print ('RIGHT')
-        print (dictMetaclustersRIGHT)
-        '''
-
         ## 10. Analyse metaclusters features and add supporting clipping reads ##
+        # TODO: Think deeper in this step and polish it.
         dictMetaclusters = bkp.analyzeMetaclusters(metaclusters, self.confDict, self.bam, self.normalBam, self.mode, binDir)
         dictMetaclustersFailed = bkp.analyzeMetaclusters(metaclustersFailed, self.confDict, self.bam, self.normalBam, self.mode, binDir)
 
         metaclustersSVType = {}
         metaclustersSVTypeFailed = {}
 
-        # TODO: Mirar si aqui solo pueden ser discordant
+        '''
+        dictMetaclusters : 
+        {<clusters.META_cluster object at 0x7fe9e43936d8>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393b00>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393be0>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393c88>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393dd8>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393e10>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}}
+        '''
         if dictMetaclusters:
             metaclustersSVType['DISCORDANT'] = list(dictMetaclusters.keys())
         else:
@@ -890,16 +800,6 @@ class SV_caller_short(SV_caller):
         else:
             metaclustersSVTypeFailed['DISCORDANT'] = []
 
-        '''
-        # TODO: Remove this print
-        for metacluster in dictMetaclusters.keys():
-                print ('METACLSUTERSSSSSS AFTER BKP!!!')
-                print (metacluster.beg)
-                print (metacluster.end)
-                print (metacluster.events)
-                print (metacluster.subclusters)
-        '''
-
         ### Do cleanup
         unix.rm([binDir])
 
@@ -909,6 +809,12 @@ class SV_caller_short(SV_caller):
 
         ## Filtered metaclusters
         clusters.lighten_up_metaclusters(metaclustersSVTypeFailed)
+        '''
+        for meta in list(dictMetaclusters.keys()):
+            for eventi in meta.events:
+                print (eventi.type)  --> DISCORDANT
+        '''
+
 
         return metaclustersSVType, metaclustersSVTypeFailed
 

@@ -18,7 +18,7 @@ import re
 
 def is_virusSR(events):
     '''
-    TODO: NOW THIS IS SAME AS IN RT, SO I SHOULD DO ONLY 1!!
+    TODO SR: NOW THIS IS SAME AS IN RT, SO I SHOULD DO ONLY 1!!
     '''
     matesIdentity = {}
 

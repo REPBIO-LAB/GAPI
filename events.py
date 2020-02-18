@@ -186,6 +186,7 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
                                     - Type: identity type. It can be retrotransposon family (L1, Alu, ...), source element (22q, 5p, ...), viral strain (HPV, ...)
     '''
     # TODO: Check if it is a virus only if it is not a RT.
+    # TODO: Make rt and viruses optional
     # TODO: DESILENCE
     '''
     ## 1. Assess if discordant read pairs support transduction insertion if transduction database provided

@@ -718,7 +718,6 @@ def collectDISCORDANT(ref, binBeg, binEnd, bam, confDict, sample, supplementary,
     # Initialize discordant events list
     DISCORDANTS = []
 
-
     ## Open BAM file for reading
     bamFile = pysam.AlignmentFile(bam, "rb")
 

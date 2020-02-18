@@ -1846,6 +1846,11 @@ class DISCORDANT_cluster(cluster):
 
         cluster.__init__(self, events, 'DISCORDANT')
         self.matesCluster = None
+        self.identity = self.events[0].identity
+        self.orientation = self.events[0].orientation
+
+        # TODO SR:
+        # Set specific identity doing something like the most common specific identity that events share.
 
     def mates_start_interval(self):
         '''
@@ -1894,6 +1899,15 @@ class META_cluster():
         self.nbReadsTotal, self.nbReadsTumour, self.nbReadsNormal, self.reads, self.readsTumour, self.readsNormal = [None, None, None, None, None, None] 
         self.cv = None
 
+        # Shotr reads:
+        self.identity = self.events[0].identity
+        if all (cluster.orientation == 'PLUS' for cluster in clusters):
+            self.orientation = 'PLUS'
+        elif all (cluster.orientation == 'MINUS' for cluster in clusters):
+            self.orientation = 'MINUS'
+        else:
+            self.orientation = 'RECIPROCAL'
+        
         # Update input cluster's clusterId attribute
         for cluster in clusters:
             cluster.clusterId = self.id
@@ -2471,7 +2485,12 @@ class META_cluster():
             ## Cluster supplementary alignment positions
             self.supplClusters =  clippingCluster.cluster_suppl_positions(complementaryAlignments)
 
-        ## E) Other combination -> Unknown SV type (Temporal, extend later)
+        ## E) Short reads: if subclusters are discodant clusters:
+        #elif 'DISCORDANT' in subClusterTypes[0]:
+            #all( type(i) is int for i in lst )
+            #self.SV_type = 'DEL'
+
+        ## F) Other combination -> Unknown SV type (Temporal, extend later)
         else:
             self.SV_type = None
             self.consensusEvent = None                

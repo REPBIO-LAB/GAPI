@@ -241,6 +241,24 @@ def SVTypeFilter(metacluster):
 
     return PASS
 
+def identityFilter(cluster):
+    '''
+    Filter metacluster by checking if it has a SV type assigned.
+
+    Input:
+        1. metacluster: metacluster object
+    Output:
+        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
+    '''
+
+    ## 2. Compare the percentage of outliers against the maximum required
+    if cluster.identity != None:
+        PASS = True 
+    else:
+        PASS = False
+
+    return PASS
+
 def filter_discordant_mate_ref(discordants, targetRefs):
     '''
     Filter out discordant cluster located over not target references
@@ -467,6 +485,11 @@ def filter_DISCORDANT_cluster(cluster, filters2Apply, confDict, bam):
     if "AREASMS" in filters2Apply:
         if not area(cluster,confDict,bam)[1]:
             failedFilters.append('AREASMS')
+
+    ## 5. FILTER 5: Whether a metacluster has a SV_type assigned or not
+    if 'IDENTITY' in filters2Apply: 
+        if not identityFilter(cluster):
+            failedFilters.append('IDENTITY')
 
     return failedFilters
 
