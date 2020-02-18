@@ -93,9 +93,13 @@ def write_DISCORDANT(discordantClusters, outDir):
     ## 3. Write clusters 
     # Iterate over the bins
     for discordantDict in discordantClusters:
-
+        
         # Iterate over the cluster types
         for key, clusterList in discordantDict.items():
+
+            key=key.replace("Simple_repeat", "Simple-repeat") #TODO find a more elegant solution. (javi: Meiga13)
+            key=key.replace("Low_complexity","Low-complexity")
+        
             orientation, clusterType, family = key.split('_')
             clusterType = orientation + '_' + clusterType
 

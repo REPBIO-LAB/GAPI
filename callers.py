@@ -368,6 +368,9 @@ class SV_caller_short(SV_caller):
         # TODO: mirar que pasa cuando tienes 2 dictionarios
         pool = mp.Pool(processes=self.confDict['processes'])
         discordantClusters = pool.starmap(self.make_clusters_bin, bins)
+        #self.make_clusters_bin('22',16050000,16150000)   #TODO DEBUG ONLY
+        #self.make_clusters_bin('9', 18720898, 18722291)   #TODO DEBUG ONLY
+    
         pool.close()
         pool.join()
     
