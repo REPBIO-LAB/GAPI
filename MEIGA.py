@@ -3,6 +3,7 @@
 
 # import basic internal module
 import check_dependencies as cd
+
 if __name__ == '__main__':
 	
 	## Check dependencies, true if there are some missing dependencies ##
@@ -167,7 +168,7 @@ if __name__ == '__main__':
 	##############################################
 	scriptName = os.path.basename(sys.argv[0])
 	scriptName = os.path.splitext(scriptName)[0]
-	version='0.13.0'
+	version='0.13.1'
 
 	print()
 	print('***** ', scriptName, version, 'configuration *****')
