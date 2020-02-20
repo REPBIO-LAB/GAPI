@@ -378,6 +378,7 @@ def intersect_mate_annotation(discordants, annotation, targetField):
     ##  For each input discordant intersect mate alignment coordinates with the provided annotation 
     for discordant in discordants:
         
+        ## Note: Apply filter to discard unmapped mates 
         # A) Annotated feature in the same ref where the mate aligns
         if discordant.mateRef in annotation:
 

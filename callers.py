@@ -330,9 +330,11 @@ class SV_caller_short(SV_caller):
 
         ## 1.1 Load annotated retrotransposons into a bin database
         ## Read bed
-        rtAnnotBed = self.refDir + '/retrotransposons_repeatMasker.bed'
+        rtAnnotBed = self.refDir + '/repeats_repeatMasker.bed'
+        #rtAnnotBed = self.refDir + '/repeats_repeatMasker.L1.bed'
+
         rtAnnot = formats.BED()
-        rtAnnot.read(rtAnnotBed, 'nestedDict', None)
+        rtAnnot.read(rtAnnotBed, 'nestedDict', None) 
 
         ## Create bin database
         refLengths = bamtools.get_ref_lengths(self.bam)
@@ -483,6 +485,7 @@ class SV_caller_short(SV_caller):
         ### Do cleanup
         unix.rm([binDir])
 
+        ##
         return discordantClustersDict
         
         '''
