@@ -695,6 +695,23 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang,
 
     return INDEL_events
 
+def collectDISCORDANT_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict, supplementary, viralSeqs):
+    '''
+    '''
+    ## Search for SV events in the tumour
+    eventsDict_T = collectDISCORDANT(ref, binBeg, binEnd, tumourBam, confDict, 'TUMOUR', supplementary, viralSeqs)
+
+    ## Search for SV events in the normal
+    eventsDict_N = collectDISCORDANT(ref, binBeg, binEnd, normalBam, confDict, 'NORMAL', supplementary, viralSeqs)
+
+    ## Join tumour and normal lists
+    eventsDict = {}
+
+    for SV_type in eventsDict_T:        
+        eventsDict[SV_type] = eventsDict_T[SV_type] + eventsDict_N[SV_type]
+
+    return eventsDict
+
 def collectDISCORDANT(ref, binBeg, binEnd, bam, confDict, sample, supplementary, viralSeqs):
     '''
     For a read alignment check if the read is discordant (not proper in pair) and return the corresponding discordant objects
@@ -750,6 +767,14 @@ def collectDISCORDANT(ref, binBeg, binEnd, bam, confDict, sample, supplementary,
         if supplementary == False and alignmentObj.is_supplementary == True:
             continue
 
+        # Filter SMS reads
+        firstOperation, firstOperationLen = alignmentObj.cigartuples[0]
+        lastOperation, lastOperationLen = alignmentObj.cigartuples[-1]
+        if ((firstOperation == 4) or (firstOperation == 5)) and ((lastOperation == 4) or (lastOperation == 5)):
+            continue
+        #if ((lastOperation == 4) or (lastOperation == 5)) and ((firstOperation != 4) and (firstOperation != 5)):
+            #continue
+
         # If not proper pair (== discordant)
         if not alignmentObj.is_proper_pair:
 
@@ -773,8 +798,11 @@ def collectDISCORDANT(ref, binBeg, binEnd, bam, confDict, sample, supplementary,
             operations = [t[0] for t in alignmentObj.cigartuples]
             nbBlocks = operations.count(3) + 1 
 
-            if alignmentObj.query_name in viralSeqs.keys():
-                identity = viralSeqs[alignmentObj.query_name]
+            if viralSeqs != None:
+                if alignmentObj.query_name in viralSeqs.keys():
+                    identity = viralSeqs[alignmentObj.query_name]
+                else:
+                    identity = None
             else:
                 identity = None
 

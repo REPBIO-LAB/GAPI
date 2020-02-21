@@ -31,6 +31,9 @@ import gRanges
 import virus
 import clustering
 import os
+import sequences
+import Bio.SeqUtils
+from Bio.SeqUtils import lcc
 
 ## FUNCTIONS ##
 
@@ -330,56 +333,55 @@ class SV_caller_short(SV_caller):
         Search for integrations genome wide or in a set of target genomic regions
         '''
 
-        # TODO: DESILENCE
-        '''
-        annotDir = self.outDir + '/ANNOT/'
-        refLengths = bamtools.get_ref_lengths(self.bam)
-        self.annotations = annotation.load_annotations(['REPEATS', 'TRANSDUCTIONS'], refLengths, self.refDir, self.confDict['processes'], annotDir)
-        '''
+        if 'ME' in self.confDict['targetINT2Search']:
+            annotDir = self.outDir + '/ANNOT/'
+            refLengths = bamtools.get_ref_lengths(self.bam)
+            self.annotations = annotation.load_annotations(['REPEATS', 'TRANSDUCTIONS'], refLengths, self.refDir, self.confDict['processes'], annotDir)
 
         ### 1. Create integration clusters 
         msg = '1. Create integration clusters'
         log.header(msg)      
         allMetaclusters = self.make_clusters()
 
-        # TODO: DESILENCE
-        '''
-        ### 2. Annotate SV clusters intervals
-        msg = '2. Annotate SV clusters intervals'
-        log.header(msg)
+        if 'ME' in self.confDict['targetINT2Search']:
+            '''
+            ### 2. Annotate SV clusters intervals
+            msg = '2. Annotate SV clusters intervals'
+            log.header(msg)
 
-        ## 5. Check if annotated retrotransposon on the reference genome at cluster intervals ##
-        # COMMENT: This is temporary and will be incorporated into the filtering function at one point
-        step = 'ANNOTATE-REPEATS'
-        msg = 'Check if annotated retrotransposon on the reference genome at cluster intervals'
-        log.step(step, msg)
-
-
-        ## Create a list containing all discordant read pair events:
-        allDiscordantClusters = []
-
-        for eventType in allMetaclusters.keys():
-            allDiscordantClusters.extend(allMetaclusters[eventType])
-
-
-        ## Annotate
-        buffer = 100
-        annotation.repeats_annotation(allDiscordantClusters, self.annotations['REPEATS'], buffer)
-        
-        ## 6. Perform gene-based annotation with ANNOVAR of discordant read pair clusters ##
-        # Do gene-based annotation step if enabled
-        if self.confDict['annovarDir'] is not None:
-
-            step = 'ANNOTATE'
-            msg = 'Perform gene-based annotation with ANNOVAR of discordant read-pair clusters'
+            ## 5. Check if annotated retrotransposon on the reference genome at cluster intervals ##
+            # COMMENT: This is temporary and will be incorporated into the filtering function at one point
+            step = 'ANNOTATE-REPEATS'
+            msg = 'Check if annotated retrotransposon on the reference genome at cluster intervals'
             log.step(step, msg)
 
-            ## Annotate
-            annotation.gene_annotation(allDiscordantClusters, self.confDict['annovarDir'], annotDir)
 
-        # Remove annotation directory
-        unix.rm([annotDir])
-        '''
+            ## Create a list containing all discordant read pair events:
+            allDiscordantClusters = []
+
+            for eventType in allMetaclusters.keys():
+                allDiscordantClusters.extend(allMetaclusters[eventType])
+
+
+            ## Annotate
+            buffer = 100
+            annotation.repeats_annotation(allDiscordantClusters, self.annotations['REPEATS'], buffer)
+            
+            ## 6. Perform gene-based annotation with ANNOVAR of discordant read pair clusters ##
+            # Do gene-based annotation step if enabled
+            if self.confDict['annovarDir'] is not None:
+
+                step = 'ANNOTATE'
+                msg = 'Perform gene-based annotation with ANNOVAR of discordant read-pair clusters'
+                log.step(step, msg)
+
+                ## Annotate
+                annotation.gene_annotation(allDiscordantClusters, self.confDict['annovarDir'], annotDir)
+
+            # Remove annotation directory
+            unix.rm([annotDir])
+            # CLOSE if ME in INT2search:
+            '''
 
         ## 1.2 Create and index viral database
         #self.viralDb, self.viralDbIndex = databases.buildVirusDb(self.refDir, dbDir)
@@ -397,72 +399,89 @@ class SV_caller_short(SV_caller):
         # TODO SR: Make analyse RT or viruses options
 
         # If viruses option is select, collect read name and sequence of discordant low quality reads from all bam refs
-        # TODO: DESILENCE
-        '''
-        bins = bamtools.makeGenomicBins(self.bam, self.confDict['binSize'], None)
-
-        # TODO SR: Pass more arguments
-        pool = mp.Pool(processes=self.confDict['processes'])
-        pool.starmap(self.collectSeq, bins)
-        pool.close()
-        pool.join()
-
-        # Merge fastas:
-        filenames = []
-        for bine in bins:
-            window = self.outDir + '/FASTAS/' + str(bine[0]) +"_"+ str(bine[1])+"_"+str(bine[2])+".fasta"
-            filenames.append(window)
-        '''
         
+        if 'VIRUS' in self.confDict['targetINT2Search']:
+            # TODO: DESILENCE
+            
+            bins = bamtools.makeGenomicBins(self.bam, self.confDict['binSize'], None)
 
-        allFastas = self.outDir + "/allFastas.fasta"
-        # TODO: DESILENCE
-        '''
-        with open(allFastas, 'w') as outfile:
-            for fname in filenames:
-                with open(fname) as infile:
-                    for line in infile:
-                        outfile.write(line)
+            # TODO SR: Pass more arguments
+            pool = mp.Pool(processes=self.confDict['processes'])
+            pool.starmap(self.collectSeq, bins)
+            pool.close()
+            pool.join()
 
+            # If normal bam id present, collect also its reads
+            if self.mode == "PAIRED":
+                bins = bamtools.makeGenomicBins(self.normalBam, self.confDict['binSize'], None)
 
-        # Remove fastas:
-        fastasDir = self.outDir + '/FASTAS/'
-        unix.rm([fastasDir])
-        '''
+                # TODO SR: Pass more arguments
+                pool = mp.Pool(processes=self.confDict['processes'])
+                pool.starmap(self.collectSeqNormal, bins)
+                pool.close()
+                pool.join()
 
-        # bwa allFastas vs viralDb keep only mapped
-        # TODO: usar una funcion ya hecha (o hacer una) y mirar si el -T vale para algo
-        BAM = self.outDir + '/' + 'viralAligment' + '.bam'
+            # Merge fastas:
+            filenames = []
+            for bine in bins:
+                window = self.outDir + '/FASTAS/' + str(bine[0]) +"_"+ str(bine[1])+"_"+str(bine[2])+".fasta"
+                filenames.append(window)
+            
+            
+            allFastas = self.outDir + "/allFastas.fasta"
+            # TODO: DESILENCE
+            
+            with open(allFastas, 'w') as outfile:
+                for fname in filenames:
+                    with open(fname) as infile:
+                        for line in infile:
+                            outfile.write(line)
+            
 
-        # TODO: DESILENCE
-        '''
-        err = open(self.outDir + '/align.err', 'w') 
-        # TODO: set processes as argument
-        command = 'bwa mem -Y -t 5 ' + self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools sort -O BAM   > ' + BAM
-        status = subprocess.call(command, stderr=err, shell=True)
+            # Remove fastas:
+            fastasDir = self.outDir + '/FASTAS/'
+            unix.rm([fastasDir])
+            
 
-        if status != 0:
-            step = 'ALIGN'
-            msg = 'Alignment failed' 
-            log.step(step, msg)
+            # bwa allFastas vs viralDb keep only mapped
+            # TODO: usar una funcion ya hecha (o hacer una) y mirar si el -T vale para algo
+            BAM = self.outDir + '/' + 'viralAligment' + '.bam'
+            
 
-        command = 'samtools index ' + BAM
-        status = subprocess.call(command, stderr=err, shell=True)
+            # TODO: DESILENCE
+            
+            err = open(self.outDir + '/align.err', 'w') 
+            # TODO: set processes as argument
+            #command = 'bwa mem -Y -t 5 ' + self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools sort -O BAM   > ' + BAM
 
-        # Borro allfastas
-        #unix.rm([allFastas])
-        '''
+            # TODO: Try if this works
+            # TODO: Maybe 151M filter is too hard. But I should try something similar (maybe based on number of mistmatches)
+            command = 'bwa mem -Y -t 5 ' + self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools view -h  | awk \'($6 == "151M") || $1 ~ /@/\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
 
-        # Read bwa result and store in a dictionary
-        bamFile = pysam.AlignmentFile(BAM, 'rb')
+            status = subprocess.call(command, stderr=err, shell=True)
 
-        iterator = bamFile.fetch()
-        
-        self.viralSeqs= {}
-        # For each read alignment
-        for alignmentObj in iterator:
-            self.viralSeqs[alignmentObj.query_name] = alignmentObj.reference_name
-        
+            if status != 0:
+                step = 'ALIGN'
+                msg = 'Alignment failed' 
+                log.step(step, msg)
+
+            command = 'samtools index ' + BAM
+            status = subprocess.call(command, stderr=err, shell=True)
+
+            # Borro allfastas
+            #unix.rm([allFastas])
+            
+
+            # Read bwa result and store in a dictionary
+            bamFile = pysam.AlignmentFile(BAM, 'rb')
+
+            iterator = bamFile.fetch()
+            
+            self.viralSeqs= {}
+            # For each read alignment
+            for alignmentObj in iterator:
+                self.viralSeqs[alignmentObj.query_name] = alignmentObj.reference_name
+            
         ### 1. Define genomic bins to search for SV ##
         bins = bamtools.binning(self.confDict['targetBins'], self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
 
@@ -544,10 +563,25 @@ class SV_caller_short(SV_caller):
                 # Pick only those sequences that are unmmapped or with mapping quality < maxMAPQ
                 if checkUnmapped == True:
                     if (alignmentObj.is_unmapped == True) or (MAPQ < maxMAPQ):
-                        eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
+                        basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
+                        del basePercs['total']
+                        #print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                        if all(perc < 85 for perc in basePercs.values()):
+                            complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
+                            #print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                            if complexity > 1.3:
+                                eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
+
                 else:
                     if MAPQ < maxMAPQ:
-                        eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
+                        basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
+                        del basePercs['total']
+                        #print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                        if all(perc < 85 for perc in basePercs.values()):
+                            complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
+                            #print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                            if complexity > 1.3:
+                                eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
             
         ## Close 
         bamFile.close()
@@ -561,6 +595,92 @@ class SV_caller_short(SV_caller):
 
         del eventsSeqDict
 
+        outputFasta = self.outDir + '/FASTAS/' + str(ref) +"_"+ str(binBeg) +"_"+ str(binEnd) +".fasta"
+        seqsFastaObj.write(outputFasta)
+
+        # return sv candidates
+        return
+
+    # TODO: THIS FUNCTION IS REPEATED!!!! DO IT IN A WAY THAT THERE IS ONLY ONE FOR TUMOUR AND NORMAL
+    def collectSeqNormal(self, ref, binBeg, binEnd):
+        '''
+        Collect read names and sequences from reads below maxMAPQ
+        '''
+        # TODO SR: PASS this variables as argument
+        #filterDuplicates = True
+        maxMAPQ = 20
+        checkUnmapped = True
+        supplementary = True
+
+        ## Initialize dictionary to store SV events
+        eventsSeqDict = {}
+
+        ## Open BAM file for reading
+        bamFile = pysam.AlignmentFile(self.normalBam, "rb")
+
+        ## Extract alignments
+        iterator = bamFile.fetch(ref, binBeg, binEnd)
+        
+        # For each read alignment
+        for alignmentObj in iterator:
+
+            ### 1. Filter out alignments based on different criteria:
+            MAPQ = int(alignmentObj.mapping_quality) # Mapping quality
+
+            ## No query sequence available
+            if alignmentObj.query_sequence == None:
+                continue
+
+            ## Aligments with MAPQ < threshold
+            if (MAPQ > maxMAPQ):
+                continue
+
+            # TODO SR: make this work
+            ## Duplicates filtering enabled and duplicate alignment
+            #if (confDict['filterDuplicates'] == True) and (alignmentObj.is_duplicate == True):
+                #continue
+
+            # Filter supplementary alignments if TRUE. (Neccesary to avoid pick supplementary clipping reads while adding to discordant clusters in short reads mode)
+            if supplementary == False and alignmentObj.is_supplementary == True:
+                continue
+            
+            ## 4. Collect DISCORDANT
+
+            if not alignmentObj.is_proper_pair:
+
+                # Pick only those sequences that are unmmapped or with mapping quality < maxMAPQ
+                if checkUnmapped == True:
+                    if (alignmentObj.is_unmapped == True) or (MAPQ < maxMAPQ):
+                        basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
+                        del basePercs['total']
+                        #print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                        if all(perc < 85 for perc in basePercs.values()):
+                            complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
+                            #print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                            if complexity > 1.3:
+                                eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
+                else:
+                    if MAPQ < maxMAPQ:
+                        basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
+                        del basePercs['total']
+                        #print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                        if all(perc < 85 for perc in basePercs.values()):
+                            complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
+                            #print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                            if complexity > 1.3:
+                                eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
+            
+        ## Close 
+        bamFile.close()
+
+        # Write FASTA:
+        fastasDir = self.outDir + '/FASTAS/'
+        unix.mkdir(fastasDir)
+
+        seqsFastaObj= formats.FASTA()
+        seqsFastaObj.seqDict = eventsSeqDict
+
+        del eventsSeqDict
 
         outputFasta = self.outDir + '/FASTAS/' + str(ref) +"_"+ str(binBeg) +"_"+ str(binEnd) +".fasta"
         seqsFastaObj.write(outputFasta)
@@ -587,12 +707,18 @@ class SV_caller_short(SV_caller):
         ## 1. Search for integration candidate events in the bam file/s ##
         # a) Single sample mode
         if self.mode == "SINGLE":
-            discordantDict = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, True, self.viralSeqs)
+            if 'VIRUS' in self.confDict['targetINT2Search']:
+                discordantDict = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, True, self.viralSeqs)
+            else:
+                discordantDict = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, True, None)
 
-        #   TODO SR: ADAPT FOR PAIRED!
         # b) Paired sample mode (tumour & matched normal)
-        #else:
-            #discordantDict = bamtools.collectSV_paired(ref, beg, end, self.bam, self.normalBam, self.confDict)
+        else:
+            if 'VIRUS' in self.confDict['targetINT2Search']:
+                discordantDict = bamtools.collectDISCORDANT_paired(ref, beg, end, self.bam, self.normalBam, self.confDict, True, self.viralSeqs)
+            else:
+                discordantDict = bamtools.collectDISCORDANT_paired(ref, beg, end, self.bam, self.normalBam, self.confDict, True, None)
+
 
         SV_types = sorted(discordantDict.keys())
         counts = [str(len(discordantDict[SV_type])) for SV_type in SV_types]
@@ -603,13 +729,12 @@ class SV_caller_short(SV_caller):
         
         ## 2. Discordant read pair identity ##
         ## Determine identity
-        # TODO SR: ADAPT FOR PAIRED!
-        if self.mode == "SINGLE":
-            # TODO: DESILENCE AND DO THIS OLNY FOR RT!!!
-            #discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'],self.bam, None, binDir, self.confDict['viralDb'])
-            discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], None, None,self.bam, None, binDir)
-        #else:
+        # NOTE: I think adapting for PAIRED mode is not needed
+        #if self.mode == "SINGLE":
             # TODO: DESILENCE
+            #discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'],self.bam, None, binDir, self.confDict['viralDb'])
+        discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], None, None,self.bam, None, binDir, self.confDict['targetINT2Search'])
+        #else:
             #discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'],self.bam, None, binDir, self.confDict['viralDb'])
             #discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], None, None,self.bam, None, binDir, self.confDict['viralDb'])
 
@@ -694,7 +819,6 @@ class SV_caller_short(SV_caller):
 
         #return discordantClustersDict
 
-        # TODO: FILTER LOS QUE SON NONE!!!
         ## 5. Filter discordant clusters ##
         step = 'FILTER'
         msg = 'Filter out clusters' 
@@ -799,6 +923,15 @@ class SV_caller_short(SV_caller):
             metaclustersSVTypeFailed['DISCORDANT'] = list(dictMetaclustersFailed.keys())
         else:
             metaclustersSVTypeFailed['DISCORDANT'] = []
+
+        # TODO: ANOTHER FILTER STEP, DOING ANOTHER FILE. BY THIS WAY WE ARE ALSO ASSEGING MUT.ORIGIN TO THE METACLUSTER.
+        '''
+        step = 'FILTER'
+        msg = 'Filter out metaclusters' 
+        log.step(step, msg)
+        filters2Apply = ['MIN-NBREADS', 'MAX-NBREADS', 'AREAMAPQ', 'AREASMS', 'IDENTITY']
+        discordantClustersDict, discordantClustersDictFailed = filters.filter_clusters(metaclustersSVType, filters2Apply, self.confDict, self.bam)
+        '''
 
         ### Do cleanup
         unix.rm([binDir])

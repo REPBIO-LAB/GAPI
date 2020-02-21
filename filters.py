@@ -563,14 +563,19 @@ def area(cluster,confDict,bam):
     percMAPQ = fraction(lowMAPQ, nbReads)
     percSMSReads = fraction(SMSReads, nbReads)
 
+    # TEMP
+    print ('percMAPQ '  + str(percMAPQ)  + ' ' + str([event.readName for event in cluster.events]) +' '+ str(cluster.ref) + ' ' + str(cluster.beg) + ' ' + str(cluster.end) +'\n')
+    print ('percSMSReads ' + str(percSMSReads)  + ' ' + str([event.readName for event in cluster.events]) +' '+ str(cluster.ref) + ' ' + str(cluster.beg) + ' ' + str(cluster.end) +'\n')
+
+
     ## If the percentage of low MQ reads is lower than the threshold pass the filter.
-    if percMAPQ < float(maxRegionlowMQ):
+    if percMAPQ < float(maxRegionlowMQ): # 0.3
         percMAPQFilter = True
     else:
         percMAPQFilter = False
 
     ## If the percentage of SMS reads is lower than the threshold pass the filter.
-    if percSMSReads < float(maxRegionSMS):
+    if percSMSReads < float(maxRegionSMS): #0.15
         percSMSReadsFilter = True
     else:
         percSMSReadsFilter = False
@@ -621,8 +626,8 @@ def areaSMS(alignmentObj):
     #  Note: soft (Operation=4) or hard clipped (Operation=5)     
     if ((firstOperation == 4) or (firstOperation == 5)) and ((lastOperation == 4) or (lastOperation == 5)):
         SMSRead = True
-    if ((lastOperation == 4) or (lastOperation == 5)) and ((firstOperation != 4) and (firstOperation != 5)):
-        SMSRead = True
+    #if ((lastOperation == 4) or (lastOperation == 5)) and ((firstOperation != 4) and (firstOperation != 5)):
+        #SMSRead = True
 
     return SMSRead
 

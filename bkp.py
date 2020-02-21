@@ -63,6 +63,9 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir):
         # c. Make sequences of integrations for each bkp.
         #dictMetaclusters[metacluster]['leftSeq'], dictMetaclusters[metacluster]['rightSeq'] = makeConsSeqs(CLIPPING_cluster, 'REF', db, indexDb, bkpDir)
             # TODO: alig only inserted side not everything
+            # TODO: DESILENCE
+            # TODO: POLISH THIS PART!!!
+            '''
             leftRefConsensusSeq = makeConsSeqs(CLIPPING_cluster, 'left', 'REF', bkpDir)[1]
             rightRefConsensusSeq = makeConsSeqs(CLIPPING_cluster, 'right', 'REF', bkpDir)[1]
 
@@ -84,6 +87,7 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir):
                 dictMetaclusters[metacluster]['intLeftBkp'] =  bkpINT(metacluster, leftIntConsensusPath, confDict['viralDb'], bkpDir)
             if rightIntConsensusPath != None:
                 dictMetaclusters[metacluster]['intRightBkp'] = bkpINT(metacluster, rightIntConsensusPath, confDict['viralDb'], bkpDir)
+            '''
 
         else:
             dictMetaclusters[metacluster]['refLeftBkp'], dictMetaclusters[metacluster]['refRightBkp'], dictMetaclusters[metacluster]['leftSeq'], dictMetaclusters[metacluster]['rightSeq'], dictMetaclusters[metacluster]['intLeftBkp'], dictMetaclusters[metacluster]['intRightBkp'] = None, None, None, None, None, None

@@ -76,6 +76,8 @@ if __name__ == '__main__':
 	parser.add_argument('--minReadsRegionMQ', default=10, dest='minReadsRegionMQ', type=int, help='Surrounding reads above this MQ are considered low MQ reads. Default: 10')
 	parser.add_argument('--maxRegionlowMQ', default=0.3, dest='maxRegionlowMQ', type=int, help='Maximum percentage of lowMAPQ/nbReads in cluster´s region. Default: 0.3')
 	parser.add_argument('--maxRegionSMS', default=0.15, dest='maxRegionSMS', type=int, help='Maximum percentage of SMS clipping reads in cluster´s region. Default: 0.15')
+	parser.add_argument('--INT2Search', default="ME,VIRUS", dest='INT2Search', type=str, help='Comma separated list of insertion types to collect (Mobile Elements (ME),VIRUS). Default: ME,VIRUS')
+
 
 	## 2. Parse user´s input and initialize variables ##
 	args = parser.parse_args()
@@ -129,6 +131,7 @@ if __name__ == '__main__':
 	minReadsRegionMQ = args.minReadsRegionMQ
 	maxRegionlowMQ = args.maxRegionlowMQ
 	maxRegionSMS = args.maxRegionSMS
+	INT2Search = args.INT2Search
 
 	# If no reference is specified, get all that are present in the bam file.
 	if refs == 'ALL':
@@ -137,6 +140,7 @@ if __name__ == '__main__':
 	# Convert comma-separated string inputs into lists:
 	targetSV = SV.split(',')
 	targetRefs = refs.split(',')
+	targetINT2Search = INT2Search.split(',')
 
 	## Determine running mode:
 	mode = 'SINGLE' if normalBam == None else 'PAIRED'
@@ -188,6 +192,7 @@ if __name__ == '__main__':
 	print('overhang: ', overhang)
 	print('minINDELlength: ', minINDELlen)
 	print('minCLIPPINGlength: ', minCLIPPINGlen, "\n")
+	print('targetINT2Search ', INT2Search)
 
 	print('** Clustering **')
 	print('maxInsDist: ', maxInsDist)
@@ -262,6 +267,7 @@ if __name__ == '__main__':
 	confDict['minReadsRegionMQ'] = minReadsRegionMQ
 	confDict['maxRegionlowMQ'] = maxRegionlowMQ
 	confDict['maxRegionSMS'] = maxRegionSMS
+	confDict['targetINT2Search'] = targetINT2Search
 	
 	## 2. Execute structural variation caller
 	###########################################
