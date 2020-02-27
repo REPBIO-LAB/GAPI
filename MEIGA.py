@@ -62,6 +62,9 @@ if __name__ == '__main__':
 	parser.add_argument('--BKPdist', default=50, dest='maxBkpDist', type=int, help='Maximum distance bewteen two adjacent breakpoints for CLIPPING clustering (Between 0-999). Default: 250')
 	parser.add_argument('--minPercOverlap', default=70, dest='minPercRcplOverlap', type=int, help='Minimum percentage of reciprocal overlap for DEL clustering. Default: 70')
 
+	## Databases
+	parser.add_argument('--viralDb', default="", dest='viralDb', type=str, help='Viral database in fasta format or minimap index.')
+
 	## Filtering
 	# Long
 	parser.add_argument('--minClusterSize', default=2, dest='minClusterSize', type=int, help='Minimum number of reads composing a cluster. Default: 2')
@@ -111,6 +114,9 @@ if __name__ == '__main__':
 	maxInsDist = args.maxInsDist
 	maxBkpDist = args.maxBkpDist
 	minPercRcplOverlap = args.minPercRcplOverlap
+
+	## Databases
+	viralDb = args.viralDb
 
 	## Filtering thresholds
 	# Long
@@ -206,6 +212,9 @@ if __name__ == '__main__':
 	print('maxBkpDist: ', maxBkpDist)
 	print('minPercOverlap: ', minPercRcplOverlap, "\n")
 
+	print('** Databases **')
+	print('viralDb: ', viralDb, "\n")
+
 	print('** Filtering **')
 	print('minClusterSize: ', minClusterSize)
 	print('maxClusterSize: ', maxClusterSize)
@@ -253,6 +262,9 @@ if __name__ == '__main__':
 	confDict['maxInsDist'] = maxInsDist
 	confDict['maxBkpDist'] = maxBkpDist
 	confDict['minPercRcplOverlap'] = minPercRcplOverlap
+	
+	## Databases
+	confDict['viralDb'] = viralDb
 
 	## Filtering thresholds
 	# Long
@@ -262,6 +274,7 @@ if __name__ == '__main__':
 	confDict['minSupportingReads'] = minSupportingReads
 	confDict['minNormalSupportingReads'] = minNormalSupportingReads
 	confDict['targetStatus'] = targetStatus.split(',')
+	# TODO: maybe add special for viruses
 	confDict['minPercResolved'] = 40
 
 	## Filtering thresholds short reads
