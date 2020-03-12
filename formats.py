@@ -679,3 +679,4 @@ class PAF_chain():
             percCovered = float(alignmentLen)/self.alignments[0].qLen*100
 
         return percCovered
+

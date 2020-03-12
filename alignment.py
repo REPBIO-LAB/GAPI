@@ -168,7 +168,7 @@ def alignment_bwa(FASTA, reference, fileName, processes, outDir):
     return SAM    
 
 
-def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir, outFormat):
+def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir):
     '''
     Align a set of sequences into a reference target region. 
     
@@ -179,8 +179,7 @@ def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir, outFor
         2. targetInterval: Reference genome interval where sequences will be aligned. The interval must be provided as chr:beg-end.
         3. reference: Path to the reference sequences in fasta format. An index of the reference generated with samtools faidx must be located in the same directory
         4. outDir: Output directory
-        5. outFormat: BAM or SAM
-
+        
     Output:
         1. BAM: Path to sorted BAM file containing input sequences alignments or 'None' if realignment failed 
     '''
@@ -212,9 +211,6 @@ def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir, outFor
         msg = 'Local alignment failed' 
         log.step(step, msg)
         return None
-
-    if outFormat == "SAM":
-        return SAM
 
     ## 3. Convert SAM to sorted BAM
     BAM = bamtools.SAM2BAM(SAM, outDir)
