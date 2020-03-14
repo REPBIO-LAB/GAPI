@@ -41,8 +41,8 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
     ## 1. Load annotated repeats into a bin database
     if 'REPEATS' in annotations2load:
 
-        #repeatsBed = annotationsDir + '/repeats.bed'
-        repeatsBed = annotationsDir + '/repeats.L1.bed'
+        repeatsBed = annotationsDir + '/repeats.bed'
+        #repeatsBed = annotationsDir + '/repeats.L1.bed'
         #repeatsBed = annotationsDir + '/repeats.chr22.bed'
         annotations['REPEATS'] = formats.bed2binDb(repeatsBed, refLengths, threads)
 
