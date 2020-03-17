@@ -386,7 +386,6 @@ class SV_caller_short(SV_caller):
         '''
         Search for structural variant (SV) clusters in a genomic bin/window
         '''
-
         ## 0. Set bin id and create bin directory ##
         binId = '_'.join([str(ref), str(beg), str(end)])
         msg = 'SV calling in bin: ' + binId

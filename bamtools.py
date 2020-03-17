@@ -403,13 +403,13 @@ def collectSV_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict):
         4. tumourBam: indexed tumour BAM file
         5. normalBam: indexed normal BAM file
         6. confDict:
-            * targetSV       -> list with target SV (INS: insertion; DEL: deletion; CLIPPING: left and right clippings)
+            * targetEvents   -> list with target events (INS: insertion; DEL: deletion; CLIPPING: left and right clippings; DISCORDANT: discordantly mapped read)
             * minMAPQ        -> minimum mapping quality
             * minCLIPPINGlen -> minimum clipping lenght
             * minINDELlen    -> minimum INS and DEL lenght
 
     Output:
-        1. eventsDict: dictionary containing list of SV events grouped according to the SV type (only those types included in confDict[targetSV]):
+        1. eventsDict: dictionary containing list of SV events grouped according to the SV type (only those types included in confDict[targetEvents]):
             * INS -> list of INS objects
             * DEL -> list of DEL objects
             * LEFT-CLIPPING -> list of left CLIPPING objects
@@ -441,7 +441,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
         3. binEnd: bin end
         4. bam: indexed BAM file
         5. confDict:
-            * targetSV       -> list with target SV (INS: insertion; DEL: deletion; CLIPPING: left and right clippings, DISCORDANT: discordant)
+            * targetEvents       -> list with target SV events (INS: insertion; DEL: deletion; CLIPPING: left and right clippings, DISCORDANT: discordant)
             * minMAPQ        -> minimum mapping quality
             * minCLIPPINGlen -> minimum clipping lenght
             * minINDELlen    -> minimum INS and DEL lenght
@@ -449,7 +449,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
         6. sample: type of sample (TUMOUR, NORMAL or None)
 
     Output:
-        1. eventsDict: dictionary containing list of SV events grouped according to the SV type (only those types included in confDict[targetSV]):
+        1. eventsDict: dictionary containing list of SV events grouped according to the SV type (only those types included in confDict[targetEvents]):
             * INS -> list of INS objects
             * DEL -> list of DEL objects
             * LEFT-CLIPPING -> list of left CLIPPING objects
@@ -464,17 +464,17 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
     ## Initialize dictionary to store SV events
     eventsDict = {}
 
-    if 'INS' in confDict['targetSV']:
+    if 'INS' in confDict['targetEvents']:
         eventsDict['INS'] = []
 
-    if 'DEL' in confDict['targetSV']:
+    if 'DEL' in confDict['targetEvents']:
         eventsDict['DEL'] = []
 
-    if 'CLIPPING' in confDict['targetSV']:
+    if 'CLIPPING' in confDict['targetEvents']:
         eventsDict['LEFT-CLIPPING'] = []
         eventsDict['RIGHT-CLIPPING'] = []
     
-    if 'DISCORDANT' in confDict['targetSV']:
+    if 'DISCORDANT' in confDict['targetEvents']:
         eventsDict['DISCORDANT'] = []
 
     ## Open BAM file for reading
@@ -506,7 +506,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             continue
         
         ## 2. Collect CLIPPINGS
-        if 'CLIPPING' in confDict['targetSV']:
+        if 'CLIPPING' in confDict['targetEvents']:
 
             left_CLIPPING, right_CLIPPING = collectCLIPPING(alignmentObj, confDict['minCLIPPINGlen'], targetInterval, sample)
 
@@ -520,16 +520,16 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
                 eventsDict['RIGHT-CLIPPING'].append(right_CLIPPING)
                     
         ## 3. Collect INDELS
-        if ('INS' in confDict['targetSV']) or ('DEL' in confDict['targetSV']):
+        if ('INS' in confDict['targetEvents']) or ('DEL' in confDict['targetEvents']):
 
-            INDEL_events = collectINDELS(alignmentObj, confDict['targetSV'], confDict['minINDELlen'], targetInterval, confDict['overhang'], sample)
+            INDEL_events = collectINDELS(alignmentObj, confDict['targetEvents'], confDict['minINDELlen'], targetInterval, confDict['overhang'], sample)
 
             # Add events to the pre-existing lists                
             for INDEL_type, events in INDEL_events.items():
                 eventsDict[INDEL_type] = eventsDict[INDEL_type] + events
 
         ## 4. Collect DISCORDANT
-        if 'DISCORDANT' in confDict['targetSV']:
+        if 'DISCORDANT' in confDict['targetEvents']:
 
             DISCORDANTS = collectDISCORDANT(alignmentObj, sample)
 
@@ -591,30 +591,30 @@ def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, sample):
     return left_CLIPPING, right_CLIPPING
 
 
-def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang, sample):
+def collectINDELS(alignmentObj, targetEvents, minINDELlen, targetInterval, overhang, sample):
     '''
     Collect insertions and deletions longer than a threshold that are completely spanned within an input read alignment
 
     Input:
         1. alignmentObj: pysam read alignment object instance
-        2. targetSV: list with target SV (INS: insertion; DEL: deletion)
+        2. targetEvents: list with target events (INS: insertion; DEL: deletion)
         3. minINDELlen: minimum INS and DEL lenght
         4. targetInterval: tuple containing begin and end position of the target genomic interval to extract events from. If 'None' all the events spanned by the read alignment will be reported
         5. overhang: Number of flanking base pairs around the SV event to be collected from the supporting read. If 'None' the complete read sequence will be collected)        
         6. sample: type of sample (TUMOUR, NORMAL or None). 
 
     Output:
-        1. INDEL_events: dictionary containing list of SV events grouped according to the type of INDEL (only those types included in targetSV):
+        1. INDEL_events: dictionary containing list of SV events grouped according to the type of INDEL (only those types included in targetEvents):
             * INS -> list of INS objects
             * DEL -> list of DEL objects
     '''
     ## Initialize dict
     INDEL_events = {}
 
-    if ('INS' in targetSV):
+    if ('INS' in targetEvents):
         INDEL_events['INS'] = []
 
-    if ('DEL' in targetSV):   
+    if ('DEL' in targetEvents):   
         INDEL_events['DEL'] = []
 
     ## Initialize positions at query and ref
@@ -628,7 +628,7 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang,
         length = int(cigarTuple[1])
         
         ## a) INSERTION to the reference >= Xbp
-        if ('INS' in targetSV) and (operation == 1) and (length >= minINDELlen):
+        if ('INS' in targetEvents) and (operation == 1) and (length >= minINDELlen):
 
             ## Create INS if:
             # a) No interval specified OR 
@@ -643,7 +643,7 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang,
                 INDEL_events['INS'].append(INS)
 
         ## b) DELETION to the reference >= Xbp
-        if ('DEL' in targetSV) and (operation == 2) and (length >= minINDELlen):
+        if ('DEL' in targetEvents) and (operation == 2) and (length >= minINDELlen):
             
             ## Create DEL if:
             # a) No interval specified OR 

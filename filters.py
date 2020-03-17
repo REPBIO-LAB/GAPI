@@ -102,7 +102,7 @@ def filter_metacluster(metacluster, filters2Apply, confDict):
 
     ## 4. FILTER 4: Whether a metacluster has a SV_type assigned or not
     if 'SV-TYPE' in filters2Apply: 
-        if not SVTypeFilter(metacluster):
+        if not SVTypeFilter(metacluster, confDict['targetSV']):
             failedFilters.append('SV-TYPE')
 
     ## 5. FILTER 5: Minimum percentage of inserted sequence resolved
@@ -222,19 +222,20 @@ def percResolvedFilter(metacluster, minPercResolved):
 
     return PASS
 
-def SVTypeFilter(metacluster):
+def SVTypeFilter(metacluster, targetSV):
     '''
-    Filter metacluster by checking if it has a SV type assigned.
+    Filter metacluster by checking its SV type
 
     Input:
         1. metacluster: metacluster object
+        2. targetSV: list containing list of target SV types
     Output:
         1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
     '''
 
-    ## 2. Compare the percentage of outliers against the maximum required
-    if metacluster.SV_type != None:
+    if metacluster.SV_type in targetSV:
         PASS = True 
+        
     else:
         PASS = False
 

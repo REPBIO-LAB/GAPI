@@ -49,7 +49,7 @@ if __name__ == '__main__':
 	parser.add_argument('--targetBins', default=None, dest='targetBins', type=str, help='Bed file containing target genomic bins for SV calling. Overrides --binSize and --refs. Default: None')
 	parser.add_argument('-bS', '--binSize', default=1000000, dest='binSize', type=int, help='Input bams will be analised in genomic bins of this size. Default: 1000000')
 	parser.add_argument('--refs', default="ALL", dest='refs', type=str, help='Comma separated list of target references to call SV (i.e. 1,2,3,X). Default: All references included in the bam file')
-	parser.add_argument('--SV', default="INS,CLIPPING", dest='SV', type=str, help='Comma separated list of SV event types to collect (INS, DEL and CLIPPING). Default: INS,CLIPPING')
+	parser.add_argument('--target-SV', default="INS", dest='targetSV', type=str, help='Comma separated list of SV types to be detected (INS AND/OR BND). Default: INS')
 	parser.add_argument('--no-duplicates', action="store_true", default=False, dest='filterDuplicates', help='Filter out reads marked as duplicates if filter enabled')
 	parser.add_argument('--minMAPQ', default=10, dest='minMAPQ', type=int, help='Minimum mapping quality required for each read. Default: 10')
 	parser.add_argument('--readFilters', default="SMS", dest='readFilters', type=str, help='Comma separated list of read filters to apply (SMS)')
@@ -99,7 +99,7 @@ if __name__ == '__main__':
 	targetBins = args.targetBins
 	binSize = args.binSize
 	refs = args.refs
-	SV = args.SV
+	targetSV = args.targetSV
 	filterDuplicates = args.filterDuplicates
 	minMAPQ = args.minMAPQ
 	readFilters = args.readFilters
@@ -147,7 +147,7 @@ if __name__ == '__main__':
 		refs = bamtools.get_refs(bam)
 
 	# Convert comma-separated string inputs into lists:
-	targetSV = SV.split(',')
+	targetSV = targetSV.split(',')
 	targetRefs = refs.split(',')
 
 	## Determine running mode:
@@ -158,17 +158,24 @@ if __name__ == '__main__':
 		log.info('[ERROR] Abort execution as ' + technology + ' technology not supported')
 		sys.exit(1)
 
+	## Abort if SV unknown SV type provided
+	for SV_type in targetSV:		
+		if SV_type not in ['INS', 'BND']:
+			log.info('[ERROR] Abort execution as ' + SV_type + ' SV type not supported')
+			sys.exit(1)
+
 	## Abort if transduction search enabled and target families for source elements not provided
 	if (transductionSearch) and (srcFamilies is None):
 		log.info('[ERROR] Abort execution as transduction search enabled (--transduction-search) and target families for source elements not provided (--source-families)')
 		sys.exit(1)	
+
 
 	##############################################
 	## Display configuration to standard output ##
 	##############################################
 	scriptName = os.path.basename(sys.argv[0])
 	scriptName = os.path.splitext(scriptName)[0]
-	version='0.13.2'
+	version='0.13.4'
 
 	print()
 	print('***** ', scriptName, version, 'configuration *****')
@@ -193,7 +200,7 @@ if __name__ == '__main__':
 	print('targetBins: ', targetBins)
 	print('binSize: ', binSize)
 	print('targetRefs: ', refs)
-	print('targetSVs: ', SV)
+	print('targetSV: ', targetSV)
 	print('filterDuplicates: ', filterDuplicates)
 	print('minMAPQ: ', minMAPQ)
 	print('readFilters: ', readFilters)
@@ -216,7 +223,6 @@ if __name__ == '__main__':
 	print('minReadsRegionMQ: ', minReadsRegionMQ)
 	print('maxRegionlowMQ: ', maxRegionlowMQ)
 	print('maxRegionSMS: ', maxRegionSMS, "\n")
-
 	print('***** Executing ', scriptName, '.... *****', "\n")
 
 	##########
@@ -241,13 +247,27 @@ if __name__ == '__main__':
 	confDict['targetBins'] = targetBins
 	confDict['binSize'] = binSize
 	confDict['targetRefs'] = targetRefs
-	confDict['targetSV'] = targetSV
 	confDict['filterDuplicates'] = filterDuplicates	
 	confDict['readFilters'] = readFilters
 	confDict['overhang'] = overhang
 	confDict['minMAPQ'] = minMAPQ
 	confDict['minINDELlen'] = minINDELlen
 	confDict['minCLIPPINGlen'] = minCLIPPINGlen
+
+	## Target SV events to search for
+	confDict['targetSV'] = targetSV
+
+	# a) Illumina data (WGS or sureselect)
+	if (confDict['technology'] == 'ILLUMINA') or (confDict['technology'] == 'SURESELECT'):
+		confDict['targetEvents'] = 'DISCORDANT'
+	
+	# b) Long read sequencing data -> INS or INS + BND
+	elif ('INS' in confDict['targetSV']):
+		confDict['targetEvents'] = 'INS,CLIPPING'
+
+	# c) BND alone
+	elif ('BND' in confDict['targetSV']):
+		confDict['targetEvents'] = 'CLIPPING'
 
 	## Clustering
 	confDict['maxInsDist'] = maxInsDist
@@ -283,7 +303,6 @@ if __name__ == '__main__':
 
 	# C) Source elements sureselect data
 	elif confDict['technology'] == 'SURESELECT':
-		confDict['targetSV'] = ['DISCORDANT']
 		caller = callers.SV_caller_sureselect(mode, bam, normalBam, reference, refDir, confDict, outDir)
 
 	### Do calling
