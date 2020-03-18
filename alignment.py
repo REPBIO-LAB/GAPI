@@ -157,7 +157,11 @@ def alignment_bwa(FASTA, reference, fileName, processes, outDir):
     ## Align the sequences into the reference
     SAM = outDir + '/' + fileName + '.sam'
     err = open(outDir + '/align.err', 'w') 
+    
+    step = 'ALIGN'
     command = 'bwa mem -Y -t ' + str(processes) + ' ' + reference + ' ' + FASTA + ' > ' + SAM
+    log.step(step, command)
+
     status = subprocess.call(command, stderr=err, shell=True)
 
     if status != 0:
