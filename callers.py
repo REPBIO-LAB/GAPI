@@ -103,7 +103,7 @@ class SV_caller_long(SV_caller):
             clusters.INS_type_metaclusters(allMetaclusters['INS'], self.reference, refLengths, self.refDir, self.confDict['transductionSearch'], 1, outDir)
 
         # Remove output directory
-        #unix.rm([outDir])
+        unix.rm([outDir])
             
         ### 4. Resolve structure for solo, partnered and orphan transductions
         msg = '4. Resolve structure for solo, partnered and orphan transductions'
@@ -165,7 +165,8 @@ class SV_caller_long(SV_caller):
         ## 7.2 Report BND junctions
         if allJunctions:
             outFileName = 'BND_junctions_MEIGA.PASS.tsv'
-            output.write_junctions(allJunctions, outFileName, self.outDir)        
+            output.write_junctions(allJunctions, outFileName, self.outDir)
+        
         
     def make_clusters(self):
         '''
