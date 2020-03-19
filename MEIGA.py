@@ -67,7 +67,7 @@ if __name__ == '__main__':
 	parser.add_argument('--minClusterSize', default=2, dest='minClusterSize', type=int, help='Minimum number of reads composing a cluster. Default: 2')
 	parser.add_argument('--maxClusterSize', default=500, dest='maxClusterSize', type=int, help='Maximum number of reads composing a metacluster. Default: 500')
 	parser.add_argument('--maxClusterCV', default=30, dest='maxClusterCV', type=int, help='Maximum coefficient of variation of a metacluster. Default: 30')
-	parser.add_argument('--minSupportingReads', default=3, dest='minSupportingReads', type=int, help='Minimum number of reads supporting a SV. Default: 3')
+	parser.add_argument('--minSupportingReads', default=4, dest='minSupportingReads', type=int, help='Minimum number of reads supporting a SV. Default: 3')
 	parser.add_argument('--minNormalSupportingReads', default=2, dest='minNormalSupportingReads', type=int, help='Minimum number of reads supporting a SV in normal sample. Default: 2')
 	parser.add_argument('--targetStatus', default='resolved,partially_resolved', dest='targetStatus', type=str, help='Filter out those insertions with an status not included in the list. Default: resolved,partially_resolved')
 
