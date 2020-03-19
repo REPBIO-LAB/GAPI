@@ -51,7 +51,7 @@ if __name__ == '__main__':
 	parser.add_argument('--refs', default="ALL", dest='refs', type=str, help='Comma separated list of target references to call SV (i.e. 1,2,3,X). Default: All references included in the bam file')
 	parser.add_argument('--target-SV', default="INS", dest='targetSV', type=str, help='Comma separated list of SV types to be detected (INS AND/OR BND). Default: INS')
 	parser.add_argument('--no-duplicates', action="store_true", default=False, dest='filterDuplicates', help='Filter out reads marked as duplicates if filter enabled')
-	parser.add_argument('--minMAPQ', default=10, dest='minMAPQ', type=int, help='Minimum mapping quality required for each read. Default: 10')
+	parser.add_argument('--minMAPQ', default=20, dest='minMAPQ', type=int, help='Minimum mapping quality required for each read. Default: 10')
 	parser.add_argument('--readFilters', default="SMS", dest='readFilters', type=str, help='Comma separated list of read filters to apply (SMS)')
 	parser.add_argument('--readOverhang', default=5000, dest='overhang', type=int, help='Number of flanking base pairs around the SV event to be collected from the supporting read sequence. Default: 5000')
 	parser.add_argument('--minINDELlen', default=50, dest='minINDELlen', type=int, help='Minimum indel length. Default: 50')
