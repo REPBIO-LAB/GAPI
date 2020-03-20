@@ -649,7 +649,7 @@ class CLIPPING():
         clippingBeg, clippingEnd = self.readCoordinates()
         strand = '-' if self.reverse else '+'
         fields = ['clipping', 0, clippingBeg, clippingEnd, strand, self.ref, 0, self.beg, self.end, 0, 0, self.mapQual]
-        line = formats.PAF_line(fields)
+        line = formats.PAF_alignment(fields)
 
         # Add alignment
         PAF.alignments.append(line)
@@ -664,7 +664,7 @@ class CLIPPING():
             seqName = 'supplementary_' + str(index)
             supplBeg, supplEnd = supplAlignment.readCoordinates()
             fields = [seqName, 0, supplBeg, supplEnd, supplAlignment.orientation, supplAlignment.ref, 0, supplAlignment.beg, supplAlignment.end, 0, 0, supplAlignment.mapQ]
-            line = formats.PAF_line(fields)
+            line = formats.PAF_alignment(fields)
 
             # Add PAF alignment to the PAF
             PAF.alignments.append(line)

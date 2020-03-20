@@ -6,7 +6,6 @@ Module 'formats' - Contains classes for dealing with file formats such as fasta,
 # External
 import itertools
 import sys
-import formats
 
 # Internal
 import log
@@ -75,7 +74,7 @@ def bed2binDb(bedPath, refLengths, threads):
         1. wgBinDb: dictionary containing references as keys and the corresponding 'bin_database' as value
     '''
     ## Read bed
-    bed = formats.BED()
+    bed = BED()
     targetRefs = list(refLengths.keys())
     bed.read(bedPath, 'nestedDict', targetRefs)
 
@@ -334,7 +333,7 @@ class BED():
 
             # B) Data line
             else:
-                line = BED_line(fields, header)
+                line = BED_entry(fields, header)
 
                 if (targetRefs is None) or (line.ref in targetRefs):
                     lines.append(line)
@@ -374,7 +373,7 @@ class BED():
 
             # B) Data line
             else:
-                line = BED_line(fields, header)
+                line = BED_entry(fields, header)
 
                 if (targetRefs is None) or (line.ref in targetRefs):
 
@@ -423,7 +422,7 @@ class BED():
 
             # B) Data line
             else:
-                line = BED_line(fields, header)
+                line = BED_entry(fields, header)
                 
                 if (targetRefs is None) or (line.ref in targetRefs):
 
@@ -467,7 +466,7 @@ class BED():
         
         return groupedEntries
 
-class BED_line():
+class BED_entry():
     '''
     BED line class 
     '''
@@ -481,8 +480,8 @@ class BED_line():
             1. fields: list containing a bed feature (== data line)
             2. header: list containing bed header (required for parsing optional fields)
         '''
-        BED_line.number += 1 # Update instances counter
-        self.id = 'BED_line_' + str(BED_line.number)
+        BED_entry.number += 1 # Update instances counter
+        self.id = 'BED_entry_' + str(BED_entry.number)
 
         ## Mandatory fields
         self.ref = str(fields[0])
@@ -522,7 +521,7 @@ class PAF():
                 continue
 
             fields = line.split() 
-            line = PAF_line(fields)
+            line = PAF_alignment(fields)
             self.alignments.append(line)
 
     def sortByLen(self):
@@ -605,9 +604,9 @@ class PAF():
 
         return chain
 
-class PAF_line():
+class PAF_alignment():
     '''
-    PAF line class 
+    PAF entry class 
     '''
     number = 0 # Number of instances
 
@@ -615,8 +614,8 @@ class PAF_line():
         '''
         Initialize paf line
         '''
-        PAF_line.number += 1 # Update instances counter
-        self.id = 'PAF_line_' + str(PAF_line.number)
+        PAF_alignment.number += 1 # Update instances counter
+        self.id = 'PAF_alignment_' + str(PAF_alignment.number)
         self.qName = str(fields[0])
         self.qLen = int(fields[1])
         self.qBeg = int(fields[2])
@@ -647,7 +646,7 @@ class PAF_chain():
         Initialize chain instance. 
         
         Input:
-            1. alignments. List of PAF_line instances
+            1. alignments. List of PAF_alignment instances
         '''
         self.alignments = alignments
 
@@ -679,4 +678,5 @@ class PAF_chain():
             percCovered = float(alignmentLen)/self.alignments[0].qLen*100
 
         return percCovered
+
 

@@ -305,7 +305,7 @@ def alignments2PAF(alignments):
     ## 1. Initialize PAF object
     PAF = formats.PAF()
 
-    ## 2. Convert each aligned segment into a PAF_line object and add to PAF
+    ## 2. Convert each aligned segment into a PAF_alignment object and add to PAF
     for alignment in alignments:
 
         # Discard unmapped sequences
@@ -313,7 +313,7 @@ def alignments2PAF(alignments):
             
             strand = '-' if alignment.is_reverse else '+'
             fields = [alignment.query_name, alignment.infer_read_length(), alignment.query_alignment_start, alignment.query_alignment_end, strand, alignment.reference_name, alignment.reference_length, alignment.reference_start, alignment.reference_end, 0, 0, alignment.mapping_quality]
-            line = formats.PAF_line(fields)
+            line = formats.PAF_alignment(fields)
             PAF.alignments.append(line)
 
     return PAF
