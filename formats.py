@@ -6,6 +6,7 @@ Module 'formats' - Contains classes for dealing with file formats such as fasta,
 # External
 import itertools
 import sys
+import time
 
 # Internal
 import log
@@ -678,5 +679,239 @@ class PAF_chain():
             percCovered = float(alignmentLen)/self.alignments[0].qLen*100
 
         return percCovered
+
+
+class VCF():
+    '''
+    VCF class
+    '''
+
+    def __init__(self):
+        '''
+        '''
+        self.header = None
+        self.variants = []  # List of variants
+
+    def add(self, variant):
+        '''
+        Add VCF_variant instance to the VCF 
+        '''
+        self.variants.append(variant)
+
+    def create_header(self, source, build, species, refLengths, info):
+        '''
+        Create VCF header
+
+        Input:
+            1. source: Software version used to generate the insertion calls
+            2. build: Reference genome build
+            3. species: Specie
+            4. refLengths: Dictionary containing reference ids as keys and as values the length for each reference
+            5. info: Dictionary containing data to include at INFO. Dictionary keys will correspond
+                     to INFO entry identifiers while values will be 3 element lists corresponding to Number, Type and 
+                     Description fields for an INFO entry.
+
+        Output:
+            Create and include header object at VCF class
+        '''
+        self.header = VCF_header(source, build, species, refLengths, info)
+
+    def sort(self):
+        '''
+        Sort variants in increasing coordinates ordering
+        '''
+        self.variants = sorted(self.variants, key=lambda variant: (variant.chrom, variant.pos))
+
+    def write(self, IDS, outName, outDir):
+        '''
+        Write VCF into output file
+
+        Input:
+            1. IDS: Array of info fields to be listed (same order as the list)
+            2. outName: Output file name
+            3. outDir: Output directory
+
+        Output: Write VCF file 
+        '''     
+
+        ## 1. Open output filehandle    
+        outFile = outDir + '/' + outName + '.vcf'
+        outFile = open(outFile, 'w')
+
+        ## 2. Write header
+        header = self.header.build_header(IDS)
+        outFile.write(header)
+
+        ## 3. Write variants
+        for variant in self.variants:
+
+            INFO = variant.build_info(IDS)
+            row = variant.chrom + "\t" + str(variant.pos) + "\t" + str(variant.id) + "\t" + variant.ref + "\t" + variant.alt + "\t" + variant.qual + "\t" + variant.filter + "\t" + INFO + "\n"
+            outFile.write(row)
+
+        ## Close output file
+        outFile.close()
+
+
+class VCF_header():
+    '''
+    VCF header class
+    '''
+    
+    def __init__(self, source, build, species, refLengths, info):
+        '''
+        Initialize VCF header
+        '''
+        self.source = source
+        self.build = build
+        self.species = species
+        self.refLengths = refLengths
+        self.info = info
+
+    def build_header(self, IDS):
+        '''
+        Build VCF header string
+        
+        Input:
+            1. IDS: Array of info fields to be listed (same order as the list)
+
+        Output:
+            1. header: Header string
+        '''
+        ## 1. Collect general features
+        date = time.strftime("%Y%m%d")
+
+        data = {
+            'date': date,
+            'source': self.source,
+            'reference': self.build
+        }
+
+        template = """##fileformat=VCFv4.2\n##fileDate={date}\n##source={source}\n##reference={reference}\n"""
+        general = template.format(**data)
+        
+        ## 2. Build contigs
+        contigs = self.build_contigs()
+
+        ## 3. Build info
+        info = self.build_info(IDS)
+
+        ## 4. Column data names
+        colnames = '\t'.join(['#CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', "\n"])
+
+        ## 5. Join all the info
+        header = ''.join([general, contigs, info, colnames])
+        return header
+
+    def build_contigs(self):
+        '''
+        Build header INFO string 
+
+        Output:
+            1. info: Header CONTIG string
+        '''
+
+        entries = []
+        for refId in sorted(self.refLengths.keys()):
+
+            data = {
+                'refId': refId,
+                'build': self.build,
+                'length': self.refLengths[refId],
+                'species': self.species,
+            }
+            
+            template = """##contig=<ID={refId},assembly={build},length={length},species={species}>\n"""
+            entry = template.format(**data)
+            entries.append(entry)
+
+        CONTIGS = ''.join(entries)
+        
+        return CONTIGS
+
+    def build_info(self, IDS):
+        '''
+        Build header INFO string 
+
+        Input:
+            1. IDS: Array of info fields to be listed (same order as the list)
+
+        Output:
+            1. INFO: Header INFO string
+        '''
+        entries = []
+
+        for ID in IDS:
+
+            data = {
+                'ID': ID,
+                'Number': self.info[ID][0],
+                'Type': self.info[ID][1],
+                'Description': self.info[ID][2],
+            }
+            
+            template = """##INFO=<ID={ID},Number={Number},Type={Type},Description={Description}>\n"""
+            entry = template.format(**data)
+            entries.append(entry)
+
+        INFO = ''.join(entries)
+
+        return INFO
+
+class VCF_variant():
+    '''
+    VCF variant class
+    '''
+    number = 0 # Number of instances
+
+    def __init__(self, fields):
+        '''
+        Initialize VCF variant class
+        '''
+        VCF_variant.number += 1 # Update instances counter
+        self.chrom = fields[0]
+        self.pos = int(fields[1])
+        self.id = fields[2]
+        self.ref = fields[3]
+        self.alt = fields[4]
+        self.qual = fields[5]
+        self.filter = fields[6]
+        self.info = fields[7]
+
+    def build_info(self, IDS):
+        '''
+        Create info field string
+        
+        Input:
+            1. IDS: Array of info fields to be listed (same order as the list)
+
+        Output:
+            1. INFO: Info string
+        '''        
+        INFO = ''
+
+        for index, ID in enumerate(IDS):
+            
+            ## Include field
+            if (ID in self.info) and self.info[ID] is not None:
+
+                # a) Boolean
+                if isinstance(self.info[ID], bool):
+                    entry = ID
+
+                # b) Not boolean
+                else:
+                    entry = ID + '=' + str(self.info[ID])
+
+                # a) Last element
+                if index == len(IDS)-1:
+                    INFO = INFO + entry 
+
+                # b) Not last element:
+                else:
+                    INFO = INFO + entry + ';'
+
+        return INFO
+
 
 
