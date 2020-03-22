@@ -9,6 +9,7 @@ import multiprocessing as mp
 import os
 import pysam
 import time
+import pickle # Temporary
 
 # Internal
 import log
@@ -44,6 +45,36 @@ class SV_caller():
         self.outDir = outDir
         self.repeatsBinDb = None
 
+        ## Compute reference lengths
+        self.refLengths = bamtools.get_ref_lengths(self.bam)
+
+    def minimap2_index(self):
+        '''
+        Return path to minimap2 index file
+        '''
+        index = os.path.splitext(self.reference)[0] + '.mmi' 
+
+        return index
+
+    def load_annotations(self):
+        '''
+        Load set of annotations into bin databases. Set 'annotation' attribute with one key per annotation type
+        and bin databases as values
+        '''
+        annotDir = self.outDir + '/LOAD_ANNOT/'
+        unix.mkdir(annotDir)
+        annotations2load = ['REPEATS']
+
+        if self.confDict['transductionSearch']:    
+            annotations2load.append('TRANSDUCTIONS')
+
+        if True: # at one point include flag for pseudogene search
+            annotations2load.append('EXONS')
+
+        self.annotations = annotation.load_annotations(annotations2load, self.refLengths, self.refDir, self.confDict['processes'], annotDir)
+        
+        unix.rm([annotDir])
+
 
 class SV_caller_long(SV_caller):
     '''
@@ -67,12 +98,12 @@ class SV_caller_long(SV_caller):
         msg = '2. Annotate SV clusters intervals'
         log.header(msg)
 
+        # Load annotations
+        self.load_annotations()
+
         # Create output directory
         annotDir = self.outDir + '/ANNOT/'
         unix.mkdir(annotDir)
-
-        # Reference lengths, needed for repeats annotation
-        refLengths = bamtools.get_ref_lengths(self.bam)
         
         # Define annotation steps
         steps = ['REPEAT']
@@ -84,7 +115,7 @@ class SV_caller_long(SV_caller):
         for SV_type in allMetaclusters:
             
             metaclusters = allMetaclusters[SV_type]
-            annotation.annotate(metaclusters, steps, refLengths, self.refDir, self.confDict['annovarDir'], self.confDict['processes'], annotDir)
+            annotation.annotate(metaclusters, steps, self.annotations, self.confDict['annovarDir'], annotDir)
 
         # Remove annotation directory
         unix.rm([annotDir])
@@ -100,7 +131,7 @@ class SV_caller_long(SV_caller):
         if 'INS' in allMetaclusters:
 
             ## Infer insertion type
-            clusters.INS_type_metaclusters(allMetaclusters['INS'], self.reference, refLengths, self.refDir, self.confDict['transductionSearch'], 1, outDir)
+            clusters.INS_type_metaclusters(allMetaclusters['INS'], self.reference, self.annotations, 1, outDir)
 
         # Remove output directory
         unix.rm([outDir])
@@ -135,10 +166,10 @@ class SV_caller_long(SV_caller):
             outDir = self.outDir + '/BND_JUNCTIONS/'
             unix.mkdir(outDir)   
 
-            allMetaclusters['BND'] = clusters.search4bridges_metaclusters_parallel(allMetaclusters['BND'], 10000, 80, self.confDict['minSupportingReads'], 25, refLengths, self.refDir, self.confDict['processes'], outDir)
+            allMetaclusters['BND'] = clusters.search4bridges_metaclusters_parallel(allMetaclusters['BND'], 10000, 80, self.confDict['minSupportingReads'], 25, self.annotations, self.refDir, self.confDict['processes'], outDir)
 
             ### Search for BND junctions
-            allJunctions = clusters.search4junctions_metaclusters(allMetaclusters['BND'], refLengths, self.confDict['processes'], self.confDict['minSupportingReads'], 25)
+            allJunctions = clusters.search4junctions_metaclusters(allMetaclusters['BND'], self.refLengths, self.confDict['processes'], self.confDict['minSupportingReads'], 25)
             
             # Remove output directory
             unix.rm([outDir])
@@ -155,18 +186,17 @@ class SV_caller_long(SV_caller):
         
         ##  7.1 Report INS
         if 'INS' in metaclustersPass:
-            outFileName = 'INS_MEIGA.PASS.tsv'
-            output.write_INS(metaclustersPass['INS'], outFileName, self.outDir)
+            outFileName = 'INS_MEIGA.PASS'
+            output.INS2VCF(metaclustersPass['INS'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
 
         if 'INS' in metaclustersFailed:
-            outFileName = 'INS_MEIGA.FAILED.2.tsv'
-            output.write_INS(metaclustersFailed['INS'], outFileName, self.outDir)
+            outFileName = 'INS_MEIGA.FAILED_2'
+            output.INS2VCF(metaclustersFailed['INS'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
 
         ## 7.2 Report BND junctions
         if allJunctions:
-            outFileName = 'BND_junctions_MEIGA.PASS.tsv'
+            outFileName = 'BND_MEIGA.PASS.tsv'
             output.write_junctions(allJunctions, outFileName, self.outDir)
-        
         
     def make_clusters(self):
         '''
@@ -196,9 +226,9 @@ class SV_caller_long(SV_caller):
         metaclustersFailed = structures.merge_dictionaries(metaclustersFailedList)
 
         if 'INS' in metaclustersFailed:
-            outFileName = 'INS_MEIGA.FAILED.1.tsv'
-            output.write_INS(metaclustersFailed['INS'], outFileName, self.outDir)
-        
+            outFileName = 'INS_MEIGA.FAILED_1'
+            output.INS2VCF(metaclustersFailed['INS'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
+
         return metaclustersPass
 
     def make_clusters_bin(self, ref, beg, end):
@@ -337,8 +367,7 @@ class SV_caller_short(SV_caller):
         rtAnnot.read(rtAnnotBed, 'nestedDict', None) 
 
         ## Create bin database
-        refLengths = bamtools.get_ref_lengths(self.bam)
-        self.repeatsBinDb = structures.create_bin_database_parallel(refLengths, rtAnnot.lines, 1)
+        self.repeatsBinDb = structures.create_bin_database_parallel(self.refLengths, rtAnnot.lines, 1)
         
         ## 1.2 Create and index viral database
         #self.viralDb, self.viralDbIndex = databases.buildVirusDb(self.refDir, dbDir)
@@ -356,7 +385,7 @@ class SV_caller_short(SV_caller):
             transducedBed.read(transducedPath, 'nestedDict', None)
 
             ## Create bin database
-            self.transducedBinDb = structures.create_bin_database_parallel(refLengths, transducedBed.lines, 1)
+            self.transducedBinDb = structures.create_bin_database_parallel(self.refLengths, transducedBed.lines, 1)
 
         # b) Skip database creation
         else:
@@ -687,11 +716,8 @@ class SV_caller_sureselect(SV_caller):
         msg = 'Group discordant read pairs based on mate position'
         log.step(step, msg)
 
-        ## Compute reference lengths
-        refLengths = bamtools.get_ref_lengths(self.bam)
-
         ## Make groups
-        discordantClustersDict = clusters.extra_clustering_by_matePos(discordantClustersDict, refLengths, self.confDict['minClusterSize'])
+        discordantClustersDict = clusters.extra_clustering_by_matePos(discordantClustersDict, self.refLengths, self.confDict['minClusterSize'])
 
         ## 5. Filter out those clusters over NOT target reference ##
         step = 'FILTER-REF'
