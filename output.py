@@ -10,7 +10,7 @@ import formats
 
 def INS2VCF(metaclusters, index, refLengths, source, build, species, outName, outDir):
     '''
-    Write INS calls into a tsv file
+    Write INS calls into a VCF file
 
     Input:
         1. metaclusters: list containing list of INS metaclusters
