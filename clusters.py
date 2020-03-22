@@ -13,6 +13,7 @@ import itertools
 import os
 from operator import itemgetter
 from collections import Counter
+import scipy
 
 # Internal
 import log
@@ -603,48 +604,29 @@ def find_insertion_at_clipping_bkp(primary, supplementary):
     return insert
 
 
-def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transductionSearch, processes, rootOutDir):
+def INS_type_metaclusters(metaclusters, reference, annotations, processes, rootOutDir):
     '''
     For each metacluster provided as input determine the type of insertion
 
     Input:
         1. metaclusters: list of metaclusters supporting insertion events
         2. reference: Path to the reference genome in fasta format (bwa mem and minimap2 indexes must be located in the same folder)
-        3. refLengths: Dictionary containing reference ids as keys and as values the length for each reference. 
-        4. refDir: Directory containing reference databases. 
-        5. transductionSearch: boolean specifying if transduction search is enabled (True) or not (False)
-        6. processes: number of processes
-        7. rootOutDir: Root output directory
+        3. annotations: Dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values 
+        4. processes: Number of processes
+        5. rootOutDir: Root output directory
     '''      
-    ### 1. Load repeats, transduced regions and exons database 
-    msg = '1. Load repeats, transduced regions and exons database'
-    log.subHeader(msg)        
-    annotDir = rootOutDir + '/ANNOT/'
-    unix.mkdir(annotDir)
-    annotations2load = ['REPEATS']
 
-    if transductionSearch:    
-        annotations2load.append('TRANSDUCTIONS')
-
-    if True: # at one point include flag for pseudogene search
-        annotations2load.append('EXONS')
-
-    annotations = annotation.load_annotations(annotations2load, refLengths, refDir, processes, annotDir)
-
-    ## Cleanup
-    unix.rm([annotDir])
-
-    ## 2. Create fasta containing all consensus inserted sequences 
-    msg = '2. Create fasta containing all consensus inserted sequences'
+    ## 1. Create fasta containing all consensus inserted sequences 
+    msg = '1. Create fasta containing all consensus inserted sequences'
     log.info(msg)   
     fastaPath = insertedSeq2fasta(metaclusters, rootOutDir)
 
-    ## 3. Align consensus inserted sequences
-    msg = '3. Align consensus inserted sequences'
+    ## 2. Align consensus inserted sequences
+    msg = '2. Align consensus inserted sequences'
     log.info(msg) 
 
-    ## 3.1 Align consensus inserted sequences into the reference genome
-    msg = '3.1 Align consensus inserted sequences into the reference genome'
+    ## 2.1 Align consensus inserted sequences into the reference genome
+    msg = '2.1 Align consensus inserted sequences into the reference genome'
     log.info(msg)    
     SAM_genome = alignment.alignment_bwa(fastaPath, reference, 'alignments_genome', processes, rootOutDir)
 
@@ -654,8 +636,8 @@ def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transduct
     ## Organize hits according to their corresponding metacluster
     allHits_genome = alignment.organize_hits_paf(PAF_genome) 
 
-    ## 3.2 Align consensus inserted sequences into the reference genome (splicing-aware)
-    msg = '3.2 Align consensus inserted sequences into the reference genome (splicing-aware)'
+    ## 2.2 Align consensus inserted sequences into the reference genome (splicing-aware)
+    msg = '2.2 Align consensus inserted sequences into the reference genome (splicing-aware)'
     log.info(msg)    
 
     ## Minimap index for the reference
@@ -673,8 +655,8 @@ def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transduct
     allHits_splicing.read(BED_path, 'List', None)
     groupedEntries = allHits_splicing.group_entries_by_name()
 
-    ## 3.3 Align consensus inserted sequences into the viral database
-    msg = '3.3 Align consensus inserted sequences into the viral database'
+    ## 2.3 Align consensus inserted sequences into the viral database
+    msg = '2.3 Align consensus inserted sequences into the viral database'
     log.info(msg)    
 
     '''
@@ -688,14 +670,14 @@ def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transduct
     '''
     allHits_viral = {}
 
-    ## 4. For each metacluster determine the insertion type
-    msg = '4. For each metacluster determine the insertion type'
+    ## 3. For each metacluster determine the insertion type
+    msg = '3. For each metacluster determine the insertion type'
     log.info(msg)   
     
     # For each metacluster
     for metacluster in metaclusters:
 
-        ## 4.1 Collect consensus inserted sequence hits
+        ## 3.1 Collect consensus inserted sequence hits
         metaId = str(metacluster.ref) + ':' + str(metacluster.beg) + '-' + str(metacluster.end)
 
         ## Hits in the reference genome
@@ -719,7 +701,7 @@ def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transduct
         else:
             hits_viral = formats.PAF()
 
-        ## 4.2 Insertion type inference
+        ## 3.2 Insertion type inference
         metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'])
 
 
@@ -903,7 +885,7 @@ def assignAligments2metaclusters_sam(metaclusters, SAM_path):
 
     return metaclustersHits
 
-def search4bridges_metaclusters_parallel(metaclusters, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, refLengths, refDir, processes, rootDir):
+def search4bridges_metaclusters_parallel(metaclusters, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, refDir, processes, rootDir):
     '''
     Search for transduction or repeat bridges at BND junctions for a list of metacluster objects
 
@@ -913,18 +895,14 @@ def search4bridges_metaclusters_parallel(metaclusters, maxBridgeLen, minMatchPer
         3. minMatchPerc: minimum percentage of the supplementary cluster interval to match in a transduction or repeats database to make a bridge call
         4. minSupportingReads: minimum number of reads supporting the bridge
         5. minPercReads: minimum percentage of clipping cluster supporting reads composing the bridge
-        6. refLengths: dictionary containing reference ids as keys and as values the length for each reference. 
+        6. annotations: Dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values 
         7. refDir: directory containing reference databases. 
         8. processes: number of processes
         9. rootDir: root output directory
 
     For each metacluster update 'bridgeClusters' and 'bridgeType' attributes
     '''    
-    ## 1. Load repeats annnotation and transduced regions beds
-    annot2load = ['REPEATS', 'TRANSDUCTIONS']
-    annotations = annotation.load_annotations(annot2load, refLengths, refDir, processes, rootDir)
-
-    ## 2. Generate index containing consensus retrotranposon sequences + source elements downstream regions
+    ## 1. Generate index containing consensus retrotranposon sequences + source elements downstream regions
     ## Consensus retrotransposon sequences
     consensusPath = refDir + '/consensusDb.fa'
     consensus = formats.FASTA()
@@ -947,7 +925,7 @@ def search4bridges_metaclusters_parallel(metaclusters, maxBridgeLen, minMatchPer
     fileName = 'reference_sequences'  
     index = alignment.index_minimap2(fastaPath, fileName, rootDir)
 
-    ## 3. Create tuple list for multiprocessing
+    ## 2. Create tuple list for multiprocessing
     tupleList = []
 
     for metacluster in metaclusters:
@@ -956,7 +934,7 @@ def search4bridges_metaclusters_parallel(metaclusters, maxBridgeLen, minMatchPer
         fields = (metacluster, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, rootDir)
         tupleList.append(fields)
 
-    ## 4. Search for bridges
+    ## 3. Search for bridges
     pool = mp.Pool(processes=processes)
     metaclusters = pool.starmap(search4bridges_metacluster, tupleList)
     pool.close()
@@ -1929,8 +1907,38 @@ class META_cluster():
         
         return ref, beg, end
 
+    def mean_pos(self):
+        '''
+        Compute cluster mean genomic position and confidence interval around the mean 
+        
+        Output:
+            1. pos: mean genomic position
+            2. cipos: confidence interval around the mean position
+        '''
+        ## 1. Collect all begin positions
+        begs = [event.beg for event in self.events]
+
+        ## 2. Compute mean position and standard error 
+        mean = int(np.mean(begs))
+        sem = scipy.stats.sem(begs)
+
+        ## 3. Compute confidence interval positions
+        if (sem == 0) or (math.isnan(sem)):
+            CI = (mean, mean)
+        else:
+            CI = scipy.stats.t.interval(0.95, len(begs)-1, loc=mean, scale=sem)
+            
+        ## Make confidence interval relative to the mean position
+        CI = (int(CI[0] - mean), int(CI[1] - mean))
+        
+        return mean, CI
+
     def create_subclusters(self):
         '''
+        Organize cluster composing events into subclusters
+
+        Output:
+            1. subclusters: dictionary containing cluster types as keys and cluster object as values
         '''
         ## 1. Separate events according to their type into multiple lists ##
         eventTypes = events.separate(self.events)
