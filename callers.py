@@ -9,7 +9,6 @@ import multiprocessing as mp
 import os
 import pysam
 import time
-import pickle # Temporary
 
 # Internal
 import log
