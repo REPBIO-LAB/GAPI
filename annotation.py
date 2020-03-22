@@ -41,8 +41,8 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
     ## 1. Load annotated repeats into a bin database
     if 'REPEATS' in annotations2load:
 
-        repeatsBed = annotationsDir + '/repeats.bed'
-        #repeatsBed = annotationsDir + '/repeats.L1.bed'
+        #repeatsBed = annotationsDir + '/repeats.bed'
+        repeatsBed = annotationsDir + '/repeats.L1.bed'
         #repeatsBed = annotationsDir + '/repeats.chr22.bed'
         annotations['REPEATS'] = formats.bed2binDb(repeatsBed, refLengths, threads)
 
@@ -65,18 +65,16 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
 
     return annotations
 
-def annotate(events, steps, refLengths, refDir, annovarDir, processes, outDir):
+def annotate(events, steps, annotations, annovarDir, outDir):
     '''
     Annotate each input event interval based on different annotation resources.
 
     Input: 
-        1. events: list containing input events to be annotated. Events should be objects containing ref, beg and end attributes.
-        2. steps: list containing annotation steps to be performed. Possible values: REPEAT and GENE.
-        3. refLengths: Dictionary containing reference ids as keys and as values the length for each reference. 'None' if repeat annotation no enabled 
-        4. refDir: Directory containing reference databases. 'None' if repeat annotation no enabled
-        5. annovarDir: Directory containing annovar reference databases. 'None' if gene annotation no enabled 
-        6. processes: Number of processes
-        7. outDir: Output directory
+        1. events: List containing input events to be annotated. Events should be objects containing ref, beg and end attributes.
+        2. steps: List containing annotation steps to be performed. Possible values: REPEAT and GENE.
+        3. annotations: Dictionary containing bin databases for annotations.  
+        4. annovarDir: Directory containing annovar reference databases. 'None' if gene annotation no enabled 
+        5. outDir: Output directory
 
     Output:
         1. New 'repeatAnnot' attribute set for each input event. 
@@ -86,23 +84,17 @@ def annotate(events, steps, refLengths, refDir, annovarDir, processes, outDir):
         'geneAnnot' is a tuple(region,gene) 
     '''
     ## 1. Perform repeat based annotation if enabled
-    msg = '1. Perform repeat based annotation if enabled'
+    msg = '1. Repeat based annotation if enabled'
     log.subHeader(msg)   
 
     if 'REPEAT' in steps:
 
-        ## 1.1 Load repeats database ##
-        msg = '1.1 Load repeats database'
-        log.info(msg)   
-        annotations = load_annotations(['REPEATS'], refLengths, refDir, processes, outDir)
-
-        ## 1.2 Perform repeats annotation ##
-        msg = '1.2 Perform repeats annotation'
+        msg = 'Perform repeats annotation'
         log.info(msg)   
         repeats_annotation(events, annotations['REPEATS'], 200)
 
     ## 2. Perform gene-based annotation if enabled
-    msg = '2. Perform gene-based annotation if enabled'
+    msg = '2. Gene-based annotation if enabled'
     log.subHeader(msg)
 
     if 'GENE' in steps:
