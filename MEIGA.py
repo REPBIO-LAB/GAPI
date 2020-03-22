@@ -34,9 +34,11 @@ if __name__ == '__main__':
 	parser.add_argument('technology', help='Sequencing technology used to generate the data (NANOPORE, PACBIO, ILLUMINA or SURESELECT)')
 	parser.add_argument('reference', help='Reference genome in fasta format. An index of the reference generated with samtools faidx must be located in the same directory')
 	parser.add_argument('refDir', help='Directory containing reference databases (consensus sequences, source elements...)')
-
+	
 	### Optional arguments
 	## General
+	parser.add_argument('--species', default='Homo sapiens', dest='species', help='Target species. Default: Homo sapiens')
+	parser.add_argument('--build', default='GRCh37', dest='build', help='Reference genome build. Default: GRCh37')
 	parser.add_argument('--normalBam', default=None, dest='normalBam', help='Matched normal bam file. If provided MEIGA will run in PAIRED mode')
 	parser.add_argument('--transduction-search', action="store_true", default=False, dest='transductionSearch', help='Enable transduction search. If not enabled only solo events will be identified')
 	parser.add_argument('--source-families', default=None, dest='srcFamilies', type=str, help='Comma separated list of possible families for source elements mediating transductions. Default: None. Mandatory if transduction search enabled')
@@ -87,6 +89,8 @@ if __name__ == '__main__':
 
 	### Optional arguments
 	## General
+	species = args.species
+	build = args.build
 	normalBam = args.normalBam
 	transductionSearch = args.transductionSearch
 	srcFamilies = args.srcFamilies
@@ -175,7 +179,7 @@ if __name__ == '__main__':
 	##############################################
 	scriptName = os.path.basename(sys.argv[0])
 	scriptName = os.path.splitext(scriptName)[0]
-	version='0.13.4'
+	version='0.14.0'
 
 	print()
 	print('***** ', scriptName, version, 'configuration *****')
@@ -188,6 +192,8 @@ if __name__ == '__main__':
 	print('*** Optional arguments ***')
 	print('** General **')
 	print('mode: ', mode)
+	print('species: ', species)
+	print('build: ', build)
 	print('normalBam: ', normalBam)
 	print('transduction-search: ', transductionSearch)
 	print('source-families: ', srcFamilies)
@@ -237,6 +243,9 @@ if __name__ == '__main__':
 	confDict['technology'] = technology
 
 	## General
+	confDict['source'] = 'MEIGA-' + version
+	confDict['species'] = species
+	confDict['build'] = build
 	confDict['transductionSearch'] = transductionSearch
 	confDict['srcFamilies'] = srcFamilies.split(',') if srcFamilies is not None else []
 	confDict['annovarDir'] = annovarDir
