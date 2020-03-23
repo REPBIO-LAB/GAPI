@@ -66,7 +66,7 @@ if __name__ == '__main__':
 
 	## Filtering
 	# Long
-	parser.add_argument('--minClusterSize', default=2, dest='minClusterSize', type=int, help='Minimum number of reads composing a cluster. Default: 2')
+	parser.add_argument('--minClusterSize', default=4, dest='minClusterSize', type=int, help='Minimum number of reads composing a cluster. Default: 4')
 	parser.add_argument('--maxClusterSize', default=500, dest='maxClusterSize', type=int, help='Maximum number of reads composing a metacluster. Default: 500')
 	parser.add_argument('--maxClusterCV', default=40, dest='maxClusterCV', type=int, help='Maximum coefficient of variation of a metacluster. Default: 40')
 	parser.add_argument('--minSupportingReads', default=4, dest='minSupportingReads', type=int, help='Minimum number of reads supporting a SV. Default: 4')
