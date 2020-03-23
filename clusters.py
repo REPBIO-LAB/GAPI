@@ -89,7 +89,7 @@ def merge_clusters(clusters, clusterType):
     Output:
         1. cluster: merged cluster/metacluster instance
     '''
-    # A) Merge metaclusters
+    # A) Merge metaclusters        
     if clusterType == 'META':
         subclusters = []
          
@@ -434,6 +434,7 @@ def lighten_up_metaclusters(metaclusters):
         # For each metacluster
         for metacluster in metaclusters[SV_type]:
 
+            print ('evaMeta ' + str(metacluster))
             ## Set some object attributes before lightening up
             metacluster.nbTotal, metacluster.nbTumour, metacluster.nbNormal, metacluster.nbINS, metacluster.nbDEL, metacluster.nbCLIPPING = metacluster.nbEvents()
             metacluster.nbReadsTotal, metacluster.nbReadsTumour, metacluster.nbReadsNormal, metacluster.reads, metacluster.readsTumour, metacluster.readsNormal = metacluster.supportingReads()
@@ -1081,6 +1082,10 @@ class cluster():
 
         # Set cluster's reference, begin and end position
         self.ref, self.beg, self.end = self.coordinates() 
+
+        # TODO: Remove the two following lines if they are not neccessary
+	    # Set cluster ID
+        #self.id = 'CLUSTER_' + str(cluster.number) + '_' + str(os.getpid()) + '_' + str(self.ref) + '_' + str(self.beg)
 
         # Cluster filtering
         self.filters = None
@@ -1886,8 +1891,14 @@ class META_cluster():
         # Set cluster's reference, begin and end position
         self.ref, self.beg, self.end = self.coordinates() 
 
+        # TODO: Remove the following two steps if they are not neccessary 
+        ## Set metacluster ID
+        #self.id = 'META_' + str(META_cluster.number) + '_' + str(os.getpid()) + '_' + str(self.ref) + '_' + str(self.beg)
+
         # Organize events into subclusters
         self.subclusters = self.create_subclusters()
+        # NEEDED TO NOT CRUSH IN clustering.reciprocal_overlap_clustering!!!!!
+        self.rawSubclusters = clusters
 
         # Set some metacluster properties as None
         self.bkpPos = None
@@ -2179,6 +2190,85 @@ class META_cluster():
         nbTotal = len(self.events)
 
         return nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING
+
+    def percDuplicates(self):
+        '''
+        Return the number of events that compose the metacluster and are labbeled as duplicate in the input bam file. 
+        '''
+        ## Initialize counters
+        nbDiscordantDuplicatesTumour = 0
+        nbDiscordantDuplicatesNormal = 0
+        nbDiscordantDuplicatesTotal = 0
+        nbClippingDuplicatesTumour = 0
+        nbClippingDuplicatesNormal = 0
+        nbClippingDuplicatesTotal = 0
+
+        nbDiscordantTumour = 0
+        nbClippingTumour = 0
+        nbDiscordantNormal = 0
+        nbClippingNormal = 0
+        nbDiscordantTotal = 0
+        nbClippingTotal = 0
+
+        # For each event composing the metacluster
+        for event in self.events:
+
+            ## Tumour and matched normal counts
+            # a) Event identified in the TUMOUR sample
+            if event.sample == "TUMOUR":
+                if event.is_duplicate == True:
+                    if event.type == 'DISCORDANT':
+                        nbDiscordantDuplicatesTumour += 1
+                    elif event.type == 'CLIPPING':
+                        nbClippingDuplicatesTumour  += 1
+                elif event.is_duplicate == False:
+                    if event.type == 'DISCORDANT':
+                        nbDiscordantTumour += 1
+                    elif event.type == 'CLIPPING':
+                        nbClippingTumour  += 1
+
+            elif event.sample == "NORMAL":
+                if event.is_duplicate == True:
+                    if event.type == 'DISCORDANT':
+                        nbDiscordantDuplicatesNormal += 1
+                    elif event.type == 'CLIPPING':
+                        nbClippingDuplicatesNormal  += 1
+                elif event.is_duplicate == False:
+                    if event.type == 'DISCORDANT':
+                        nbDiscordantNormal += 1
+                    elif event.type == 'CLIPPING':
+                        nbClippingNormal  += 1
+            
+            # c) SINGLE sample mode
+            elif event.sample == None:
+                if event.is_duplicate == True:
+                    if event.type == 'DISCORDANT':
+                        nbDiscordantDuplicatesTotal += 1
+                    elif event.type == 'CLIPPING':
+                        nbClippingDuplicatesTotal += 1
+                elif event.is_duplicate == False:
+                    if event.type == 'DISCORDANT':
+                        nbDiscordantTotal += 1
+                    elif event.type == 'CLIPPING':
+                        nbClippingTotal  += 1
+                            
+        if nbDiscordantDuplicatesTotal == 0:
+            nbDiscordantDuplicatesTotal = nbDiscordantDuplicatesTumour + nbDiscordantDuplicatesNormal
+            nbClippingDuplicatesTotal = nbClippingDuplicatesTumour + nbClippingDuplicatesNormal
+            nbDiscordantTotal = nbDiscordantTumour + nbDiscordantNormal
+            nbClippingTotal = nbClippingTumour + nbClippingNormal
+
+        if nbDiscordantDuplicatesTotal > 0:
+            percDiscordantDuplicates = (nbDiscordantDuplicatesTotal / (nbDiscordantDuplicatesTotal + nbDiscordantTotal)) * 100
+        else:
+            percDiscordantDuplicates = 0
+        if nbClippingDuplicatesTotal > 0:
+            percClippingDuplicates = (nbClippingDuplicatesTotal / (nbClippingDuplicatesTotal + nbClippingTotal)) * 100
+        else:
+            percClippingDuplicates = 0
+
+
+        return percDiscordantDuplicates, percClippingDuplicates
         
 
     def supportingCLIPPING(self, buffer, confDict, bam, normalBam, mode):

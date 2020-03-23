@@ -480,6 +480,7 @@ class CLIPPING():
             self.mapQual = alignmentObj.mapping_quality
             self.supplAlignment = alignmentObj.get_tag('SA') if alignmentObj.has_tag('SA') else None
             self.refLen = alignmentObj.reference_length
+            self.is_duplicate = alignmentObj.is_duplicate
 
     def readCoordinates(self):
         '''
@@ -780,7 +781,7 @@ class DISCORDANT():
     '''
     number = 0 # Number of instances
     
-    def __init__(self, ref, beg, end, orientation, pair, readName, alignmentObj, sample, identity):
+    def __init__(self, ref, beg, end, orientation, pair, readName, alignmentObj, sample, identity, duplicate):
         DISCORDANT.number += 1 # Update instances counter
         self.id = 'DISCORDANT_' + str(DISCORDANT.number)
         self.type = 'DISCORDANT'
@@ -791,6 +792,7 @@ class DISCORDANT():
         self.pair = str(pair)
         self.readName = readName 
         self.sample = sample
+        self.is_duplicate = duplicate
         self.clusterId = None
         if identity == None:
             self.identity = None

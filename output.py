@@ -135,10 +135,10 @@ def writeMetaclusters(metaclustersLoL, outFileName, outDir):
     for metacluster in metaclustersList:
         filters = 'PASS' if not metacluster.failedFilters else ','.join(metacluster.failedFilters)
 
-        row = 'METACLUSTER:\tmetacluster.id\tlen(metacluster.events\tmetacluster.ref\tmetacluster.beg\tmetacluster.end\tmetacluster.bkpPos\tfilters\tmetacluster.consensusEvent\tmetacluster.identity\tmetacluster.orientation\tmetacluster.mutOrigin\n'
+        row = 'METACLUSTER:\tmetacluster.id\tlen(metacluster.events\tmetacluster.ref\tmetacluster.beg\tmetacluster.end\tmetacluster.bkpPos\tfilters\tmetacluster.consensusEvent\tmetacluster.identity\tmetacluster.orientation\tmetacluster.mutOrigin\tmetacluster.percDuplicates\n'
         outFile.write(row)
 
-        row = 'METACLUSTER: ' + str(metacluster.id) +'\t'+ str(len(metacluster.events)) +'\t'+ str(metacluster.ref) +'\t'+ str(metacluster.beg) +'\t'+ str(metacluster.end) +'\t'+ str(metacluster.bkpPos)  +'\t'+ str(filters) +'\t'+ str(metacluster.consensusEvent) +'\t'+ str(metacluster.identity) +'\t'+ str(metacluster.orientation) +'\t'+ str(metacluster.mutOrigin) + '\n'
+        row = 'METACLUSTER: ' + str(metacluster.id) +'\t'+ str(len(metacluster.events)) +'\t'+ str(metacluster.ref) +'\t'+ str(metacluster.beg) +'\t'+ str(metacluster.end) +'\t'+ str(metacluster.bkpPos)  +'\t'+ str(filters) +'\t'+ str(metacluster.consensusEvent) +'\t'+ str(metacluster.identity) +'\t'+ str(metacluster.orientation) +'\t'+ str(metacluster.mutOrigin) +'\t'+ str(metacluster.percDuplicates()) + '\n'
         outFile.write(row)
 
         for event in metacluster.events:

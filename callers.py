@@ -402,6 +402,7 @@ class SV_caller_short(SV_caller):
         
         if 'VIRUS' in self.confDict['targetINT2Search']:
             # TODO: DESILENCE
+            '''
             
             bins = bamtools.makeGenomicBins(self.bam, self.confDict['binSize'], None)
 
@@ -411,7 +412,7 @@ class SV_caller_short(SV_caller):
             pool.close()
             pool.join()
 
-            # If normal bam id present, collect also its reads
+            # If normal bam is present, collect also its reads
             if self.mode == "PAIRED":
                 bins = bamtools.makeGenomicBins(self.normalBam, self.confDict['binSize'], None)
 
@@ -426,37 +427,47 @@ class SV_caller_short(SV_caller):
             for bine in bins:
                 window = self.outDir + '/FASTAS/' + str(bine[0]) +"_"+ str(bine[1])+"_"+str(bine[2])+".fasta"
                 filenames.append(window)
-            
-            
+            '''
+            allFastas_all = self.outDir + "/allFastas_all.fasta"
             allFastas = self.outDir + "/allFastas.fasta"
             # TODO: DESILENCE
-            
-            with open(allFastas, 'w') as outfile:
+            '''
+            with open(allFastas_all, 'w') as outfile:
                 for fname in filenames:
                     with open(fname) as infile:
                         for line in infile:
                             outfile.write(line)
-            
 
             # Remove fastas:
             fastasDir = self.outDir + '/FASTAS/'
             unix.rm([fastasDir])
             
 
+			# Filter by complexity (with komplexity)
+            command = 'kz --filter --threshold 0.35 --fasta < ' + allFastas_all + ' > ' + allFastas
+			
+            err = open(self.outDir + '/komplexity.err', 'w') 
+            status = subprocess.call(command, stderr=err, shell=True)
+
+            if status != 0:
+                step = 'ALIGN'
+                msg = 'Komplexity filter failed' 
+                log.step(step, msg)
             # bwa allFastas vs viralDb keep only mapped
             # TODO: usar una funcion ya hecha (o hacer una) y mirar si el -T vale para algo
+            '''
             BAM = self.outDir + '/' + 'viralAligment' + '.bam'
             
 
             # TODO: DESILENCE
-            
+            '''
             err = open(self.outDir + '/align.err', 'w') 
             # TODO: set processes as argument
-            #command = 'bwa mem -Y -t 5 ' + self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools sort -O BAM   > ' + BAM
+            command = 'bwa mem -Y -t 5 ' + self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools view -h  | awk \'(($5=="60" && $6~/[5-9][0-9]M/) || ($6~/[0-9][0-9][0-9]M/) || ($6=="151M") || ($1 ~ /@/)){print}\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
 
             # TODO: Try if this works
             # TODO: Maybe 151M filter is too hard. But I should try something similar (maybe based on number of mistmatches)
-            command = 'bwa mem -Y -t 5 ' + self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools view -h  | awk \'($6 == "151M") || $1 ~ /@/\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
+            #command = 'bwa mem -Y -t 5 ' + self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools view -h  | awk \'($5 == "60" || $6 == "151M") || $1 ~ /@/\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
 
             status = subprocess.call(command, stderr=err, shell=True)
 
@@ -470,8 +481,7 @@ class SV_caller_short(SV_caller):
 
             # Borro allfastas
             #unix.rm([allFastas])
-            
-
+            '''
             # Read bwa result and store in a dictionary
             bamFile = pysam.AlignmentFile(BAM, 'rb')
 
@@ -565,22 +575,24 @@ class SV_caller_short(SV_caller):
                     if (alignmentObj.is_unmapped == True) or (MAPQ < maxMAPQ):
                         basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
                         del basePercs['total']
-                        #print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                        print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                        #print ('aligTags ' + str(alignmentObj.get_tags(True)) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
                         if all(perc < 85 for perc in basePercs.values()):
                             complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
-                            #print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                            if complexity > 1.3:
+                            print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                            if complexity > 1.49:
                                 eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
 
                 else:
                     if MAPQ < maxMAPQ:
                         basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
                         del basePercs['total']
-                        #print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                        print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                        print ('aligTags ' + str(alignmentObj.get_tags(True)) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
                         if all(perc < 85 for perc in basePercs.values()):
                             complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
-                            #print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                            if complexity > 1.3:
+                            print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                            if complexity > 1.49:
                                 eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
             
         ## Close 
@@ -653,22 +665,22 @@ class SV_caller_short(SV_caller):
                     if (alignmentObj.is_unmapped == True) or (MAPQ < maxMAPQ):
                         basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
                         del basePercs['total']
-                        #print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                        if all(perc < 85 for perc in basePercs.values()):
-                            complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
-                            #print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                            if complexity > 1.3:
-                                eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
+                        print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                        #if all(perc < 85 for perc in basePercs.values()):
+                        complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
+                        print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                            #if complexity > 1.49:
+                        eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
                 else:
                     if MAPQ < maxMAPQ:
                         basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
                         del basePercs['total']
-                        #print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                        if all(perc < 85 for perc in basePercs.values()):
-                            complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
-                            #print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                            if complexity > 1.3:
-                                eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
+                        print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                        #if all(perc < 85 for perc in basePercs.values()):
+                        complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
+                        print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                            #if complexity > 1.49:
+                        eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
             
         ## Close 
         bamFile.close()
@@ -708,16 +720,16 @@ class SV_caller_short(SV_caller):
         # a) Single sample mode
         if self.mode == "SINGLE":
             if 'VIRUS' in self.confDict['targetINT2Search']:
-                discordantDict = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, True, self.viralSeqs)
+                discordantDict = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, False, self.viralSeqs)
             else:
-                discordantDict = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, True, None)
+                discordantDict = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, False, None)
 
         # b) Paired sample mode (tumour & matched normal)
         else:
             if 'VIRUS' in self.confDict['targetINT2Search']:
-                discordantDict = bamtools.collectDISCORDANT_paired(ref, beg, end, self.bam, self.normalBam, self.confDict, True, self.viralSeqs)
+                discordantDict = bamtools.collectDISCORDANT_paired(ref, beg, end, self.bam, self.normalBam, self.confDict, False, self.viralSeqs)
             else:
-                discordantDict = bamtools.collectDISCORDANT_paired(ref, beg, end, self.bam, self.normalBam, self.confDict, True, None)
+                discordantDict = bamtools.collectDISCORDANT_paired(ref, beg, end, self.bam, self.normalBam, self.confDict, False, None)
 
 
         SV_types = sorted(discordantDict.keys())
@@ -738,9 +750,10 @@ class SV_caller_short(SV_caller):
             #discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'],self.bam, None, binDir, self.confDict['viralDb'])
             #discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], None, None,self.bam, None, binDir, self.confDict['viralDb'])
 
-        for discirdant in discordantDict['DISCORDANT']:
-            print ('DISCORDAAAAAAAAANT' +' '+ str(discirdant.beg) +' '+ str(discirdant.end)  +' '+ str(discirdant.orientation) +' '+ str(discirdant.pair) +' '+ str(discirdant.readName)  +' '+ str(discirdant.identity))
+        #for discirdant in discordantDict['DISCORDANT']:
+            #print ('DISCORDAAAAAAAAANT' +' '+ str(discirdant.beg) +' '+ str(discirdant.end)  +' '+ str(discirdant.orientation) +' '+ str(discirdant.pair) +' '+ str(discirdant.readName)  +' '+ str(discirdant.identity))
         
+        del discordantDict
         step = 'IDENTITY'
         SV_types = sorted(discordantsIdentity.keys())
         counts = [str(len(discordantsIdentity[SV_type])) for SV_type in SV_types]
@@ -760,19 +773,20 @@ class SV_caller_short(SV_caller):
         ## Create bins
         discordantsBinDb = structures.create_bin_database_interval(ref, beg, end, discordantsIdentity, binSizes)
 
+        del discordantsIdentity
+
         ## 4. Group discordant read pairs into clusters based on their mate identity ##
         buffer = 100
         discordantClustersDict = clusters.create_discordantClusters(discordantsBinDb, self.confDict['minClusterSize'], buffer)
 
-        '''
+        del discordantsBinDb
+        
         # TODO: Remove this print
-        for dis in discordantClustersDict.values():
+        for key, dis in discordantClustersDict.items():
+            print ('discordantClustersDict.key ' + str(key) + 'discordantClustersDict.value '+ str(dis))
             for discirdant in dis:
-                print ('DISCORDAAAAAAAAANT')
-                print (discirdant.beg)
-                print (discirdant.end)
-                print (discirdant.clusterType)
-        '''
+                print ('discordantClustersDict.values() ' + str(discirdant.id) + ' ' + str(discirdant.beg) + ' ' + str(discirdant.end) + ' ' + str(discirdant.clusterType))
+        
     
         step = 'DISCORDANT-CLUSTERING'
         SV_types = sorted(discordantClustersDict.keys())
@@ -823,8 +837,20 @@ class SV_caller_short(SV_caller):
         step = 'FILTER'
         msg = 'Filter out clusters' 
         log.step(step, msg)
-        filters2Apply = ['MIN-NBREADS', 'MAX-NBREADS', 'AREAMAPQ', 'AREASMS', 'IDENTITY']
+        # NOTE: dont look at 'MIN-NBREADS' at cluster level
+        filters2Apply = ['MAX-NBREADS', 'AREAMAPQ', 'AREASMS', 'IDENTITY']
         discordantClustersDict, discordantClustersDictFailed = filters.filter_clusters(discordantClustersDict, filters2Apply, self.confDict, self.bam)
+        # TODO: Remove this print
+        for key1, value1 in discordantClustersDict.items():
+            print ('discordantClustersDict.key_afFiltering ' + str(key1) + 'discordantClustersDict.value_afFiltering '+ str(value1))
+            for discirdant1 in value1:
+                print ('discordantClustersDict.values()_afFiltering ' + str(discirdant1.id) + ' ' + str(discirdant1.beg) + ' ' + str(discirdant1.end) + ' ' + str(discirdant1.clusterType)  + ' ' + str([event.readName for event in discirdant1.events]))
+
+
+        for key2, value2 in discordantClustersDictFailed.items():
+            print ('discordantClustersDictFailed.key_afFiltering ' + str(key2) + 'discordantClustersDictFailed.value_afFiltering '+ str(value2))
+            for discirdant2 in value2:
+                print ('discordantClustersDictFailed.values()_afFiltering ' + str(discirdant2.id) + ' ' + str(discirdant2.beg) + ' ' + str(discirdant2.end) + ' ' + str(discirdant2.clusterType)  + ' ' + str([event.readName for event in discirdant2.events]))
 
         '''
         # TODO: Remove this print
@@ -862,28 +888,43 @@ class SV_caller_short(SV_caller):
         discordantClustersBinDb = structures.create_bin_database_interval(ref, beg, end, discordantClustersDict, binSizes)
         discordantClustersFailedBinDb = structures.create_bin_database_interval(ref, beg, end, discordantClustersDictFailed, binSizes)
 
+        del discordantClustersDict
+        del discordantClustersDictFailed
         ## 7. Make reciprocal clusters ##
         # TODO SR: AJUSTAR ESTOS PARAMETROS!!! (PASARLOS SI ESO COMO OPCION EN LOS ARGUMENTOS)
         reciprocalClustersDict = clustering.reciprocal(discordantClustersBinDb, 1, 1, 300)
         reciprocalClustersFailedDict = clustering.reciprocal(discordantClustersFailedBinDb, 1, 1, 300)
 
-        '''
-        # TODO: Remove this print
-        for dis in reciprocalClustersDict.values():
-            for discirdant in dis:
-                print ('DISCORDAAAAAAAAANT AFTER RECIPROCAAAL')
-                print (discirdant.beg)
-                print (discirdant.end)
-                print (discirdant.clusterType)
-        '''
+        del discordantClustersBinDb
+        del discordantClustersFailedBinDb
 
+        # TODO: Remove this print
+        for ke3, dis3 in reciprocalClustersDict.items():
+            #reciprocalClustersDict[ke3]=set(dis3)
+            print ('discordantClustersDict.key_afReciprocal ' + str(ke3) + 'discordantClustersDict.value_afReciprocal '+ str(dis3))
+            for discirdant3 in dis3:
+                print ('discordantClustersDict.values_afReciprocal '+ str(discirdant3.id) + ' ' + str(discirdant3.beg) + ' ' + str(discirdant3.end) + ' ' + str(discirdant3.clusterType)  + ' ' + str([event.readName for event in discirdant3.events]))
+
+        for keF4, disF4 in reciprocalClustersFailedDict.items():
+            #reciprocalClustersFailedDict[keF4]=set(disF4)
+            print ('discordantClustersFailedDict.key_afReciprocal ' + str(keF4) + 'discordantClustersFailedDict.value_afReciprocal '+ str(disF4))
+            for discirdantF4 in disF4:
+                print ('discordantClustersFailedDict.values_afReciprocal '+ str(discirdantF4.id) + ' ' + str(discirdantF4.beg) + ' ' + str(discirdantF4.end) + ' ' + str(discirdantF4.clusterType)  + ' ' + str([event.readName for event in discirdantF4.events]))
+        
         ## 8. Organize reciprocal and independent discordant clusters in bin database structure ##
         reciprocalClustersBinDb = structures.create_bin_database_interval(ref, beg, end, reciprocalClustersDict, binSizes)
         reciprocalClustersFailedBinDb = structures.create_bin_database_interval(ref, beg, end, reciprocalClustersFailedDict, binSizes)
 
+        del reciprocalClustersDict
+        del reciprocalClustersFailedDict
+
         ## 9. Get all identities ##
         identities = set([iden.split('-')[2] for iden in reciprocalClustersBinDb.eventTypes])
         identitiesFailed = set([iden.split('-')[2] for iden in reciprocalClustersFailedBinDb.eventTypes])
+
+        print ('identities ' + str(identities))
+        print ('identitiesFailed ' + str(identitiesFailed))
+
 
         metaclusters=[]
         metaclustersFailed=[]
@@ -892,10 +933,12 @@ class SV_caller_short(SV_caller):
         # TODO: Mirar aqui pq habra que ajustar varios parametros
         for identity in identities:
             currentEventTypes = [eventType for eventType in reciprocalClustersBinDb.eventTypes if (identity in eventType)]
+            print ('currentEventTypes ' + str(currentEventTypes))
             metaclusters.extend(clusters.create_discordant_metaclusters(reciprocalClustersBinDb, currentEventTypes))
 
         for identityFailed in identitiesFailed:
             currentEventTypesFailed = [eventType for eventType in reciprocalClustersFailedBinDb.eventTypes if (identityFailed in eventType)]
+            print ('currentEventTypesFailed ' + str(currentEventTypesFailed))
             metaclustersFailed.extend(clusters.create_discordant_metaclusters(reciprocalClustersFailedBinDb, currentEventTypesFailed))
 
         step = 'META-CLUSTERING'
@@ -907,7 +950,7 @@ class SV_caller_short(SV_caller):
         dictMetaclusters = bkp.analyzeMetaclusters(metaclusters, self.confDict, self.bam, self.normalBam, self.mode, binDir)
         dictMetaclustersFailed = bkp.analyzeMetaclusters(metaclustersFailed, self.confDict, self.bam, self.normalBam, self.mode, binDir)
 
-        metaclustersSVType = {}
+        metaclustersSVTypeBfSecondFilter = {}
         metaclustersSVTypeFailed = {}
 
         '''
@@ -915,9 +958,9 @@ class SV_caller_short(SV_caller):
         {<clusters.META_cluster object at 0x7fe9e43936d8>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393b00>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393be0>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393c88>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393dd8>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393e10>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}}
         '''
         if dictMetaclusters:
-            metaclustersSVType['DISCORDANT'] = list(dictMetaclusters.keys())
+            metaclustersSVTypeBfSecondFilter['DISCORDANT'] = list(dictMetaclusters.keys())
         else:
-            metaclustersSVType['DISCORDANT'] = []
+            metaclustersSVTypeBfSecondFilter['DISCORDANT'] = []
 
         if dictMetaclustersFailed:
             metaclustersSVTypeFailed['DISCORDANT'] = list(dictMetaclustersFailed.keys())
@@ -925,21 +968,32 @@ class SV_caller_short(SV_caller):
             metaclustersSVTypeFailed['DISCORDANT'] = []
 
         # TODO: ANOTHER FILTER STEP, DOING ANOTHER FILE. BY THIS WAY WE ARE ALSO ASSEGING MUT.ORIGIN TO THE METACLUSTER.
-        '''
         step = 'FILTER'
         msg = 'Filter out metaclusters' 
         log.step(step, msg)
-        filters2Apply = ['MIN-NBREADS', 'MAX-NBREADS', 'AREAMAPQ', 'AREASMS', 'IDENTITY']
-        discordantClustersDict, discordantClustersDictFailed = filters.filter_clusters(metaclustersSVType, filters2Apply, self.confDict, self.bam)
-        '''
+        filters2Apply = ['MIN-NBREADS', 'MAX-NBREADS']
+        dictMetaclustersSecondFilter, dictMetaclustersSecondFilterFailedTemp = filters.filter_metaclusters(metaclustersSVTypeBfSecondFilter, filters2Apply, self.confDict)
+
+
+        metaclustersSVType = {}
+        if dictMetaclustersSecondFilter:
+            metaclustersSVType['DISCORDANT'] = dictMetaclustersSecondFilter['DISCORDANT']
+        else:
+            metaclustersSVType['DISCORDANT'] = []
+        if dictMetaclustersSecondFilterFailedTemp:
+            metaclustersSVTypeFailed['DISCORDANT'].extend(dictMetaclustersSecondFilterFailedTemp['DISCORDANT'])
 
         ### Do cleanup
         unix.rm([binDir])
 
         ## 11. Lighten up metaclusters  ##
         ## Metaclusters passing all the filters
+        #print ('eva1')
+        #print (metaclustersSVType)
         clusters.lighten_up_metaclusters(metaclustersSVType)
 
+        #print ('eva2')
+        #print (metaclustersSVTypeFailed)
         ## Filtered metaclusters
         clusters.lighten_up_metaclusters(metaclustersSVTypeFailed)
         '''

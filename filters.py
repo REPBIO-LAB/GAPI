@@ -32,7 +32,6 @@ def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
 
     ## For each type of SV
     for SV_type, metaclusters in metaclustersDict.items():
-
         ## 1. Make list with the indexes of the metaclusters do not passing some filter
         filteredIndexes = []
 
