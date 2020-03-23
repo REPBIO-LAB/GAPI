@@ -309,6 +309,9 @@ def filter_discordant_mate_position(discordants, ranges, buffer):
         ## Filter out cluster if overlap is found
         if not filterCluster:
             filteredDiscordant.append(cluster)
+        
+        else:
+           print(cluster.ref, cluster.beg, cluster.end)
 
     return filteredDiscordant
 
@@ -354,6 +357,9 @@ def filter_discordant_mate_MAPQ(discordants, minMAPQ, bam, normalBam):
             if avMAPQ >= minMAPQ:
                 filteredDiscordant.append(cluster)
                 
+            else:
+                print(cluster.ref, cluster.beg, cluster.end, avMAPQ)
+                
         # if running in paired mode and there is reads in the interval belonging to the normal bam
         else:
             
@@ -365,6 +371,9 @@ def filter_discordant_mate_MAPQ(discordants, minMAPQ, bam, normalBam):
              
             if avMAPQ_pair >= minMAPQ:
                 filteredDiscordant.append(cluster)
+            
+            else:
+                print(cluster.ref, cluster.beg, cluster.end, avMAPQ_pair)
         
     ## Close 
     bamFile.close()
@@ -398,6 +407,9 @@ def filter_germline_discordants(discordants, minNormalSupportingReads):
                 
         if count < minNormalSupportingReads:
             filteredDiscordant.append(cluster)
+        
+        else:
+            print(cluster.ref, cluster.beg, cluster.end, count)
         
     return filteredDiscordant
 
@@ -615,6 +627,9 @@ def filter_highDup_clusters(discordants, dupPerc_threshold):
         if dupPerc < dupPerc_threshold:
             
             filteredDiscordant.append(cluster)
+        
+        else:
+            print(cluster.ref, cluster.beg, cluster.end, dupPerc)
                 
     return filteredDiscordant
 
@@ -666,6 +681,9 @@ def filter_INS_unspecificRegions(discordants, threshold, bam):
             if nbDiscordants/nbProperPair > threshold:
             
                 filteredDiscordant.append(cluster)
+            
+            else:
+                print(cluster.ref, cluster.beg, cluster.end, nbDiscordants/nbProperPair)
                 
         else:
             
