@@ -109,11 +109,14 @@ if __name__ == '__main__':
 	readFilters = args.readFilters
 	overhang = args.overhang
 	minINDELlen = args.minINDELlen
-	# set minCLIPPINGlen according to technology
-	if args.technology in ['ILLUMINA', 'SURESELECT']:
-		minCLIPPINGlen = 5
-	elif args.technology in ['PACBIO', 'NANOPORE']:
-		minCLIPPINGlen = 500
+	# set minCLIPPINGlen according to technology when none has been indicated
+	if args.minCLIPPINGlen == None:
+		
+		if args.technology in ['ILLUMINA', 'SURESELECT']:
+			minCLIPPINGlen = 5
+
+		elif args.technology in ['PACBIO', 'NANOPORE']:
+			minCLIPPINGlen = 500
 
 	## Clustering
 	maxInsDist = args.maxInsDist
