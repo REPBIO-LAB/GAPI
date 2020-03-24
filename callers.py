@@ -407,7 +407,7 @@ class SV_caller_short(SV_caller):
         pool.join()
     
         # Report SV calls into output files
-        output.write_DISCORDANT(discordantClusters, self.outDir)
+        output.write_DISCORDANT(discordantClusters, self.confDict, self.mode, self.outDir)
 
         ### 5. Do cleanup
         unix.rm([dbDir])

@@ -207,47 +207,62 @@ def write_INS(INS_metaclusters, outFileName, outDir):
     ## Close output file ##
     outFile.close()
 
-def write_DISCORDANT(discordantClusters, outDir):
+
+def write_DISCORDANT(discordantClusters, confDict, mode, outDir):
     '''
     Write DISCORDANT read pair calls into a tsv file
     '''
 
     ## 1. Open output file 
-    fileName = "DISCORDANT_MEIGA.tsv"
+    fileName = "discordantClusters_MEIGA.tsv"
     outFilePath = outDir + '/' + fileName
     outFile = open(outFilePath, 'w')
 
-    ## 2. Write header 
-    row = "#ref \t beg \t end \t clusterType \t family \t nbTotal \t nbTumour \t nbNormal \t repeats \t region \t gene \n"
+    ## 2. Write header
+    row = "#ref \t beg \t end \t clusterType \t family \t nbTotal_noSupp \t nbTotal \t nbTumour \t nbNormal \t repeats \t region \t gene \t readIds \n"
     outFile.write(row)
 
-    ## 3. Write clusters 
+    ## 3. Write clusters
+    
+    # print(discordantClusters)
+    
     # Iterate over the bins
     for discordantDict in discordantClusters:
         
-        # Iterate over the cluster types
-        for key, clusterList in discordantDict.items():
-
-            key=key.replace("Simple_repeat", "Simple-repeat") #TODO find a more elegant solution. (javi: Meiga13)
-            key=key.replace("Low_complexity","Low-complexity")
+        if discordantDict != None:
         
-            orientation, clusterType, family = key.split('_')
-            clusterType = orientation + '_' + clusterType
-
-            # For each cluster from a given cluster type
-            for DISCORDANT in clusterList:
-
-                ## Collect info
-                nbTotal, nbTumour, nbNormal = DISCORDANT.nbEvents()
-                region, gene = DISCORDANT.geneAnnot if hasattr(DISCORDANT, 'geneAnnot') else ("None", "None")
+            # Iterate over the cluster types
+            for key in discordantDict.keys():
+                
+                orientation, clusterType, family = key.split('_', 2)
+                clusterType = orientation + '_' + clusterType
+                    
+                # For each cluster from a given cluster type
+                for discordantCluster in discordantDict[key]:
+                        
+                    filteredDiscordants = [discordantCluster]
+                    
+                    if filteredDiscordants != []:
+                            
+                        # Collect info
+                        # Number of events
+                        nbTotal, nbTumour, nbNormal = discordantCluster.nbEvents()
+                        # Reads Ids
+                        readIds =[]
+                        for event in discordantCluster.events:
             
-                ## TEMPORARY: Only report discordant clusters that:
-                # - Mate do not aligns on a retrotransposon
-                if (family != 'None'):
+                            readIds.append(event.readName)
+                            
+                        readIds = list(dict.fromkeys(readIds))
+                        region, gene = discordantCluster.geneAnnot if hasattr(discordantCluster, 'geneAnnot') else ("None", "None")
+                        
+                        # If cluster is in a repeat
+                        if (family != 'None'):
 
-                    # Write DISCORDANT cluster into output file
-                    row = "\t".join([DISCORDANT.ref, str(DISCORDANT.beg), str(DISCORDANT.end), clusterType, family, str(nbTotal), str(nbTumour), str(nbNormal), str(DISCORDANT.repeatAnnot), region, gene, "\n"])
-                    outFile.write(row)
+                            # Write discordantCluster into output file
+                            row = "\t".join([discordantCluster.ref, str(discordantCluster.beg), str(discordantCluster.end), clusterType, family, str(len(readIds)), str(nbTotal), str(nbTumour), str(nbNormal), str(discordantCluster.repeatAnnot), region, gene, str(readIds), "\n"])
+                            outFile.write(row)
+
 
 def writeMetaclusters(metaclustersList, outDir):
     '''
