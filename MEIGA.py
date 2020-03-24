@@ -117,6 +117,8 @@ if __name__ == '__main__':
 
 		elif args.technology in ['PACBIO', 'NANOPORE']:
 			minCLIPPINGlen = 500
+	else:
+		minCLIPPINGlen = args.minCLIPPINGlen
 
 	## Clustering
 	maxInsDist = args.maxInsDist
