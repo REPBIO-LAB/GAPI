@@ -402,7 +402,7 @@ class SV_caller_short(SV_caller):
         
         if 'VIRUS' in self.confDict['targetINT2Search']:
             # TODO: DESILENCE
-            '''
+            
             
             bins = bamtools.makeGenomicBins(self.bam, self.confDict['binSize'], None)
 
@@ -427,11 +427,11 @@ class SV_caller_short(SV_caller):
             for bine in bins:
                 window = self.outDir + '/FASTAS/' + str(bine[0]) +"_"+ str(bine[1])+"_"+str(bine[2])+".fasta"
                 filenames.append(window)
-            '''
+            
             allFastas_all = self.outDir + "/allFastas_all.fasta"
             allFastas = self.outDir + "/allFastas.fasta"
             # TODO: DESILENCE
-            '''
+            
             with open(allFastas_all, 'w') as outfile:
                 for fname in filenames:
                     with open(fname) as infile:
@@ -444,7 +444,7 @@ class SV_caller_short(SV_caller):
             
 
 			# Filter by complexity (with komplexity)
-            command = 'kz --filter --threshold 0.35 --fasta < ' + allFastas_all + ' > ' + allFastas
+            command = 'kz --filter --threshold 0.4 --fasta < ' + allFastas_all + ' > ' + allFastas
 			
             err = open(self.outDir + '/komplexity.err', 'w') 
             status = subprocess.call(command, stderr=err, shell=True)
@@ -455,15 +455,15 @@ class SV_caller_short(SV_caller):
                 log.step(step, msg)
             # bwa allFastas vs viralDb keep only mapped
             # TODO: usar una funcion ya hecha (o hacer una) y mirar si el -T vale para algo
-            '''
+            
             BAM = self.outDir + '/' + 'viralAligment' + '.bam'
             
 
             # TODO: DESILENCE
-            '''
+            
             err = open(self.outDir + '/align.err', 'w') 
             # TODO: set processes as argument
-            command = 'bwa mem -Y -t 5 ' + self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools view -h  | awk \'(($5=="60" && $6~/[5-9][0-9]M/) || ($6~/[0-9][0-9][0-9]M/) || ($6=="151M") || ($1 ~ /@/)){print}\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
+            command = 'bwa mem -Y -t 5 ' + self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools view -h  | awk \'(($5=="60" && $6~/[4-9][0-9]M/) || ($6~/[0-9][0-9][0-9]M/) || ($6=="151M") || ($1 ~ /@/)){print}\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
 
             # TODO: Try if this works
             # TODO: Maybe 151M filter is too hard. But I should try something similar (maybe based on number of mistmatches)
@@ -481,7 +481,7 @@ class SV_caller_short(SV_caller):
 
             # Borro allfastas
             #unix.rm([allFastas])
-            '''
+            
             # Read bwa result and store in a dictionary
             bamFile = pysam.AlignmentFile(BAM, 'rb')
 
