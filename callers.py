@@ -343,6 +343,7 @@ class SV_caller_short(SV_caller):
         log.header(msg)      
         allMetaclusters = self.make_clusters()
 
+        # TODO SR: ANNOTATE-REPEATS step: Desilence and put in the right place (now it is repeated in two different places) in case we want to analyse RT. If not, decide if it is neccessary or not.
         if 'ME' in self.confDict['targetINT2Search']:
             '''
             ### 2. Annotate SV clusters intervals
@@ -380,9 +381,10 @@ class SV_caller_short(SV_caller):
 
             # Remove annotation directory
             unix.rm([annotDir])
-            # CLOSE if ME in INT2search:
             '''
 
+        # TODO SR: Think if is worth it to make viral db inside MEIGA (headers, etc)
+        # TODO SR: Index viral db
         ## 1.2 Create and index viral database
         #self.viralDb, self.viralDbIndex = databases.buildVirusDb(self.refDir, dbDir)
         
@@ -391,22 +393,19 @@ class SV_caller_short(SV_caller):
         #output.write_DISCORDANT(discordantClusters, self.outDir)
         metaclustersList = list(allMetaclusters.values())
         outFileName = 'metaclusters.PASS.tsv'
+        # TODO SR: Write VCF as output!
         output.writeMetaclusters(metaclustersList, outFileName, self.outDir)
 
 
     def make_clusters(self):
 
-        # TODO SR: Make analyse RT or viruses options
-
-        # If viruses option is select, collect read name and sequence of discordant low quality reads from all bam refs
+        # If viruses option is selected, collect read name and sequence of discordant low quality reads from all bam refs
         
         if 'VIRUS' in self.confDict['targetINT2Search']:
-            # TODO: DESILENCE
-            
+            # TEMP SR: DESILENCE
             
             bins = bamtools.makeGenomicBins(self.bam, self.confDict['binSize'], None)
 
-            # TODO SR: Pass more arguments
             pool = mp.Pool(processes=self.confDict['processes'])
             pool.starmap(self.collectSeq, bins)
             pool.close()
@@ -422,6 +421,7 @@ class SV_caller_short(SV_caller):
                 pool.close()
                 pool.join()
 
+            # TODO SR: Make multiproccessing to write all sequences in the same fasta file, instead of having one fasta per bin and then merge.
             # Merge fastas:
             filenames = []
             for bine in bins:
@@ -430,7 +430,7 @@ class SV_caller_short(SV_caller):
             
             allFastas_all = self.outDir + "/allFastas_all.fasta"
             allFastas = self.outDir + "/allFastas.fasta"
-            # TODO: DESILENCE
+            # TEMP SR: DESILENCE
             
             with open(allFastas_all, 'w') as outfile:
                 for fname in filenames:
@@ -450,24 +450,22 @@ class SV_caller_short(SV_caller):
             status = subprocess.call(command, stderr=err, shell=True)
 
             if status != 0:
-                step = 'ALIGN'
+                step = 'KOMPLEXITY'
                 msg = 'Komplexity filter failed' 
                 log.step(step, msg)
+            
             # bwa allFastas vs viralDb keep only mapped
-            # TODO: usar una funcion ya hecha (o hacer una) y mirar si el -T vale para algo
+            # TODO SR: bwa allFastas vs viralDb: use exinting function (or do one) and check if bwa -T parameter does something that we need
             
             BAM = self.outDir + '/' + 'viralAligment' + '.bam'
             
 
-            # TODO: DESILENCE
+            # TEMP SR: DESILENCE
             
             err = open(self.outDir + '/align.err', 'w') 
-            # TODO: set processes as argument
+            # TODO SR: bwa allFastas vs viralDb: set proccesses and awk filtering arguments as running options
             command = 'bwa mem -Y -t 5 ' + self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools view -h  | awk \'(($5=="60" && $6~/[4-9][0-9]M/) || ($6~/[0-9][0-9][0-9]M/) || ($6=="151M") || ($1 ~ /@/)){print}\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
-
-            # TODO: Try if this works
-            # TODO: Maybe 151M filter is too hard. But I should try something similar (maybe based on number of mistmatches)
-            #command = 'bwa mem -Y -t 5 ' + self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools view -h  | awk \'($5 == "60" || $6 == "151M") || $1 ~ /@/\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
+            # TEMP SR: command = 'bwa mem -Y -t 5 ' + self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools view -h  | awk \'($5 == "60" || $6 == "151M") || $1 ~ /@/\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
 
             status = subprocess.call(command, stderr=err, shell=True)
 
@@ -479,7 +477,7 @@ class SV_caller_short(SV_caller):
             command = 'samtools index ' + BAM
             status = subprocess.call(command, stderr=err, shell=True)
 
-            # Borro allfastas
+            # TODO SR: Remove allfastas
             #unix.rm([allFastas])
             
             # Read bwa result and store in a dictionary
@@ -520,6 +518,7 @@ class SV_caller_short(SV_caller):
         if metaclustersFailed:
             metaclustersFailedList = list(metaclustersFailed.values())
             outFileName = 'metaclusters.FAILED.tsv'
+            # TODO SR: Write VCF as output!
             output.writeMetaclusters(metaclustersFailedList, outFileName, self.outDir)
 
         return metaclustersPass
@@ -528,7 +527,8 @@ class SV_caller_short(SV_caller):
         '''
         Collect read names and sequences from reads below maxMAPQ
         '''
-        # TODO SR: PASS this variables as argument
+        # TODO SR: PASS this variables (maxMAPQ, checkUnmapped, supplementary, filterDuplicates) as argument of collectSeq method.
+        # TODO SR: Think if filterDuplicates step is neccesary in collectSeq method and implement it if so.
         #filterDuplicates = True
         maxMAPQ = 20
         checkUnmapped = True
@@ -546,7 +546,7 @@ class SV_caller_short(SV_caller):
         # For each read alignment
         for alignmentObj in iterator:
 
-            ### 1. Filter out alignments based on different criteria:
+            ### Filter out alignments based on different criteria:
             MAPQ = int(alignmentObj.mapping_quality) # Mapping quality
 
             ## No query sequence available
@@ -557,7 +557,7 @@ class SV_caller_short(SV_caller):
             if (MAPQ > maxMAPQ):
                 continue
 
-            # TODO SR: make this work
+            # TODO SR: Think if filterDuplicates step is neccesary in collectSeq method and implement it if so.
             ## Duplicates filtering enabled and duplicate alignment
             #if (confDict['filterDuplicates'] == True) and (alignmentObj.is_duplicate == True):
                 #continue
@@ -566,7 +566,7 @@ class SV_caller_short(SV_caller):
             if supplementary == False and alignmentObj.is_supplementary == True:
                 continue
             
-            ## 4. Collect DISCORDANT
+            ## Collect DISCORDANT
 
             if not alignmentObj.is_proper_pair:
 
@@ -613,7 +613,7 @@ class SV_caller_short(SV_caller):
         # return sv candidates
         return
 
-    # TODO: THIS FUNCTION IS REPEATED!!!! DO IT IN A WAY THAT THERE IS ONLY ONE FOR TUMOUR AND NORMAL
+    # TODO SR: THIS METHOD (collectSeqNormal) IS REPEATED!!!! DO IT IN A WAY THAT THERE IS ONLY ONE FOR TUMOUR AND NORMAL
     def collectSeqNormal(self, ref, binBeg, binEnd):
         '''
         Collect read names and sequences from reads below maxMAPQ
@@ -741,9 +741,9 @@ class SV_caller_short(SV_caller):
         
         ## 2. Discordant read pair identity ##
         ## Determine identity
-        # NOTE: I think adapting for PAIRED mode is not needed
+        # NOTE SR: I think adapting for PAIRED mode is not needed
         #if self.mode == "SINGLE":
-            # TODO: DESILENCE
+            # TODO SR: If we want to analyse RT, we should call determine_discordant_identity in another way, depending if we are analysing RT, virus or both.
             #discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'],self.bam, None, binDir, self.confDict['viralDb'])
         discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], None, None,self.bam, None, binDir, self.confDict['targetINT2Search'])
         #else:
@@ -765,7 +765,6 @@ class SV_caller_short(SV_caller):
         msg = 'Organize discordant read pairs into genomic bins prior clustering'
         log.step(step, msg)
 
-        ## NOTE: bigger window sizes are needed for SR (see comments, ask Eva where are the comments?)
         ## Define bin database sizes 
         minBinSize = min([self.confDict['maxInsDist'], self.confDict['maxBkpDist']])
         binSizes = [minBinSize, 1000, 10000, 100000, 1000000]
@@ -781,7 +780,7 @@ class SV_caller_short(SV_caller):
 
         del discordantsBinDb
         
-        # TODO: Remove this print
+        # TODO SR: Remove this print
         for key, dis in discordantClustersDict.items():
             print ('discordantClustersDict.key ' + str(key) + 'discordantClustersDict.value '+ str(dis))
             for discirdant in dis:
@@ -798,6 +797,7 @@ class SV_caller_short(SV_caller):
             #unix.rm([binDir])
             #return None
 
+        # TODO SR: ANNOTATE-REPEATS step: Desilence and put in the right place (now it is repeated in two different places) in case we want to analyse RT. If not, decide if it is neccessary or not.
         '''
         ## 5. Check if annotated retrotransposon on the reference genome at cluster intervals ##
         # COMMENT: This is temporary and will be incorporated into the filtering function at one point
@@ -834,13 +834,13 @@ class SV_caller_short(SV_caller):
         #return discordantClustersDict
 
         ## 5. Filter discordant clusters ##
-        step = 'FILTER'
+        step = 'FILTER CLUSTERS'
         msg = 'Filter out clusters' 
         log.step(step, msg)
-        # NOTE: dont look at 'MIN-NBREADS' at cluster level
+        # NOTE SR: dont look at 'MIN-NBREADS' at cluster level
         filters2Apply = ['MAX-NBREADS', 'AREAMAPQ', 'AREASMS', 'IDENTITY']
         discordantClustersDict, discordantClustersDictFailed = filters.filter_clusters(discordantClustersDict, filters2Apply, self.confDict, self.bam)
-        # TODO: Remove this print
+        # TODO SR: Remove this print
         for key1, value1 in discordantClustersDict.items():
             print ('discordantClustersDict.key_afFiltering ' + str(key1) + 'discordantClustersDict.value_afFiltering '+ str(value1))
             for discirdant1 in value1:
@@ -853,7 +853,7 @@ class SV_caller_short(SV_caller):
                 print ('discordantClustersDictFailed.values()_afFiltering ' + str(discirdant2.id) + ' ' + str(discirdant2.beg) + ' ' + str(discirdant2.end) + ' ' + str(discirdant2.clusterType)  + ' ' + str([event.readName for event in discirdant2.events]))
 
         '''
-        # TODO: Remove this print
+        # TODO SR: Remove this print
         for dis in discordantClustersDict.values():
             for discirdant in dis:
                 print ('DISCORDAAAAAAAAANT AFTER FILTERRRIIIING')
@@ -862,8 +862,8 @@ class SV_caller_short(SV_caller):
                 print (discirdant.clusterType)
         '''
         
+        # TODO SR: Remove this piece of code (as it is re-written below)
         '''
-
         ## 6. Filter discordant metaclusters ##
 
         filters.filterClusters(discordantClustersBinDb, ['DISCORDANT'], self.confDict, self.bam)
@@ -891,14 +891,14 @@ class SV_caller_short(SV_caller):
         del discordantClustersDict
         del discordantClustersDictFailed
         ## 7. Make reciprocal clusters ##
-        # TODO SR: AJUSTAR ESTOS PARAMETROS!!! (PASARLOS SI ESO COMO OPCION EN LOS ARGUMENTOS)
+        # TODO SR: Adjust parameters of clustering.reciprocal. Maybe it is worth it make them running arguments
         reciprocalClustersDict = clustering.reciprocal(discordantClustersBinDb, 1, 1, 300)
         reciprocalClustersFailedDict = clustering.reciprocal(discordantClustersFailedBinDb, 1, 1, 300)
 
         del discordantClustersBinDb
         del discordantClustersFailedBinDb
 
-        # TODO: Remove this print
+        # TODO SR: Remove this print
         for ke3, dis3 in reciprocalClustersDict.items():
             #reciprocalClustersDict[ke3]=set(dis3)
             print ('discordantClustersDict.key_afReciprocal ' + str(ke3) + 'discordantClustersDict.value_afReciprocal '+ str(dis3))
@@ -930,7 +930,7 @@ class SV_caller_short(SV_caller):
         metaclustersFailed=[]
         ## Create metaclusters from reciprocal and independent discordant clusters taking into account identities (eventType = those eventTypes (MINUS, PLUS and RECIPROCAL) that correspond to identity).
         ## By this way, only clusters with same identity are metaclustered toguether.
-        # TODO: Mirar aqui pq habra que ajustar varios parametros
+        # TODO SR: Review here, when calling create_discordant_metaclusters, maybe there are some parameters to adjust.
         for identity in identities:
             currentEventTypes = [eventType for eventType in reciprocalClustersBinDb.eventTypes if (identity in eventType)]
             print ('currentEventTypes ' + str(currentEventTypes))
@@ -946,7 +946,7 @@ class SV_caller_short(SV_caller):
         #log.subHeader(msg)
 
         ## 10. Analyse metaclusters features and add supporting clipping reads ##
-        # TODO: Think deeper in this step and polish it.
+        # TODO SR: Now adding clipping step is better than before. Even though maybe it is not neccessary, it would be great to choose in a better way which clipping we should add to the metacluster.
         dictMetaclusters = bkp.analyzeMetaclusters(metaclusters, self.confDict, self.bam, self.normalBam, self.mode, binDir)
         dictMetaclustersFailed = bkp.analyzeMetaclusters(metaclustersFailed, self.confDict, self.bam, self.normalBam, self.mode, binDir)
 
@@ -967,8 +967,9 @@ class SV_caller_short(SV_caller):
         else:
             metaclustersSVTypeFailed['DISCORDANT'] = []
 
-        # TODO: ANOTHER FILTER STEP, DOING ANOTHER FILE. BY THIS WAY WE ARE ALSO ASSEGING MUT.ORIGIN TO THE METACLUSTER.
-        step = 'FILTER'
+        # NOTE SR: BY THIS WAY WE ARE ALSO ASSEGING MUT.ORIGIN TO THE METACLUSTER.
+        # NOTE SR: All failed metaclusters are going to only one file.
+        step = 'FILTER METACLUSTERS'
         msg = 'Filter out metaclusters' 
         log.step(step, msg)
         filters2Apply = ['MIN-NBREADS', 'MAX-NBREADS']
@@ -996,6 +997,7 @@ class SV_caller_short(SV_caller):
         #print (metaclustersSVTypeFailed)
         ## Filtered metaclusters
         clusters.lighten_up_metaclusters(metaclustersSVTypeFailed)
+        # TODO SR: Remove this print
         '''
         for meta in list(dictMetaclusters.keys()):
             for eventi in meta.events:

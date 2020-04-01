@@ -393,7 +393,7 @@ def applyFilters(clusters):
 
 
 ## [SR CHANGE]
-# TODO: Merge this function with filter_metaclsuters
+# TODO SR: Merge this function with filter_metaclusters
 def filter_clusters(clustersDict, filters2Apply, confDict, bam):
     '''
     Function to apply filters all clusters. 
@@ -562,7 +562,7 @@ def area(cluster,confDict,bam):
     percMAPQ = fraction(lowMAPQ, nbReads)
     percSMSReads = fraction(SMSReads, nbReads)
 
-    # TEMP
+    # TEMP SR
     #print ('percMAPQ '  + str(percMAPQ)  + ' ' + str([event.readName for event in cluster.events]) +' '+ str(cluster.ref) + ' ' + str(cluster.beg) + ' ' + str(cluster.end) +'\n')
     #print ('percSMSReads ' + str(percSMSReads)  + ' ' + str([event.readName for event in cluster.events]) +' '+ str(cluster.ref) + ' ' + str(cluster.beg) + ' ' + str(cluster.end) +'\n')
 

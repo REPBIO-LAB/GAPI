@@ -2281,7 +2281,7 @@ class META_cluster():
     def supportingCLIPPING(self, buffer, confDict, bam, normalBam, mode):
         # Note: This function works but you have to allow duplicates in the clipping 
 
-        # TODO: Try to improve this function to identify clippings identity
+        # TODO SR: Try to improve this function to identify clippings identity
 
         # Make custom conf. dict for only selecting duplicates
         clippingRightEventsToAdd = {}
@@ -2289,7 +2289,7 @@ class META_cluster():
         clippingConfDict = dict(confDict)
         clippingConfDict['targetSV'] = ['CLIPPING']
         clippingConfDict['minMAPQ'] = 10
-        # NOTE: Think and check if this is neccessary. I think it is not
+        # NOTE SR: Think and check if this is neccessary. I think it is not
         #confDict['minCLIPPINGlen'] = 2
 
         clippingEventsDict = {}
@@ -2322,7 +2322,7 @@ class META_cluster():
                     clippingRightEventsToAdd = bkp.chooseBkpClippings(clippingEventsDict, 'RIGHT-CLIPPING', binBeg, binEnd)
 
                     # Make clipping clusters and add events to metacluster
-                    # TODO: Think if making clusters is neccessary
+                    # TODO SR: Think if making clusters is neccessary
                     CLIPPING_clusters = self.add_clippingEvents(ref, binBeg, binEnd, clippingRightEventsToAdd, ['RIGHT-CLIPPING'], confDict)
 
             ## When the discordant cluster is LEFT, add the biggest left clipping cluster if any:
@@ -2334,7 +2334,7 @@ class META_cluster():
                     clippingLeftEventsToAdd = bkp.chooseBkpClippings(clippingEventsDict, 'LEFT-CLIPPING', binBeg, binEnd)
 
                     # Make clipping clusters and add events to metacluster
-                    # TODO: Think if making clusters is neccessary
+                    # TODO SR: Think if making clusters is neccessary
                     CLIPPING_clusters = self.add_clippingEvents(ref, binBeg, binEnd, clippingLeftEventsToAdd, ['LEFT-CLIPPING'], confDict)
 
         # When the metacluster is RECIPROCAL:
@@ -2402,7 +2402,6 @@ class META_cluster():
         '''
 
         '''
-        # TODO: add only most supported cluster (and keep cluster number for futher filtering)
         binSizes = [100, 1000]
         clippingBinDb = structures.create_bin_database_interval(ref, binBeg, binEnd, clippingEventsDict, binSizes)
         binSize = clippingBinDb.binSizes[0]

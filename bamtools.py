@@ -722,7 +722,7 @@ def collectDISCORDANT(ref, binBeg, binEnd, bam, confDict, sample, supplementary,
 
     Output:
         1. DISCORDANTS: list of discordant read pair events
-        TODO: cambiar desciption
+        TODO SR: cambiar desciption
 
     '''
 
@@ -798,6 +798,7 @@ def collectDISCORDANT(ref, binBeg, binEnd, bam, confDict, sample, supplementary,
             operations = [t[0] for t in alignmentObj.cigartuples]
             nbBlocks = operations.count(3) + 1 
 
+            # TODO SR: collectDISCORDANT: Save also specificIdentity and print it in the final file.
             if viralSeqs != None:
                 if alignmentObj.query_name in viralSeqs.keys():
                     identity = viralSeqs[alignmentObj.query_name]
@@ -808,6 +809,7 @@ def collectDISCORDANT(ref, binBeg, binEnd, bam, confDict, sample, supplementary,
 
             ## 4. Create discordant event
             # A) Read aligning in a single block (WG or RNA-seq read no spanning a splice junction)
+            # TODO SR: collectDISCORDANT: Think and check if is neccessary to take into account the number of blocks
             if nbBlocks == 1:
                 DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, orientation, pair, alignmentObj.query_name, alignmentObj, sample, identity, alignmentObj.is_duplicate)
                 DISCORDANTS.append(DISCORDANT)

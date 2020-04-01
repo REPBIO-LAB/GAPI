@@ -53,8 +53,6 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir):
         unix.mkdir(bkpDir)
 
         # a. Add supporting clipping to discordant metacluster.
-        # TODO: Reduce region for looking at CLIPPING
-        # TODO: Different for IC.
         CLIPPING_clusters = metacluster.supportingCLIPPING(100, confDict, bam, normalBam, mode)
         if CLIPPING_clusters is not None:
             # Choose bkp with highest number of clipping events
@@ -80,9 +78,7 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir):
 
         # c. Make sequences of integrations for each bkp.
         #dictMetaclusters[metacluster]['leftSeq'], dictMetaclusters[metacluster]['rightSeq'] = makeConsSeqs(CLIPPING_cluster, 'REF', db, indexDb, bkpDir)
-            # TODO: alig only inserted side not everything
-            # TODO: DESILENCE
-            # TODO: POLISH THIS PART!!!
+            # TODO SR: Polish and activate consensus bkp sequence step (strategy: alig only inserted side not everything)
             '''
             leftRefConsensusSeq = makeConsSeqs(CLIPPING_cluster, 'left', 'REF', bkpDir)[1]
             rightRefConsensusSeq = makeConsSeqs(CLIPPING_cluster, 'right', 'REF', bkpDir)[1]
@@ -115,7 +111,7 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir):
 
     return dictMetaclusters
 
-# TODO: UNUSED FUNCTION
+# TODO SR: UNUSED FUNCTION clippingBkp
 def clippingBkp(CLIPPING_clusters):
     '''
     Look for reference breakpoint (most supported coordinate by clipping events added above) and remove those clipping events that dont support the bkp

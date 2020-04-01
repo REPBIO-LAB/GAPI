@@ -270,7 +270,7 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
                     #if clusterType == 'META':
                         #print ('13. clusterId = clustersOverlapA[0] ' +str(clusterId) +' ' + str(eventsInClusters) +' '+ str(idx) +' '+ str(eventA) +' '+ str(events) +' '+ str(index) +' '+ str(windowSize) +' '+ str(eventsInClusters) +' '+ str(clustersDict) +' '+ str(os.getpid()))
 
-                    ## TODO: Remove this when debugging is done!!!
+                    ## TODO SR: Remove this KeyError message at reciprocal_overlap_clustering when debugging is done!!!
                     try:
                         clustersDict[clusterId].add(events2Cluster)
                     except KeyError:
@@ -285,7 +285,7 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
 
                     ## Make list of clusters overlapping A
                     #print ('14a. [ clusterId for clusterId in clustersOverlapA ] ' + str(clustersOverlapA))
-                    ## TODO: Remove this when debugging is done!!!
+                    ## TODO SR: Remove this KeyError message at reciprocal_overlap_clustering when debugging is done!!!
                     try:
                         clusters2merge = [ clustersDict[clusterId] for clusterId in clustersOverlapA ]
                     except KeyError:
@@ -325,6 +325,7 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
                             #print ('clusters2merge_clusterIdBf ' + str(cluster.id))
                             #print ('clusters2merge_clustersOverlapABf ' + str(clustersOverlapA))
                         
+                        # TODO SR: Remove this piece of commented code
                         '''
                         FUNCIONO
                         if 'META' in cluster.id:
@@ -352,19 +353,21 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
                             #print ('clusters2merge_clusterIdAf ' + str(cluster.id))
                             #print ('clusters2merge_clustersOverlapAAfRemove ' + str(clustersOverlapA))
 
-                        # NEEDED TO NOT CRUSH!!!!!
+                        # NOTE SR: NEEDED TO NOT CRASH!!!!!
                         if 'META' in mergedCluster.id:
+                            # TODO SR: Remove this piece of commented code, as it was copied to clusters.py
                             #for clusterNew in cluster.rawSubclusters:
                                 #print ('18. clusterNewBf' + str(clusterNew) +' '+ str(clusterNew.id) +' '+ str(clusterNew.clusterId) +' ' + str(eventsInClusters) +' '+ str(idx) +' '+ str(eventA) +' '+ str(events) +' '+ str(index) +' '+ str(windowSize) +' '+ str(eventsInClusters) +' '+ str(clustersDict) +' '+ str(os.getpid()))
                                 #clusterNew.clusterId = mergedCluster.id
                                 #print ('19. clusterNewAf' + str(clusterNew) +' '+ str(clusterNew.id) +' '+ str(clusterNew.clusterId) +' ' + str(eventsInClusters) +' '+ str(idx) +' '+ str(eventA) +' '+ str(events) +' '+ str(index) +' '+ str(windowSize) +' '+ str(eventsInClusters) +' '+ str(clustersDict) +' '+ str(os.getpid()))
-                            # NUEVO 
                             if cluster.id in clustersOverlapA:
                                 clustersOverlapA.remove(cluster.id)
                                 if mergedCluster.id not in clustersOverlapA:
                                     clustersOverlapA.append(mergedCluster.id)
-                            #del cluster	
-
+                            # TODO SR: Remove this commented code
+                            #del cluster
+	
+                    # TODO SR: Remove this piece of commented code
                     '''
                     if 'META' in mergedCluster.id:
                         for clusterNew in mergedCluster.subclusters.values():
