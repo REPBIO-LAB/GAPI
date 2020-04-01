@@ -563,8 +563,8 @@ def area(cluster,confDict,bam):
     percSMSReads = fraction(SMSReads, nbReads)
 
     # TEMP
-    print ('percMAPQ '  + str(percMAPQ)  + ' ' + str([event.readName for event in cluster.events]) +' '+ str(cluster.ref) + ' ' + str(cluster.beg) + ' ' + str(cluster.end) +'\n')
-    print ('percSMSReads ' + str(percSMSReads)  + ' ' + str([event.readName for event in cluster.events]) +' '+ str(cluster.ref) + ' ' + str(cluster.beg) + ' ' + str(cluster.end) +'\n')
+    #print ('percMAPQ '  + str(percMAPQ)  + ' ' + str([event.readName for event in cluster.events]) +' '+ str(cluster.ref) + ' ' + str(cluster.beg) + ' ' + str(cluster.end) +'\n')
+    #print ('percSMSReads ' + str(percSMSReads)  + ' ' + str([event.readName for event in cluster.events]) +' '+ str(cluster.ref) + ' ' + str(cluster.beg) + ' ' + str(cluster.end) +'\n')
 
 
     ## If the percentage of low MQ reads is lower than the threshold pass the filter.

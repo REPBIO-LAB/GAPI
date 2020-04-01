@@ -575,11 +575,11 @@ class SV_caller_short(SV_caller):
                     if (alignmentObj.is_unmapped == True) or (MAPQ < maxMAPQ):
                         basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
                         del basePercs['total']
-                        print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                        #print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
                         #print ('aligTags ' + str(alignmentObj.get_tags(True)) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
                         if all(perc < 85 for perc in basePercs.values()):
                             complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
-                            print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                            #print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
                             if complexity > 1.49:
                                 eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
 
@@ -587,11 +587,11 @@ class SV_caller_short(SV_caller):
                     if MAPQ < maxMAPQ:
                         basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
                         del basePercs['total']
-                        print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                        print ('aligTags ' + str(alignmentObj.get_tags(True)) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                        #print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                        #print ('aligTags ' + str(alignmentObj.get_tags(True)) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
                         if all(perc < 85 for perc in basePercs.values()):
                             complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
-                            print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                            #print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
                             if complexity > 1.49:
                                 eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
             
@@ -665,20 +665,20 @@ class SV_caller_short(SV_caller):
                     if (alignmentObj.is_unmapped == True) or (MAPQ < maxMAPQ):
                         basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
                         del basePercs['total']
-                        print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                        #print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
                         #if all(perc < 85 for perc in basePercs.values()):
                         complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
-                        print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                        #print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
                             #if complexity > 1.49:
                         eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
                 else:
                     if MAPQ < maxMAPQ:
                         basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
                         del basePercs['total']
-                        print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                        #print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
                         #if all(perc < 85 for perc in basePercs.values()):
                         complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
-                        print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                        #print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
                             #if complexity > 1.49:
                         eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
             

@@ -55,10 +55,28 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir):
         # a. Add supporting clipping to discordant metacluster.
         # TODO: Reduce region for looking at CLIPPING
         # TODO: Different for IC.
-        CLIPPING_cluster = metacluster.supportingCLIPPING(200, confDict, bam, normalBam, mode)
-        # b. Look for reference breakpoint (most supported coordinate by clipping events added above) and remove those clipping events that dont support the bkp
-        if CLIPPING_cluster is not None:
-            dictMetaclusters[metacluster]['refLeftBkp'], dictMetaclusters[metacluster]['refRightBkp'] = clippingBkp(CLIPPING_cluster)
+        CLIPPING_clusters = metacluster.supportingCLIPPING(100, confDict, bam, normalBam, mode)
+        if CLIPPING_clusters is not None:
+            # Choose bkp with highest number of clipping events
+            leftBkp = None
+            rightBkp = None
+            leftBkps = []
+            rightBkps = []
+            allEvents = []
+            for cluster in CLIPPING_clusters:
+                allEvents.extend(cluster.events)
+            for event in allEvents:
+                if event.clippedSide == 'left':
+                    leftBkps.append(event.beg)
+                elif event.clippedSide == 'right':
+                    rightBkps.append(event.beg)
+
+            if len(leftBkps) > 0:
+                leftBkp = max(set(leftBkps), key=leftBkps.count)
+            if len(rightBkps) > 0:
+                rightBkp = max(set(rightBkps), key=rightBkps.count)
+
+            dictMetaclusters[metacluster]['refLeftBkp'], dictMetaclusters[metacluster]['refRightBkp'] = leftBkp, rightBkp
 
         # c. Make sequences of integrations for each bkp.
         #dictMetaclusters[metacluster]['leftSeq'], dictMetaclusters[metacluster]['rightSeq'] = makeConsSeqs(CLIPPING_cluster, 'REF', db, indexDb, bkpDir)
@@ -97,7 +115,8 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir):
 
     return dictMetaclusters
 
-def clippingBkp(CLIPPING_cluster):
+# TODO: UNUSED FUNCTION
+def clippingBkp(CLIPPING_clusters):
     '''
     Look for reference breakpoint (most supported coordinate by clipping events added above) and remove those clipping events that dont support the bkp
 
@@ -222,3 +241,64 @@ def bkpINT(metacluster, consensusPath, db, outDir):
         intBkp = None
 
     return intBkp
+
+def determinePlusBkpArea(beg, end, events, buffer):
+    plusBkp = []
+    # If there are clippings in discordant events: Collect all clipping bkp genomic positions
+    for discordantPlus in events:
+        lastOperation, lastOperationLen = discordantPlus.cigarTuples[-1]
+        # Collect all clipping bkp genomic positions
+        if ((lastOperation == 4) or (lastOperation == 5)):
+            plusBkp.append(discordantPlus.end)
+
+    # The region to look for clippings will be [the most left bkp -2 : the most left bkp +2]
+    if len(plusBkp) > 0:
+        binBeg = min(plusBkp) - 5 if min(plusBkp) >= 5 else 0
+        binEnd = max(plusBkp) + 5
+    
+    # If there are NOT clippings in discordant events
+    # The region to look for clippings will be metacluster positions + buffer
+    else:
+        binBeg = beg
+        binEnd = end + buffer
+    return binBeg, binEnd
+
+def determineMinusBkpArea(beg, end, events, buffer):
+    minusBkp = []
+    # If there are clippings in discordant events: Collect all clipping bkp genomic positions
+    for discordantMinus in events:
+        firstOperation, firstOperationLen = discordantMinus.cigarTuples[0]
+        # Collect all clipping bkp genomic positions
+        if ((firstOperation == 4) or (firstOperationLen == 5)):
+            minusBkp.append(discordantMinus.beg)
+
+    # The region to look for clippings will be [the most left bkp -2 : the most left bkp +2]
+    if len(minusBkp) > 0:
+        binBeg = min(minusBkp) - 5 if min(minusBkp) >= 5 else 0
+        binEnd = max(minusBkp) + 5
+    
+    # If there are NOT clippings in discordant events
+    # The region to look for clippings will be metacluster positions + buffer
+    else:
+        binBeg = beg - buffer if beg > buffer else 0
+        # TODO check as above
+        binEnd = end
+    return binBeg, binEnd
+
+def chooseBkpClippings(clippingEventsDict, eventType, binBeg, binEnd):
+    # eventType = 'RIGHT-CLIPPING' or 'LEFT-CLIPPING'
+    clippingEventsToAdd = {}
+    clippingEventsToAdd[eventType] = []
+    
+    ## Get clipping clusters:
+    clippingEventsDict = dict((key,value) for key, value in clippingEventsDict.items() if key == eventType)
+    for clippingEvent in clippingEventsDict[eventType]:
+        if eventType == 'RIGHT-CLIPPING':
+            if binBeg <= clippingEvent.end <= binEnd:
+                clippingEventsToAdd[eventType].append(clippingEvent)
+        elif eventType == 'LEFT-CLIPPING':
+            if binBeg <= clippingEvent.beg <= binEnd:
+                clippingEventsToAdd[eventType].append(clippingEvent)
+
+    return clippingEventsDict
+

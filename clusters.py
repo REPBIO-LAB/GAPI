@@ -94,9 +94,14 @@ def merge_clusters(clusters, clusterType):
         subclusters = []
          
         for metacluster in clusters:
-            subclusters = subclusters + list(metacluster.subclusters.values())
+            #subclusters = subclusters + list(metacluster.subclusters.values())
+            subclusters = subclusters + list(metacluster.rawSubclusters)
 
         mergedCluster = create_cluster(subclusters, clusterType)
+
+        for metacluster in clusters:
+            for clusterNew in metacluster.rawSubclusters:
+                clusterNew.clusterId = mergedCluster.id
 
     # B) Merge standard clusters
     else:
@@ -434,7 +439,7 @@ def lighten_up_metaclusters(metaclusters):
         # For each metacluster
         for metacluster in metaclusters[SV_type]:
 
-            print ('evaMeta ' + str(metacluster))
+            #print ('evaMeta ' + str(metacluster))
             ## Set some object attributes before lightening up
             metacluster.nbTotal, metacluster.nbTumour, metacluster.nbNormal, metacluster.nbINS, metacluster.nbDEL, metacluster.nbCLIPPING = metacluster.nbEvents()
             metacluster.nbReadsTotal, metacluster.nbReadsTumour, metacluster.nbReadsNormal, metacluster.reads, metacluster.readsTumour, metacluster.readsNormal = metacluster.supportingReads()
@@ -2015,6 +2020,8 @@ class META_cluster():
         # Update input cluster's clusterId attribute
         for cluster in clusters2add:
             cluster.clusterId = self.id
+        
+        self.rawSubclusters.extend(clusters2add)
 
     def addEvents(self, eventsList):
         '''
@@ -2274,45 +2281,122 @@ class META_cluster():
     def supportingCLIPPING(self, buffer, confDict, bam, normalBam, mode):
         # Note: This function works but you have to allow duplicates in the clipping 
 
+        # TODO: Try to improve this function to identify clippings identity
+
         # Make custom conf. dict for only selecting duplicates
+        clippingRightEventsToAdd = {}
+        clippingLeftEventsToAdd = {}
         clippingConfDict = dict(confDict)
         clippingConfDict['targetSV'] = ['CLIPPING']
         clippingConfDict['minMAPQ'] = 10
+        # NOTE: Think and check if this is neccessary. I think it is not
+        #confDict['minCLIPPINGlen'] = 2
 
         clippingEventsDict = {}
+        CLIPPING_clusters = []
 
         ## Define region
-        binBeg = self.beg - buffer if self.beg > buffer else 0
-        
-        # TODO check as above
-        binEnd = self.end
+        if self.orientation != 'RECIPROCAL':
+            if self.orientation == 'PLUS':
+                # Determine the area where clipping events must be searched
+                binBeg, binEnd = bkp.determinePlusBkpArea(self.beg, self.end, self.events, buffer)
 
-        ref = self.ref
+            elif self.orientation == 'MINUS':
+                # Determine the area where clipping events must be searched
+                binBeg, binEnd = bkp.determineMinusBkpArea(self.beg, self.end, self.events, buffer)
 
-        if mode == "SINGLE":
-            clippingEventsDict = bamtools.collectSV(ref, binBeg, binEnd, bam, clippingConfDict, None, False)
-        elif mode == "PAIRED":
-            clippingEventsDict = bamtools.collectSV_paired(ref, binBeg, binEnd, bam, normalBam, clippingConfDict)
+            ref = self.ref
 
-        ## When the discordant cluster is RIGHT, add the biggest right clipping cluster if any:
-        if all (event.orientation == 'PLUS' for event in self.events):
+            if mode == "SINGLE":
+                clippingEventsDict = bamtools.collectSV(ref, binBeg, binEnd, bam, clippingConfDict, None, False)
+
+            elif mode == "PAIRED":
+                clippingEventsDict = bamtools.collectSV_paired(ref, binBeg, binEnd, bam, normalBam, clippingConfDict)
+
+            ## When the discordant cluster is RIGHT, add the biggest right clipping cluster if any:
+            #if all (event.orientation == 'PLUS' for event in self.events):
+            # When the metacluster is RIGHT:
+            if self.orientation == 'PLUS':
+                if 'RIGHT-CLIPPING' in clippingEventsDict.keys():
+                    # Keep only those clipping event which have their clipping bkp is in the desired area
+                    clippingRightEventsToAdd = bkp.chooseBkpClippings(clippingEventsDict, 'RIGHT-CLIPPING', binBeg, binEnd)
+
+                    # Make clipping clusters and add events to metacluster
+                    # TODO: Think if making clusters is neccessary
+                    CLIPPING_clusters = self.add_clippingEvents(ref, binBeg, binEnd, clippingRightEventsToAdd, ['RIGHT-CLIPPING'], confDict)
+
+            ## When the discordant cluster is LEFT, add the biggest left clipping cluster if any:
+            #elif all (event.orientation == 'MINUS' for event in self.events):
+            # When the metacluster is MINUS:
+            elif self.orientation == 'MINUS':
+                if 'LEFT-CLIPPING' in clippingEventsDict.keys():
+                    # Keep only those clipping event which have their clipping bkp is in the desired area
+                    clippingLeftEventsToAdd = bkp.chooseBkpClippings(clippingEventsDict, 'LEFT-CLIPPING', binBeg, binEnd)
+
+                    # Make clipping clusters and add events to metacluster
+                    # TODO: Think if making clusters is neccessary
+                    CLIPPING_clusters = self.add_clippingEvents(ref, binBeg, binEnd, clippingLeftEventsToAdd, ['LEFT-CLIPPING'], confDict)
+
+        # When the metacluster is RECIPROCAL:
+        # Fisrt separate PLUS AND MINUS events and them do the same as above 
+        elif self.orientation == 'RECIPROCAL':
+            clippingPlusEventsDict = {}
+            clippingMinusEventsDict = {}
+
+            reciprocalPlusEvents = [eventP for eventP in self.events if eventP.orientation == 'PLUS']
+
+            #print ('reciprocalPlusEvents ' + str(reciprocalPlusEvents))
+
+            binBegP, binEndP = bkp.determinePlusBkpArea(self.beg, self.end, reciprocalPlusEvents, buffer)
+
+            ref = self.ref
+
+            if mode == "SINGLE":
+                clippingPlusEventsDict = bamtools.collectSV(ref, binBegP, binEndP, bam, clippingConfDict, None, False)
+            elif mode == "PAIRED":
+                clippingPlusEventsDict = bamtools.collectSV_paired(ref, binBegP, binEndP, bam, normalBam, clippingConfDict)
             
-            ## Get clipping clusters:
-            clippingRightEventsDict = dict((key,value) for key, value in clippingEventsDict.items() if key == 'RIGHT-CLIPPING')
-            CLIPPING_cluster = self.add_clippingEvents(ref, binBeg, binEnd, clippingRightEventsDict, ['RIGHT-CLIPPING'], confDict)
+            if 'RIGHT-CLIPPING' in clippingPlusEventsDict.keys():
 
-        ## When the discordant cluster is LEFT, add the biggest left clipping cluster if any:
-        elif all (event.orientation == 'MINUS' for event in self.events):
+                #print ('clippingPlusEventsDict ' + str(clippingPlusEventsDict))
+
+                clippingRightEventsToAdd = bkp.chooseBkpClippings(clippingPlusEventsDict, 'RIGHT-CLIPPING', binBegP, binEndP)
+
+                #print ('clippingRightEventsToAdd ' + str(clippingRightEventsToAdd))
+
+            reciprocalMinusEvents = [eventM for eventM in self.events if eventM.orientation == 'MINUS']
+
+            #print ('reciprocalMinusEvents ' + str(reciprocalMinusEvents))
+
+            binBegM, binEndM = bkp.determineMinusBkpArea(self.beg, self.end, reciprocalMinusEvents, buffer)
+
+            ref = self.ref
+
+            if mode == "SINGLE":
+                clippingMinusEventsDict = bamtools.collectSV(ref, binBegM, binEndM, bam, clippingConfDict, None, False)
+            elif mode == "PAIRED":
+                clippingMinusEventsDict = bamtools.collectSV_paired(ref, binBegM, binEndM, bam, normalBam, clippingConfDict)
             
-            ## Get clipping clusters:
-            clippingLeftEventsDict = dict((key,value) for key, value in clippingEventsDict.items() if key == 'LEFT-CLIPPING')
-            CLIPPING_cluster = self.add_clippingEvents(ref, binBeg, binEnd, clippingLeftEventsDict, ['LEFT-CLIPPING'], confDict)
+            if 'LEFT-CLIPPING' in clippingMinusEventsDict.keys():
 
-        # TODO if it is reciprocal
-        else:
-            CLIPPING_cluster = self.add_clippingEvents(ref, binBeg, binEnd, clippingEventsDict, ['RIGHT-CLIPPING', 'LEFT-CLIPPING'], confDict)
+                #print ('clippingMinusEventsDict ' + str(clippingMinusEventsDict))
 
-        return CLIPPING_cluster
+                clippingLeftEventsToAdd = bkp.chooseBkpClippings(clippingMinusEventsDict, 'LEFT-CLIPPING', binBegM, binEndM)
+
+                #print ('clippingLeftEventsToAdd ' + str(clippingLeftEventsToAdd))
+
+            clippingRightEventsToAdd.update(clippingLeftEventsToAdd)
+            clippingEventsDict = clippingRightEventsToAdd
+
+            #print ('clippingEventsDict ' + str(clippingEventsDict))
+
+
+            if clippingEventsDict:
+                CLIPPING_clusters = self.add_clippingEvents(ref, binBegP, binEndM, clippingEventsDict, ['RIGHT-CLIPPING', 'LEFT-CLIPPING'], confDict)
+
+        #print ('CLIPPING_clusters ' + str(CLIPPING_clusters))
+
+        return CLIPPING_clusters
         
     def add_clippingEvents(self, ref, binBeg, binEnd, clippingEventsDict, eventTypes, confDict):
         '''
@@ -2325,17 +2409,16 @@ class META_cluster():
         CLIPPING_clusters = clustering.distance_clustering(clippingBinDb, binSize, eventTypes, 'CLIPPING', confDict['maxBkpDist'], confDict['minClusterSize']) 
 
         # If there is a clipping cluster
-        if len (CLIPPING_clusters) > 0:
+        for CLIPPING_cluster in CLIPPING_clusters:
             
             ## Choose the clipping cluster with the highest number of events:
             # Coger el cluster de la lista de clusters si si length es igual a la maxima length de todos los clusters de la lista. (como devuelve una lista de un solo elemento, cojo el primer elemento de la lista.)
-            # TODO: si hay dos con el mismo numero de eventos.
-            CLIPPING_cluster = [cluster for cluster in CLIPPING_clusters if len(cluster.events) == max([len(cluster.events) for cluster in CLIPPING_clusters])][0]
+            #CLIPPING_cluster = [cluster for cluster in CLIPPING_clusters if len(cluster.events) == max([len(cluster.events) for cluster in CLIPPING_clusters])][0]
 
             ## Add cluster's reads to the discordant metacluster:
             self.addEvents(CLIPPING_cluster.events)
 
-            return CLIPPING_cluster
+        return CLIPPING_clusters
 
             ## Remove events from discordant cluster that are higher (more to the right) than the clippingEnd
             # discordantCluster.removeDiscordant(clippingEnd, 'right')
