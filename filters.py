@@ -309,6 +309,9 @@ def filter_discordant_mate_position(discordants, ranges, buffer):
         ## Filter out cluster if overlap is found
         if not filterCluster:
             filteredDiscordant.append(cluster)
+        
+        else:
+           print(cluster.ref, cluster.beg, cluster.end)
 
     return filteredDiscordant
 
@@ -354,6 +357,9 @@ def filter_discordant_mate_MAPQ(discordants, minMAPQ, bam, normalBam):
             if avMAPQ >= minMAPQ:
                 filteredDiscordant.append(cluster)
                 
+            else:
+                print(cluster.ref, cluster.beg, cluster.end, avMAPQ)
+                
         # if running in paired mode and there is reads in the interval belonging to the normal bam
         else:
             
@@ -365,6 +371,9 @@ def filter_discordant_mate_MAPQ(discordants, minMAPQ, bam, normalBam):
              
             if avMAPQ_pair >= minMAPQ:
                 filteredDiscordant.append(cluster)
+            
+            else:
+                print(cluster.ref, cluster.beg, cluster.end, avMAPQ_pair)
         
     ## Close 
     bamFile.close()
@@ -398,6 +407,9 @@ def filter_germline_discordants(discordants, minNormalSupportingReads):
                 
         if count < minNormalSupportingReads:
             filteredDiscordant.append(cluster)
+        
+        else:
+            print(cluster.ref, cluster.beg, cluster.end, count)
         
     return filteredDiscordant
 
@@ -615,6 +627,9 @@ def filter_highDup_clusters(discordants, dupPerc_threshold):
         if dupPerc < dupPerc_threshold:
             
             filteredDiscordant.append(cluster)
+        
+        else:
+            print(cluster.ref, cluster.beg, cluster.end, dupPerc)
                 
     return filteredDiscordant
 
@@ -666,9 +681,47 @@ def filter_INS_unspecificRegions(discordants, threshold, bam):
             if nbDiscordants/nbProperPair > threshold:
             
                 filteredDiscordant.append(cluster)
+            
+            else:
+                print(cluster.ref, cluster.beg, cluster.end, nbDiscordants/nbProperPair)
                 
         else:
             
             filteredDiscordant.append(cluster)
             
     return filteredDiscordant
+
+
+
+def filter_clusterRange(discordants, buffer, readSize):
+    '''
+    
+    Filter out those clusters whose range is not greater than the read size
+    
+    Input:
+        1. discordants: list of discordant clusters formed by DISCORDANT events
+        3. buffer: clusterRange > readSize + buffer
+        4. readSize: read size ILLUMINA
+    
+    Output:
+        1. filteredDiscordants: list of discordant clusters whose range is greater than readSize + buffer
+    '''
+
+    filteredDiscordants = []
+    
+    print('DISCARDED CLUSTERS BECAUSE OF CLUSTER RANGE:')
+    
+    for cluster in discordants:
+        
+        clusterRange = cluster.end - cluster.beg
+        
+        if clusterRange > (readSize + buffer):
+            
+            filteredDiscordants.append(cluster)
+        
+        else: 
+            
+            print(cluster.ref, cluster.beg, cluster.end)
+                   
+    return filteredDiscordants
+
