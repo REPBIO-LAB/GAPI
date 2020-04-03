@@ -9,8 +9,6 @@ import multiprocessing as mp
 import os
 import pysam
 import time
-import libyay
-# External
 import subprocess
 
 # Internal
@@ -328,14 +326,15 @@ class SV_caller_short(SV_caller):
 
         SV_caller.__init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir)
 
-        self.mode = mode
-        self.bam = bam
-        self.normalBam = normalBam
-        self.reference = reference
-        self.refDir = refDir
-        self.confDict = confDict
-        self.outDir = outDir
-        self.repeatsBinDb = None
+        # SONIA: I think this is redundant
+        # self.mode = mode
+        # self.bam = bam
+        # self.normalBam = normalBam
+        # self.reference = reference
+        # self.refDir = refDir
+        # self.confDict = confDict
+        # self.outDir = outDir
+        # self.repeatsBinDb = None
 
         ## Compute reference lengths
         self.refLengths = bamtools.get_ref_lengths(self.bam)
@@ -356,9 +355,11 @@ class SV_caller_short(SV_caller):
 
         if 'ME' in self.confDict['targetINT2Search']:
             annotDir = self.outDir + '/ANNOT/'
-            refLengths = bamtools.get_ref_lengths(self.bam)
-            self.annotations = annotation.load_annotations(['REPEATS', 'TRANSDUCTIONS'], refLengths, self.refDir, self.confDict['processes'], annotDir)
-
+            # SONIA: Redundant. Use self.refLengths
+            # refLengths = bamtools.get_ref_lengths(self.bam)
+            self.annotations = annotation.load_annotations(['REPEATS', 'TRANSDUCTIONS'], self.refLengths, self.refDir, self.confDict['processes'], annotDir)
+            print(self.annotations)
+            
         ### 1. Create integration clusters 
         msg = '1. Create integration clusters'
         log.header(msg)      
@@ -422,9 +423,11 @@ class SV_caller_short(SV_caller):
 
 
     def make_clusters(self):
-
-        # If viruses option is selected, collect read name and sequence of discordant low quality reads from all bam refs
         
+        # SONIA: added to simply make_clusters_bin()
+        self.viralSeqs = None
+        
+        # If viruses option is selected, collect read name and sequence of discordant low quality reads from all bam refs
         if 'VIRUS' in self.confDict['targetINT2Search']:
             # TEMP SR: DESILENCE
             
@@ -437,6 +440,8 @@ class SV_caller_short(SV_caller):
 
             # If normal bam is present, collect also its reads
             if self.mode == "PAIRED":
+                
+                # SONIA: redundant? As far as the bams are aligned to the same ref, the bins are gonna be the same that the calculated in 10 lines above
                 bins = bamtools.makeGenomicBins(self.normalBam, self.confDict['binSize'], None)
 
                 # TODO SR: Pass more arguments
@@ -745,22 +750,32 @@ class SV_caller_short(SV_caller):
         binDir = self.outDir + '/CLUSTER/' + binId
         unix.mkdir(binDir)
 
+        # SONIA: Simplified below
+        
+        # ## 1. Search for integration candidate events in the bam file/s ##
+        # # a) Single sample mode
+        # if self.mode == "SINGLE":
+        #     if 'VIRUS' in self.confDict['targetINT2Search']:
+        #         discordantDict = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, False, self.viralSeqs)
+        #     else:
+        #         discordantDict = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, False, None)
+
+        # # b) Paired sample mode (tumour & matched normal)
+        # else:
+        #     if 'VIRUS' in self.confDict['targetINT2Search']:
+        #         discordantDict = bamtools.collectDISCORDANT_paired(ref, beg, end, self.bam, self.normalBam, self.confDict, False, self.viralSeqs)
+        #     else:
+        #         discordantDict = bamtools.collectDISCORDANT_paired(ref, beg, end, self.bam, self.normalBam, self.confDict, False, None)
+
         ## 1. Search for integration candidate events in the bam file/s ##
         # a) Single sample mode
         if self.mode == "SINGLE":
-            if 'VIRUS' in self.confDict['targetINT2Search']:
-                discordantDict = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, False, self.viralSeqs)
-            else:
-                discordantDict = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, False, None)
-
+            discordantDict = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, False, self.viralSeqs)
+            
         # b) Paired sample mode (tumour & matched normal)
         else:
-            if 'VIRUS' in self.confDict['targetINT2Search']:
-                discordantDict = bamtools.collectDISCORDANT_paired(ref, beg, end, self.bam, self.normalBam, self.confDict, False, self.viralSeqs)
-            else:
-                discordantDict = bamtools.collectDISCORDANT_paired(ref, beg, end, self.bam, self.normalBam, self.confDict, False, None)
-
-
+            discordantDict = bamtools.collectDISCORDANT_paired(ref, beg, end, self.bam, self.normalBam, self.confDict, False, self.viralSeqs)
+        
         SV_types = sorted(discordantDict.keys())
         counts = [str(len(discordantDict[SV_type])) for SV_type in SV_types]
         

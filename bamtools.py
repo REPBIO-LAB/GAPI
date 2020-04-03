@@ -19,7 +19,7 @@ import events
 import gRanges
 import formats
 import sequences
-import libyay
+
 
 ## FUNCTIONS ##
 def get_refs(bam):
