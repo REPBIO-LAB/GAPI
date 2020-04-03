@@ -35,6 +35,8 @@ if __name__ == '__main__':
 
 	### Optional arguments
 	## General
+	parser.add_argument('--species', default='Homo sapiens', dest='species', help='Target species. Default: Homo sapiens')
+	parser.add_argument('--build', default='GRCh37', dest='build', help='Reference genome build. Default: GRCh37')
 	parser.add_argument('--normalBam', default=None, dest='normalBam', help='Matched normal bam file. If provided MEIGA will run in PAIRED mode')
 	parser.add_argument('--transduction-search', action="store_true", default=False, dest='transductionSearch', help='Enable transduction search. If not enabled only solo events will be identified')
 	parser.add_argument('--source-families', default=None, dest='srcFamilies', type=str, help='Comma separated list of possible families for source elements mediating transductions. Default: None. Mandatory if transduction search enabled')
@@ -90,6 +92,8 @@ if __name__ == '__main__':
 
 	### Optional arguments
 	## General
+	species = args.species
+	build = args.build
 	normalBam = args.normalBam
 	transductionSearch = args.transductionSearch
 	srcFamilies = args.srcFamilies
@@ -173,6 +177,8 @@ if __name__ == '__main__':
 	print('*** Optional arguments ***')
 	print('** General **')
 	print('mode: ', mode)
+	print('species: ', species)
+	print('build: ', build)
 	print('normalBam: ', normalBam)
 	print('transduction-search: ', transductionSearch)
 	print('source-families: ', srcFamilies)
@@ -227,6 +233,9 @@ if __name__ == '__main__':
 	confDict['technology'] = technology
 
 	## General
+	confDict['source'] = 'MEIGA-' + version
+	confDict['species'] = species
+	confDict['build'] = build
 	confDict['transductionSearch'] = transductionSearch
 	confDict['srcFamilies'] = srcFamilies.split(',') if srcFamilies is not None else []
 	confDict['annovarDir'] = annovarDir

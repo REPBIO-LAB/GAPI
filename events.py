@@ -794,6 +794,7 @@ class DISCORDANT():
         self.sample = sample
         self.is_duplicate = duplicate
         self.clusterId = None
+        self.mapQual = alignmentObj.mapq
         self.cigarTuples = alignmentObj.cigartuples
         if identity == None:
             self.identity = None

@@ -40,14 +40,10 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir):
         1. dictMetaclusters: Nested dictionary -> First key: metacluster object. Second keys and corresponding values: refLeftBkp (value = None if UNK), refRightBkp (value = None if UNK), leftSeq (value = None if UNK), rightSeq (value = None if UNK), intLeftBkp (not present if UNK), intRightBkp (not present if UNK)
     '''
 
-    dictMetaclusters = {}
-
     for metacluster in metaclusters:
 
         leftIntConsensusSeq = None
         rightIntConsensusSeq = None
-
-        dictMetaclusters[metacluster] = {}
 
         bkpDir = outDir + '/' + metacluster.ref + '_' + str(metacluster.beg) + '_' + str(metacluster.end)
         unix.mkdir(bkpDir)
@@ -71,10 +67,10 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir):
 
             if len(leftBkps) > 0:
                 leftBkp = max(set(leftBkps), key=leftBkps.count)
+                metacluster.refLeftBkp = leftBkp
             if len(rightBkps) > 0:
                 rightBkp = max(set(rightBkps), key=rightBkps.count)
-
-            dictMetaclusters[metacluster]['refLeftBkp'], dictMetaclusters[metacluster]['refRightBkp'] = leftBkp, rightBkp
+                metacluster.refRightBkp = rightBkp
 
         # c. Make sequences of integrations for each bkp.
         #dictMetaclusters[metacluster]['leftSeq'], dictMetaclusters[metacluster]['rightSeq'] = makeConsSeqs(CLIPPING_cluster, 'REF', db, indexDb, bkpDir)
@@ -103,13 +99,11 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir):
                 dictMetaclusters[metacluster]['intRightBkp'] = bkpINT(metacluster, rightIntConsensusPath, confDict['viralDb'], bkpDir)
             '''
 
-        else:
-            dictMetaclusters[metacluster]['refLeftBkp'], dictMetaclusters[metacluster]['refRightBkp'], dictMetaclusters[metacluster]['leftSeq'], dictMetaclusters[metacluster]['rightSeq'], dictMetaclusters[metacluster]['intLeftBkp'], dictMetaclusters[metacluster]['intRightBkp'] = None, None, None, None, None, None
-
+        #else:
+            #dictMetaclusters[metacluster]['refLeftBkp'], dictMetaclusters[metacluster]['refRightBkp'], dictMetaclusters[metacluster]['leftSeq'], dictMetaclusters[metacluster]['rightSeq'], dictMetaclusters[metacluster]['intLeftBkp'], dictMetaclusters[metacluster]['intRightBkp'] = None, None, None, None, None, None
+        
         ### Do cleanup
         unix.rm([bkpDir])
-
-    return dictMetaclusters
 
 # TODO SR: UNUSED FUNCTION clippingBkp
 def clippingBkp(CLIPPING_clusters):

@@ -328,6 +328,27 @@ class SV_caller_short(SV_caller):
 
         SV_caller.__init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir)
 
+        self.mode = mode
+        self.bam = bam
+        self.normalBam = normalBam
+        self.reference = reference
+        self.refDir = refDir
+        self.confDict = confDict
+        self.outDir = outDir
+        self.repeatsBinDb = None
+
+        ## Compute reference lengths
+        self.refLengths = bamtools.get_ref_lengths(self.bam)
+
+
+    def minimap2_index(self):
+        '''
+        Return path to minimap2 index file
+        '''
+        index = os.path.splitext(self.reference)[0] + '.mmi' 
+
+        return index
+
     def call(self):
         '''
         Search for integrations genome wide or in a set of target genomic regions
@@ -391,10 +412,13 @@ class SV_caller_short(SV_caller):
   
         # Report integrations calls into output files
         #output.write_DISCORDANT(discordantClusters, self.outDir)
-        metaclustersList = list(allMetaclusters.values())
-        outFileName = 'metaclusters.PASS.tsv'
-        # TODO SR: Write VCF as output!
-        output.writeMetaclusters(metaclustersList, outFileName, self.outDir)
+        metaclustersListofLists = list(allMetaclusters.values())
+        outFileNameTSV = 'metaclusters.PASS.tsv'
+        outFileName = 'metaclusters.PASS'
+        output.writeMetaclusters(metaclustersListofLists, outFileNameTSV, self.outDir)
+        # Flat metaclustersList
+        metaclustersList = [item for sublist in metaclustersListofLists for item in sublist]
+        output.INS2VCF_SR(metaclustersList, self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
 
 
     def make_clusters(self):
@@ -516,10 +540,15 @@ class SV_caller_short(SV_caller):
         metaclustersFailed = structures.merge_dictionaries(metaclustersFailedList)
 
         if metaclustersFailed:
-            metaclustersFailedList = list(metaclustersFailed.values())
-            outFileName = 'metaclusters.FAILED.tsv'
+            metaclustersFailedListofLists = list(metaclustersFailed.values())
+            outFileNameTSV = 'metaclusters.FAILED.tsv'
+            outFileName = 'metaclusters.FAILED'
+            output.writeMetaclusters(metaclustersFailedListofLists, outFileName, self.outDir)
+            # Flat metaclustersList
+            metaclustersFailedList = [item for sublist in metaclustersFailedListofLists for item in sublist]
             # TODO SR: Write VCF as output!
-            output.writeMetaclusters(metaclustersFailedList, outFileName, self.outDir)
+            output.INS2VCF_SR(metaclustersFailedList, self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
+
 
         return metaclustersPass
 
@@ -947,8 +976,8 @@ class SV_caller_short(SV_caller):
 
         ## 10. Analyse metaclusters features and add supporting clipping reads ##
         # TODO SR: Now adding clipping step is better than before. Even though maybe it is not neccessary, it would be great to choose in a better way which clipping we should add to the metacluster.
-        dictMetaclusters = bkp.analyzeMetaclusters(metaclusters, self.confDict, self.bam, self.normalBam, self.mode, binDir)
-        dictMetaclustersFailed = bkp.analyzeMetaclusters(metaclustersFailed, self.confDict, self.bam, self.normalBam, self.mode, binDir)
+        bkp.analyzeMetaclusters(metaclusters, self.confDict, self.bam, self.normalBam, self.mode, binDir)
+        bkp.analyzeMetaclusters(metaclustersFailed, self.confDict, self.bam, self.normalBam, self.mode, binDir)
 
         metaclustersSVTypeBfSecondFilter = {}
         metaclustersSVTypeFailed = {}
@@ -957,15 +986,10 @@ class SV_caller_short(SV_caller):
         dictMetaclusters : 
         {<clusters.META_cluster object at 0x7fe9e43936d8>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393b00>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393be0>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393c88>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393dd8>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393e10>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}}
         '''
-        if dictMetaclusters:
-            metaclustersSVTypeBfSecondFilter['DISCORDANT'] = list(dictMetaclusters.keys())
-        else:
-            metaclustersSVTypeBfSecondFilter['DISCORDANT'] = []
 
-        if dictMetaclustersFailed:
-            metaclustersSVTypeFailed['DISCORDANT'] = list(dictMetaclustersFailed.keys())
-        else:
-            metaclustersSVTypeFailed['DISCORDANT'] = []
+        metaclustersSVTypeBfSecondFilter['DISCORDANT'] = metaclusters
+        metaclustersSVTypeFailed['DISCORDANT'] = metaclustersFailed
+
 
         # NOTE SR: BY THIS WAY WE ARE ALSO ASSEGING MUT.ORIGIN TO THE METACLUSTER.
         # NOTE SR: All failed metaclusters are going to only one file.

@@ -1895,6 +1895,8 @@ class META_cluster():
 
         # Set cluster's reference, begin and end position
         self.ref, self.beg, self.end = self.coordinates() 
+        self.refLeftBkp = None
+        self.refRightBkp = None
 
         # TODO: Remove the following two steps if they are not neccessary 
         ## Set metacluster ID
