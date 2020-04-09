@@ -76,6 +76,7 @@ def INS2VCF_SR(metaclusters, index, refLengths, source, build, species, outName,
             'IDENTITY': ['.', 'String', 'Identity of the insertion'], \
             'ORIENTATION': ['.', 'String', 'Orientation of the insertion: RECIPROCAL, PLUS or MINUS'], \
             'BKP2': ['1', 'Integer', 'Reference position of second breakpoint of the insertion'], \
+            'CLIPDISC': ['0', 'Flag', 'There are discordant clipping reads supporting the insertion'], \
             }
             
     ## Create header
@@ -138,6 +139,10 @@ def INS2VCF_SR(metaclusters, index, refLengths, source, build, species, outName,
 
         BKP2 = metacluster.refRightBkp if metacluster.refLeftBkp != None else None
 
+        # Label with information about if there are clipping-discordant reads.
+        checkClipDisc = any(check in discordants for check in clippings)
+        CLIPDISC = True if checkClipDisc else None
+
         # TODO SR: Avoid non-existing fields in another way and add interesting fields
         INFO['VTYPE'] = metacluster.mutOrigin
         # TODO SR: Put metacluster.identity as metacluster.SV_features['INS_TYPE'], so this INFO field can be deleted.
@@ -171,14 +176,15 @@ def INS2VCF_SR(metaclusters, index, refLengths, source, build, species, outName,
         #INFO['RTCOORD'] = metacluster.SV_features['RETRO_LEN'] if 'RETRO_LEN' in metacluster.SV_features else None
         #INFO['POLYA'] = metacluster.SV_features['POLYA'] if 'POLYA' in metacluster.SV_features else None
         #INFO['INSEQ'] = metacluster.consensusEvent.pick_insert() if metacluster.consensusEvent is not None else None
-        INFO['DISCORDANT'] = ','.join(discordants)
-        INFO['CLIPPING'] = ','.join(clippings)
+        INFO['DISCORDANT'] = ','.join(discordants) if discordants else None
+        INFO['CLIPPING'] = ','.join(clippings) if clippings else None
         INFO['NBDISCORDANT'] = len(discordants)
         INFO['NBCLIPPING'] = len(clippings)
         INFO['ORIENTATION'] = metacluster.orientation
         INFO['BKP2'] = BKP2
         INFO['DISCORDANTMAPQ'] = discordantsMAPQMean
         INFO['CLIPPINGMAPQ'] = clippingsMAPQMean
+        INFO['CLIPDISC'] = CLIPDISC
 
         ## Create VCF variant object
         fields = [CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO]
@@ -199,7 +205,7 @@ def INS2VCF_SR(metaclusters, index, refLengths, source, build, species, outName,
            'QHITS', 'THITS', 'RTCOORD', 'POLYA', 'INSEQ']
     '''
     IDS = ['VTYPE', 'NBTOTAL', 'NBTUMOR', 'NBNORMAL', 'LEN', \
-        'DISCORDANT', 'CLIPPING', 'NBDISCORDANT', 'NBCLIPPING', 'IDENTITY', 'ORIENTATION', 'BKP2', 'DISCORDANTMAPQ', 'CLIPPINGMAPQ']
+        'DISCORDANT', 'CLIPPING', 'NBDISCORDANT', 'NBCLIPPING', 'IDENTITY', 'ORIENTATION', 'BKP2', 'DISCORDANTMAPQ', 'CLIPPINGMAPQ', 'CLIPDISC']
 
     VCF.write(IDS, outName, outDir)
 
