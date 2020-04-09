@@ -32,8 +32,6 @@ import virus
 import clustering
 import os
 import sequences
-import Bio.SeqUtils
-from Bio.SeqUtils import lcc
 
 ## FUNCTIONS ##
 
@@ -431,7 +429,7 @@ class SV_caller_short(SV_caller):
             bins = bamtools.makeGenomicBins(self.bam, self.confDict['binSize'], None)
 
             pool = mp.Pool(processes=self.confDict['processes'])
-            pool.starmap(self.collectSeq, bins)
+            pool.starmap(self.callCollectSeq, bins)
             pool.close()
             pool.join()
 
@@ -441,7 +439,7 @@ class SV_caller_short(SV_caller):
 
                 # TODO SR: Pass more arguments
                 pool = mp.Pool(processes=self.confDict['processes'])
-                pool.starmap(self.collectSeqNormal, bins)
+                pool.starmap(self.callCollectSeqNormal, bins)
                 pool.close()
                 pool.join()
 
@@ -468,7 +466,7 @@ class SV_caller_short(SV_caller):
             
 
 			# Filter by complexity (with komplexity)
-            command = 'kz --filter --threshold 0.4 --fasta < ' + allFastas_all + ' > ' + allFastas
+            command = 'kz --filter --threshold ' + str(self.confDict['komplexityThreshold']) + ' --fasta < ' + allFastas_all + ' > ' + allFastas
 			
             err = open(self.outDir + '/komplexity.err', 'w') 
             status = subprocess.call(command, stderr=err, shell=True)
@@ -487,8 +485,8 @@ class SV_caller_short(SV_caller):
             # TEMP SR: DESILENCE
             
             err = open(self.outDir + '/align.err', 'w') 
-            # TODO SR: bwa allFastas vs viralDb: set proccesses and awk filtering arguments as running options
-            command = 'bwa mem -Y -t 5 ' + self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools view -h  | awk \'(($5=="60" && $6~/[4-9][0-9]M/) || ($6~/[0-9][0-9][0-9]M/) || ($6=="151M") || ($1 ~ /@/)){print}\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
+            bwaProcesses = 5 if self.confDict['processes'] > 5 else self.confDict['processes']
+            command = 'bwa mem -Y -t '+ str(bwaProcesses) + ' ' +  self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools view -h  | awk \'(($5=="60" && $6~/[' + str(self.confDict['viralBamParcialMatch']) + '-9][0-9]M/) || ($6~/[0-9][0-9][0-9]M/) || ($1 ~ /@/)){print}\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
             # TEMP SR: command = 'bwa mem -Y -t 5 ' + self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools view -h  | awk \'($5 == "60" || $6 == "151M") || $1 ~ /@/\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
 
             status = subprocess.call(command, stderr=err, shell=True)
@@ -551,184 +549,12 @@ class SV_caller_short(SV_caller):
 
 
         return metaclustersPass
+    
+    def callCollectSeq(self, ref, binBeg, binEnd):
+        bamtools.collectDiscodantsLowMAPQSeq(ref, binBeg, binEnd, self.bam, self.outDir)
 
-    def collectSeq(self, ref, binBeg, binEnd):
-        '''
-        Collect read names and sequences from reads below maxMAPQ
-        '''
-        # TODO SR: PASS this variables (maxMAPQ, checkUnmapped, supplementary, filterDuplicates) as argument of collectSeq method.
-        # TODO SR: Think if filterDuplicates step is neccesary in collectSeq method and implement it if so.
-        #filterDuplicates = True
-        maxMAPQ = 20
-        checkUnmapped = True
-        supplementary = True
-
-        ## Initialize dictionary to store SV events
-        eventsSeqDict = {}
-
-        ## Open BAM file for reading
-        bamFile = pysam.AlignmentFile(self.bam, "rb")
-
-        ## Extract alignments
-        iterator = bamFile.fetch(ref, binBeg, binEnd)
-        
-        # For each read alignment
-        for alignmentObj in iterator:
-
-            ### Filter out alignments based on different criteria:
-            MAPQ = int(alignmentObj.mapping_quality) # Mapping quality
-
-            ## No query sequence available
-            if alignmentObj.query_sequence == None:
-                continue
-
-            ## Aligments with MAPQ < threshold
-            if (MAPQ > maxMAPQ):
-                continue
-
-            # TODO SR: Think if filterDuplicates step is neccesary in collectSeq method and implement it if so.
-            ## Duplicates filtering enabled and duplicate alignment
-            #if (confDict['filterDuplicates'] == True) and (alignmentObj.is_duplicate == True):
-                #continue
-
-            # Filter supplementary alignments if TRUE. (Neccesary to avoid pick supplementary clipping reads while adding to discordant clusters in short reads mode)
-            if supplementary == False and alignmentObj.is_supplementary == True:
-                continue
-            
-            ## Collect DISCORDANT
-
-            if not alignmentObj.is_proper_pair:
-
-                # Pick only those sequences that are unmmapped or with mapping quality < maxMAPQ
-                if checkUnmapped == True:
-                    if (alignmentObj.is_unmapped == True) or (MAPQ < maxMAPQ):
-                        basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
-                        del basePercs['total']
-                        #print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                        #print ('aligTags ' + str(alignmentObj.get_tags(True)) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                        if all(perc < 85 for perc in basePercs.values()):
-                            complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
-                            #print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                            if complexity > 1.49:
-                                eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
-
-                else:
-                    if MAPQ < maxMAPQ:
-                        basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
-                        del basePercs['total']
-                        #print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                        #print ('aligTags ' + str(alignmentObj.get_tags(True)) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                        if all(perc < 85 for perc in basePercs.values()):
-                            complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
-                            #print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                            if complexity > 1.49:
-                                eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
-            
-        ## Close 
-        bamFile.close()
-
-        # Write FASTA:
-        fastasDir = self.outDir + '/FASTAS/'
-        unix.mkdir(fastasDir)
-
-        seqsFastaObj= formats.FASTA()
-        seqsFastaObj.seqDict = eventsSeqDict
-
-        del eventsSeqDict
-
-        outputFasta = self.outDir + '/FASTAS/' + str(ref) +"_"+ str(binBeg) +"_"+ str(binEnd) +".fasta"
-        seqsFastaObj.write(outputFasta)
-
-        # return sv candidates
-        return
-
-    # TODO SR: THIS METHOD (collectSeqNormal) IS REPEATED!!!! DO IT IN A WAY THAT THERE IS ONLY ONE FOR TUMOUR AND NORMAL
-    def collectSeqNormal(self, ref, binBeg, binEnd):
-        '''
-        Collect read names and sequences from reads below maxMAPQ
-        '''
-        # TODO SR: PASS this variables as argument
-        #filterDuplicates = True
-        maxMAPQ = 20
-        checkUnmapped = True
-        supplementary = True
-
-        ## Initialize dictionary to store SV events
-        eventsSeqDict = {}
-
-        ## Open BAM file for reading
-        bamFile = pysam.AlignmentFile(self.normalBam, "rb")
-
-        ## Extract alignments
-        iterator = bamFile.fetch(ref, binBeg, binEnd)
-        
-        # For each read alignment
-        for alignmentObj in iterator:
-
-            ### 1. Filter out alignments based on different criteria:
-            MAPQ = int(alignmentObj.mapping_quality) # Mapping quality
-
-            ## No query sequence available
-            if alignmentObj.query_sequence == None:
-                continue
-
-            ## Aligments with MAPQ < threshold
-            if (MAPQ > maxMAPQ):
-                continue
-
-            # TODO SR: make this work
-            ## Duplicates filtering enabled and duplicate alignment
-            #if (confDict['filterDuplicates'] == True) and (alignmentObj.is_duplicate == True):
-                #continue
-
-            # Filter supplementary alignments if TRUE. (Neccesary to avoid pick supplementary clipping reads while adding to discordant clusters in short reads mode)
-            if supplementary == False and alignmentObj.is_supplementary == True:
-                continue
-            
-            ## 4. Collect DISCORDANT
-
-            if not alignmentObj.is_proper_pair:
-
-                # Pick only those sequences that are unmmapped or with mapping quality < maxMAPQ
-                if checkUnmapped == True:
-                    if (alignmentObj.is_unmapped == True) or (MAPQ < maxMAPQ):
-                        basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
-                        del basePercs['total']
-                        #print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                        #if all(perc < 85 for perc in basePercs.values()):
-                        complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
-                        #print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                            #if complexity > 1.49:
-                        eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
-                else:
-                    if MAPQ < maxMAPQ:
-                        basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
-                        del basePercs['total']
-                        #print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                        #if all(perc < 85 for perc in basePercs.values()):
-                        complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
-                        #print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                            #if complexity > 1.49:
-                        eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
-            
-        ## Close 
-        bamFile.close()
-
-        # Write FASTA:
-        fastasDir = self.outDir + '/FASTAS/'
-        unix.mkdir(fastasDir)
-
-        seqsFastaObj= formats.FASTA()
-        seqsFastaObj.seqDict = eventsSeqDict
-
-        del eventsSeqDict
-
-        outputFasta = self.outDir + '/FASTAS/' + str(ref) +"_"+ str(binBeg) +"_"+ str(binEnd) +".fasta"
-        seqsFastaObj.write(outputFasta)
-
-        # return sv candidates
-        return
-
+    def callCollectSeqNormal(self, ref, binBeg, binEnd):
+        bamtools.collectDiscodantsLowMAPQSeq(ref, binBeg, binEnd, self.normalBam, self.outDir)
 
 
     def make_clusters_bin(self, ref, beg, end):

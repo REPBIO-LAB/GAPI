@@ -79,6 +79,8 @@ if __name__ == '__main__':
 	parser.add_argument('--maxRegionlowMQ', default=0.3, dest='maxRegionlowMQ', type=int, help='Maximum percentage of lowMAPQ/nbReads in cluster´s region. Default: 0.3')
 	parser.add_argument('--maxRegionSMS', default=0.15, dest='maxRegionSMS', type=int, help='Maximum percentage of SMS clipping reads in cluster´s region. Default: 0.15')
 	parser.add_argument('--INT2Search', default="ME,VIRUS", dest='INT2Search', type=str, help='Comma separated list of insertion types to collect (Mobile Elements (ME),VIRUS). Default: ME,VIRUS')
+	parser.add_argument('--komplexityThreshold', default=0.4, dest='komplexityThreshold', type=float, help='Threshold for filtering mates sequence with komplexity tool. Default: 0.4')
+	parser.add_argument('--viralBamParcialMatch', default=4, dest='viralBamParcialMatch', type=int, help='Threshold partial matches against viral db. Example: 4 stands for >40 matches per read. Default: 4')
 
 
 	## 2. Parse user´s input and initialize variables ##
@@ -136,6 +138,8 @@ if __name__ == '__main__':
 	maxRegionlowMQ = args.maxRegionlowMQ
 	maxRegionSMS = args.maxRegionSMS
 	INT2Search = args.INT2Search
+	komplexityThreshold = args.komplexityThreshold
+	viralBamParcialMatch = args.viralBamParcialMatch
 
 	# If no reference is specified, get all that are present in the bam file.
 	if refs == 'ALL':
@@ -217,7 +221,9 @@ if __name__ == '__main__':
 	print('targetStatus: ', targetStatus)
 	print('minReadsRegionMQ: ', minReadsRegionMQ)
 	print('maxRegionlowMQ: ', maxRegionlowMQ)
-	print('maxRegionSMS: ', maxRegionSMS, "\n")
+	print('maxRegionSMS: ', maxRegionSMS)
+	print('komplexityThreshold: ', komplexityThreshold)
+	print('viralBamParcialMatch: ', viralBamParcialMatch, "\n")
 
 	print('***** Executing ', scriptName, '.... *****', "\n")
 
@@ -277,6 +283,8 @@ if __name__ == '__main__':
 	confDict['maxRegionlowMQ'] = maxRegionlowMQ
 	confDict['maxRegionSMS'] = maxRegionSMS
 	confDict['targetINT2Search'] = targetINT2Search
+	confDict['komplexityThreshold'] = komplexityThreshold
+	confDict['viralBamParcialMatch'] = viralBamParcialMatch
 	
 	## 2. Execute structural variation caller
 	###########################################

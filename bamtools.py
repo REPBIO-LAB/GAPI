@@ -11,6 +11,8 @@ from cigar import Cigar
 import numpy as np
 import time
 import os
+import Bio.SeqUtils
+from Bio.SeqUtils import lcc
 
 # Internal
 import log
@@ -1096,3 +1098,93 @@ def average_MAPQ_reads_interval(ref, beg, end, readIds, bam):
 
 
 #def collectSeq(ref, binBeg, binEnd, bam, filterDuplicates, maxMAPQ, checkUnmapped, supplementary):
+
+def collectDiscodantsLowMAPQSeq(ref, binBeg, binEnd, bam, outDir):
+    '''
+    Collect read names and sequences from reads below maxMAPQ
+    '''
+    # TODO SR: PASS this variables (maxMAPQ, checkUnmapped, supplementary, filterDuplicates) as argument of collectSeq method (le paso el confdict!)
+    # TODO SR: Think if filterDuplicates step is neccesary in collectSeq method and implement it if so.
+    #filterDuplicates = True
+    maxMAPQ = 20
+    checkUnmapped = True
+    supplementary = True
+
+    ## Initialize dictionary to store SV events
+    eventsSeqDict = {}
+
+    ## Open BAM file for reading
+    bamFile = pysam.AlignmentFile(bam, "rb")
+
+    ## Extract alignments
+    iterator = bamFile.fetch(ref, binBeg, binEnd)
+    
+    # For each read alignment
+    for alignmentObj in iterator:
+
+        ### Filter out alignments based on different criteria:
+        MAPQ = int(alignmentObj.mapping_quality) # Mapping quality
+
+        ## No query sequence available
+        if alignmentObj.query_sequence == None:
+            continue
+
+        ## Aligments with MAPQ < threshold
+        if (MAPQ > maxMAPQ):
+            continue
+
+        # TODO SR: Think if filterDuplicates step is neccesary in collectSeq method and implement it if so.
+        ## Duplicates filtering enabled and duplicate alignment
+        #if (confDict['filterDuplicates'] == True) and (alignmentObj.is_duplicate == True):
+            #continue
+
+        # Filter supplementary alignments if TRUE. (Neccesary to avoid pick supplementary clipping reads while adding to discordant clusters in short reads mode)
+        if supplementary == False and alignmentObj.is_supplementary == True:
+            continue
+        
+        ## Collect DISCORDANT
+
+        if not alignmentObj.is_proper_pair:
+
+            # Pick only those sequences that are unmmapped or with mapping quality < maxMAPQ
+            if checkUnmapped == True:
+                if (alignmentObj.is_unmapped == True) or (MAPQ < maxMAPQ):
+                    basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
+                    del basePercs['total']
+                    #print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                    #print ('aligTags ' + str(alignmentObj.get_tags(True)) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                    if all(perc < 85 for perc in basePercs.values()):
+                        complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
+                        #print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                        if complexity > 1.49:
+                            eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
+
+            else:
+                if MAPQ < maxMAPQ:
+                    basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
+                    del basePercs['total']
+                    #print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                    #print ('aligTags ' + str(alignmentObj.get_tags(True)) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                    if all(perc < 85 for perc in basePercs.values()):
+                        complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
+                        #print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
+                        if complexity > 1.49:
+                            eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
+        
+    ## Close 
+    bamFile.close()
+
+    # Write FASTA:
+    fastasDir = outDir + '/FASTAS/'
+    unix.mkdir(fastasDir)
+
+    seqsFastaObj= formats.FASTA()
+    seqsFastaObj.seqDict = eventsSeqDict
+
+    del eventsSeqDict
+
+    outputFasta = outDir + '/FASTAS/' + str(ref) +"_"+ str(binBeg) +"_"+ str(binEnd) +".fasta"
+    seqsFastaObj.write(outputFasta)
+
+    # return sv candidates
+    return
