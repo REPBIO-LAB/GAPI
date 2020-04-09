@@ -103,7 +103,25 @@ def INS2VCF_SR(metaclusters, index, refLengths, source, build, species, outName,
         #REF = 'PRUEBA'
         ALT = '<INS>'
         QUAL = '.'
-        FILTER = 'PASS' if not metacluster.failedFilters else ','.join(metacluster.failedFilters)
+
+        # Set FILTER field
+        # Check if there are FAILED filters at cluster level:
+        checkFilters = []
+        for cluster in metacluster.rawSubclusters:
+            if cluster.failedFilters:
+                for failedFilter in cluster.failedFilters:
+                    failAppend = failedFilter + '_CLUSTER'
+                    checkFilters.append(failAppend)
+
+        # Check if there are FAILED filters at metacluster level:
+        if metacluster.failedFilters:
+            for failedFilterMeta in metacluster.failedFilters:
+                    failMetaAppend = failedFilterMeta + '_META'
+                    checkFilters.append(failMetaAppend)
+        
+        uniqFilters = list(set(checkFilters))
+
+        FILTER = 'PASS' if not uniqFilters else ','.join(uniqFilters)
         
         ## Collect extra insertion features to include at info field
         INFO = {}
@@ -312,7 +330,25 @@ def writeMetaclusters(metaclustersLoL, outFileName, outDir):
     metaclustersList = list(itertools.chain(*metaclustersLoL))
 
     for metacluster in metaclustersList:
-        filters = 'PASS' if not metacluster.failedFilters else ','.join(metacluster.failedFilters)
+
+        # Check if there are FAILED filters at cluster level:
+        checkFilters = []
+        for cluster in metacluster.rawSubclusters:
+            if cluster.failedFilters:
+                for failedFilter in cluster.failedFilters:
+                    failAppend = failedFilter + '_CLUSTER'
+                    checkFilters.append(failAppend)
+
+        # Check if there are FAILED filters at metacluster level:
+        if metacluster.failedFilters:
+            for failedFilterMeta in metacluster.failedFilters:
+                    failMetaAppend = failedFilterMeta + '_META'
+                    checkFilters.append(failMetaAppend)
+        
+        uniqFilters = list(set(checkFilters))
+
+        filters = 'PASS' if not uniqFilters else ','.join(uniqFilters)
+        
 
         row = 'METACLUSTER:\tmetacluster.id\tlen(metacluster.events\tmetacluster.ref\tmetacluster.beg\tmetacluster.end\tmetacluster.bkpPos\tfilters\tmetacluster.consensusEvent\tmetacluster.identity\tmetacluster.orientation\tmetacluster.mutOrigin\tmetacluster.percDuplicates\n'
         outFile.write(row)

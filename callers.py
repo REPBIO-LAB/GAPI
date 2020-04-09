@@ -425,7 +425,7 @@ class SV_caller_short(SV_caller):
         
         if 'VIRUS' in self.confDict['targetINT2Search']:
             # TEMP SR: DESILENCE
-            
+            '''
             bins = bamtools.makeGenomicBins(self.bam, self.confDict['binSize'], None)
 
             pool = mp.Pool(processes=self.confDict['processes'])
@@ -449,11 +449,11 @@ class SV_caller_short(SV_caller):
             for bine in bins:
                 window = self.outDir + '/FASTAS/' + str(bine[0]) +"_"+ str(bine[1])+"_"+str(bine[2])+".fasta"
                 filenames.append(window)
-            
+            '''
             allFastas_all = self.outDir + "/allFastas_all.fasta"
             allFastas = self.outDir + "/allFastas.fasta"
             # TEMP SR: DESILENCE
-            
+            '''
             with open(allFastas_all, 'w') as outfile:
                 for fname in filenames:
                     with open(fname) as infile:
@@ -478,12 +478,12 @@ class SV_caller_short(SV_caller):
             
             # bwa allFastas vs viralDb keep only mapped
             # TODO SR: bwa allFastas vs viralDb: use exinting function (or do one) and check if bwa -T parameter does something that we need
-            
+            '''
             BAM = self.outDir + '/' + 'viralAligment' + '.bam'
             
 
             # TEMP SR: DESILENCE
-            
+            '''
             err = open(self.outDir + '/align.err', 'w') 
             bwaProcesses = 5 if self.confDict['processes'] > 5 else self.confDict['processes']
             command = 'bwa mem -Y -t '+ str(bwaProcesses) + ' ' +  self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools view -h  | awk \'(($5=="60" && $6~/[' + str(self.confDict['viralBamParcialMatch']) + '-9][0-9]M/) || ($6~/[0-9][0-9][0-9]M/) || ($1 ~ /@/)){print}\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
@@ -501,7 +501,7 @@ class SV_caller_short(SV_caller):
 
             # TODO SR: Remove allfastas
             #unix.rm([allFastas])
-            
+            '''
             # Read bwa result and store in a dictionary
             bamFile = pysam.AlignmentFile(BAM, 'rb')
 
