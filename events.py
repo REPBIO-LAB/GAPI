@@ -13,7 +13,7 @@ import bamtools
 import formats
 from cigar import Cigar
 import gRanges
-
+import alignment
 
 ###############
 ## FUNCTIONS ##
@@ -167,6 +167,56 @@ def determine_clippingType(alignmentObj, clippedSide):
 
     return clippingType
 
+def search4supplementary(clippings, reference, outName, outDir):
+    '''
+    Realign clipped sequences for clipping events to search for supplementary alignments. Skip 
+    if clipping event already has reported supplementary alignments
+
+    Input:
+        1. clippings: List of clipping events
+        2. reference: Path to the reference genome in fasta format (bwa mem index must be located in the same folder)
+        2. outName: Output file name
+        3. outDir: Output directory
+
+    Output:
+        1. clippings: clipping events with updated supplementary alignment information 
+    '''
+    ## 1. Generate fasta containing soft clipped sequences
+    clippedFasta = collect_soft_clipped_seqs(clippings)
+
+    ## 2. Select only those clippings without supplementary alignments
+    targetClippings = [clipping.fullReadName() for clipping in clippings if (clipping.clippingType == 'soft' and clipping.supplAlignment is None)]
+    clippedFasta.seqDict = clippedFasta.retrieve_seqs(targetClippings)
+
+    ## 3. Write clipped sequences into fasta
+    filePath = outDir + '/' + outName + '.fa'
+    clippedFasta.write(filePath)
+
+    ## 4. Align clipped sequences with BWA-mem into the reference genome
+    alignment.alignment_blat(filePath, reference, outName, outDir)
+ 
+
+def collect_soft_clipped_seqs(clippings):
+    '''
+    Collect soft clipped sequences for a list of input clipping events. 
+
+    Input:
+        1. clippings: list of clipping events
+
+    Output:
+        1. clippedFasta: fasta file containing clipped sequences
+    '''
+    ## 1. Initialize fasta file object
+    clippedFasta = formats.FASTA()
+
+    ## 2. Extract clipped sequences per soft-clipping event and add to the dictionary
+    for clipping in clippings:
+
+        if clipping.clippingType == 'soft':
+
+            clippedFasta.seqDict[clipping.fullReadName()] = clipping.clipped_seq()
+
+    return clippedFasta
 
 def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb):
     '''
@@ -446,7 +496,7 @@ class CLIPPING():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, length, clippedSide, readName, readSeq, readBkp, alignmentObj, sample):
+    def __init__(self, ref, beg, end, length, clippedSide, pair, readName, readSeq, readBkp, alignmentObj, sample):
         '''
         '''
         CLIPPING.number += 1 # Update instances counter
@@ -458,6 +508,7 @@ class CLIPPING():
         self.length = length
         self.clippedSide = clippedSide
         self.clippingType = determine_clippingType(alignmentObj, self.clippedSide)
+        self.pair = str(pair)
         self.readName = readName
         self.readSeq = readSeq
         self.readBkp = readBkp        
@@ -484,6 +535,14 @@ class CLIPPING():
             self.refLen = alignmentObj.reference_length
             self.isDup = alignmentObj.is_duplicate
 
+    def fullReadName(self):
+        '''
+        Return the supporting read name including mate info
+        '''
+        fullReadName = self.readName + '/' + self.pair
+
+        return fullReadName
+    
     def readCoordinates(self):
         '''
         Compute read level alignment coordinates
@@ -499,7 +558,7 @@ class CLIPPING():
 
     def clipped_interval_coordinates(self):
         '''
-        Compute read level coordinates for the clipped piece of the read sequence
+        Compute original read level coordinates for the clipped piece of the read sequence
 
                                    bkp
                     ######READ######|********CLIPPED********
@@ -539,6 +598,19 @@ class CLIPPING():
 
         return clippedBeg, clippedEnd
 
+    def clipped_seq(self):
+        '''
+        Retrieve clipped piece of read sequence
+        '''
+        # a) Right clipping
+        if self.clippedSide == 'right':
+            clippedSeq = self.readSeq[self.readBkp:]
+
+        # b) Left clipping
+        else:
+            clippedSeq = self.readSeq[:self.readBkp]
+        
+        return clippedSeq
 
     def parse_supplAlignments_field(self):
         '''
@@ -571,7 +643,7 @@ class CLIPPING():
             end = int(beg) + alignmentLen
 
             # Create suppl. alignment object
-            supplObject = SUPPLEMENTARY(ref, beg, end, strand, CIGAR, mapQ, NM, self.readName)
+            supplObject = SUPPLEMENTARY(ref, beg, end, strand, CIGAR, mapQ, NM, self.readName, self.id)
 
             # Initialize ref if necessary
             if supplObject.ref not in supplAlignmentsDict:
@@ -750,7 +822,7 @@ class SUPPLEMENTARY():
     '''
     number = 0 # Number of instances
     
-    def __init__(self, ref, beg, end, orientation, CIGAR, mapQ, NM, readName):
+    def __init__(self, ref, beg, end, orientation, CIGAR, mapQ, NM, readName, clippingId):
         SUPPLEMENTARY.number += 1 # Update instances counter
         self.id = 'SUPPLEMENTARY_' + str(SUPPLEMENTARY.number)
         self.ref = str(ref)
@@ -761,6 +833,7 @@ class SUPPLEMENTARY():
         self.mapQ = mapQ
         self.NM = NM
         self.readName = readName
+        self.clippingId = clippingId
         self.readIndex = None
         self.anchorSide = None
         self.insertSize = None
