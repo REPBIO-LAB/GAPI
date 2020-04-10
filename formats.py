@@ -133,7 +133,20 @@ class FASTA():
 
         # Close output fasta file
         fastaFile.close()
+
+    def retrieve_seqs(self, targetNames):
+        '''
+        Retrieve set of sequences from fasta file
+
+        Input:
+            1. targetNames: list of read ids to be retrieved
         
+        Output:
+            2. outDict: dictionary containing sequences
+        '''
+        outDict = {readName: self.seqDict[readName] for readName in targetNames if readName in self.seqDict}
+        
+        return outDict
 
 class FASTQ():
     '''
