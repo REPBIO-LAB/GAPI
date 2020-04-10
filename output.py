@@ -78,6 +78,8 @@ def INS2VCF_SR(metaclusters, index, refLengths, source, build, species, outName,
             'BKP2': ['1', 'Integer', 'Reference position of second breakpoint of the insertion'], \
             'CLIPDISC': ['0', 'Flag', 'There are discordant clipping reads supporting the insertion'], \
             'SPECIDENT': ['.', 'String', 'Specific identities and number of discordant reads supporting it. SpecificIdentity:#reads'], \
+            'DISCDUP': ['1', 'Float', 'Percentage of discordant reads that are labeled as duplicates in input bam file.'], \
+            'CLIPDUP': ['1', 'Float', 'Percentage of clipping reads that are labeled as duplicates in input bam file.'], \
             }
             
     ## Create header
@@ -158,8 +160,6 @@ def INS2VCF_SR(metaclusters, index, refLengths, source, build, species, outName,
         else: 
             SPECIDENT = ",".join("{}:{}".format(k, v) for k, v in checkSpecIdent.items())
         
-        print ('EVAAAAA '+ str(SPECIDENT))
-
         # TODO SR: Avoid non-existing fields in another way and add interesting fields
         INFO['VTYPE'] = metacluster.mutOrigin
         # TODO SR: Put metacluster.identity as metacluster.SV_features['INS_TYPE'], so this INFO field can be deleted.
@@ -203,6 +203,8 @@ def INS2VCF_SR(metaclusters, index, refLengths, source, build, species, outName,
         INFO['CLIPPINGMAPQ'] = clippingsMAPQMean
         INFO['CLIPDISC'] = CLIPDISC
         INFO['SPECIDENT'] = SPECIDENT
+        INFO['DISCDUP'] = 0 if metacluster.percDuplicates()[0] == 0 else "{:.2f}".format(metacluster.percDuplicates()[0])
+        INFO['CLIPDUP'] = 0 if metacluster.percDuplicates()[1] == 0 else "{:.2f}".format(metacluster.percDuplicates()[1])
 
         ## Create VCF variant object
         fields = [CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO]
@@ -225,7 +227,7 @@ def INS2VCF_SR(metaclusters, index, refLengths, source, build, species, outName,
     IDS = ['VTYPE', 'NBTOTAL', 'NBTUMOR', 'NBNORMAL', 'LEN', \
         'DISCORDANT', 'CLIPPING', 'NBDISCORDANT', 'NBCLIPPING', \
         'IDENTITY', 'ORIENTATION', 'BKP2', 'DISCORDANTMAPQ', 'CLIPPINGMAPQ', \
-        'CLIPDISC', 'SPECIDENT']
+        'CLIPDISC', 'SPECIDENT', 'DISCDUP', 'CLIPDUP']
 
     VCF.write(IDS, outName, outDir)
 
