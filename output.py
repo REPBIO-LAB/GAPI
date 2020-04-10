@@ -364,10 +364,10 @@ def writeMetaclusters(metaclustersLoL, outFileName, outDir):
 
         for event in metacluster.events:
                 if event.type == 'DISCORDANT':
-                    row = str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.identity) + ' ' + str(event.orientation) + ' ' + str(event.sample) + '\n'
+                    row = str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' ' + str(event.identity) + ' ' + str(event.specificIdentity) + ' ' + str(event.orientation) + ' ' + str(event.sample) + '\n'
                     outFile.write (row)
                 else:
-                    row = str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' None ' + str(event.clippedSide) + ' ' + str(event.sample) + '\n'
+                    row = str(metacluster) + ' ' + str(event.readName) + ' ' + str(event.ref) + ' ' + str(event.beg) + ' ' + str(event.type) + ' None None ' + str(event.clippedSide) + ' ' + str(event.sample) + '\n'
                     outFile.write (row)
          
     ## Close output file ##

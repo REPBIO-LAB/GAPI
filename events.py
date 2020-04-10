@@ -800,11 +800,44 @@ class DISCORDANT():
             self.identity = None
             self.specificIdentity = None
         else:
-            self.identity = identity.split("|")[0]
-            try:
-                self.specificIdentity = identity.split("|")[1]
-            except IndexError:
-                self.specificIdentity = None
+
+            if len(identity) == 1:
+                identity = ''.join(identity)
+                self.identity = identity.split("|")[0]
+                try:
+                    self.specificIdentity = identity.split("|")[1]
+                except IndexError:
+                    self.specificIdentity = None
+
+            elif len(identity) > 1:
+                genIdent = []
+                specificIdent = []
+                for ident in identity:
+                    genIdent.append(ident.split('|')[0])
+                    try:
+                        specificIdent.append(ident.split('|')[1])
+                    except IndexError:
+                        pass
+
+                identity = list(set(genIdent))
+                identity.sort()
+                if len(identity) == 1:
+                    identity = ''.join(identity)
+                else:
+                    identity = '_'.join(identity)
+                
+                if specificIdent != []:
+                    specificIdentity = list(set(specificIdent))
+                    specificIdentity.sort()
+                    if len(specificIdentity) == 1:
+                        specificIdentity = ''.join(specificIdentity)
+                    else:
+                        specificIdentity = '_'.join(specificIdentity)
+                else:
+                    specificIdentity = None
+                
+                self.identity = identity
+                self.specificIdentity = specificIdentity
         
         ## Mate info
         self.mateSeq = None

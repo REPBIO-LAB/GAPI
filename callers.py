@@ -510,7 +510,11 @@ class SV_caller_short(SV_caller):
             self.viralSeqs= {}
             # For each read alignment
             for alignmentObj in iterator:
-                self.viralSeqs[alignmentObj.query_name] = alignmentObj.reference_name
+                try:
+                    self.viralSeqs[alignmentObj.query_name].append(alignmentObj.reference_name)
+                except KeyError:
+                    self.viralSeqs[alignmentObj.query_name] = []
+                    self.viralSeqs[alignmentObj.query_name].append(alignmentObj.reference_name)
             
         ### 1. Define genomic bins to search for SV ##
         bins = bamtools.binning(self.confDict['targetBins'], self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
