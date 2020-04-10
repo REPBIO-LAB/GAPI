@@ -130,48 +130,118 @@ def create_discordantClusters(discordantBinDb, minClusterSize, buffer):
     discordantClustersDict = {}
 
     # For each discordant read pair cluster type
-    for clusterType in discordantBinDb.eventTypes:
+    for clusterType in ['DISCORDANT', 'DISCORDANT-PLUS', 'DISCORDANT-MINUS']:
                 
+        if clusterType not in discordantBinDb.eventTypes:
+            continue
+        
         # Do clustering based on reciprocal overlap
         discordantClustersDict[clusterType] = clustering.reciprocal_overlap_clustering(discordantBinDb, 1, minClusterSize, [clusterType], buffer, clusterType)
 
     return discordantClustersDict
 
 
-def extra_clustering_by_matePos(discordantClusters, refLengths, minClusterSize):
+def cluster_by_matePos(discordants, refLengths, minClusterSize):
     '''
     Apply an extra clustering step to discordant read pair clusters based on mate position
 
     Input:
-        1. discordantClusters: dictionary containing for each possible discordant cluster type (keys) a list of clusters (values)
+        1. discordants: list of discordant clusters
         2. refLengths: dictionary containing references as keys and their lengths as values
         3. minClusterSize: minimum cluster size
 
     Output:
-        1. outDiscordantClusters: dictionary containing for each possible discordant cluster type (keys) the list of newly created clusters (values)
-    '''
-    outDiscordantClusters = {}
+        1. outDiscordants: list of discordant clusters after applying mate position based clustering
+    '''     
+    outDiscordants = []
 
-    ## For each discordant cluster type
-    for clusterType, clusters in discordantClusters.items():
-        
-        outDiscordantClusters[clusterType] = []
+    ## For each cluster
+    for cluster in discordants:
 
-        ## For each cluster
-        for cluster in clusters:
-
-            ## Cluster by mate position
-            newClusters = cluster_discordants_by_matePos(cluster.events, refLengths, minClusterSize)
+        ## Cluster by mate position
+        newClusters = cluster_events_by_matePos(cluster.events, refLengths, minClusterSize)
             
-            ## Add newly created clusters to the list
-            outDiscordantClusters[clusterType] = outDiscordantClusters[clusterType] + newClusters
+        ## Add newly created clusters to the list
+        outDiscordants = outDiscordants + newClusters
 
-    return outDiscordantClusters
+    return outDiscordants
 
-
-def cluster_discordants_by_matePos(discordants, refLengths, minClusterSize):
+def cluster_by_supplPos(clippings, refLengths, minClusterSize, clippingSide):
     '''
-    Cluster discordant read pairs based on their mate alignment position
+    Apply an extra clustering step to clipping clusters based on suppl. alignment position
+
+    Input:
+        1. clippings: list of clipping clusters
+        2. refLengths: dictionary containing references as keys and their lengths as values
+        3. minClusterSize: minimum cluster size
+        4. clippingSide: 'LEFT-CLIPPING' or 'RIGHT-CLIPPING'
+
+    Output:
+        1. outClippings: list of clipping clusters after applying supplementary alignment position based clustering
+    '''     
+    outClippings = []
+
+    ## For each cluster
+    for cluster in clippings:
+
+        ## Perform extra clustering based on suppl. alignment positions
+        newClusters = cluster_events_by_supplPos(cluster, refLengths, minClusterSize, clippingSide)
+            
+        ## Add newly created clusters to the list
+        outClippings = outClippings + newClusters
+
+    return outClippings
+
+def cluster_events_by_supplPos(clippingCluster, refLengths, minClusterSize, clippingSide):
+    '''
+    Cluster events in an input clipping cluster according to the position of their supplementary alignments
+    
+    Input:
+        1. clippingCluster: clipping cluster
+        2. refLengths: dictionary containing references as keys and their lengths as values
+        3. minClusterSize: minimum cluster size
+        4. clippingSide: 'LEFT-CLIPPING' or 'RIGHT-CLIPPING'
+
+    Output:
+        1. clippingClusters: list of clipping clusters
+    '''   
+    ## 1. Organize clippings at the cluster into a dictionary 
+    clippingsDict = {}
+
+    for clipping in clippingCluster.events:
+        clippingsDict[clipping.id] = clipping
+    
+    ## 2. Retrieve complementary suppl. alignments for each clipping event 
+    complementaryAlignments = clippingCluster.search4complAlignments()
+
+    ## 3. Cluster supplementary alignment positions
+    supplClusters = clippingCluster.cluster_suppl_positions(complementaryAlignments)
+    
+    ## 4. Create new clipping clusters of discordants based on mate clusters
+    clippingClusters = []
+
+    supplClusters = structures.dict2list(supplClusters)
+ 
+    # For each mate cluster in the reference
+    for supplCluster in supplClusters:
+        
+        # Retrieve original discordants for mates
+        clippings = [clippingsDict[supplAlign.clippingId] for supplAlign in supplCluster.events]
+
+        # Create cluster
+        clippingCluster = create_cluster(clippings, clippingSide)
+
+        # Add supplementary alignments cluster to the clipping cluster
+        clippingCluster.supplCluster = supplCluster
+
+        # Add clipping cluster to the list
+        clippingClusters.append(clippingCluster)
+
+    return clippingClusters
+
+def cluster_events_by_matePos(discordants, refLengths, minClusterSize):
+    '''
+    Cluster discordant read pair events based on their mate alignment position
 
     Input:
         1. discordants: list of discordant events
@@ -180,15 +250,11 @@ def cluster_discordants_by_matePos(discordants, refLengths, minClusterSize):
 
     Output:
         1. discordantClusters: list of discordant clusters
-
     '''   
     ## 1. Organize discordant into a dictionary according to supporting read id
     discordantsDict = {}
 
     for discordant in discordants:
-
-        ## Note: create method to return readName + mateId (\1 and \2). Use this id as dictionary key. 
-        # Othewise 
         discordantsDict[discordant.fullReadName()] = discordant
     
     ## 2. Produce discordant objects for mates:
@@ -271,11 +337,12 @@ def create_clusters(eventsBinDb, confDict):
         ## D) Perform clustering based on reciprocal overlap for DISCORDANT
         elif SV_type == 'DISCORDANT':
 
-            clustersDict[SV_type] = clustering.reciprocal_overlap_clustering(eventsBinDb, 1, confDict['minClusterSize'], [SV_type], 100, SV_type)    
+            clustersDict[SV_type] = clustering.reciprocal_overlap_clustering(eventsBinDb, 1, confDict['minClusterSize'], [SV_type], 200, SV_type)    
 
     ## 2. Organize clusters into bins ##    
     binSizes = [100, 1000, 10000, 100000, 1000000]
     clustersBinDb = structures.create_bin_database_interval(eventsBinDb.ref, eventsBinDb.beg, eventsBinDb.end, clustersDict, binSizes)
+
 
     return clustersBinDb
 
@@ -1379,6 +1446,7 @@ class CLIPPING_cluster(cluster):
     def __init__(self, events):
 
         cluster.__init__(self, events, 'CLIPPING')            
+        self.supplCluster = None
 
     def infer_breakpoint(self):
         '''
