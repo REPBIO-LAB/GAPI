@@ -77,6 +77,7 @@ def INS2VCF_SR(metaclusters, index, refLengths, source, build, species, outName,
             'ORIENTATION': ['.', 'String', 'Orientation of the insertion: RECIPROCAL, PLUS or MINUS'], \
             'BKP2': ['1', 'Integer', 'Reference position of second breakpoint of the insertion'], \
             'CLIPDISC': ['0', 'Flag', 'There are discordant clipping reads supporting the insertion'], \
+            'SPECIDENT': ['.', 'String', 'Specific identities and number of discordant reads supporting it. SpecificIdentity:#reads'], \
             }
             
     ## Create header
@@ -107,22 +108,22 @@ def INS2VCF_SR(metaclusters, index, refLengths, source, build, species, outName,
 
         # Set FILTER field
         # Check if there are FAILED filters at cluster level:
-        checkFilters = []
+        filters = []
         for cluster in metacluster.rawSubclusters:
             if cluster.failedFilters:
                 for failedFilter in cluster.failedFilters:
                     failAppend = failedFilter + '_CLUSTER'
-                    checkFilters.append(failAppend)
+                    if failAppend not in filters:
+                        filters.append(failAppend)
 
         # Check if there are FAILED filters at metacluster level:
         if metacluster.failedFilters:
             for failedFilterMeta in metacluster.failedFilters:
                     failMetaAppend = failedFilterMeta + '_META'
-                    checkFilters.append(failMetaAppend)
+                    if failMetaAppend not in filters:
+                        filters.append(failMetaAppend)
         
-        uniqFilters = list(set(checkFilters))
-
-        FILTER = 'PASS' if not uniqFilters else ','.join(uniqFilters)
+        FILTER = 'PASS' if not filters else ','.join(filters)
         
         ## Collect extra insertion features to include at info field
         INFO = {}
@@ -142,6 +143,22 @@ def INS2VCF_SR(metaclusters, index, refLengths, source, build, species, outName,
         # Label with information about if there are clipping-discordant reads.
         checkClipDisc = any(check in discordants for check in clippings)
         CLIPDISC = True if checkClipDisc else None
+
+        # Set specific identities
+        checkSpecIdent = {}
+        for event in metacluster.events:
+            if event.type != 'CLIPPING' and event.specificIdentity != None:
+                try:
+                    checkSpecIdent[event.specificIdentity] += 1
+                except KeyError:
+                    checkSpecIdent[event.specificIdentity] = 1
+        
+        if not checkSpecIdent:
+            SPECIDENT = None
+        else: 
+            SPECIDENT = ",".join("{}:{}".format(k, v) for k, v in checkSpecIdent.items())
+        
+        print ('EVAAAAA '+ str(SPECIDENT))
 
         # TODO SR: Avoid non-existing fields in another way and add interesting fields
         INFO['VTYPE'] = metacluster.mutOrigin
@@ -185,6 +202,7 @@ def INS2VCF_SR(metaclusters, index, refLengths, source, build, species, outName,
         INFO['DISCORDANTMAPQ'] = discordantsMAPQMean
         INFO['CLIPPINGMAPQ'] = clippingsMAPQMean
         INFO['CLIPDISC'] = CLIPDISC
+        INFO['SPECIDENT'] = SPECIDENT
 
         ## Create VCF variant object
         fields = [CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO]
@@ -205,7 +223,9 @@ def INS2VCF_SR(metaclusters, index, refLengths, source, build, species, outName,
            'QHITS', 'THITS', 'RTCOORD', 'POLYA', 'INSEQ']
     '''
     IDS = ['VTYPE', 'NBTOTAL', 'NBTUMOR', 'NBNORMAL', 'LEN', \
-        'DISCORDANT', 'CLIPPING', 'NBDISCORDANT', 'NBCLIPPING', 'IDENTITY', 'ORIENTATION', 'BKP2', 'DISCORDANTMAPQ', 'CLIPPINGMAPQ', 'CLIPDISC']
+        'DISCORDANT', 'CLIPPING', 'NBDISCORDANT', 'NBCLIPPING', \
+        'IDENTITY', 'ORIENTATION', 'BKP2', 'DISCORDANTMAPQ', 'CLIPPINGMAPQ', \
+        'CLIPDISC', 'SPECIDENT']
 
     VCF.write(IDS, outName, outDir)
 
