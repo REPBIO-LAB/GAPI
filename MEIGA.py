@@ -53,11 +53,10 @@ if __name__ == '__main__':
 	parser.add_argument('--refs', default="ALL", dest='refs', type=str, help='Comma separated list of target references to call SV (i.e. 1,2,3,X). Default: All references included in the bam file')
 	parser.add_argument('--target-SV', default="INS", dest='targetSV', type=str, help='Comma separated list of SV types to be detected (INS AND/OR BND). Default: INS')
 	parser.add_argument('--no-duplicates', action="store_true", default=False, dest='filterDuplicates', help='Filter out reads marked as duplicates if filter enabled')
-	parser.add_argument('--minMAPQ', default=20, dest='minMAPQ', type=int, help='Minimum mapping quality required for each read. Default: 10')
+	parser.add_argument('--minMAPQ', default=20, dest='minMAPQ', type=int, help='Minimum mapping quality required for each read. Default: 20')
 	parser.add_argument('--readFilters', default="SMS", dest='readFilters', type=str, help='Comma separated list of read filters to apply (SMS)')
 	parser.add_argument('--readOverhang', default=5000, dest='overhang', type=int, help='Number of flanking base pairs around the SV event to be collected from the supporting read sequence. Default: 5000')
 	parser.add_argument('--minINDELlen', default=50, dest='minINDELlen', type=int, help='Minimum indel length. Default: 50')
-	parser.add_argument('--minCLIPPINGlen', default=500, dest='minCLIPPINGlen', type=int, help='Minimum clipped sequence length for each read. Default: 500')
 
 	## Clustering
 	parser.add_argument('--INSdist', default=250, dest='maxInsDist', type=int, help='Maximum distance bewteen two adjacent INS to be clustered together (Between 0-999). Default: 250')
@@ -109,7 +108,6 @@ if __name__ == '__main__':
 	readFilters = args.readFilters
 	overhang = args.overhang
 	minINDELlen = args.minINDELlen
-	minCLIPPINGlen = args.minCLIPPINGlen
 
 	## Clustering
 	maxInsDist = args.maxInsDist
@@ -179,7 +177,7 @@ if __name__ == '__main__':
 	##############################################
 	scriptName = os.path.basename(sys.argv[0])
 	scriptName = os.path.splitext(scriptName)[0]
-	version='0.14.0'
+	version='0.15.0'
 
 	print()
 	print('***** ', scriptName, version, 'configuration *****')
@@ -211,8 +209,7 @@ if __name__ == '__main__':
 	print('minMAPQ: ', minMAPQ)
 	print('readFilters: ', readFilters)
 	print('overhang: ', overhang)
-	print('minINDELlength: ', minINDELlen)
-	print('minCLIPPINGlength: ', minCLIPPINGlen, "\n")
+	print('minINDELlength: ', minINDELlen, "\n")
 
 	print('** Clustering **')
 	print('maxInsDist: ', maxInsDist)
@@ -261,22 +258,30 @@ if __name__ == '__main__':
 	confDict['overhang'] = overhang
 	confDict['minMAPQ'] = minMAPQ
 	confDict['minINDELlen'] = minINDELlen
-	confDict['minCLIPPINGlen'] = minCLIPPINGlen
-
+	
 	## Target SV events to search for
 	confDict['targetSV'] = targetSV
 
-	# a) Illumina data (WGS or sureselect)
-	if (confDict['technology'] == 'ILLUMINA') or (confDict['technology'] == 'SURESELECT'):
-		confDict['targetEvents'] = 'DISCORDANT'
-	
-	# b) Long read sequencing data -> INS or INS + BND
-	elif ('INS' in confDict['targetSV']):
-		confDict['targetEvents'] = 'INS,CLIPPING'
+	## Technology specific parameters
+	# a) WGS illumina data (WGS)
+	if (confDict['technology'] == 'ILLUMINA'):
+		confDict['targetEvents'] = ['DISCORDANT']
+		confDict['minCLIPPINGlen'] = 20
 
-	# c) BND alone
+	# b) Sureselect illumina data
+	elif (confDict['technology'] == 'SURESELECT'):
+		confDict['targetEvents'] = ['DISCORDANT', 'CLIPPING']
+		confDict['minCLIPPINGlen'] = 20
+
+	# c) Long read sequencing data -> INS or INS + BND
+	elif ('INS' in confDict['targetSV']):
+		confDict['targetEvents'] = ['INS', 'CLIPPING']
+		confDict['minCLIPPINGlen'] = 500
+
+	# d) BND alone
 	elif ('BND' in confDict['targetSV']):
-		confDict['targetEvents'] = 'CLIPPING'
+		confDict['targetEvents'] = ['CLIPPING']
+		confDict['minCLIPPINGlen'] = 500
 
 	## Clustering
 	confDict['maxInsDist'] = maxInsDist
