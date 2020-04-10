@@ -15,9 +15,87 @@ import stats
 ## FUNCTIONS ##
 ###############
 
-def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
+def filter_discordants(discordants, filters2Apply, confDict):
     '''
     Function to apply filters all metaclusters. 
+
+    Input:
+        1. discordants: list of discordant clusters
+        2. filters2Apply: list containing the filters to apply 
+        3. confDict
+
+    Output:
+        1. discordantsPass: List of discordant clusters passing all the filters
+    '''
+    discordantsPass = []
+
+    # For discordant cluster
+    for discordant in discordants:
+
+        ## Apply filters
+        filter_discordant(discordant, filters2Apply, confDict)
+
+        '''
+        failedFilters = filter_discordant(discordant, filters2Apply, confDict)
+
+        # Metacluster pass all the filters
+        if not failedFilters: 
+            discordantsPass.append(discordant)
+    
+    return discordantsPass
+    '''
+
+def filter_discordant(discordant, filters2Apply, confDict):
+    '''
+    Apply selected filters to a discordant cluster provided as input
+
+    Input:
+        1. metacluster: metacluster object
+        2. filters2Apply: list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
+        3. confDict
+
+    Output:
+        1. failedFilters -> list containing those filters that the discordant cluster doesn't pass.
+    
+    TILL HERE!! FINISH THIS FUNCTION. THEN GO FOR FILTER CLIPPING
+    '''        
+    failedFilters = []
+
+    ## 1. FILTER 1: Minimum number of reads per cluster
+    if 'MIN-NBREADS' in filters2Apply: 
+        if not minNbEventsFilter(discordant, confDict['minSupportingReads'], confDict['minNormalSupportingReads']):
+            failedFilters.append('MIN-NBREADS')
+
+    ## 2. FILTER 2: Filter out those clusters with mates not over NOT target reference ##
+    if 'MATE-REF' in filters2Apply: 
+
+        if not filter_discordant_mate_ref(discordants, self.confDict['targetRefs'])
+
+    ## 3. FILTER 3: Filter out those clusters whose mates aligns over any source element downstream region ##
+    if 'MATE-SRC' in filters2Apply:
+        filteredDiscordants = filters.filter_discordant_mate_position(filteredDiscordants, self.rangesDict, 10000)        
+        
+    ## 4. FILTER 4: Filter out clusters based on average MAPQ for mate alignments ##
+    if 'MATE-MAPQ' in filters2Apply:
+
+        filteredDiscordants = filters.filter_discordant_mate_MAPQ(filteredDiscordants, 20, self.bam, self.normalBam)
+        
+    ## 5. FILTER 5: filter out clusters formed by tumour and normal reads. Discard germline variation
+    if 'GERMLINE' in filters2Apply:
+        filteredDiscordants = filters.filter_germline_discordants(filteredDiscordants, self.confDict['minNormalSupportingReads'])
+            
+    ## 6. FILTER 6: Filter out clusters based on duplicate percentage (Ex: 50%) ##
+    if 'READ-DUP' in filters2Apply:
+
+        filteredDiscordants = filters.filter_highDup_clusters(filteredDiscordants, 50)
+            
+    ## 7. FILTER 7: Filter out insertions in unspecific regions ##
+    if 'UNESPECIFIC' in filters2Apply:
+        filteredDiscordants = filters.filter_INS_unspecificRegions(filteredDiscordants, 0.2, self.bam)
+
+def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
+    '''
+    Function to apply filters to a set of metaclusters organized in a dictionary
 
     Input:
         1. metaclustersDict: dictionary with the following structure: keys -> SV_type, value -> list of metaclusters corresponding to this SV_type.
