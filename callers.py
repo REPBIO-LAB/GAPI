@@ -675,7 +675,7 @@ class SV_caller_sureselect(SV_caller):
         msg = 'SV calling in bin: ' + binId
         log.subHeader(msg)
 
-        ## 1. Search for SV candidate events in the bam file/s ##
+        ## 1. Search for discordant and clipped read events in the bam file/s ##
         # a) Single sample mode
         if self.mode == "SINGLE":
             eventsDict = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, None)
@@ -683,77 +683,82 @@ class SV_caller_sureselect(SV_caller):
         # b) Paired sample mode (tumour & matched normal)
         else:
             eventsDict = bamtools.collectSV_paired(ref, beg, end, self.bam, self.normalBam, self.confDict)
-                        
+
         step = 'COLLECT'
         SV_types = sorted(eventsDict.keys())
         counts = [str(len(eventsDict[SV_type])) for SV_type in SV_types]
         msg = 'Number of SV events in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
         log.step(step, msg)
                                       
-        ## 2. Organize discordant read pairs into genomic bins prior clustering ##
+        ## 2. Discordant and clipping clustering ##
+        ## 2.1 Organize discordant and clipping events into genomic bins prior clustering ##
         step = 'BINNING'
-        msg = 'Organize discordant read pairs into genomic bins prior clustering'
+        msg = 'Organize discordant and clipping events into genomic bins prior clustering'
         log.step(step, msg)
+        
+        ## Create bin database with discordants
+        discordantsDict = {}
+        discordantsDict['DISCORDANT'] = eventsDict['DISCORDANT']
 
-        ## Define bin database sizes 
-        ## Note: bigger window sizes are needed for SR (see comments, ask Eva where are the comments?)
-        binSizes = [500, 1000, 10000, 100000, 1000000]
+        binSizes = [500, 1000, 10000, 100000, 1000000]  
+        discordantsBinDb = structures.create_bin_database_interval(ref, beg, end, discordantsDict, binSizes)
 
-        ## Create bins
-        discordantsBinDb = structures.create_bin_database_interval(ref, beg, end, eventsDict, binSizes)
+        ## Create bin database with clippings 
+        clippingsDict = {}
+        clippingsDict['LEFT-CLIPPING'] = eventsDict['LEFT-CLIPPING']
+        clippingsDict['RIGHT-CLIPPING'] = eventsDict['RIGHT-CLIPPING']
 
-        ## 3. Group discordant read pairs into clusters based on reciprocal overlap ##
+        binSizes = [self.confDict['maxBkpDist'], 100, 500, 1000, 10000, 100000, 1000000]
+        clippingsBinDb = structures.create_bin_database_interval(ref, beg, end, clippingsDict, binSizes)
+
+        ## 2.2 Group discordant and clipping events into clusters ##
         step = 'CLUSTERING'
-        msg = 'Group discordant read pairs into clusters based on reciprocal overlap'
+        msg = 'Group discordant and clipping events into clusters'
         log.step(step, msg)
+ 
+        ## Discordant clustering
+        discordantClustersBinDb = clusters.create_clusters(discordantsBinDb, self.confDict)
 
-        buffer = 200
-        discordantClustersDict = clusters.create_discordantClusters(discordantsBinDb, self.confDict['minClusterSize'], buffer)
-                        
-        ## 4. Do an extra clustering step based on mate position ##
+        ## Clipping clustering
+        clippingClustersBinDb = clusters.create_clusters(clippingsBinDb, self.confDict)
+
+        ## 2.3 Group discordant read pairs based on mate position ##
         step = 'GROUP-BY-MATE'
         msg = 'Group discordant read pairs based on mate position'
         log.step(step, msg)
 
         ## Make groups
-        discordantClustersDict = clusters.extra_clustering_by_matePos(discordantClustersDict, self.refLengths, self.confDict['minClusterSize'])
+        discordants = clusters.cluster_by_matePos(discordantClustersBinDb.collect(['DISCORDANT']), self.refLengths, self.confDict['minClusterSize'])
 
-        ## 5. Filter out those clusters over NOT target reference ##
-        step = 'FILTER-REF'
-        msg = 'Filter out those clusters over NOT target reference'
+        ## 2.4 Group clipping events based on suppl alignment position ##
+        step = 'GROUP-BY-SUPPL'
+        msg = 'Group clipping events based on suppl alignment position'
         log.step(step, msg)
-        filteredDiscordants = filters.filter_discordant_mate_ref(discordantClustersDict['DISCORDANT'], self.confDict['targetRefs'])
 
-        ## 6. Filter out those clusters whose mates aligns over any source element downstream region ##
-        step = 'FILTER-DOWSTREAM'
-        msg = 'Filter out those clusters whose mates aligns over any source element downstream region'
-        log.step(step, msg)
-        filteredDiscordants = filters.filter_discordant_mate_position(filteredDiscordants, self.rangesDict, 10000)        
-        
-        ## 7. Filter out clusters based on average MAPQ for mate alignments ##
-        step = 'FILTER-MATE-MAPQ'
-        msg = 'Filter out clusters based on average MAPQ for mate alignments'
-        log.step(step, msg)
-        filteredDiscordants = filters.filter_discordant_mate_MAPQ(filteredDiscordants, 20, self.bam, self.normalBam)
-        
-        ## 8. If running in paired mode, filter out clusters formed by tumour and normal reads. Discard germline variation ##
-        if self.mode == 'PAIRED':
-            
-            step = 'FILTER-GERMLINE-TDs'
-            msg = 'Filter out those clusters formed by tumour and normal reads'
-            log.step(step, msg)
-            filteredDiscordants = filters.filter_germline_discordants(filteredDiscordants, self.confDict['minNormalSupportingReads'])
-            
-        ## 9. Filter out clusters based on duplicate percentage (Ex: 50%) ##
-        step = 'FILTER-DUP'
-        msg = 'Filter out clusters formed by more than %X duplicates'
-        log.step(step, msg)
-        filteredDiscordants = filters.filter_highDup_clusters(filteredDiscordants, 50)
-            
-        ## 10. Filter out insertions in unspecific regions ##
-        step = 'FILTER-UNSPECIFIC-FP'
-        msg = 'Filter out insertions in unspecific regions'
-        log.step(step, msg)
-        filteredDiscordants = filters.filter_INS_unspecificRegions(filteredDiscordants, 0.2, self.bam)
+        ## Left clipping
+        leftClippingClusters = clusters.cluster_by_supplPos(clippingClustersBinDb.collect(['LEFT-CLIPPING']), self.refLengths, self.confDict['minClusterSize'], 'LEFT-CLIPPING')
+
+        ## Right clipping
+        rightClippingClusters = clusters.cluster_by_supplPos(clippingClustersBinDb.collect(['RIGHT-CLIPPING']), self.refLengths, self.confDict['minClusterSize'], 'RIGHT-CLIPPING')
+
+        ## 3. Cluster filtering ##
+        ## 3.1 Discordant cluster filtering ##
+        step = 'FILTER-DISCORDANT'
+        msg = 'Discordant cluster filtering'
+        filters2Apply = []
+        filters.filter_discordants(discordants, filters2Apply, self.confDict)
+
+        ## 3.2 Clipping cluster filtering ##
+        step = 'FILTER-CLIPPING'
+        msg = 'Clipping cluster filtering'
+        filters2Apply = []
+
+      ## 3.4 If running in paired mode, filter out clusters formed by tumour and normal reads. Discard germline variation ##
+        #if self.mode == 'PAIRED':
+  
+
+        '''
         
         return [srcId, filteredDiscordants]
+        '''
+        
