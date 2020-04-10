@@ -57,7 +57,7 @@ if __name__ == '__main__':
 	parser.add_argument('--readFilters', default="SMS", dest='readFilters', type=str, help='Comma separated list of read filters to apply (SMS)')
 	parser.add_argument('--readOverhang', default=5000, dest='overhang', type=int, help='Number of flanking base pairs around the SV event to be collected from the supporting read sequence. Default: 5000')
 	parser.add_argument('--minINDELlen', default=50, dest='minINDELlen', type=int, help='Minimum indel length. Default: 50')
-	parser.add_argument('--minCLIPPINGlen', default=None, dest='minCLIPPINGlen', type=int, help='Minimum clipped sequence length for each read. Default: 500')
+	parser.add_argument('--minCLIPPINGlen', default=500, dest='minCLIPPINGlen', type=int, help='Minimum clipped sequence length for each read. Default: 500')
 
 	## Clustering
 	parser.add_argument('--INSdist', default=250, dest='maxInsDist', type=int, help='Maximum distance bewteen two adjacent INS to be clustered together (Between 0-999). Default: 250')
@@ -109,16 +109,7 @@ if __name__ == '__main__':
 	readFilters = args.readFilters
 	overhang = args.overhang
 	minINDELlen = args.minINDELlen
-	# set minCLIPPINGlen according to technology when none has been indicated
-	if args.minCLIPPINGlen == None:
-		
-		if args.technology in ['ILLUMINA', 'SURESELECT']:
-			minCLIPPINGlen = 5
-
-		elif args.technology in ['PACBIO', 'NANOPORE']:
-			minCLIPPINGlen = 500
-	else:
-		minCLIPPINGlen = args.minCLIPPINGlen
+	minCLIPPINGlen = args.minCLIPPINGlen
 
 	## Clustering
 	maxInsDist = args.maxInsDist

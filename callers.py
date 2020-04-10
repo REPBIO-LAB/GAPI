@@ -9,8 +9,6 @@ import multiprocessing as mp
 import os
 import pysam
 import time
-import subprocess
-import statistics
 
 # Internal
 import log
@@ -407,7 +405,7 @@ class SV_caller_short(SV_caller):
         pool.join()
     
         # Report SV calls into output files
-        output.write_DISCORDANT(discordantClusters, self.confDict, self.mode, self.outDir)
+        output.write_DISCORDANT(discordantClusters, self.outDir)
 
         ### 5. Do cleanup
         unix.rm([dbDir])
@@ -633,11 +631,7 @@ class SV_caller_sureselect(SV_caller):
         unix.mkdir(tdDir)
         sourceBed = self.refDir + '/srcElements.bed'
         transducedPath = databases.create_transduced_bed(sourceBed, 10000, tdDir)
-        
-        ## 1.1 Infer read size
-        self.confDict['readSize'] = self.infer_readSize()
-        print('readSize: ', self.confDict['readSize'])
-                       
+                
         ### 2. Define genomic bins to search for SV (will correspond to transduced areas)
         bins = bamtools.binning(transducedPath, None, None, None)
 
@@ -669,35 +663,8 @@ class SV_caller_sureselect(SV_caller):
 
         ## 5.2 Transduction calls
         output.write_tdCalls_surelect(clusterPerSrcDict, self.outDir)
-    
         
-    def infer_readSize(self):
-        '''
-        Infer read size from bam file
-        '''
-        
-        # take the first 500 reads of the bam file
-        command = 'samtools view ' + self.bam + '| awk \'{print length($10)}\' | head -500 | tr \'\n\' \' \''
-        result = subprocess.run(command, stdout=subprocess.PIPE, shell=True)
-        
-        # if command fails, exit
-        if result.returncode != 0:
-            step = 'infer_readSize'
-            msg = 'readSize inference failed' 
-            log.step(step, msg)
-            sys.exit(1)
-        
-        # save the result in a list of integers
-        readSizes_str = result.stdout.decode('utf-8').split(" ")
-        readSizes_str.remove("")
-        readSizes_int = [int(i) for i in readSizes_str]
-        
-        # calculate the mode
-        readSize = statistics.mode(readSizes_int)
-        
-        return(readSize)
-        
-    
+
     def make_clusters_bin(self, ref, beg, end, srcId):
         '''
         Search for structural variant (SV) clusters in a genomic bin/window
@@ -776,23 +743,14 @@ class SV_caller_sureselect(SV_caller):
             msg = 'Filter out those clusters formed by tumour and normal reads'
             log.step(step, msg)
             filteredDiscordants = filters.filter_germline_discordants(filteredDiscordants, self.confDict['minNormalSupportingReads'])
-        
-        ## 9. Filter out clusters where cluster range is equal to readSize
-        step = 'FILTER-CLUSTER-RANGE'
-        msg = 'Filter out clusters whose range is not greater than readSize'
+            
+        ## 9. Filter out clusters based on duplicate percentage (Ex: 50%) ##
+        step = 'FILTER-DUP'
+        msg = 'Filter out clusters formed by more than %X duplicates'
         log.step(step, msg)
-        buffer = 20
-        filteredDiscordants = filters.filter_clusterRange(filteredDiscordants, buffer, self.confDict['readSize'])
-    
-        ## 10. Filter out clusters based on duplicate percentage (Ex: 50%) ##
-        if self.confDict['filterDuplicates'] == False:
+        filteredDiscordants = filters.filter_highDup_clusters(filteredDiscordants, 50)
             
-            step = 'FILTER-DUP'
-            msg = 'Filter out clusters formed by more than %X duplicates'
-            log.step(step, msg)
-            filteredDiscordants = filters.filter_highDup_clusters(filteredDiscordants, 50)
-            
-        ## 11. Filter out insertions in unspecific regions ##
+        ## 10. Filter out insertions in unspecific regions ##
         step = 'FILTER-UNSPECIFIC-FP'
         msg = 'Filter out insertions in unspecific regions'
         log.step(step, msg)
