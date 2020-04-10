@@ -389,7 +389,7 @@ def write_tdCalls_surelect(clustersPerSrc, outDir):
             nbReads, readIds = cluster.nbReads()
             readIds = ','.join(readIds)
             dupPerc = round(cluster.dupPercentage(), 2)
-
+            
             call = [ref, str(beg), str(end), srcId, str(nbReads), readIds, str(dupPerc)]
             calls.append(call)
 
