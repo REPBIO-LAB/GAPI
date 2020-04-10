@@ -636,7 +636,7 @@ class SV_caller_sureselect(SV_caller):
         bins = bamtools.binning(transducedPath, None, None, None)
 
         ## Organize bins into a dictionary
-        self.rangesDict = gRanges.rangeList2dict(bins)
+        self.confDict['rangesDict'] = gRanges.rangeList2dict(bins)
 
         ### 3. Associate to each bin the src identifier
         BED = formats.BED()
@@ -745,20 +745,17 @@ class SV_caller_sureselect(SV_caller):
         ## 3.1 Discordant cluster filtering ##
         step = 'FILTER-DISCORDANT'
         msg = 'Discordant cluster filtering'
-        filters2Apply = []
-        filters.filter_discordants(discordants, filters2Apply, self.confDict)
+        filters2Apply = ['MIN-NBREADS', 'MATE-REF', 'MATE-SRC', 'MATE-MAPQ', 'GERMLINE', 'UNESPECIFIC', 'READ-DUP']
+        filteredDiscordants = filters.filter_discordants(discordants, filters2Apply, self.bam, self.normalBam, self.confDict)
 
         ## 3.2 Clipping cluster filtering ##
         step = 'FILTER-CLIPPING'
         msg = 'Clipping cluster filtering'
         filters2Apply = []
 
-      ## 3.4 If running in paired mode, filter out clusters formed by tumour and normal reads. Discard germline variation ##
+        ## 3.4 If running in paired mode, filter out clusters formed by tumour and normal reads. Discard germline variation ##
         #if self.mode == 'PAIRED':
   
-
-        '''
         
         return [srcId, filteredDiscordants]
-        '''
         

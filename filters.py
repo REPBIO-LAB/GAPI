@@ -15,14 +15,16 @@ import stats
 ## FUNCTIONS ##
 ###############
 
-def filter_discordants(discordants, filters2Apply, confDict):
+def filter_discordants(discordants, filters2Apply, bam, normalBam, confDict):
     '''
     Function to apply filters all metaclusters. 
 
     Input:
         1. discordants: list of discordant clusters
         2. filters2Apply: list containing the filters to apply 
-        3. confDict
+        3. bam: path to bam file. None if not needed
+        4. normalBam: path to matched normal bam file. None if not needed        
+        5. confDict
 
     Output:
         1. discordantsPass: List of discordant clusters passing all the filters
@@ -33,31 +35,27 @@ def filter_discordants(discordants, filters2Apply, confDict):
     for discordant in discordants:
 
         ## Apply filters
-        filter_discordant(discordant, filters2Apply, confDict)
-
-        '''
-        failedFilters = filter_discordant(discordant, filters2Apply, confDict)
+        failedFilters = filter_discordant(discordant, filters2Apply, bam, normalBam, confDict)
 
         # Metacluster pass all the filters
         if not failedFilters: 
             discordantsPass.append(discordant)
     
     return discordantsPass
-    '''
 
-def filter_discordant(discordant, filters2Apply, confDict):
+def filter_discordant(discordant, filters2Apply, bam, normalBam, confDict):
     '''
     Apply selected filters to a discordant cluster provided as input
 
     Input:
-        1. metacluster: metacluster object
+        1. discordant: discordant read pair cluster object
         2. filters2Apply: list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
-        3. confDict
+        3. bam: path to bam file. None if not needed
+        4. normalBam: path to matched normal bam file. None if not needed
+        5. confDict
 
     Output:
         1. failedFilters -> list containing those filters that the discordant cluster doesn't pass.
-    
-    TILL HERE!! FINISH THIS FUNCTION. THEN GO FOR FILTER CLIPPING
     '''        
     failedFilters = []
 
@@ -69,30 +67,41 @@ def filter_discordant(discordant, filters2Apply, confDict):
     ## 2. FILTER 2: Filter out those clusters with mates not over NOT target reference ##
     if 'MATE-REF' in filters2Apply: 
 
-        if not filter_discordant_mate_ref(discordants, self.confDict['targetRefs'])
+        if not filter_discordant_mate_ref(discordant, confDict['targetRefs']):
+            failedFilters.append('MATE-REF')
 
     ## 3. FILTER 3: Filter out those clusters whose mates aligns over any source element downstream region ##
     if 'MATE-SRC' in filters2Apply:
-        filteredDiscordants = filters.filter_discordant_mate_position(filteredDiscordants, self.rangesDict, 10000)        
+
+        if not filter_discordant_mate_position(discordant, confDict['rangesDict'], 10000):
+            failedFilters.append('MATE-SRC')
         
     ## 4. FILTER 4: Filter out clusters based on average MAPQ for mate alignments ##
     if 'MATE-MAPQ' in filters2Apply:
-
-        filteredDiscordants = filters.filter_discordant_mate_MAPQ(filteredDiscordants, 20, self.bam, self.normalBam)
+    
+        if not filter_discordant_mate_MAPQ(discordant, 20, bam, normalBam):
+            failedFilters.append('MATE-MAPQ')
         
-    ## 5. FILTER 5: filter out clusters formed by tumour and normal reads. Discard germline variation
+    ## 5. FILTER 5: filter out clusters formed by tumour and normal reads. Discard germline variation (TILL HERE) 
     if 'GERMLINE' in filters2Apply:
-        filteredDiscordants = filters.filter_germline_discordants(filteredDiscordants, self.confDict['minNormalSupportingReads'])
+
+        if not filter_germline_discordant(discordant, confDict['minNormalSupportingReads']):
+            failedFilters.append('GERMLINE')
             
-    ## 6. FILTER 6: Filter out clusters based on duplicate percentage (Ex: 50%) ##
+    ## 6. FILTER 6: Filter out clus in unspecific regions (TILL HERE) ##
+    if 'UNESPECIFIC' in filters2Apply:
+
+        if not filter_discordant_mate_unespecific(discordant, 0.2, bam):
+            failedFilters.append('UNESPECIFIC')
+
+    ## 7. FILTER 7: Filter out clusters based on duplicate percentage (Ex: 50%) ##
     if 'READ-DUP' in filters2Apply:
 
-        filteredDiscordants = filters.filter_highDup_clusters(filteredDiscordants, 50)
-            
-    ## 7. FILTER 7: Filter out insertions in unspecific regions ##
-    if 'UNESPECIFIC' in filters2Apply:
-        filteredDiscordants = filters.filter_INS_unspecificRegions(filteredDiscordants, 0.2, self.bam)
+        if not filter_highDup_clusters(discordant, 50):
+            failedFilters.append('READ-DUP')
 
+    return failedFilters
+        
 def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
     '''
     Function to apply filters to a set of metaclusters organized in a dictionary
@@ -205,7 +214,7 @@ def minNbEventsFilter(metacluster, minSupportingReads, minNormalSupportingReads)
     '''
 
     ## 1. Compute number of events supporting the cluster 
-    nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING = metacluster.nbEvents()
+    nbTotal, nbTumour, nbNormal = metacluster.nbEvents()
 
     ## 2. Compare the number of events supporting the cluster against the minimum required
     # 2.1 Paired mode:
@@ -319,166 +328,211 @@ def SVTypeFilter(metacluster, targetSV):
 
     return PASS
 
-def filter_discordant_mate_ref(discordants, targetRefs):
+def filter_discordant_mate_ref(discordant, targetRefs):
     '''
-    Filter out discordant cluster located over not target references
+    Filter out discordant cluster if its mate not located over a target reference
 
     Input:
-        1. discordants: List of discordant clusters (clustering of discordant done by proximity and then by mate position)
+        1. discordant: discordant cluster object
         2. targetRefs: List of target references
 
     Output:
-        1. filteredDiscordant: list of filtered discordant clusters
+        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
     '''
-    filteredDiscordant = []
 
-    ## For each cluster
-    for cluster in discordants:
+    ## Retrieve mates referene 
+    matesRef = discordant.events[0].mateRef
 
-        ## Retrieve mates interval of mate positions
-        matesRef = cluster.events[0].mateRef
+    if matesRef in targetRefs:
+        PASS = True 
+        
+    else:
+        PASS = False
 
-        if matesRef in targetRefs:
-            filteredDiscordant.append(cluster)
+    return PASS
 
-    return filteredDiscordant
-
-def filter_discordant_mate_position(discordants, ranges, buffer):
+def filter_discordant_mate_position(discordant, ranges, buffer):
     '''
     Filter out discordant cluster if mates align within one of the provided regions
 
     Input:
-        1. discordants: List of discordant clusters (clustering of discordant done by proximity and then by mate position)
+        1. discordant: discordant cluster object
         2. ranges: Dictionary with reference ids as keys and the list of ranges on each reference as values
         3. buffer: Extend each range at their begin and end coordinate by a number of nucleotides == buffer length
 
     Output:
-        1. filteredDiscordant: list of filtered discordant clusters
+        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
     '''
-    filteredDiscordant = []
 
-    for cluster in discordants:
+    ## Retrieve mates position and interval
+    matesRef = discordant.events[0].mateRef
+    matesBeg, matesEnd = discordant.mates_start_interval()
 
-        ## Retrieve mates interval of mate positions
-        matesRef = cluster.events[0].mateRef
-        matesBeg, matesEnd = cluster.mates_start_interval()
+    ## Do not filter out discordant cluster if no input range on that particular reference 
+    if matesRef not in ranges:
+        PASS = True
+        return PASS
+        
+    ## Assess overlap between mates interval and provided regions. 
+    PASS = True
 
-        ## Do not filter out cluster if no input range on that particular reference 
-        if matesRef not in ranges:
-            filteredDiscordant.append(cluster)
-            continue
+    for interval in ranges[matesRef]:
+        rangeBeg, rangeEnd = interval
 
-        ## Assess overlap between mates interval and provided regions. 
-        filterCluster = False
+        # Add buffer
+        rangeBeg = rangeBeg - buffer
+        rangeEnd = rangeEnd + buffer
 
-        for interval in ranges[matesRef]:
-            rangeBeg, rangeEnd = interval
+        # Assess overlap
+        overlap, overlapLen = gRanges.overlap(matesBeg, matesEnd, rangeBeg, rangeEnd)
 
-            # Add buffer
-            rangeBeg = rangeBeg - buffer
-            rangeEnd = rangeEnd + buffer
+        if overlap:
+            PASS = False
 
-            # Assess overlap
-            overlap, overlapLen = gRanges.overlap(matesBeg, matesEnd, rangeBeg, rangeEnd)
+    return PASS
 
-            if overlap:
-                filterCluster = True
-
-        ## Filter out cluster if overlap is found
-        if not filterCluster:
-            filteredDiscordant.append(cluster)
-
-    return filteredDiscordant
-
-def filter_discordant_mate_MAPQ(discordants, minMAPQ, bam, normalBam):
+def filter_discordant_mate_MAPQ(discordant, minMAPQ, bam, normalBam):
     '''
     Filter out discordant clusters based on average MAPQ for mate alignments
 
     Input:
-        1. discordants: list of discordant clusters (clustering of discordant done by proximity and then by mate position)
+        1. discordant: discordant cluster object
         2. minMAPQ: minimum average of mapping quality for mate alignments
         3. bam: path to bam file containing alignments for discordant cluster supporting reads and their mate
         4. normalBam: path to the matched normal bam file. If running in single mode, set to 'None' 
 
     Output:
-        1. filteredDiscordant: list of filtered discordant clusters
+        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
     '''
-    filteredDiscordant = []
-
     ## Open BAM files for reading
     bamFile = pysam.AlignmentFile(bam, "rb")
+
     if normalBam != None:
         bamFile_normal = pysam.AlignmentFile(normalBam, "rb")
         
-    for cluster in discordants:
+    ## Define interval to search for mate alignment objects
+    matesBeg, matesEnd = discordant.mates_start_interval()
 
-        ## Define interval to search for mate alignment objects
-        matesBeg, matesEnd = cluster.mates_start_interval()
+    intervalRef = discordant.events[0].mateRef 
+    intervalBeg = matesBeg - 500
+    intervalEnd = matesEnd + 500
 
-        intervalRef = cluster.events[0].mateRef 
-        intervalBeg = matesBeg - 500
-        intervalEnd = matesEnd + 500
+    ## Collect cluster supporting reads
+    nbTotal, nbTumour, nbNormal, readIds, readIdsTumour, readIdsNormal = discordant.supportingReads()
 
-        ## Collect cluster supporting reads
-        nbTotal, nbTumour, nbNormal, readIds, readIdsTumour, readIdsNormal = cluster.supportingReads()
-
-        ## Compute average mapping quality for mates of cluster supporting reads
-        
-        # if running in single mode or running in paired but no reads from the normal are found in this interval
-        if (normalBam == None or (normalBam != None and readIdsNormal == [])):
+    ## Compute average mapping quality for mates of cluster supporting reads
+    # if running in single mode or running in paired but no reads from the normal are found in this interval
+    if (normalBam == None or (normalBam != None and readIdsNormal == [])):
             
-            avMAPQ = bamtools.average_MAPQ_reads_interval(intervalRef, intervalBeg, intervalEnd, readIds, bamFile)
+        avMAPQ = bamtools.average_MAPQ_reads_interval(intervalRef, intervalBeg, intervalEnd, readIds, bamFile)
             
-            if avMAPQ >= minMAPQ:
-                filteredDiscordant.append(cluster)
-                
-        # if running in paired mode and there is reads in the interval belonging to the normal bam
+        if avMAPQ >= minMAPQ:
+            PASS = True
+
         else:
+            PASS = False
+                
+    # if running in paired mode and there is reads in the interval belonging to the normal bam
+    else:
             
-            avMAPQ = bamtools.average_MAPQ_reads_interval(intervalRef, intervalBeg, intervalEnd, readIdsTumour, bamFile)
-            avMAPQ_normal = bamtools.average_MAPQ_reads_interval(intervalRef, intervalBeg, intervalEnd, readIdsNormal, bamFile_normal)
+        avMAPQ = bamtools.average_MAPQ_reads_interval(intervalRef, intervalBeg, intervalEnd, readIdsTumour, bamFile)
+        avMAPQ_normal = bamtools.average_MAPQ_reads_interval(intervalRef, intervalBeg, intervalEnd, readIdsNormal, bamFile_normal)
             
-            # tumor and normal MAPQ average
-            avMAPQ_pair = (avMAPQ * len(readIdsTumour) + avMAPQ_normal * len(readIdsNormal))/len(readIdsTumour + readIdsNormal)          
+        # tumor and normal MAPQ average
+        avMAPQ_pair = (avMAPQ * len(readIdsTumour) + avMAPQ_normal * len(readIdsNormal))/len(readIdsTumour + readIdsNormal)          
              
-            if avMAPQ_pair >= minMAPQ:
-                filteredDiscordant.append(cluster)
-        
+        if avMAPQ_pair >= minMAPQ:
+            PASS = True
+
+        else:
+            PASS = False
+
     ## Close 
     bamFile.close()
+
     if normalBam != None:
         bamFile_normal.close()
         
-    return filteredDiscordant
+    return PASS
 
 
-def filter_germline_discordants(discordants, minNormalSupportingReads):
+def filter_germline_discordant(discordant, minNormal):
     '''
     Filter out those clusters formed by tumour and normal reads
     
     Input:
-    1. discordants: list of discordant clusters (clustering of discordant done by proximity and then by mate position)
-    2. minNormalSupportingReads: minimum number of reads supporting a SV in normal sample
+        1. discordant: discordant cluster object
+        2. minNormal: minimum number of reads supporting a SV in normal sample
     
     Output:
-    1. filteredDiscordant: list of discordant clusters with no reads present in the normal
+        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
+    '''
+    count = 0
+        
+    for event in discordant.events:
+            
+        if event.sample == 'NORMAL':
+            count += 1
+                
+    if count < minNormal:
+        PASS = True
+        
+    else:
+        PASS = False
+
+    return PASS
+
+
+def filter_discordant_mate_unespecific(discordant, threshold, bam):
+    '''
+    Filter out discordant whose mates are located in regions captured unspecifically
+    Insertion points where there is more than discordant reads are likely to be false positives
+    Example of recurrent false positive filtered: chr6:29765954 (hg19)
+    
+    Input:
+        1. discordant: discordant cluster instance
+        2. threshold: ratio of nbDiscordant reads between nbTotal reads
+        3. bam: path to bam file
+
+    Output:
+        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
     '''
     
-    filteredDiscordant = []
+    # Open BAM file for reading
+    bamFile = pysam.AlignmentFile(bam, "rb")
     
-    for cluster in discordants:
-        count = 0
+    nbProperPair = 0
+    nbDiscordants = len(discordant.events)
         
-        for event in cluster.events:
+    buffer = 200
+    ref = discordant.events[0].mateRef
+    beg, end = discordant.mates_start_interval()
+        
+    # Extract alignments
+    iterator = bamFile.fetch(ref, beg - buffer, end + buffer)
+        
+    # Count properly paired reads in region
+    for alignmentObj in iterator:
             
-            if event.sample == 'NORMAL':
-                count += 1
+        if alignmentObj.is_proper_pair:
                 
-        if count < minNormalSupportingReads:
-            filteredDiscordant.append(cluster)
+            nbProperPair += 1
         
-    return filteredDiscordant
+    # if there are properly paired reads around insertion
+    if nbProperPair > 0:
+            
+        # if the ratio discordants/properly paired reads is greater than threshold
+        if nbDiscordants/nbProperPair > threshold:        
+            PASS = True
 
+        else:  
+            PASS = False
+
+    else:
+            
+        PASS = True
+            
+    return PASS
 
 # --------------- SHORT READS -----------------------
 # HACER OTRA PARECIDA A LA QUE ESTABA PARA SHORT READS
@@ -670,83 +724,25 @@ def areaSMS(alignmentObj):
     return SMSRead
 
 
-    
-
-def filter_highDup_clusters(discordants, dupPerc_threshold):
+def filter_highDup_clusters(cluster, maxDupPerc):
     '''
     Filter out those clusters formed by more than a percentage of duplicates
     
     Input:
-        1. discordant: list of discordant clusters formed by DISCORDANT events
-        2. dupPerc_threshold: Percentage of duplicates by cluster to filter out
+        1. cluster: list of discordant clusters formed by DISCORDANT events
+        2. maxDupPerc: Percentage of duplicates by cluster to filter out
     
     Output:
-        1. filteredDiscordant: list of discordant clusters with no more than a percentage of duplicates  
+        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
     '''
     
-    filteredDiscordant = []
-    
-    for cluster in discordants:
+    dupPerc = cluster.dupPercentage()
         
-        dupPerc = cluster.dupPercentage()
-        
-        if dupPerc < dupPerc_threshold:
+    if dupPerc <= maxDupPerc:
             
-            filteredDiscordant.append(cluster)
-                
-    return filteredDiscordant
+        PASS = True
 
-
-    
-def filter_INS_unspecificRegions(discordants, threshold, bam):
-    '''
-    Filter out those clusters whose mates are located in regions captured unspecifically
-    Insertion points where there is more than discordant reads are likely to be false positives
-    Example of recurrent false positive filtered: chr6:29765954 (hg19)
-    
-    Input:
-        1. discordant: list of discordant clusters formed by DISCORDANT events
-        2. threshold: ratio of nbDiscordant reads between nbTotal reads
-    
-    Output:
-        1. filteredDiscordant: list of discordant clusters that have more than a percentage of discordant reads in the insertion point
-    '''
-    
-    filteredDiscordant = []
-    
-    # Open BAM file for reading
-    bamFile = pysam.AlignmentFile(bam, "rb")
-    
-    for cluster in discordants:
-        
-        nbProperPair = 0
-        nbDiscordants = len(cluster.events)
-        
-        buffer = 200
-        
-        ref = cluster.events[0].mateRef
-        beg, end = cluster.mates_start_interval()
-        
-        # Extract alignments
-        iterator = bamFile.fetch(ref, beg - buffer, end + buffer)
-        
-        # Count properly paired reads in region
-        for alignmentObj in iterator:
-            
-            if alignmentObj.is_proper_pair:
+    else:
+        PASS = False
                 
-                nbProperPair += 1
-        
-        # if there is properly paired reads around insertion
-        if nbProperPair > 0:
-            
-            # if the ratio discordants/properly paired reads is greater than threshold
-            if nbDiscordants/nbProperPair > threshold:
-            
-                filteredDiscordant.append(cluster)
-                
-        else:
-            
-            filteredDiscordant.append(cluster)
-            
-    return filteredDiscordant
+    return PASS
