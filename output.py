@@ -11,7 +11,7 @@ import statistics
 import structures
 import formats
 
-def INS2VCF_SR(metaclusters, index, refLengths, source, build, species, outName, outDir):
+def INS2VCF_SR(metaclusters, index, refLengths, source, build, species, VCFInfoFields, outName, outDir):
     '''
     Write INS calls into a VCF file
 
@@ -223,11 +223,14 @@ def INS2VCF_SR(metaclusters, index, refLengths, source, build, species, outName,
            'NBTOTAL', 'NBTUMOR', 'NBNORMAL', 'NBSPAN', 'NBCLIP', 'LEN', 'CV', 'RTLEN', \
            'TRUN5LEN', 'TRUN3LEN', 'FULL', 'TDLEN', 'INVLEN', 'PERCR', \
            'QHITS', 'THITS', 'RTCOORD', 'POLYA', 'INSEQ']
-    '''
+    
     IDS = ['VTYPE', 'NBTOTAL', 'NBTUMOR', 'NBNORMAL', 'LEN', \
         'DISCORDANT', 'CLIPPING', 'NBDISCORDANT', 'NBCLIPPING', \
         'IDENTITY', 'ORIENTATION', 'BKP2', 'DISCORDANTMAPQ', 'CLIPPINGMAPQ', \
         'CLIPDISC', 'SPECIDENT', 'DISCDUP', 'CLIPDUP']
+    '''
+
+    IDS = VCFInfoFields
 
     VCF.write(IDS, outName, outDir)
 

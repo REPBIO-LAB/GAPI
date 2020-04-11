@@ -419,7 +419,7 @@ class SV_caller_short(SV_caller):
         output.writeMetaclusters(metaclustersListofLists, outFileNameTSV, self.outDir)
         # Flat metaclustersList
         metaclustersList = [item for sublist in metaclustersListofLists for item in sublist]
-        output.INS2VCF_SR(metaclustersList, self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
+        output.INS2VCF_SR(metaclustersList, self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], self.confDict['VCFInfoFields'], outFileName, self.outDir)
 
 
     def make_clusters(self):
@@ -567,7 +567,7 @@ class SV_caller_short(SV_caller):
             # Flat metaclustersList
             metaclustersFailedList = [item for sublist in metaclustersFailedListofLists for item in sublist]
             # TODO SR: Write VCF as output!
-            output.INS2VCF_SR(metaclustersFailedList, self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
+            output.INS2VCF_SR(metaclustersFailedList, self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], self.confDict['VCFInfoFields'], outFileName, self.outDir)
 
 
         return metaclustersPass

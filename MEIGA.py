@@ -82,6 +82,8 @@ if __name__ == '__main__':
 	parser.add_argument('--komplexityThreshold', default=0.4, dest='komplexityThreshold', type=float, help='Threshold for filtering mates sequence with komplexity tool. Default: 0.4')
 	parser.add_argument('--viralBamParcialMatch', default=4, dest='viralBamParcialMatch', type=int, help='Threshold partial matches against viral db. Example: 4 stands for >40 matches per read. Default: 4')
 
+	# Output
+	parser.add_argument('--VCFInfoFields', default="VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,DISCORDANT,CLIPPING,NBDISCORDANT,NBCLIPPING,IDENTITY,ORIENTATION,BKP2,DISCORDANTMAPQ,CLIPPINGMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP", dest='VCFInfoFields', type=str, help='Comma separated list of INFO fields to display in output VCF (VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,DISCORDANT,CLIPPING,NBDISCORDANT,NBCLIPPING,IDENTITY,ORIENTATION,BKP2,DISCORDANTMAPQ,CLIPPINGMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP). Default: All are included')
 
 	## 2. Parse user´s input and initialize variables ##
 	args = parser.parse_args()
@@ -141,6 +143,9 @@ if __name__ == '__main__':
 	komplexityThreshold = args.komplexityThreshold
 	viralBamParcialMatch = args.viralBamParcialMatch
 
+	# Ouput
+	VCFInfoFields = args.VCFInfoFields
+
 	# If no reference is specified, get all that are present in the bam file.
 	if refs == 'ALL':
 		refs = bamtools.get_refs(bam)
@@ -149,6 +154,7 @@ if __name__ == '__main__':
 	targetSV = SV.split(',')
 	targetRefs = refs.split(',')
 	targetINT2Search = INT2Search.split(',')
+	targetVCFInfoFields = VCFInfoFields.split(',')
 
 	## Determine running mode:
 	mode = 'SINGLE' if normalBam == None else 'PAIRED'
@@ -225,6 +231,9 @@ if __name__ == '__main__':
 	print('komplexityThreshold: ', komplexityThreshold)
 	print('viralBamParcialMatch: ', viralBamParcialMatch, "\n")
 
+	print('** Output **')
+	print ('VCFInfoFields: ', VCFInfoFields, "\n")
+
 	print('***** Executing ', scriptName, '.... *****', "\n")
 
 	##########
@@ -285,6 +294,9 @@ if __name__ == '__main__':
 	confDict['targetINT2Search'] = targetINT2Search
 	confDict['komplexityThreshold'] = komplexityThreshold
 	confDict['viralBamParcialMatch'] = viralBamParcialMatch
+
+	# Output
+	confDict['VCFInfoFields'] = targetVCFInfoFields
 	
 	## 2. Execute structural variation caller
 	###########################################
