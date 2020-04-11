@@ -422,7 +422,7 @@ class SV_caller_short(SV_caller):
         ### If viruses option is selected, collect read name and sequence of discordant low quality reads from all bam refs ##
         if 'VIRUS' in self.confDict['targetINT2Search']:
             # TEMP SR: DESILENCE
-
+            '''
             # Make genomic bins
             bins = bamtools.makeGenomicBins(self.bam, self.confDict['binSize'], None)
 
@@ -442,9 +442,7 @@ class SV_caller_short(SV_caller):
                 pool.starmap(self.callCollectSeqNormal, bins)
                 pool.close()
                 pool.join()
-            
-            # TEMP SR: DESILENCE
-            
+                        
 			# Filter by complexity (with komplexity)
             allFastas_all = self.outDir + "/allFastas_all.fasta"
             allFastas = self.outDir + "/allFastas.fasta"
@@ -460,10 +458,10 @@ class SV_caller_short(SV_caller):
             
             # Align with bwa allFastas vs viralDb and filter resulting bam
             # TODO SR: bwa allFastas vs viralDb: use exinting function (or do one) and check if bwa -T parameter does something that we need
-            
+            '''
             BAM = self.outDir + '/' + 'viralAligment' + '.bam'
             # TEMP SR: DESILENCE
-            
+            '''
             bwaProcesses = 5 if self.confDict['processes'] > 5 else self.confDict['processes']
             command = 'bwa mem -Y -t '+ str(bwaProcesses) + ' ' +  self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools view -h  | awk \'(($5=="60" && $6~/[' + str(self.confDict['viralBamParcialMatch']) + '-9][0-9]M/) || ($6~/[0-9][0-9][0-9]M/) || ($1 ~ /@/)){print}\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
             err = open(self.outDir + '/align.err', 'w') 
@@ -479,7 +477,7 @@ class SV_caller_short(SV_caller):
 
             # TEMP SR: Remove allfastas
             #unix.rm([allFastas])
-            
+            '''
             # Read bwa result and store in a dictionary
             bamFile = pysam.AlignmentFile(BAM, 'rb')
 
@@ -586,15 +584,12 @@ class SV_caller_short(SV_caller):
         #else:
             #discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'],self.bam, None, binDir, self.confDict['viralDb'])
             #discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], None, None,self.bam, None, binDir, self.confDict['viralDb'])
-
-        #for discirdant in discordantDict['DISCORDANT']:
-            #print ('DISCORDAAAAAAAAANT' +' '+ str(discirdant.beg) +' '+ str(discirdant.end)  +' '+ str(discirdant.orientation) +' '+ str(discirdant.pair) +' '+ str(discirdant.readName)  +' '+ str(discirdant.identity))
         
         del discordants
         step = 'IDENTITY'
         SV_types = sorted(discordantsIdentity.keys())
         counts = [str(len(discordantsIdentity[SV_type])) for SV_type in SV_types]
-        msg = 'Number of SV events per identity in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
+        msg = 'Number of SV events per identity in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts) + '. PID: ' + str(os.getpid())
         log.step(step, msg)
 
         ## 3. Organize discordant read pairs into genomic bins prior clustering ##
@@ -616,23 +611,17 @@ class SV_caller_short(SV_caller):
         discordantClustersDict = clusters.create_discordantClusters(discordantsBinDb, self.confDict['minClusterSize'], buffer)
 
         del discordantsBinDb
-        
-        # TODO SR: Remove this print
-        for key, dis in discordantClustersDict.items():
-            print ('discordantClustersDict.key ' + str(key) + 'discordantClustersDict.value '+ str(dis))
-            for discirdant in dis:
-                print ('discordantClustersDict.values() ' + str(discirdant.id) + ' ' + str(discirdant.beg) + ' ' + str(discirdant.end) + ' ' + str(discirdant.clusterType))
-        
     
         step = 'DISCORDANT-CLUSTERING'
         SV_types = sorted(discordantClustersDict.keys())
         counts = [str(len(discordantClustersDict[SV_type])) for SV_type in SV_types]
-        msg = 'Number of created discordant clusters in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
+        msg = 'Number of created discordant clusters in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts) + '. PID: ' + str(os.getpid())
         log.step(step, msg)
 
-        #if counts == []:
-            #unix.rm([binDir])
-            #return None
+        # Return if no DISCODANT clusters found.
+        if counts == []:
+            unix.rm([binDir])
+            return None
 
         # TODO SR: ANNOTATE-REPEATS step: Desilence and put in the right place (now it is repeated in two different places) in case we want to analyse RT. If not, decide if it is neccessary or not.
         '''
@@ -668,58 +657,13 @@ class SV_caller_short(SV_caller):
         ### Do cleanup
         #unix.rm([binDir])
 
-        #return discordantClustersDict
-
         ## 5. Filter discordant clusters ##
         step = 'FILTER CLUSTERS'
-        msg = 'Filter out clusters' 
+        msg = 'Filter out clusters'  + '. PID: ' + str(os.getpid())
         log.step(step, msg)
         # NOTE SR: dont look at 'MIN-NBREADS' at cluster level
         filters2Apply = ['MAX-NBREADS', 'AREAMAPQ', 'AREASMS', 'IDENTITY']
         discordantClustersDict, discordantClustersDictFailed = filters.filter_clusters(discordantClustersDict, filters2Apply, self.confDict, self.bam)
-        # TODO SR: Remove this print
-        for key1, value1 in discordantClustersDict.items():
-            print ('discordantClustersDict.key_afFiltering ' + str(key1) + 'discordantClustersDict.value_afFiltering '+ str(value1))
-            for discirdant1 in value1:
-                print ('discordantClustersDict.values()_afFiltering ' + str(discirdant1.id) + ' ' + str(discirdant1.beg) + ' ' + str(discirdant1.end) + ' ' + str(discirdant1.clusterType)  + ' ' + str([event.readName for event in discirdant1.events]))
-
-
-        for key2, value2 in discordantClustersDictFailed.items():
-            print ('discordantClustersDictFailed.key_afFiltering ' + str(key2) + 'discordantClustersDictFailed.value_afFiltering '+ str(value2))
-            for discirdant2 in value2:
-                print ('discordantClustersDictFailed.values()_afFiltering ' + str(discirdant2.id) + ' ' + str(discirdant2.beg) + ' ' + str(discirdant2.end) + ' ' + str(discirdant2.clusterType)  + ' ' + str([event.readName for event in discirdant2.events]))
-
-        '''
-        # TODO SR: Remove this print
-        for dis in discordantClustersDict.values():
-            for discirdant in dis:
-                print ('DISCORDAAAAAAAAANT AFTER FILTERRRIIIING')
-                print (discirdant.beg)
-                print (discirdant.end)
-                print (discirdant.clusterType)
-        '''
-        
-        # TODO SR: Remove this piece of code (as it is re-written below)
-        '''
-        ## 6. Filter discordant metaclusters ##
-
-        filters.filterClusters(discordantClustersBinDb, ['DISCORDANT'], self.confDict, self.bam)
-
-        ## Remove those clusters that fail in one or more filters
-        newDiscordantClustersDict = filters.applyFilters(discordantClustersBinDb)
-
-        step = 'DISCORDANT-FILTERING'
-        SV_types = sorted(discordantClustersDict.keys())
-
-        counts = [str(len(discordantClustersDict[SV_type])) for SV_type in SV_types]
-        msg = '[DISCORDANT-FILTERING] Number of created discordant clusters after filtering in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
-        log.subHeader(msg)
-
-        if counts == []:
-            unix.rm([binDir])
-            return None
-        '''
-
 
         ## 6. Organize discordant clusters in bin database structure ##
         discordantClustersBinDb = structures.create_bin_database_interval(ref, beg, end, discordantClustersDict, binSizes)
@@ -727,6 +671,7 @@ class SV_caller_short(SV_caller):
 
         del discordantClustersDict
         del discordantClustersDictFailed
+
         ## 7. Make reciprocal clusters ##
         # TODO SR: Adjust parameters of clustering.reciprocal. Maybe it is worth it make them running arguments
         reciprocalClustersDict = clustering.reciprocal(discordantClustersBinDb, 1, 1, 300)
@@ -734,20 +679,7 @@ class SV_caller_short(SV_caller):
 
         del discordantClustersBinDb
         del discordantClustersFailedBinDb
-
-        # TODO SR: Remove this print
-        for ke3, dis3 in reciprocalClustersDict.items():
-            #reciprocalClustersDict[ke3]=set(dis3)
-            print ('discordantClustersDict.key_afReciprocal ' + str(ke3) + 'discordantClustersDict.value_afReciprocal '+ str(dis3))
-            for discirdant3 in dis3:
-                print ('discordantClustersDict.values_afReciprocal '+ str(discirdant3.id) + ' ' + str(discirdant3.beg) + ' ' + str(discirdant3.end) + ' ' + str(discirdant3.clusterType)  + ' ' + str([event.readName for event in discirdant3.events]))
-
-        for keF4, disF4 in reciprocalClustersFailedDict.items():
-            #reciprocalClustersFailedDict[keF4]=set(disF4)
-            print ('discordantClustersFailedDict.key_afReciprocal ' + str(keF4) + 'discordantClustersFailedDict.value_afReciprocal '+ str(disF4))
-            for discirdantF4 in disF4:
-                print ('discordantClustersFailedDict.values_afReciprocal '+ str(discirdantF4.id) + ' ' + str(discirdantF4.beg) + ' ' + str(discirdantF4.end) + ' ' + str(discirdantF4.clusterType)  + ' ' + str([event.readName for event in discirdantF4.events]))
-        
+     
         ## 8. Organize reciprocal and independent discordant clusters in bin database structure ##
         reciprocalClustersBinDb = structures.create_bin_database_interval(ref, beg, end, reciprocalClustersDict, binSizes)
         reciprocalClustersFailedBinDb = structures.create_bin_database_interval(ref, beg, end, reciprocalClustersFailedDict, binSizes)

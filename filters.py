@@ -402,6 +402,7 @@ def filter_clusters(clustersDict, filters2Apply, confDict, bam):
         1. clustersDict: dictionary with the following structure: keys -> SV_type, value -> list of clusters corresponding to this SV_type.
         2. filters2Apply: list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
         3. confDict
+        4. bam: bam file
 
     Output:
         1. clustersPassDict: Dictionary with same structure as the input one, containing those clusters that passed all the filters.
@@ -459,6 +460,7 @@ def filter_DISCORDANT_cluster(cluster, filters2Apply, confDict, bam):
         1. cluster: cluster object
         2. filters2Apply: list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
         3. confDict
+        4. bam: bam file
     Output:
         1. filterDiscordantResults -> keys: name of filters; values: True if the cluster pass the filter, False if it doesn't pass.
     '''
@@ -492,7 +494,6 @@ def filter_DISCORDANT_cluster(cluster, filters2Apply, confDict, bam):
 
     return failedFilters
 
-# [SR CHANGE]
 def area(cluster,confDict,bam):
     '''
     Apply filters to cluster (SR bam) based on the characteristics of its region.
@@ -562,11 +563,6 @@ def area(cluster,confDict,bam):
     percMAPQ = fraction(lowMAPQ, nbReads)
     percSMSReads = fraction(SMSReads, nbReads)
 
-    # TEMP SR
-    #print ('percMAPQ '  + str(percMAPQ)  + ' ' + str([event.readName for event in cluster.events]) +' '+ str(cluster.ref) + ' ' + str(cluster.beg) + ' ' + str(cluster.end) +'\n')
-    #print ('percSMSReads ' + str(percSMSReads)  + ' ' + str([event.readName for event in cluster.events]) +' '+ str(cluster.ref) + ' ' + str(cluster.beg) + ' ' + str(cluster.end) +'\n')
-
-
     ## If the percentage of low MQ reads is lower than the threshold pass the filter.
     if percMAPQ < float(maxRegionlowMQ): # 0.3
         percMAPQFilter = True
@@ -579,11 +575,8 @@ def area(cluster,confDict,bam):
     else:
         percSMSReadsFilter = False
     
-    #print (str(cluster.ref) + ' ' + str(cluster.beg) + ' ' + str (cluster.end) + ' ' + str(percMAPQFilter) + ' ' + str(percSMSReadsFilter))
-
     return percMAPQFilter, percSMSReadsFilter
 
-# [SR CHANGE]
 def areaMAPQ(alignmentObj, minReadsRegionMQ):
     '''
     Check if the MAPQ of a read pass the minReadsRegionMQ threshold
@@ -604,7 +597,6 @@ def areaMAPQ(alignmentObj, minReadsRegionMQ):
 
     return passMAPQ
 
-# [SR CHANGE]
 def areaSMS(alignmentObj):
     '''
     Check if aligment is mapped this way: Soft Match Soft (SMS)

@@ -698,24 +698,38 @@ def collectINDELS(alignmentObj, targetSV, minINDELlen, targetInterval, overhang,
 
 def collectDISCORDANT_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict, supplementary, viralSeqs):
     '''
+    For the two bam files given (test and normal), for each read alignment check if the read is discordant (not proper in pair) and return the corresponding discordant objects
+
+    Input:
+        1. ref: target referenge
+        2. binBeg: bin begin
+        3. binEnd: bin end
+        4. tumourBam: indexed test BAM file
+        5. normalBam: indexed normal BAM file
+        6. confDict:
+            * minMAPQ -> minimum mapping quality
+            * filterDuplicates -> If True filter out reads labeled as duplicates in bam file.
+        7. sample: type of sample (TUMOUR, NORMAL or None)
+        8. supplementary: Filter out supplementary alignments if False. (Neccesary to avoid pick supplementary clipping reads while adding to discordant clusters in short reads mode)
+        9. viralSeqs. Dictionary containing viral sequences -> viralSeqs[readName] = readSeq
+
+    Output:
+        1. DISCORDANTS: list containing input discordant read pair events
     '''
     ## Search for SV events in the tumour
-    eventsDict_T = collectDISCORDANT(ref, binBeg, binEnd, tumourBam, confDict, 'TUMOUR', supplementary, viralSeqs)
+    DISCORDANTS_SAMPLE = collectDISCORDANT(ref, binBeg, binEnd, tumourBam, confDict, 'TUMOUR', supplementary, viralSeqs)
 
     ## Search for SV events in the normal
-    eventsDict_N = collectDISCORDANT(ref, binBeg, binEnd, normalBam, confDict, 'NORMAL', supplementary, viralSeqs)
+    DISCORDANTS_NORMAL = collectDISCORDANT(ref, binBeg, binEnd, normalBam, confDict, 'NORMAL', supplementary, viralSeqs)
 
     ## Join tumour and normal lists
-    eventsDict = {}
+    DISCORDANTS = DISCORDANTS_SAMPLE + DISCORDANTS_NORMAL
 
-    for SV_type in eventsDict_T:        
-        eventsDict[SV_type] = eventsDict_T[SV_type] + eventsDict_N[SV_type]
-
-    return eventsDict
+    return DISCORDANTS
 
 def collectDISCORDANT(ref, binBeg, binEnd, bam, confDict, sample, supplementary, viralSeqs):
     '''
-    For a read alignment check if the read is discordant (not proper in pair) and return the corresponding discordant objects
+    In a given indexed bam file for each  a read alignment check if the read is discordant (not proper in pair) and return the corresponding discordant objects
 
     Input:
         1. ref: target referenge
