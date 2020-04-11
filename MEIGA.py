@@ -81,6 +81,11 @@ if __name__ == '__main__':
 	parser.add_argument('--INT2Search', default="ME,VIRUS", dest='INT2Search', type=str, help='Comma separated list of insertion types to collect (Mobile Elements (ME),VIRUS). Default: ME,VIRUS')
 	parser.add_argument('--komplexityThreshold', default=0.4, dest='komplexityThreshold', type=float, help='Threshold for filtering mates sequence with komplexity tool. Default: 0.4')
 	parser.add_argument('--viralBamParcialMatch', default=4, dest='viralBamParcialMatch', type=int, help='Threshold partial matches against viral db. Example: 4 stands for >40 matches per read. Default: 4')
+	parser.add_argument('--discordantMatesMaxMAPQ', default=20, dest='discordantMatesMaxMAPQ', type=int, help='Maximum mapping quality used for collecting dicordant read mates. Default: 20')
+	parser.add_argument('--discordantMatesCheckUnmapped', default=True, dest='discordantMatesCheckUnmapped', type=bool, help='If True, when a dicordant read mate is unmapped, collect it no matter its MAPQ. Default: True')
+	parser.add_argument('--discordantMatesSupplementary', default=True, dest='discordantMatesSupplementary', type=bool, help='When False, avoid collecting dicordant read mates that are supplementary alignments. Default: True')
+	parser.add_argument('--discordantMatesMaxBasePerc', default=85, dest='discordantMatesMaxBasePerc', type=int, help='Maximum base percentage of discordant read mates sequences. Default: 85')
+	parser.add_argument('--discordantMatesMinLcc', default=1.49, dest='discordantMatesMinLcc', type=float, help='Minimum local complexity of discordant read mates sequences. Default: 1.49')
 
 	# Output
 	parser.add_argument('--VCFInfoFields', default="VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,DISCORDANT,CLIPPING,NBDISCORDANT,NBCLIPPING,IDENTITY,ORIENTATION,BKP2,DISCORDANTMAPQ,CLIPPINGMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP", dest='VCFInfoFields', type=str, help='Comma separated list of INFO fields to display in output VCF (VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,DISCORDANT,CLIPPING,NBDISCORDANT,NBCLIPPING,IDENTITY,ORIENTATION,BKP2,DISCORDANTMAPQ,CLIPPINGMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP). Default: All are included')
@@ -142,6 +147,11 @@ if __name__ == '__main__':
 	INT2Search = args.INT2Search
 	komplexityThreshold = args.komplexityThreshold
 	viralBamParcialMatch = args.viralBamParcialMatch
+	discordantMatesMaxMAPQ = args.discordantMatesMaxMAPQ
+	discordantMatesCheckUnmapped = args.discordantMatesCheckUnmapped
+	discordantMatesSupplementary = args.discordantMatesSupplementary
+	discordantMatesMaxBasePerc = args.discordantMatesMaxBasePerc
+	discordantMatesMinLcc = args.discordantMatesMinLcc
 
 	# Ouput
 	VCFInfoFields = args.VCFInfoFields
@@ -229,9 +239,14 @@ if __name__ == '__main__':
 	print('maxRegionlowMQ: ', maxRegionlowMQ)
 	print('maxRegionSMS: ', maxRegionSMS)
 	print('komplexityThreshold: ', komplexityThreshold)
-	print('viralBamParcialMatch: ', viralBamParcialMatch, "\n")
+	print('viralBamParcialMatch: ', viralBamParcialMatch)
+	print('discordantMatesMaxMAPQ: ', discordantMatesMaxMAPQ)
+	print('discordantMatesCheckUnmapped: ', discordantMatesCheckUnmapped)
+	print('discordantMatesSupplementary: ', discordantMatesSupplementary)
+	print('discordantMatesMaxBasePerc: ', discordantMatesMaxBasePerc)
+	print('discordantMatesMinLcc: ', discordantMatesMinLcc, "\n")
 
-	print('** Output **')
+	print('** Output format**')
 	print ('VCFInfoFields: ', VCFInfoFields, "\n")
 
 	print('***** Executing ', scriptName, '.... *****', "\n")
@@ -294,6 +309,11 @@ if __name__ == '__main__':
 	confDict['targetINT2Search'] = targetINT2Search
 	confDict['komplexityThreshold'] = komplexityThreshold
 	confDict['viralBamParcialMatch'] = viralBamParcialMatch
+	confDict['discordantMatesMaxMAPQ'] = discordantMatesMaxMAPQ
+	confDict['discordantMatesCheckUnmapped'] = discordantMatesCheckUnmapped
+	confDict['discordantMatesSupplementary'] = discordantMatesSupplementary
+	confDict['discordantMatesMaxBasePerc'] = discordantMatesMaxBasePerc
+	confDict['discordantMatesMinLcc'] = discordantMatesMinLcc
 
 	# Output
 	confDict['VCFInfoFields'] = targetVCFInfoFields

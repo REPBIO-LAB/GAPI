@@ -317,6 +317,7 @@ class SV_caller_long(SV_caller):
 
         return metaclustersSVType, metaclustersSVTypeFailed
 
+# Multiprocessing lock as global variable. Useful for safely writting from different processes to the same output file.
 def init(l):
     global lock
     lock = l
@@ -361,7 +362,7 @@ class SV_caller_short(SV_caller):
             self.annotations = annotation.load_annotations(['REPEATS', 'TRANSDUCTIONS'], refLengths, self.refDir, self.confDict['processes'], annotDir)
 
         ### 1. Create integration clusters 
-        msg = '1. Create integration clusters'
+        msg = '1. Create integration clusters. PID: ' + str(os.getpid())
         log.header(msg)      
         allMetaclusters = self.make_clusters()
 
@@ -425,11 +426,13 @@ class SV_caller_short(SV_caller):
     def make_clusters(self):
 
         # If viruses option is selected, collect read name and sequence of discordant low quality reads from all bam refs
-        
         if 'VIRUS' in self.confDict['targetINT2Search']:
             # TEMP SR: DESILENCE
+
+            # Make genomic bins
             bins = bamtools.makeGenomicBins(self.bam, self.confDict['binSize'], None)
 
+            # Collect read name and sequence of discordant low quality reads from all bam refs
             l = mp.Lock()
             pool = mp.Pool(processes=self.confDict['processes'], initializer=init, initargs=(l,))
             pool.starmap(self.callCollectSeq, bins)
@@ -573,10 +576,16 @@ class SV_caller_short(SV_caller):
         return metaclustersPass
     
     def callCollectSeq(self, ref, binBeg, binEnd):
-        bamtools.collectDiscodantsLowMAPQSeq(ref, binBeg, binEnd, self.bam, self.outDir)
+        '''
+        Wrapper to call function for collecting read name and sequence of discordant low quality reads from all TEST bam refs
+        '''
+        bamtools.collectDiscodantsLowMAPQSeq(ref, binBeg, binEnd, self.bam, self.confDict['discordantMatesMaxMAPQ'], self.confDict['discordantMatesCheckUnmapped'], self.confDict['discordantMatesSupplementary'], self.confDict['discordantMatesMaxBasePerc'], self.confDict['discordantMatesMinLcc'], self.outDir)
 
     def callCollectSeqNormal(self, ref, binBeg, binEnd):
-        bamtools.collectDiscodantsLowMAPQSeq(ref, binBeg, binEnd, self.normalBam, self.outDir)
+        '''
+        Wrapper to call function for collecting read name and sequence of discordant low quality reads from all NORMAL bam refs
+        '''
+        bamtools.collectDiscodantsLowMAPQSeq(ref, binBeg, binEnd, self.normalBam, self.confDict['discordantMatesMaxMAPQ'], self.confDict['discordantMatesCheckUnmapped'], self.confDict['discordantMatesSupplementary'], self.confDict['discordantMatesMaxBasePerc'], self.confDict['discordantMatesMinLcc'], self.outDir)
 
 
     def make_clusters_bin(self, ref, beg, end):

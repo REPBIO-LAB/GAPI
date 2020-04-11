@@ -1099,16 +1099,27 @@ def average_MAPQ_reads_interval(ref, beg, end, readIds, bam):
 
 #def collectSeq(ref, binBeg, binEnd, bam, filterDuplicates, maxMAPQ, checkUnmapped, supplementary):
 
-def collectDiscodantsLowMAPQSeq(ref, binBeg, binEnd, bam, outDir):
+def collectDiscodantsLowMAPQSeq(ref, binBeg, binEnd, bam, discordantMatesMaxMAPQ, discordantMatesCheckUnmapped, discordantMatesSupplementary, discordantMatesMaxBasePerc, discordantMatesMinLcc, outDir):
     '''
-    Collect read names and sequences from reads below maxMAPQ
+    Collecting read name and sequence of discordant low quality reads from all bam refs
+
+    Input:
+        1. ref: target referenge
+        2. binBeg: bin begin
+        3. binEnd: bin end
+        4. bam: indexed BAM file
+        5. discordantMatesMaxMAPQ: Maximum mapping quality used for collecting dicordant read mates.
+        6. discordantMatesCheckUnmapped: Boolean. If True, when a dicordant read mate is unmapped, collect it no matter its MAPQ
+        7. discordantMatesSupplementary: Boolean. When False, avoid collecting dicordant read mates that are supplementary alignments.
+        8. discordantMatesMaxBasePerc: Maximum base percentage of discordant read mates sequences.
+        9. discordantMatesMinLcc: Minimum local complexity of discordant read mates sequences.
+        10. outDir: Output directory
+    
+    Output:
+        1. Doesn't return anything. It creates a fasta file with discordant low quality reads from all bam refs.
     '''
-    # TODO SR: PASS this variables (maxMAPQ, checkUnmapped, supplementary, filterDuplicates) as argument of collectSeq method (le paso el confdict!)
     # TODO SR: Think if filterDuplicates step is neccesary in collectSeq method and implement it if so.
     #filterDuplicates = True
-    maxMAPQ = 20
-    checkUnmapped = True
-    supplementary = True
 
     ## Initialize dictionary to store SV events
     eventsSeqDict = {}
@@ -1130,7 +1141,7 @@ def collectDiscodantsLowMAPQSeq(ref, binBeg, binEnd, bam, outDir):
             continue
 
         ## Aligments with MAPQ < threshold
-        if (MAPQ > maxMAPQ):
+        if (MAPQ > discordantMatesMaxMAPQ):
             continue
 
         # TODO SR: Think if filterDuplicates step is neccesary in collectSeq method and implement it if so.
@@ -1139,58 +1150,57 @@ def collectDiscodantsLowMAPQSeq(ref, binBeg, binEnd, bam, outDir):
             #continue
 
         # Filter supplementary alignments if TRUE. (Neccesary to avoid pick supplementary clipping reads while adding to discordant clusters in short reads mode)
-        if supplementary == False and alignmentObj.is_supplementary == True:
+        if discordantMatesSupplementary == False and alignmentObj.is_supplementary == True:
             continue
         
-        ## Collect DISCORDANT
+        ## Collect DISCORDANT low quality reads in dictionary -> eventsSeqDict[readName] = readSequence
 
         if not alignmentObj.is_proper_pair:
 
-            # Pick only those sequences that are unmmapped or with mapping quality < maxMAPQ
-            if checkUnmapped == True:
-                if (alignmentObj.is_unmapped == True) or (MAPQ < maxMAPQ):
+            # Pick sequences that are unmmapped or with mapping quality < discordantMatesMaxMAPQ
+            if discordantMatesCheckUnmapped == True:
+                if (alignmentObj.is_unmapped == True) or (MAPQ < discordantMatesMaxMAPQ):
+                    # Calculate base percentage
                     basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
+                    # Delete total value of base percentage result
                     del basePercs['total']
-                    #print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                    #print ('aligTags ' + str(alignmentObj.get_tags(True)) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                    if all(perc < 85 for perc in basePercs.values()):
+                    # Only those sequences with base percentage lower than 85 are collected:
+                    if all(perc < discordantMatesMaxBasePerc for perc in basePercs.values()):
+                        # Check local complexity of sequences:
                         complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
-                        #print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                        if complexity > 1.49:
+                        # Only those sequences with local complexity lower than 1.49 are collected:
+                        if complexity > discordantMatesMinLcc:
                             eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
 
+            # Pick sequences with mapping quality < discordantMatesMaxMAPQ
             else:
-                if MAPQ < maxMAPQ:
+                if MAPQ < discordantMatesMaxMAPQ:
+                    # Calculate base percentage
                     basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
+                    # Delete total value of base percentage result
                     del basePercs['total']
-                    #print ('basePercs ' + str(basePercs) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                    #print ('aligTags ' + str(alignmentObj.get_tags(True)) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                    if all(perc < 85 for perc in basePercs.values()):
+                    # Only those sequences with base percentage lower than 85 are collected:
+                    if all(perc < discordantMatesMaxBasePerc for perc in basePercs.values()):
+                        # Check local complexity of sequences:
                         complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
-                        #print ('complexity ' + str(complexity) +' '+ alignmentObj.query_name + ' ' + alignmentObj.query_sequence)
-                        if complexity > 1.49:
+                        # Only those sequences with local complexity lower than 1.49 are collected:
+                        if complexity > discordantMatesMinLcc:
                             eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
         
     ## Close 
     bamFile.close()
 
+    # Set output FASTA file name
     allFastas_all = outDir + "/allFastas_all.fasta"
+    # Create FASTA object
     seqsFastaObj= formats.FASTA()
+    # Create FASTA dictionary
     seqsFastaObj.seqDict = eventsSeqDict
-
-    # TODO SR: Delete this command
-    #seqsFastaObj.writeMulti(allFastas_all, 'append')
+    # Write output FASTA
     seqsFastaObj.write(allFastas_all, 'append', True)
+
+    # Delete useless variables
     del eventsSeqDict
     del seqsFastaObj
 
-
-    # Write FASTA:
-    #fastasDir = outDir + '/FASTAS/'
-    #unix.mkdir(fastasDir)
-
-    #outputFasta = outDir + '/FASTAS/' + str(ref) +"_"+ str(binBeg) +"_"+ str(binEnd) +".fasta"
-    #seqsFastaObj.write(outputFasta)
-
-    # return sv candidates
     return
