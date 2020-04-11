@@ -1174,17 +1174,23 @@ def collectDiscodantsLowMAPQSeq(ref, binBeg, binEnd, bam, outDir):
     ## Close 
     bamFile.close()
 
-    # Write FASTA:
-    fastasDir = outDir + '/FASTAS/'
-    unix.mkdir(fastasDir)
-
+    allFastas_all = outDir + "/allFastas_all.fasta"
     seqsFastaObj= formats.FASTA()
     seqsFastaObj.seqDict = eventsSeqDict
 
+    # TODO SR: Delete this command
+    #seqsFastaObj.writeMulti(allFastas_all, 'append')
+    seqsFastaObj.write(allFastas_all, 'append', True)
     del eventsSeqDict
+    del seqsFastaObj
 
-    outputFasta = outDir + '/FASTAS/' + str(ref) +"_"+ str(binBeg) +"_"+ str(binEnd) +".fasta"
-    seqsFastaObj.write(outputFasta)
+
+    # Write FASTA:
+    #fastasDir = outDir + '/FASTAS/'
+    #unix.mkdir(fastasDir)
+
+    #outputFasta = outDir + '/FASTAS/' + str(ref) +"_"+ str(binBeg) +"_"+ str(binEnd) +".fasta"
+    #seqsFastaObj.write(outputFasta)
 
     # return sv candidates
     return

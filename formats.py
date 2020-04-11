@@ -8,6 +8,7 @@ import itertools
 import sys
 import formats
 import time
+import callers
 
 # Internal
 import log
@@ -120,11 +121,17 @@ class FASTA():
             seq = ''.join(s.strip() for s in next(faiter))
             self.seqDict[header] = seq
 
-    def write(self, filePath):
+    def write(self, filePath, mode = 'write', safetyLock = False):
         '''
         FASTA file writer. Write data stored in the dictionary into a FASTA file
+        Mode: write -> write new file. append -> append to existing file or create if tit doesnt exist.
         '''
-        fastaFile = open(filePath, 'w')
+        openMode = 'a' if mode == 'append' else 'w'
+        
+        if safetyLock:
+            callers.lock.acquire()
+
+        fastaFile = open(filePath, openMode)
 
         for header, seq in self.seqDict.items():
             header = '>' + header
@@ -135,6 +142,28 @@ class FASTA():
         # Close output fasta file
         fastaFile.close()
         
+        if safetyLock:
+            callers.lock.release()
+
+    # TODO SR: UNUSED FUNCTION
+    def writeMulti(self, filePath, mode):
+        '''
+        FASTA file writer. Write data stored in the dictionary into a FASTA file
+        Mode: write -> write new file. append -> append to existing file or create if tit doesnt exist.
+        '''
+        
+        openMode = 'a' if mode == 'append' else 'w'
+        callers.lock.acquire()
+        fastaFile = open(filePath, openMode)
+
+        for header, seq in self.seqDict.items():
+            header = '>' + header
+
+            fastaFile.write("%s\n" % header)
+            fastaFile.write("%s\n" % seq)
+        # Close output fasta file
+        fastaFile.close()
+        callers.lock.release()
 
 class FASTQ():
     '''
