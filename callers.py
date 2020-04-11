@@ -547,7 +547,7 @@ class SV_caller_short(SV_caller):
 
         ## 0. Set bin id and create bin directory ##
         binId = '_'.join([str(ref), str(beg), str(end)])
-        msg = 'SV calling in bin: ' + binId
+        msg = 'SV calling in bin: ' + binId + ' PID: ' + str(os.getpid())
         log.subHeader(msg)
         start = time.time()
 
@@ -558,23 +558,22 @@ class SV_caller_short(SV_caller):
         # a) Single sample mode
         if self.mode == "SINGLE":
             if 'VIRUS' in self.confDict['targetINT2Search']:
-                discordantDict = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, False, self.viralSeqs)
+                discordants = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, False, self.viralSeqs)
             else:
-                discordantDict = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, False, None)
+                discordants = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, False, None)
 
         # b) Paired sample mode (tumour & matched normal)
         else:
             if 'VIRUS' in self.confDict['targetINT2Search']:
-                discordantDict = bamtools.collectDISCORDANT_paired(ref, beg, end, self.bam, self.normalBam, self.confDict, False, self.viralSeqs)
+                discordants = bamtools.collectDISCORDANT_paired(ref, beg, end, self.bam, self.normalBam, self.confDict, False, self.viralSeqs)
             else:
-                discordantDict = bamtools.collectDISCORDANT_paired(ref, beg, end, self.bam, self.normalBam, self.confDict, False, None)
+                discordants = bamtools.collectDISCORDANT_paired(ref, beg, end, self.bam, self.normalBam, self.confDict, False, None)
 
 
-        SV_types = sorted(discordantDict.keys())
-        counts = [str(len(discordantDict[SV_type])) for SV_type in SV_types]
+        counts = str(len(discordants))
         
         step = 'COLLECT'
-        msg = 'Number of SV events in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
+        msg = 'Number of DISCORDANT events in bin ' + binId + ': ' + counts + '. PID: ' + str(os.getpid())
         log.step(step, msg)
         
         ## 2. Discordant read pair identity ##
@@ -583,7 +582,7 @@ class SV_caller_short(SV_caller):
         #if self.mode == "SINGLE":
             # TODO SR: If we want to analyse RT, we should call determine_discordant_identity in another way, depending if we are analysing RT, virus or both.
             #discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'],self.bam, None, binDir, self.confDict['viralDb'])
-        discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], None, None,self.bam, None, binDir, self.confDict['targetINT2Search'])
+        discordantsIdentity = events.determine_discordant_identity(discordants, None, None,self.bam, None, binDir, self.confDict['targetINT2Search'])
         #else:
             #discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'],self.bam, None, binDir, self.confDict['viralDb'])
             #discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], None, None,self.bam, None, binDir, self.confDict['viralDb'])
@@ -591,7 +590,7 @@ class SV_caller_short(SV_caller):
         #for discirdant in discordantDict['DISCORDANT']:
             #print ('DISCORDAAAAAAAAANT' +' '+ str(discirdant.beg) +' '+ str(discirdant.end)  +' '+ str(discirdant.orientation) +' '+ str(discirdant.pair) +' '+ str(discirdant.readName)  +' '+ str(discirdant.identity))
         
-        del discordantDict
+        del discordants
         step = 'IDENTITY'
         SV_types = sorted(discordantsIdentity.keys())
         counts = [str(len(discordantsIdentity[SV_type])) for SV_type in SV_types]

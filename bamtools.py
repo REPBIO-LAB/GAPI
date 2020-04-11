@@ -21,7 +21,6 @@ import events
 import gRanges
 import formats
 import sequences
-import libyay
 
 ## FUNCTIONS ##
 def get_refs(bam):
@@ -719,21 +718,24 @@ def collectDISCORDANT(ref, binBeg, binEnd, bam, confDict, sample, supplementary,
     For a read alignment check if the read is discordant (not proper in pair) and return the corresponding discordant objects
 
     Input:
-        1. alignmentObj: pysam read alignment object
-        2. sample: type of sample (TUMOUR, NORMAL or None).
+        1. ref: target referenge
+        2. binBeg: bin begin
+        3. binEnd: bin end
+        4. bam: indexed BAM file
+        5. confDict:
+            * minMAPQ -> minimum mapping quality
+            * filterDuplicates -> If True filter out reads labeled as duplicates in bam file.
+        6. sample: type of sample (TUMOUR, NORMAL or None)
+        7. supplementary: Filter out supplementary alignments if False. (Neccesary to avoid pick supplementary clipping reads while adding to discordant clusters in short reads mode)
+        8. viralSeqs. Dictionary containing viral sequences -> viralSeqs[readName] = readSeq
 
     Output:
-        1. DISCORDANTS: list of discordant read pair events
-        TODO SR: cambiar desciption
-
+        1. DISCORDANTS: list containing input discordant read pair events
     '''
 
     # Define target interval
     targetInterval = (binBeg, binEnd)
 
-    ## Initialize dictionary to store SV events
-    discordantDict = {}
-    discordantDict['DISCORDANT'] = []
     # Initialize discordant events list
     DISCORDANTS = []
 
@@ -765,7 +767,7 @@ def collectDISCORDANT(ref, binBeg, binEnd, bam, confDict, sample, supplementary,
         if (confDict['filterDuplicates'] == True) and (alignmentObj.is_duplicate == True):
             continue
 
-        # Filter supplementary alignments if TRUE. (Neccesary to avoid pick supplementary clipping reads while adding to discordant clusters in short reads mode)
+        # Filter out supplementary alignments if False. (Neccesary to avoid pick supplementary clipping reads while adding to discordant clusters in short reads mode)
         if supplementary == False and alignmentObj.is_supplementary == True:
             continue
 
@@ -774,8 +776,6 @@ def collectDISCORDANT(ref, binBeg, binEnd, bam, confDict, sample, supplementary,
         lastOperation, lastOperationLen = alignmentObj.cigartuples[-1]
         if ((firstOperation == 4) or (firstOperation == 5)) and ((lastOperation == 4) or (lastOperation == 5)):
             continue
-        #if ((lastOperation == 4) or (lastOperation == 5)) and ((firstOperation != 4) and (firstOperation != 5)):
-            #continue
 
         # If not proper pair (== discordant)
         if not alignmentObj.is_proper_pair:
@@ -800,7 +800,6 @@ def collectDISCORDANT(ref, binBeg, binEnd, bam, confDict, sample, supplementary,
             operations = [t[0] for t in alignmentObj.cigartuples]
             nbBlocks = operations.count(3) + 1 
 
-            # TODO SR: collectDISCORDANT: Save also specificIdentity and print it in the final file.
             if viralSeqs != None:
                 if alignmentObj.query_name in viralSeqs.keys():
                     identity = viralSeqs[alignmentObj.query_name]
@@ -847,10 +846,7 @@ def collectDISCORDANT(ref, binBeg, binEnd, bam, confDict, sample, supplementary,
                 DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, blockBeg, blockEnd, orientation, pair, alignmentObj.query_name, alignmentObj, sample, identity, alignmentObj.is_duplicate)
                 DISCORDANTS.append(DISCORDANT)
 
-    for discordant in DISCORDANTS:
-        discordantDict['DISCORDANT'].append(discordant)
-
-    return discordantDict
+    return DISCORDANTS
 
 
 # def collectMatesSeq(events, tumourBam, normalBam, checkUnmapped, maxMAPQ):

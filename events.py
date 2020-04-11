@@ -800,7 +800,7 @@ class DISCORDANT():
             self.identity = None
             self.specificIdentity = None
         else:
-
+            # As viral identity is a list, that can have more than one element, check number of elements of identity
             if len(identity) == 1:
                 identity = ''.join(identity)
                 self.identity = identity.split("|")[0]
@@ -809,6 +809,7 @@ class DISCORDANT():
                 except IndexError:
                     self.specificIdentity = None
 
+            # If length of identity is higher than 1, make lists of identity and specific identity.
             elif len(identity) > 1:
                 genIdent = []
                 specificIdent = []
@@ -819,6 +820,7 @@ class DISCORDANT():
                     except IndexError:
                         pass
 
+                # Uniq lists and sort them.
                 identity = list(set(genIdent))
                 identity.sort()
                 if len(identity) == 1:
