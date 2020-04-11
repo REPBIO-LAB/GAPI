@@ -621,7 +621,8 @@ class SV_caller_short(SV_caller):
         # Return if no DISCODANT clusters found.
         if counts == []:
             unix.rm([binDir])
-            return None
+            metaclustersSVType, metaclustersSVTypeFailed = {}, {}
+            return metaclustersSVType, metaclustersSVTypeFailed
 
         # TODO SR: ANNOTATE-REPEATS step: Desilence and put in the right place (now it is repeated in two different places) in case we want to analyse RT. If not, decide if it is neccessary or not.
         '''
