@@ -9,8 +9,6 @@ import multiprocessing as mp
 import os
 import pysam
 import time
-import libyay
-# External
 import subprocess
 
 # Internal
@@ -26,12 +24,8 @@ import output
 import annotation
 import bkp
 import filters
-import alignment
 import gRanges
-import virus
 import clustering
-import os
-import sequences
 
 ## FUNCTIONS ##
 
@@ -425,7 +419,7 @@ class SV_caller_short(SV_caller):
 
     def make_clusters(self):
 
-        # If viruses option is selected, collect read name and sequence of discordant low quality reads from all bam refs
+        ### If viruses option is selected, collect read name and sequence of discordant low quality reads from all bam refs ##
         if 'VIRUS' in self.confDict['targetINT2Search']:
             # TEMP SR: DESILENCE
 
@@ -448,79 +442,42 @@ class SV_caller_short(SV_caller):
                 pool.starmap(self.callCollectSeqNormal, bins)
                 pool.close()
                 pool.join()
-
-            # TODO SR: Make multiproccessing to write all sequences in the same fasta file, instead of having one fasta per bin and then merge.
-            # Merge fastas:
-            #filenames = []
-            #for bine in bins:
-                #window = self.outDir + '/FASTAS/' + str(bine[0]) +"_"+ str(bine[1])+"_"+str(bine[2])+".fasta"
-                #filenames.append(window)
-            # TODO SR: Remove this chunk of code!!!
-            '''
-            allFastas_all = self.outDir + "/allFastas_all.fasta"
-            eventsSeqDictList = eventsSeqDictListSample + eventsSeqDictListNormal
-            seqsFastaObj= formats.FASTA()
-            for eventsSeqDict in eventsSeqDictList:
-                seqsFastaObj.seqDict = eventsSeqDict
-                seqsFastaObj.write(allFastas_all, 'append')
-            del eventsSeqDictList
-            del eventsSeqDictListSample
-            del eventsSeqDictListNormal
-            del eventsSeqDict
-            del seqsFastaObj
-            '''
-            
-            allFastas_all = self.outDir + "/allFastas_all.fasta"
             
             # TEMP SR: DESILENCE
             
-            #with open(allFastas_all, 'w') as outfile:
-                #for fname in filenames:
-                    #with open(fname) as infile:
-                        #for line in infile:
-                            #outfile.write(line)
-
-            # Remove fastas:
-            #fastasDir = self.outDir + '/FASTAS/'
-            #unix.rm([fastasDir])
-            
-
 			# Filter by complexity (with komplexity)
+            allFastas_all = self.outDir + "/allFastas_all.fasta"
             allFastas = self.outDir + "/allFastas.fasta"
+
             command = 'kz --filter --threshold ' + str(self.confDict['komplexityThreshold']) + ' --fasta < ' + allFastas_all + ' > ' + allFastas
-			
             err = open(self.outDir + '/komplexity.err', 'w') 
             status = subprocess.call(command, stderr=err, shell=True)
 
             if status != 0:
                 step = 'KOMPLEXITY'
-                msg = 'Komplexity filter failed' 
+                msg = 'Komplexity filter failed. PID: ' + str(os.getpid())
                 log.step(step, msg)
             
-            # bwa allFastas vs viralDb keep only mapped
+            # Align with bwa allFastas vs viralDb and filter resulting bam
             # TODO SR: bwa allFastas vs viralDb: use exinting function (or do one) and check if bwa -T parameter does something that we need
             
             BAM = self.outDir + '/' + 'viralAligment' + '.bam'
-            
-
             # TEMP SR: DESILENCE
             
-            err = open(self.outDir + '/align.err', 'w') 
             bwaProcesses = 5 if self.confDict['processes'] > 5 else self.confDict['processes']
             command = 'bwa mem -Y -t '+ str(bwaProcesses) + ' ' +  self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools view -h  | awk \'(($5=="60" && $6~/[' + str(self.confDict['viralBamParcialMatch']) + '-9][0-9]M/) || ($6~/[0-9][0-9][0-9]M/) || ($1 ~ /@/)){print}\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
-            # TEMP SR: command = 'bwa mem -Y -t 5 ' + self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools view -h  | awk \'($5 == "60" || $6 == "151M") || $1 ~ /@/\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
-
+            err = open(self.outDir + '/align.err', 'w') 
             status = subprocess.call(command, stderr=err, shell=True)
 
             if status != 0:
                 step = 'ALIGN'
-                msg = 'Alignment failed' 
+                msg = 'Alignment failed. PID: ' + str(os.getpid())
                 log.step(step, msg)
 
             command = 'samtools index ' + BAM
             status = subprocess.call(command, stderr=err, shell=True)
 
-            # TODO SR: Remove allfastas
+            # TEMP SR: Remove allfastas
             #unix.rm([allFastas])
             
             # Read bwa result and store in a dictionary
@@ -549,14 +506,9 @@ class SV_caller_short(SV_caller):
         metaclustersPassList, metaclustersFailedList = zip(*pool.starmap(self.make_clusters_bin, bins))
         pool.close()
         pool.join()
-        #print (libyay.massadd(listMates))
-        #print (os.getpid())
-        #libyay.cerrarGlob()
 
         # Remove output directory
         unix.rm([self.outDir + '/CLUSTER/'])
-
-        #print (libyay.massadd(listMates))
 
         ### 3. Collapse metaclusters in a single dict and report metaclusters that failed filtering
         metaclustersPass = structures.merge_dictionaries(metaclustersPassList)
