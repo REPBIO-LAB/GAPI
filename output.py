@@ -327,12 +327,12 @@ def write_junctions(junctions, outFileName, outDir):
     outFile.close()
 
 
-def write_tdCounts_surelect(clusterPerSrc, outDir):
+def write_tdCounts_sureselect(clusterPerSrc, outDir):
     '''
     Compute transduction counts per source element and write into file
 
     Input:
-        1. clusterPerSrc: list containing list of BND junction objects 
+        1. clusterPerSrc: 
         2. outDir: Output directory
         
     Output: tsv file containing transduction counts per source element
@@ -359,7 +359,7 @@ def write_tdCounts_surelect(clusterPerSrc, outDir):
         row = "\t".join([srcId, str(nbTd), "\n"])
         outFile.write(row)       
 
-def write_tdCalls_surelect(clustersPerSrc, outDir):
+def write_tdCalls_sureselect(clustersPerSrc, outDir):
     '''
     Compute transduction counts per source element and write into file
 
@@ -372,7 +372,7 @@ def write_tdCalls_surelect(clustersPerSrc, outDir):
     ## 1. Write header 
     outFilePath = outDir + '/transduction_calls.tsv'
     outFile = open(outFilePath, 'w')
-    row = "#ref \t beg \t end \t srcId \t nbReads \t readIds \t dupPerc\n"
+    row = "#ref \t beg \t end \t srcId \t nbTotal \t nbDiscordant \t nbClipping \t readIds \n"
     outFile.write(row)
 
     ## 2. Generate list containing transduction calls
@@ -384,13 +384,8 @@ def write_tdCalls_surelect(clustersPerSrc, outDir):
 
         # For each cluster
         for cluster in clusters:
-            ref = cluster.events[0].mateRef
-            beg, end = cluster.mates_start_interval()
-            nbReads, readIds = cluster.nbReads()
-            readIds = ','.join(readIds)
-            dupPerc = round(cluster.dupPercentage(), 2)
-            
-            call = [ref, str(beg), str(end), srcId, str(nbReads), readIds, str(dupPerc)]
+            readIds = ','.join(cluster.supportingReads()[3])
+            call = [cluster.ref, str(cluster.beg), str(cluster.end), srcId, str(cluster.nbEvents()[0]), str(cluster.nbDISCORDANT()), str(cluster.nbSUPPLEMENTARY()), readIds]
             calls.append(call)
 
     ## 3. Sort transduction calls first by chromosome and then by start position
