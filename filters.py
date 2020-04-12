@@ -4,6 +4,7 @@ Module 'filters' - Contains functions for filtering clusters
 
 ## External
 import pysam
+import statistics
 
 ## Internal
 import gRanges
@@ -14,6 +15,85 @@ import stats
 ###############
 ## FUNCTIONS ##
 ###############
+
+def filter_clippings(clippings, filters2Apply, confDict):
+    '''
+    Function to apply filters all metaclusters. 
+
+    Input:
+        1. clippings: list of clipping clusters
+        2. filters2Apply: list containing the filters to apply       
+        3. confDict
+
+    Output:
+        1. clippingsPass: List of clippings clusters passing all the filters    
+    '''
+    clippingsPass = []
+
+    # For discordant cluster
+    for clipping in clippings:
+        
+        ## Apply filters
+        failedFilters = filter_clipping(clipping, filters2Apply, confDict)
+
+        # Metacluster pass all the filters
+        if not failedFilters: 
+            clippingsPass.append(clipping)
+
+    return clippingsPass
+
+
+def filter_clipping(clipping, filters2Apply, confDict):
+    '''
+    Apply selected filters to a discordant cluster provided as input
+
+    Input:
+        1. clipping: clipping cluster object
+        2. filters2Apply: list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
+        5. confDict:
+
+    Output:
+        1. failedFilters -> list containing those filters that the clipping cluster didn´t pass.
+    '''        
+    failedFilters = []
+
+    ## 1. FILTER 1: Minimum number of reads per cluster
+    if 'MIN-NBREADS' in filters2Apply: 
+        if not filter_min_nb_reads(clipping, confDict['minNbCLIPPING'], confDict['minNormalReads']):
+            failedFilters.append('MIN-NBREADS')
+        
+    ## 2. FILTER 2: Filter out those clusters with suppl outside target reference ##
+    if 'SUPPL-REF' in filters2Apply: 
+
+        if not filter_clipping_suppl_ref(clipping, confDict['targetRefs']):
+            failedFilters.append('SUPPL-REF')
+
+    ## 3. FILTER 3: Filter out those clusters whose supplementary alignments map over any source element downstream region 
+    if 'SUPPL-SRC' in filters2Apply:
+
+        if not filter_clipping_suppl_position(clipping, confDict['rangesDict'], 10000):
+            failedFilters.append('SUPPL-SRC')
+    
+    ## 4. FILTER 4: Average mapping quality of supplementary alignments 
+    if 'SUPPL-MAPQ' in filters2Apply:
+    
+        if not filter_suppl_MAPQ(clipping, 20):
+            failedFilters.append('SUPPL-MAPQ')
+
+    ## 5. FILTER 5: filter out clusters formed by tumour and normal reads. Discard germline variation
+    if 'GERMLINE' in filters2Apply:
+
+        if not filter_germline(clipping, confDict['minNormalReads']):
+            failedFilters.append('GERMLINE')
+
+    ## 6. FILTER 6: Filter out clusters based on duplicate percentage (Ex: 50%) 
+    if 'READ-DUP' in filters2Apply:
+
+        if not filter_highDup_clusters(clipping, 50):
+            failedFilters.append('READ-DUP')
+
+    return failedFilters
+
 
 def filter_discordants(discordants, filters2Apply, bam, normalBam, confDict):
     '''
@@ -61,7 +141,7 @@ def filter_discordant(discordant, filters2Apply, bam, normalBam, confDict):
 
     ## 1. FILTER 1: Minimum number of reads per cluster
     if 'MIN-NBREADS' in filters2Apply: 
-        if not minNbEventsFilter(discordant, confDict['minSupportingReads'], confDict['minNormalSupportingReads']):
+        if not filter_min_nb_reads(discordant, confDict['minNbDISCORDANT'], confDict['minNormalReads']):
             failedFilters.append('MIN-NBREADS')
 
     ## 2. FILTER 2: Filter out those clusters with mates not over NOT target reference ##
@@ -85,10 +165,10 @@ def filter_discordant(discordant, filters2Apply, bam, normalBam, confDict):
     ## 5. FILTER 5: filter out clusters formed by tumour and normal reads. Discard germline variation (TILL HERE) 
     if 'GERMLINE' in filters2Apply:
 
-        if not filter_germline_discordant(discordant, confDict['minNormalSupportingReads']):
+        if not filter_germline(discordant, confDict['minNormalReads']):
             failedFilters.append('GERMLINE')
             
-    ## 6. FILTER 6: Filter out clus in unspecific regions (TILL HERE) ##
+    ## 6. FILTER 6: Filter out clus in unspecific regions ##
     if 'UNESPECIFIC' in filters2Apply:
 
         if not filter_discordant_mate_unespecific(discordant, 0.2, bam):
@@ -174,62 +254,62 @@ def filter_metacluster(metacluster, filters2Apply, confDict):
 
     ## 1. FILTER 1: Minimum number of reads per cluster
     if 'MIN-NBREADS' in filters2Apply: 
-        if not minNbEventsFilter(metacluster, confDict['minSupportingReads'], confDict['minNormalSupportingReads']):
+        if not filter_min_nb_reads(metacluster, confDict['minReads'], confDict['minNormalReads']):
             failedFilters.append('MIN-NBREADS')
 
     ## 2. FILTER 2: Maximum number of reads per cluster
     if 'MAX-NBREADS' in filters2Apply: 
-        if not maxNbEventsFilter(metacluster, confDict['maxClusterSize']):
+        if not filter_max_nb_reads(metacluster, confDict['maxClusterSize']):
             failedFilters.append('MAX-NBREADS')
 
     ## 3. FILTER 3: Maximum Coefficient of Variance per cluster
     if ('CV' in filters2Apply) and ('INS' in metacluster.subclusters): 
-        if not maxCvFilter(metacluster, confDict['maxClusterCV']):
+        if not filter_max_cv(metacluster, confDict['maxClusterCV']):
             failedFilters.append('CV')
 
     ## 4. FILTER 4: Whether a metacluster has a SV_type assigned or not
     if 'SV-TYPE' in filters2Apply: 
-        if not SVTypeFilter(metacluster, confDict['targetSV']):
+        if not filter_SV_type(metacluster, confDict['targetSV']):
             failedFilters.append('SV-TYPE')
 
     ## 5. FILTER 5: Minimum percentage of inserted sequence resolved
     if ('PERC-RESOLVED' in filters2Apply) and (metacluster.SV_type == 'INS') and ('PERC_RESOLVED' in metacluster.SV_features): 
 
-        if not percResolvedFilter(metacluster, confDict['minPercResolved']):
+        if not filter_perc_resolved(metacluster, confDict['minPercResolved']):
             failedFilters.append('PERC-RESOLVED')
 
     return failedFilters
 
-def minNbEventsFilter(metacluster, minSupportingReads, minNormalSupportingReads):
+def filter_min_nb_reads(cluster, minReads, minNormalReads):
     '''
-    Filter metacluster by comparing the number of supporting events with a minimum treshold
+    Filter cluster by comparing the number of supporting events with a minimum treshold
 
     Input:
-        1. metacluster: metacluster object
-        2. minSupportingReads: min number of events threshold
-        3. minSupportingReads: min number of events threshold for normal sample
+        1. cluster: cluster object
+        2. minReads: min number of events threshold
+        3. minReads: min number of events threshold for normal sample
 
     Output:
         1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
     '''
 
     ## 1. Compute number of events supporting the cluster 
-    nbTotal, nbTumour, nbNormal = metacluster.nbEvents()
+    nbTotal, nbTumour, nbNormal = cluster.nbEvents()
 
     ## 2. Compare the number of events supporting the cluster against the minimum required
     # 2.1 Paired mode:
     if nbTumour != None:
 
-        if nbTumour >= minSupportingReads and nbNormal >= minNormalSupportingReads:
-            metacluster.mutOrigin = 'germline'
+        if nbTumour >= minReads and nbNormal >= minNormalReads:
+            cluster.mutOrigin = 'germline'
             PASS = True
 
-        elif nbTumour >= minSupportingReads and not nbNormal >= minNormalSupportingReads:
-            metacluster.mutOrigin = 'somatic-tumour'
+        elif nbTumour >= minReads and not nbNormal >= minNormalReads:
+            cluster.mutOrigin = 'somatic-tumour'
             PASS = True
 
-        elif not nbTumour >= minSupportingReads and nbNormal >= minNormalSupportingReads:
-            metacluster.mutOrigin = 'somatic-normal'
+        elif not nbTumour >= minReads and nbNormal >= minNormalReads:
+            cluster.mutOrigin = 'somatic-normal'
             PASS = True
 
         else:
@@ -238,14 +318,14 @@ def minNbEventsFilter(metacluster, minSupportingReads, minNormalSupportingReads)
     # 2.1 Single mode:
     else:
         # If running in single mode (do no set mutation origin because it sdoesn't make sense)
-        if nbTotal >= minSupportingReads:
+        if nbTotal >= minReads:
             PASS = True
         else:
             PASS = False
     
     return PASS
 
-def maxNbEventsFilter(metacluster, maxNbEvents):
+def filter_max_nb_reads(metacluster, maxNbEvents):
     '''
     Filter metacluster by comparing the number of cluster supporting events with a maximum treshold
 
@@ -267,7 +347,7 @@ def maxNbEventsFilter(metacluster, maxNbEvents):
     
     return PASS
 
-def maxCvFilter(metacluster, maxClusterCV):
+def filter_max_cv(metacluster, maxClusterCV):
     '''
     Filter metacluster by comparing its Coefficient of Variation with a maximum threshold.
 
@@ -289,7 +369,7 @@ def maxCvFilter(metacluster, maxClusterCV):
 
     return PASS
 
-def percResolvedFilter(metacluster, minPercResolved):
+def filter_perc_resolved(metacluster, minPercResolved):
     '''
     Filter metacluster by comparing the % of inserted sequence resolved with a minimum threshold
 
@@ -309,7 +389,7 @@ def percResolvedFilter(metacluster, minPercResolved):
 
     return PASS
 
-def SVTypeFilter(metacluster, targetSV):
+def filter_SV_type(metacluster, targetSV):
     '''
     Filter metacluster by checking its SV type
 
@@ -328,6 +408,51 @@ def SVTypeFilter(metacluster, targetSV):
 
     return PASS
 
+def filter_suppl_MAPQ(clipping, minMAPQ):
+    '''
+    Filter out clipping cluster based on the average mapping quality of its supplementary alignments
+
+    Input:
+        1. clipping: clipping cluster object
+        2. minMAPQ: minimum mapping quality
+
+    Output:
+        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't    
+    '''
+
+    ## Compute average mapping quality for supplementary alignments
+    MAPQs = [event.mapQ for event in clipping.supplCluster.events]
+    meanMAPQ = statistics.mean(MAPQs)
+
+    ## Apply filter
+    if meanMAPQ >= minMAPQ:
+        PASS = True
+
+    else:
+        PASS = False
+    
+    return PASS
+
+def filter_clipping_suppl_ref(clipping, targetRefs):
+    '''
+    Filter out clipping cluster if its supplementary cluster not located over a target reference
+
+    Input:
+        1. clipping: clipping cluster
+        2. targetRefs: List of target references
+
+    Output:
+        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
+    '''
+    ## Retrieve suppl. alignment reference 
+    if clipping.supplCluster.ref in targetRefs:
+        PASS = True 
+
+    else:
+        PASS = False
+
+    return PASS
+
 def filter_discordant_mate_ref(discordant, targetRefs):
     '''
     Filter out discordant cluster if its mate not located over a target reference
@@ -339,7 +464,6 @@ def filter_discordant_mate_ref(discordant, targetRefs):
     Output:
         1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
     '''
-
     ## Retrieve mates referene 
     matesRef = discordant.events[0].mateRef
 
@@ -348,6 +472,42 @@ def filter_discordant_mate_ref(discordant, targetRefs):
         
     else:
         PASS = False
+
+    return PASS
+
+
+def filter_clipping_suppl_position(clipping, ranges, buffer):
+    '''
+    Filter out clipping cluster if suppl. alignment within one of the provided regions
+    
+    Input:
+        1. clipping: clipping cluster object
+        2. ranges: Dictionary with reference ids as keys and the list of ranges on each reference as values
+        3. buffer: Extend each range at their begin and end coordinate by a number of nucleotides == buffer length
+
+    Output:
+        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
+    '''
+    ## Do not filter out clipping cluster if no input range on that particular reference 
+    if clipping.supplCluster.ref not in ranges:
+        PASS = True
+        return PASS
+        
+    ## Assess overlap between mates interval and provided regions. 
+    PASS = True
+
+    for interval in ranges[clipping.supplCluster.ref]:
+        rangeBeg, rangeEnd = interval
+
+        # Add buffer
+        rangeBeg = rangeBeg - buffer
+        rangeEnd = rangeEnd + buffer
+
+        # Assess overlap
+        overlap, overlapLen = gRanges.overlap(clipping.supplCluster.beg, clipping.supplCluster.end, rangeBeg, rangeEnd)
+
+        if overlap:
+            PASS = False
 
     return PASS
 
@@ -456,12 +616,12 @@ def filter_discordant_mate_MAPQ(discordant, minMAPQ, bam, normalBam):
     return PASS
 
 
-def filter_germline_discordant(discordant, minNormal):
+def filter_germline(cluster, minNormal):
     '''
     Filter out those clusters formed by tumour and normal reads
     
     Input:
-        1. discordant: discordant cluster object
+        1. cluster: cluster object
         2. minNormal: minimum number of reads supporting a SV in normal sample
     
     Output:
@@ -469,7 +629,7 @@ def filter_germline_discordant(discordant, minNormal):
     '''
     count = 0
         
-    for event in discordant.events:
+    for event in cluster.events:
             
         if event.sample == 'NORMAL':
             count += 1
@@ -577,7 +737,7 @@ def filterDISCORDANT(cluster, filters2Apply, confDict, bam):
 
     ## 2. FILTER 2: Maximum number of reads per cluster
     if 'MAX-NBREADS' in filters2Apply: # check if the filter is selected
-        filterDiscordantResults['MAX-NBREADS'] = maxNbEventsFilter(cluster, confDict['maxClusterSize'])
+        filterDiscordantResults['MAX-NBREADS'] = filter_max_nb_reads(cluster, confDict['maxClusterSize'])
 
     ## 3. FILTER 3: Area mapping quality
     if "AREAMAPQ" in filters2Apply:
