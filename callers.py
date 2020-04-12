@@ -164,11 +164,10 @@ class SV_caller_long(SV_caller):
             # Create output directory
             outDir = self.outDir + '/BND_JUNCTIONS/'
             unix.mkdir(outDir)   
-
-            allMetaclusters['BND'] = clusters.search4bridges_metaclusters_parallel(allMetaclusters['BND'], 10000, 80, self.confDict['minSupportingReads'], 25, self.annotations, self.refDir, self.confDict['processes'], outDir)
+            allMetaclusters['BND'] = clusters.search4bridges_metaclusters_parallel(allMetaclusters['BND'], 10000, 80, self.confDict['minReads'], 25, self.annotations, self.refDir, self.confDict['processes'], outDir)
 
             ### Search for BND junctions
-            allJunctions = clusters.search4junctions_metaclusters(allMetaclusters['BND'], self.refLengths, self.confDict['processes'], self.confDict['minSupportingReads'], 25)
+            allJunctions = clusters.search4junctions_metaclusters(allMetaclusters['BND'], self.refLengths, self.confDict['processes'], self.confDict['minReads'], 25)
             
             # Remove output directory
             unix.rm([outDir])
@@ -659,17 +658,15 @@ class SV_caller_sureselect(SV_caller):
 
         ### 5. Write calls to file
         ## 5.1 Transduction counts per source element
-        output.write_tdCounts_surelect(clusterPerSrcDict, self.outDir)
+        output.write_tdCounts_sureselect(clusterPerSrcDict, self.outDir)
 
         ## 5.2 Transduction calls
-        output.write_tdCalls_surelect(clusterPerSrcDict, self.outDir)
+        output.write_tdCalls_sureselect(clusterPerSrcDict, self.outDir)
         
-
     def make_clusters_bin(self, ref, beg, end, srcId):
         '''
         Search for structural variant (SV) clusters in a genomic bin/window
         '''
-
         ## 0. Set bin id and create bin directory ##
         binId = '_'.join([str(ref), str(beg), str(end)])
         msg = 'SV calling in bin: ' + binId
@@ -745,17 +742,25 @@ class SV_caller_sureselect(SV_caller):
         ## 3.1 Discordant cluster filtering ##
         step = 'FILTER-DISCORDANT'
         msg = 'Discordant cluster filtering'
+        log.step(step, msg)
+
         filters2Apply = ['MIN-NBREADS', 'MATE-REF', 'MATE-SRC', 'MATE-MAPQ', 'GERMLINE', 'UNESPECIFIC', 'READ-DUP']
         filteredDiscordants = filters.filter_discordants(discordants, filters2Apply, self.bam, self.normalBam, self.confDict)
 
         ## 3.2 Clipping cluster filtering ##
         step = 'FILTER-CLIPPING'
         msg = 'Clipping cluster filtering'
-        filters2Apply = []
+        log.step(step, msg)
 
-        ## 3.4 If running in paired mode, filter out clusters formed by tumour and normal reads. Discard germline variation ##
-        #if self.mode == 'PAIRED':
-  
-        
-        return [srcId, filteredDiscordants]
+        filters2Apply = ['MIN-NBREADS', 'SUPPL-REF', 'SUPPL-SRC', 'SUPPL-MAPQ', 'GERMLINE', 'READ-DUP']
+        filteredLeftClippings = filters.filter_clippings(leftClippingClusters, filters2Apply, self.confDict)
+        filteredRightClippings = filters.filter_clippings(rightClippingClusters, filters2Apply, self.confDict)
+
+        ## 3. Create metaclusters ##
+        step = 'META-CLUSTERING'
+        msg = 'Group mates and suplementary clusters into metaclusters'
+        log.step(step, msg)
+        metaclusters = clusters.metacluster_mate_suppl(filteredDiscordants, filteredLeftClippings, filteredRightClippings, self.confDict['minReads'], self.refLengths)
+
+        return [srcId, metaclusters]
         
