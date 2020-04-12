@@ -68,8 +68,8 @@ if __name__ == '__main__':
 	parser.add_argument('--minClusterSize', default=4, dest='minClusterSize', type=int, help='Minimum number of reads composing a cluster. Default: 4')
 	parser.add_argument('--maxClusterSize', default=500, dest='maxClusterSize', type=int, help='Maximum number of reads composing a metacluster. Default: 500')
 	parser.add_argument('--maxClusterCV', default=40, dest='maxClusterCV', type=int, help='Maximum coefficient of variation of a metacluster. Default: 40')
-	parser.add_argument('--minSupportingReads', default=4, dest='minSupportingReads', type=int, help='Minimum number of reads supporting a SV. Default: 4')
-	parser.add_argument('--minNormalSupportingReads', default=2, dest='minNormalSupportingReads', type=int, help='Minimum number of reads supporting a SV in normal sample. Default: 2')
+	parser.add_argument('--minReads', default=4, dest='minReads', type=int, help='Minimum number of reads supporting a SV. Default: 4')
+	parser.add_argument('--minNormalReads', default=2, dest='minNormalReads', type=int, help='Minimum number of reads supporting a SV in normal sample. Default: 2')
 	parser.add_argument('--targetStatus', default='resolved,partially_resolved', dest='targetStatus', type=str, help='Filter out those insertions with an status not included in the list. Default: resolved,partially_resolved')
 
 	# Short
@@ -119,8 +119,8 @@ if __name__ == '__main__':
 	minClusterSize = args.minClusterSize
 	maxClusterSize = args.maxClusterSize
 	maxClusterCV = args.maxClusterCV
-	minSupportingReads = args.minSupportingReads
-	minNormalSupportingReads = args.minNormalSupportingReads
+	minReads = args.minReads
+	minNormalReads = args.minNormalReads
 	targetStatus = args.targetStatus
 
 	# Short
@@ -171,7 +171,6 @@ if __name__ == '__main__':
 		log.info('[ERROR] Abort execution as transduction search enabled (--transduction-search) and target families for source elements not provided (--source-families)')
 		sys.exit(1)	
 
-
 	##############################################
 	## Display configuration to standard output ##
 	##############################################
@@ -220,8 +219,8 @@ if __name__ == '__main__':
 	print('minClusterSize: ', minClusterSize)
 	print('maxClusterSize: ', maxClusterSize)
 	print('maxClusterCV: ', maxClusterCV)
-	print('minSupportingReads: ', minSupportingReads)
-	print('minNormalSupportingReads: ', minNormalSupportingReads)
+	print('minReads: ', minReads)
+	print('minNormalReads: ', minNormalReads)
 	print('targetStatus: ', targetStatus)
 	print('minReadsRegionMQ: ', minReadsRegionMQ)
 	print('maxRegionlowMQ: ', maxRegionlowMQ)
@@ -272,6 +271,8 @@ if __name__ == '__main__':
 	elif (confDict['technology'] == 'SURESELECT'):
 		confDict['targetEvents'] = ['DISCORDANT', 'CLIPPING']
 		confDict['minCLIPPINGlen'] = 20
+		confDict['minNbDISCORDANT'] = 2
+		confDict['minNbCLIPPING'] = 2
 
 	# c) Long read sequencing data -> INS or INS + BND
 	elif ('INS' in confDict['targetSV']):
@@ -293,8 +294,8 @@ if __name__ == '__main__':
 	confDict['minClusterSize'] = minClusterSize
 	confDict['maxClusterSize'] = maxClusterSize
 	confDict['maxClusterCV'] = maxClusterCV
-	confDict['minSupportingReads'] = minSupportingReads
-	confDict['minNormalSupportingReads'] = minNormalSupportingReads
+	confDict['minReads'] = minReads
+	confDict['minNormalReads'] = minNormalReads
 	confDict['targetStatus'] = targetStatus.split(',')
 	confDict['minPercResolved'] = 40
 
