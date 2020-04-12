@@ -32,7 +32,7 @@ def separate(events):
             eventType = 'LEFT-CLIPPING' if event.clippedSide == 'left' else 'RIGHT-CLIPPING'
 
         elif event.type == 'DISCORDANT':
-            eventType = 'MINUS-DISCORDANT' if event.side == 'MINUS' else 'PLUS-DISCORDANT'
+            eventType = 'MINUS-DISCORDANT' if event.orientation == 'MINUS' else 'PLUS-DISCORDANT'
 
         else:
             eventType = event.type
@@ -360,6 +360,34 @@ def events2nestedDict(events, eventType):
 
     return eventsDict
 
+def mergeNestedDict(dictA, dictB):
+    '''
+    Merge two nested dictionaries into a single one
+    '''
+    ## 1. Generate not redundant list of keus
+    keysA = list(dictA.keys()) 
+    keysB = list(dictB.keys()) 
+    keys = list(set(keysA + keysB))
+
+    ## 2. Initialize output dict
+    outDict = {}
+
+    for key in keys:
+        outDict[key] = {}
+
+    ## 3. Add content in dict A
+    for keyA in dictA.keys():
+        for keyB in dictA[keyA].keys():
+            outDict[keyA][keyB] = dictA[keyA][keyB]
+    
+    ## 4. Add content in dict B
+    for keyA in dictB.keys():
+        for keyB in dictB[keyA].keys():
+            outDict[keyA][keyB] = dictB[keyA][keyB]
+    
+    return outDict
+
+
 def merge_INS(INS_list):
     '''
     Merge a set of adjacent INS events supported by the same read into a single one
@@ -643,7 +671,7 @@ class CLIPPING():
             end = int(beg) + alignmentLen
 
             # Create suppl. alignment object
-            supplObject = SUPPLEMENTARY(ref, beg, end, strand, CIGAR, mapQ, NM, self.readName, self.id)
+            supplObject = SUPPLEMENTARY(ref, beg, end, strand, CIGAR, mapQ, NM, self.readName, self.id, self.sample)
 
             # Initialize ref if necessary
             if supplObject.ref not in supplAlignmentsDict:
@@ -822,18 +850,20 @@ class SUPPLEMENTARY():
     '''
     number = 0 # Number of instances
     
-    def __init__(self, ref, beg, end, orientation, CIGAR, mapQ, NM, readName, clippingId):
+    def __init__(self, ref, beg, end, orientation, CIGAR, mapQ, NM, readName, clippingId, sample):
         SUPPLEMENTARY.number += 1 # Update instances counter
         self.id = 'SUPPLEMENTARY_' + str(SUPPLEMENTARY.number)
+        self.type = 'SUPPLEMENTARY'
         self.ref = str(ref)
         self.beg = int(beg)
         self.end = int(end)
         self.orientation = orientation
         self.CIGAR = CIGAR
-        self.mapQ = mapQ
+        self.mapQ = int(mapQ)
         self.NM = NM
         self.readName = readName
         self.clippingId = clippingId
+        self.sample = sample
         self.readIndex = None
         self.anchorSide = None
         self.insertSize = None

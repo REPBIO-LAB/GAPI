@@ -11,7 +11,6 @@ import log
 import gRanges
 
 ## FUNCTIONS ##
-
 def create_bin_database(refLengths, eventsDict):
     '''
     Organize genome wide events into a set of bin databases, one per reference
