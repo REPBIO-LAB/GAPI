@@ -73,7 +73,11 @@ def create_cluster(events, clusterType):
     elif 'DISCORDANT' in clusterType:
         cluster = DISCORDANT_cluster(events)
 
-    ## f) Unexpected cluster type
+    ## f) Create SUPPLEMENTARY cluster 
+    elif 'SUPPLEMENTARY' in clusterType:
+        cluster = SUPPLEMENTARY_cluster(events)
+
+    ## g) Unexpected cluster type
     else:
         log.info('Error at \'create_cluster\'. Unexpected cluster type')
         sys.exit(1)
@@ -952,7 +956,7 @@ def assignAligments2metaclusters_sam(metaclusters, SAM_path):
 
     return metaclustersHits
 
-def search4bridges_metaclusters_parallel(metaclusters, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, refDir, processes, rootDir):
+def search4bridges_metaclusters_parallel(metaclusters, maxBridgeLen, minMatchPerc, minReads, minPercReads, annotations, refDir, processes, rootDir):
     '''
     Search for transduction or repeat bridges at BND junctions for a list of metacluster objects
 
@@ -960,7 +964,7 @@ def search4bridges_metaclusters_parallel(metaclusters, maxBridgeLen, minMatchPer
         1. metaclusters: list of input metacluster objects supporting BND
         2. maxBridgeLen: maximum supplementary cluster length to search for a bridge
         3. minMatchPerc: minimum percentage of the supplementary cluster interval to match in a transduction or repeats database to make a bridge call
-        4. minSupportingReads: minimum number of reads supporting the bridge
+        4. minReads: minimum number of reads supporting the bridge
         5. minPercReads: minimum percentage of clipping cluster supporting reads composing the bridge
         6. annotations: Dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values 
         7. refDir: directory containing reference databases. 
@@ -998,7 +1002,7 @@ def search4bridges_metaclusters_parallel(metaclusters, maxBridgeLen, minMatchPer
     for metacluster in metaclusters:
         
         ## Add to the list
-        fields = (metacluster, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, rootDir)
+        fields = (metacluster, maxBridgeLen, minMatchPerc, minReads, minPercReads, annotations, index, rootDir)
         tupleList.append(fields)
 
     ## 3. Search for bridges
@@ -1009,7 +1013,7 @@ def search4bridges_metaclusters_parallel(metaclusters, maxBridgeLen, minMatchPer
 
     return metaclusters
 
-def search4bridges_metacluster(metacluster, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, rootDir):
+def search4bridges_metacluster(metacluster, maxBridgeLen, minMatchPerc, minReads, minPercReads, annotations, index, rootDir):
     '''
     Search for transduction or repeat bridges at BND junctions for a metacluster object
 
@@ -1017,7 +1021,7 @@ def search4bridges_metacluster(metacluster, maxBridgeLen, minMatchPerc, minSuppo
         1. metacluster: metacluster object
         2. maxBridgeLen: maximum supplementary cluster length to search for a bridge
         3. minMatchPerc: minimum percentage of the supplementary cluster interval to match in a transduction or repeats database to make a bridge call
-        4. minSupportingReads: minimum number of reads supporting the bridge
+        4. minReads: minimum number of reads supporting the bridge
         5. minPercReads: minimum percentage of clipping cluster supporting reads composing the bridge
         6. annotations: dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
         7. index: minimap2 index for consensus retrotransposon sequences + transduced regions database
@@ -1032,7 +1036,7 @@ def search4bridges_metacluster(metacluster, maxBridgeLen, minMatchPerc, minSuppo
     unix.mkdir(outDir)
 
     ## 2. Search for bridge
-    metacluster.search4bridge(maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, outDir)
+    metacluster.search4bridge(maxBridgeLen, minMatchPerc, minReads, minPercReads, annotations, index, outDir)
 
     ## 3. Remove output directory        
     unix.rm([outDir])
@@ -1040,7 +1044,7 @@ def search4bridges_metacluster(metacluster, maxBridgeLen, minMatchPerc, minSuppo
     return metacluster
 
 
-def search4junctions_metaclusters(metaclusters, refLengths, processes, minSupportingReads, minPercReads):
+def search4junctions_metaclusters(metaclusters, refLengths, processes, minReads, minPercReads):
     '''
     Search for BND junctions for a list of input metacluster objects of the type BND.
 
@@ -1052,7 +1056,7 @@ def search4junctions_metaclusters(metaclusters, refLengths, processes, minSuppor
         1. metaclusters: list of input metacluster objects supporting BND
         2. refLengths: dictionary containing reference ids as keys and as values the length for each reference. 
         3. processes: number of processes
-        4. minSupportingReads: minimum number of reads supporting the BND junction 
+        4. minReads: minimum number of reads supporting the BND junction 
         5. minPercReads: minimum percentage of metacluster and partner metacluster reads supporting the BND junction
 
     Output:
@@ -1072,7 +1076,7 @@ def search4junctions_metaclusters(metaclusters, refLengths, processes, minSuppor
     for metacluster in metaclusters:
     
         # Search for junctions
-        junctions = metacluster.search4junctions(metaclustersBinDb, minSupportingReads, minPercReads)
+        junctions = metacluster.search4junctions(metaclustersBinDb, minReads, minPercReads)
         
         # Add junctions to the final list avoiding redundancies
         for junction in junctions:
@@ -1638,14 +1642,14 @@ class SUPPLEMENTARY_cluster(cluster):
         ## Note: return an ambiguous flag if several possible maximum
         return index
 
-    def support_bridge(self, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, outDir):
+    def support_bridge(self, maxBridgeLen, minMatchPerc, minReads, minPercReads, annotations, index, outDir):
         '''
         Assess if supplementary cluster supports bridge or not. 
 
         Input:
             1. maxBridgeLen: maximum supplementary cluster length to search for a bridge
             2. minMatchPerc: minimum percentage of the supplementary cluster interval to match in a transduction or repeats database to make a bridge call
-            3. minSupportingReads: minimum number of reads supporting the bridge
+            3. minReads: minimum number of reads supporting the bridge
             4. minPercReads: minimum percentage of clipping cluster supporting reads composing the bridge
             5. annotations: dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
             6. index: minimap2 index for consensus retrotransposon sequences + source element downstream regions
@@ -1659,7 +1663,7 @@ class SUPPLEMENTARY_cluster(cluster):
 
         ## 2. If bridge not found search for supplementary alignment supporting a bridge (algorithm 2)
         if self.bridge is False:
-            self.bridge, supportType, bridgeType, bridgeSeq, bridgeLen, family, srcId = self.supports_aligned_bridge(maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations)
+            self.bridge, supportType, bridgeType, bridgeSeq, bridgeLen, family, srcId = self.supports_aligned_bridge(maxBridgeLen, minMatchPerc, minReads, minPercReads, annotations)
 
         self.bridgeInfo['supportType'] = supportType
         self.bridgeInfo['bridgeType'] = bridgeType
@@ -1757,7 +1761,7 @@ class SUPPLEMENTARY_cluster(cluster):
 
         return bridge, supportType, bridgeType, bridgeSeq, bridgeLen, family, srcId    
 
-    def supports_aligned_bridge(self, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations):
+    def supports_aligned_bridge(self, maxBridgeLen, minMatchPerc, minReads, minPercReads, annotations):
         '''
         Assess of supplementary cluster supports a bridge sequence aligning 
         over an annotated L1 or transduced region on the reference genome
@@ -1765,7 +1769,7 @@ class SUPPLEMENTARY_cluster(cluster):
         Input:
             1. maxBridgeLen: maximum supplementary cluster length to search for a bridge
             2. minMatchPerc: minimum percentage of the supplementary cluster interval to match in a transduction or repeats database to make a bridge call
-            3. minSupportingReads: minimum number of reads supporting the bridge
+            3. minReads: minimum number of reads supporting the bridge
             4. minPercReads: minimum percentage of clipping cluster supporting reads composing the bridge
             5. annotations: dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
 
@@ -1895,7 +1899,6 @@ class DISCORDANT_cluster(cluster):
     def __init__(self, events):
 
         cluster.__init__(self, events, 'DISCORDANT')
-        self.matesCluster = None
 
     def mates_start_interval(self):
         '''
@@ -1912,6 +1915,18 @@ class DISCORDANT_cluster(cluster):
         beg = min(starts)
         end = max(starts)
         return beg, end
+    
+    def create_matesCluster(self):
+        '''
+        Create discordant read pair cluster for mates
+        '''
+        ## 1. Produce discordant objects for mates:
+        mates = events.discordants2mates(self.events)
+
+        ## 2. Create discordant cluster for mates
+        matesCluster = DISCORDANT_cluster(mates)
+
+        return matesCluster
 
 class META_cluster():
     '''
@@ -2167,7 +2182,6 @@ class META_cluster():
 
         return nbTotal, nbTumour, nbNormal, reads, readsTumour, readsNormal
 
-
     def nbEvents(self):
         '''
         Return the number of events composing the metacluster. 
@@ -2213,7 +2227,34 @@ class META_cluster():
         nbTotal = len(self.events)
 
         return nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING
-        
+
+    def nbDISCORDANT(self):
+        '''
+        Return the number of discordant events composing the metacluster. 
+        '''        
+        nbDISCORDANT = 0   
+
+        # For each event composing the metacluster
+        for event in self.events:
+
+            if event.type == 'DISCORDANT':
+                nbDISCORDANT += 1
+
+        return nbDISCORDANT
+
+    def nbSUPPLEMENTARY(self):
+        '''
+        Return the number of discordant events composing the metacluster. 
+        '''        
+        nbSUPPL = 0   
+
+        # For each event composing the metacluster
+        for event in self.events:
+
+            if event.type == 'SUPPLEMENTARY':
+                nbSUPPL += 1
+
+        return nbSUPPL
 
     def supportingCLIPPING(self, buffer, confDict, bam, normalBam, mode):
         # Note: This function works but you have to allow duplicates in the clipping 
@@ -2524,14 +2565,14 @@ class META_cluster():
             self.consensusEvent = None                
             self.consensusFasta = None
 
-    def search4bridge(self, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, outDir):
+    def search4bridge(self, maxBridgeLen, minMatchPerc, minReads, minPercReads, annotations, index, outDir):
         '''    
         Search for a transduction or solo repeat bridge at metacluster BND junction
 
         Input:
             1. maxBridgeLen: maximum supplementary cluster length to search for a bridge
             2. minMatchPerc: minimum percentage of the supplementary cluster interval to match in a transduction or repeats database to make a bridge call
-            3. minSupportingReads: minimum number of reads supporting the bridge
+            3. minReads: minimum number of reads supporting the bridge
             4. minPercReads: minimum percentage of clipping cluster supporting reads composing the bridge
             5. annotations: dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
             6. index: minimap2 index for consensus retrotransposon sequences + source element downstream regions
@@ -2551,7 +2592,7 @@ class META_cluster():
         ## For each cluster
         for cluster in supplClusters:
 
-            cluster.support_bridge(maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, outDir)
+            cluster.support_bridge(maxBridgeLen, minMatchPerc, minReads, minPercReads, annotations, index, outDir)
 
             ## Add cluster supporting bridge to the dictionary
             # a) Aligned bridge
@@ -2677,11 +2718,11 @@ class META_cluster():
             ## Filter out bridge if:
             #    1) Bridge supported by < X reads OR
             #    2) Bridge supported by < X% of the total number of metacluster supporting reads 
-            if (self.bridge.nbReads() < minSupportingReads) or (percReads < minPercReads):
+            if (self.bridge.nbReads() < minReads) or (percReads < minPercReads):
                 self.bridge = None
 
 
-    def search4junctions(self, metaclustersBinDb, minSupportingReads, minPercReads):
+    def search4junctions(self, metaclustersBinDb, minReads, minPercReads):
         '''
         Use supplementary alignments to identify connections between the metacluster and any other BND metacluster. 
 
@@ -2689,7 +2730,7 @@ class META_cluster():
 
         Input:
             1. metaclustersBinDb: bin database containing all the BND metaclusters identified in the sample
-            2. minSupportingReads: minimum number of reads supporting the BND junction 
+            2. minReads: minimum number of reads supporting the BND junction 
             3. minPercReads: minimum percentage of metacluster and partner metacluster reads supporting the BND junction
 
         Output:
@@ -2769,9 +2810,9 @@ class META_cluster():
             percReadsPartner = nbReads / metaPartner.nbReadsTotal * 100 # Note: here % can be >100% (fix issue later by selecting suppl.cluster from the partner)
 
             ## Create BND junction if connection fulfills ALL these contitions: 
-            #      1) Supported by >= minSupportingReads
+            #      1) Supported by >= minReads
             #      2) Percentage of reads supporting supplementary cluster >= minPercReads for both metacluster and partner
-            if (nbReads >= minSupportingReads) and (percReadsMeta >= minPercReads) and (percReadsPartner >= minPercReads):
+            if (nbReads >= minReads) and (percReadsMeta >= minPercReads) and (percReadsPartner >= minPercReads):
                                 
                 ## Create BND junction 
                 junction = BND_junction(meta, metaPartner)
@@ -3342,4 +3383,53 @@ class BND_junction():
         nbNormal = len(set(self.metaclusterA.readsNormal + self.metaclusterB.readsNormal))
 
         return nbTotal, nbTumour, nbNormal
+
+def metacluster_mate_suppl(discordants, leftClippings, rightClippings, minReads, refLengths):
+    '''
+    Group discordant and clipping clusters into metaclusters
+
+    Input:
+        1. discordants: list of discordant cluster objects
+        2. leftClippings: list of left clipping cluster objects
+        3. rightClippings: list of right clipping cluster objects
+        4. minReads: minimum number of reads
+        5. refLengths: dictionary containing references as keys and their lengths as values
+
+    Output:
+        1. filteredMeta: list of metaclusters
+    '''
+    ## 1. Create list of discordant mate clusters
+    mateClusters = [discordant.create_matesCluster() for discordant in discordants]
+
+    ## 2. Create list of supplementary clusters
+    supplClustersLeft = [clipping.supplCluster for clipping in leftClippings]
+    supplClustersRight = [clipping.supplCluster for clipping in rightClippings]
+    supplClusters = supplClustersLeft + supplClustersRight
+    
+    ## 3. Organize discordant mate and suppl. clusters into a dictionary
+    mateDict = events.events2nestedDict(mateClusters, 'DISCORDANT')    
+    supplDict = events.events2nestedDict(supplClusters, 'SUPPLEMENTARY')
+    clustersDict = events.mergeNestedDict(mateDict, supplDict)
+
+    ## 4. Organize discordant mate and suppl. clusters into a bin database
+    wgBinDb = structures.create_bin_database(refLengths, clustersDict)
+
+    ## 5. Perform metaclustering
+    allMeta = []
+
+    for binDb in wgBinDb.values():
+        
+        meta = clustering.reciprocal_overlap_clustering(binDb, 1, 1, binDb.eventTypes, 100, 'META')
+        allMeta = allMeta + meta
+
+    ## 6. Filter metaclusters based on read support
+    filteredMeta = []
+
+    for meta in allMeta:
+
+        if meta.nbEvents()[0] >= minReads:
+            filteredMeta.append(meta)
+
+    return filteredMeta
+
 
