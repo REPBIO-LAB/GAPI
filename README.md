@@ -96,7 +96,7 @@ outDir=$working_dir/MEIGA/test/0.13.0/PAIRED_TARGET_NANOPORE_DELS/
 mkdir $outDir
 cd $outDir
 
-$MEIGA $tumour $technology $reference $databases --normalBam $normal --minSupportingReads 2 --minNo
+$MEIGA $tumour $technology $reference $databases --normalBam $normal --minReads 2 --minNo
 rmalSupportingReads 1 --transduction-search --source-families 'L1' --refs '22' -p 10 --gene-annot-dir $annovarDir --targetBins $targetBins -o $outDir
  1> $outDir/MEIGA.out 2> $outDir/MEIGA.err"
 
@@ -151,7 +151,7 @@ echo "#SBATCH -t 01:00:00 # (Maximum of 1h)" >> $outDir/launch.sh
 echo "#SBATCH --error $outDir/job.err" >> $outDir/launch.sh
 echo "#SBATCH --output $outDir/job.out" >> $outDir/launch.sh
 echo 'source $working_dir/MEIGA/bin/activate' >> $outDir/launch.sh
-echo "mprof run --include-children --multiprocess $MEIGA $tumour $technology $reference $databases --normalBam $normal --minSupportingReads 2 --minNo
+echo "mprof run --include-children --multiprocess $MEIGA $tumour $technology $reference $databases --normalBam $normal --minReads 2 --minNo
 rmalSupportingReads 1 --transduction-search --source-families 'L1' --refs '22' -p 10 --gene-annot-dir $annovarDir --targetBins $targetBins -o $outDir
  1> $outDir/MEIGA.out 2> $outDir/MEIGA.err" >> $outDir/launch.sh
 chmod a+x $outDir/launch.sh
