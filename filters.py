@@ -294,7 +294,7 @@ def filter_min_nb_reads(cluster, minReads, minNormalReads):
     '''
 
     ## 1. Compute number of events supporting the cluster 
-    nbTotal, nbTumour, nbNormal = cluster.nbEvents()
+    nbTotal, nbTumour, nbNormal = cluster.nbEvents()[0:3]
 
     ## 2. Compare the number of events supporting the cluster against the minimum required
     # 2.1 Paired mode:
