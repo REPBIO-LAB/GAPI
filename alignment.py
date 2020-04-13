@@ -183,7 +183,7 @@ def alignment_blat(FASTA, reference, fileName, outDir):
     ## Align the sequences into the reference
     PSL = outDir + '/' + fileName + '.psl'
     err = open(outDir + '/align.err', 'w') 
-    command = 'blat -stepSize=5 -repMatch=2253 -minScore=20 -minIdentity=0 -out=psl ' + reference + ' ' + FASTA + ' ' + PSL
+    command = 'blat -stepSize=5 -repMatch=2253 -minScore=20 -minIdentity=0 -noHead -out=psl ' + reference + ' ' + FASTA + ' ' + PSL
     status = subprocess.call(command, stderr=err, shell=True)
 
     if status != 0:
