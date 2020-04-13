@@ -10,6 +10,7 @@ import os
 import pysam
 import time
 import subprocess
+import itertools
 
 # Internal
 import log
@@ -358,7 +359,7 @@ class SV_caller_short(SV_caller):
         ### 1. Create integration clusters 
         msg = '1. Create integration clusters. PID: ' + str(os.getpid())
         log.header(msg)      
-        allMetaclusters = self.make_clusters()
+        metaclustersListofLists = self.make_clusters()
 
         # TODO SR: ANNOTATE-REPEATS step: Desilence and put in the right place (now it is repeated in two different places) in case we want to analyse RT. If not, decide if it is neccessary or not.
         if 'ME' in self.confDict['targetINT2Search']:
@@ -408,12 +409,13 @@ class SV_caller_short(SV_caller):
   
         # Report integrations calls into output files
         #output.write_DISCORDANT(discordantClusters, self.outDir)
-        metaclustersListofLists = list(allMetaclusters.values())
+        #metaclustersListofLists = list(allMetaclusters.values())
         outFileNameTSV = 'metaclusters.PASS.tsv'
         outFileName = 'metaclusters.PASS'
-        output.writeMetaclusters(metaclustersListofLists, outFileNameTSV, self.outDir)
         # Flat metaclustersList
-        metaclustersList = [item for sublist in metaclustersListofLists for item in sublist]
+        metaclustersListWEmpties = list(itertools.chain(*metaclustersListofLists))
+        metaclustersList = [x for x in metaclustersListWEmpties if x]
+        #output.writeMetaclusters(metaclustersList, outFileNameTSV, self.outDir)
         output.INS2VCF_SR(metaclustersList, self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], self.confDict['VCFInfoFields'], outFileName, self.outDir)
 
 
@@ -425,9 +427,11 @@ class SV_caller_short(SV_caller):
             
             # Make genomic bins
             bins = bamtools.makeGenomicBins(self.bam, self.confDict['binSize'], None)
-
+            
             # Collect read name and sequence of discordant low quality reads from all bam refs
             l = mp.Lock()
+            # TEMP SR: DESILENCE
+            
             pool = mp.Pool(processes=self.confDict['processes'], initializer=init, initargs=(l,))
             pool.starmap(self.callCollectSeq, bins)
             pool.close()
@@ -458,10 +462,10 @@ class SV_caller_short(SV_caller):
             
             # Align with bwa allFastas vs viralDb and filter resulting bam
             # TODO SR: bwa allFastas vs viralDb: use exinting function (or do one) and check if bwa -T parameter does something that we need
-            
+            '''
             BAM = self.outDir + '/' + 'viralAligment' + '.bam'
             # TEMP SR: DESILENCE
-            
+            '''
             bwaProcesses = 5 if self.confDict['processes'] > 5 else self.confDict['processes']
             command = 'bwa mem -Y -t '+ str(bwaProcesses) + ' ' +  self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools view -h  | awk \'(($5=="60" && $6~/[' + str(self.confDict['viralBamParcialMatch']) + '-9][0-9]M/) || ($6~/[0-9][0-9][0-9]M/) || ($1 ~ /@/)){print}\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
             err = open(self.outDir + '/align.err', 'w') 
@@ -501,7 +505,7 @@ class SV_caller_short(SV_caller):
 
         # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
-        metaclustersPassList, metaclustersFailedList = zip(*pool.starmap(self.make_clusters_bin, bins))
+        metaclustersPassListofLists, metaclustersFailedListofLists = zip(*pool.starmap(self.make_clusters_bin, bins))
         pool.close()
         pool.join()
 
@@ -509,21 +513,22 @@ class SV_caller_short(SV_caller):
         unix.rm([self.outDir + '/CLUSTER/'])
 
         ### 3. Collapse metaclusters in a single dict and report metaclusters that failed filtering
-        metaclustersPass = structures.merge_dictionaries(metaclustersPassList)
-        metaclustersFailed = structures.merge_dictionaries(metaclustersFailedList)
+        #metaclustersPass = structures.merge_dictionaries(metaclustersPassList)
+        #metaclustersFailed = structures.merge_dictionaries(metaclustersFailedList)
 
-        if metaclustersFailed:
-            metaclustersFailedListofLists = list(metaclustersFailed.values())
+        if metaclustersFailedListofLists:
+            #metaclustersFailedListofLists = list(metaclustersFailed.values())
             outFileNameTSV = 'metaclusters.FAILED.tsv'
             outFileName = 'metaclusters.FAILED'
-            output.writeMetaclusters(metaclustersFailedListofLists, outFileName, self.outDir)
             # Flat metaclustersList
-            metaclustersFailedList = [item for sublist in metaclustersFailedListofLists for item in sublist]
-            # TODO SR: Write VCF as output!
+            metaclustersFailedListWEmpties = list(itertools.chain(*metaclustersFailedListofLists))
+            # Remove empty lists
+            metaclustersFailedList = [x for x in metaclustersFailedListWEmpties if x]
+            #output.writeMetaclusters(metaclustersFailedList, outFileName, self.outDir)
+            # Write VCF output
             output.INS2VCF_SR(metaclustersFailedList, self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], self.confDict['VCFInfoFields'], outFileName, self.outDir)
 
-
-        return metaclustersPass
+        return metaclustersPassListofLists
     
     def callCollectSeq(self, ref, binBeg, binEnd):
         '''
@@ -727,20 +732,47 @@ class SV_caller_short(SV_caller):
         dictMetaclusters : 
         {<clusters.META_cluster object at 0x7fe9e43936d8>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393b00>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393be0>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393c88>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393dd8>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393e10>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}}
         '''
-
+       
         metaclustersSVTypeBfSecondFilter['DISCORDANT'] = metaclusters
         metaclustersSVTypeFailed['DISCORDANT'] = metaclustersFailed
 
+        del metaclusters
+        del metaclustersFailed
 
         # NOTE SR: BY THIS WAY WE ARE ALSO ASSEGING MUT.ORIGIN TO THE METACLUSTER.
         # NOTE SR: All failed metaclusters are going to only one file.
+        # TODO SR: I think this could return a list instead of a dictionary.
         step = 'FILTER METACLUSTERS'
         msg = 'Filter out metaclusters' 
         log.step(step, msg)
         filters2Apply = ['MIN-NBREADS', 'MAX-NBREADS']
         dictMetaclustersSecondFilter, dictMetaclustersSecondFilterFailedTemp = filters.filter_metaclusters(metaclustersSVTypeBfSecondFilter, filters2Apply, self.confDict)
 
+        # Flat list
+        #metaclustersList = list(itertools.chain(*dictMetaclustersSecondFilter.values()))
+        metaclustersList = [item for sublist in dictMetaclustersSecondFilter.values() for item in sublist]
 
+
+        # Get from metaclusters those fields that should be printed in VCF output
+        metaclustersFields = output.VCFMetaclustersFields(metaclustersList)
+
+        # Flat lists
+        dictMetaclustersSecondFilterFailedTempList = list(itertools.chain(*dictMetaclustersSecondFilterFailedTemp.values()))
+        metaclustersSVTypeFailedList = list(itertools.chain(*metaclustersSVTypeFailed.values()))
+        # Merge list of failed clusters and list of failed metaclusters
+        metaclustersFailedList = dictMetaclustersSecondFilterFailedTempList + metaclustersSVTypeFailedList
+        # Get from metaclusters those fields that should be printed in VCF output
+        metaclustersFailedFields = output.VCFMetaclustersFields(metaclustersFailedList)
+
+        # TODO SR: Not sure if this dels are needed, because function is finishing and I think they get deleted automatically.
+        del metaclustersList
+        del dictMetaclustersSecondFilterFailedTempList
+        del metaclustersSVTypeFailedList
+        del metaclustersFailedList
+        del dictMetaclustersSecondFilter
+        del dictMetaclustersSecondFilterFailedTemp
+
+        '''
         metaclustersSVType = {}
         if dictMetaclustersSecondFilter:
             metaclustersSVType['DISCORDANT'] = dictMetaclustersSecondFilter['DISCORDANT']
@@ -748,6 +780,7 @@ class SV_caller_short(SV_caller):
             metaclustersSVType['DISCORDANT'] = []
         if dictMetaclustersSecondFilterFailedTemp:
             metaclustersSVTypeFailed['DISCORDANT'].extend(dictMetaclustersSecondFilterFailedTemp['DISCORDANT'])
+        '''
 
         ### Do cleanup
         unix.rm([binDir])
@@ -756,12 +789,14 @@ class SV_caller_short(SV_caller):
         ## Metaclusters passing all the filters
         #print ('eva1')
         #print (metaclustersSVType)
+        '''
         clusters.lighten_up_metaclusters(metaclustersSVType)
 
         #print ('eva2')
         #print (metaclustersSVTypeFailed)
         ## Filtered metaclusters
         clusters.lighten_up_metaclusters(metaclustersSVTypeFailed)
+        '''
         # TODO SR: Remove this print
         '''
         for meta in list(dictMetaclusters.keys()):
@@ -770,7 +805,7 @@ class SV_caller_short(SV_caller):
         '''
 
 
-        return metaclustersSVType, metaclustersSVTypeFailed
+        return metaclustersFields, metaclustersFailedFields
 
 class SV_caller_sureselect(SV_caller):
     '''

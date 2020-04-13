@@ -11,87 +11,19 @@ import statistics
 import structures
 import formats
 
-def INS2VCF_SR(metaclusters, index, refLengths, source, build, species, VCFInfoFields, outName, outDir):
+def VCFMetaclustersFields(metaclusters):
     '''
-    Write INS calls into a VCF file
+    Get from metaclusters those fields that should be printed in VCF output
 
     Input:
-        1. metaclusters: list containing list of INS metaclusters
-        2. index: minimap2 index for the reference genome 
-        3. refLengths: Dictionary containing reference ids as keys and as values the length for each reference
-        4. source: software version used to generate the insertion calls
-        5. build: reference genome build
-        6. species: specie
-        7. outName: Output file name
-        8. outDir: Output directory
+        1. metaclusters: list containing list of metaclusters
 
-    Output: vcf file containing identified metaclusters
+    Output:
+        1. metaclustersFields: List of lists: containing VCF fields for each metacluster. Structure -> [[CHROM, POS, ID, ALT, QUAL, FILTER, INFO], [CHROM, POS, ID, ALT, QUAL, FILTER, INFO], ...]
     '''
+    metaclustersFields = []
 
-    ## 1. Initialize VCF 
-    VCF = formats.VCF()
-
-    ## 2. Create header
-    ## Define info 
-    info = {'VTYPE': ['.', 'String', 'Type of variant'], \
-            'ITYPE': ['.', 'String', 'Type of structural variant'], \
-            'MECHANISM': ['.', 'String', 'Insertion mechanism'], \
-            'FAM': ['.', 'String', 'Repeat family'], \
-            'SUBFAM': ['.', 'String', 'Repeat subfamily'], \
-            'CIPOS': ['2', 'Integer', 'Confidence interval around POS for imprecise variants'], \
-            'CYTOID': ['.', 'String', 'Source element cytoband identifier'], \
-            'NBEXONS': ['1', 'Integer', 'Number of exons for a processed pseudogene insertion'], \
-            'SRCGENE': ['.', 'String', 'Source gene for a processed psendogene insertion'], \
-            'STRAND': ['.', 'String', 'Insertion DNA strand (+ or -)'], \
-            'REGION': ['.', 'String', 'Genomic region where insertion occurs'], \
-            'GENE': ['.', 'String', 'HUGO gene symbol'], \
-            'REP': ['.', 'String', 'Families for annotated repeats at the insertion region'], \
-            'REPSUB': ['.', 'String', 'Subfamilies for annotated repeats at the insertion region'], \
-            'DIST': ['.', 'Integer', 'Distance between insertion breakpoint and annotated repeat'], \
-            'NBTOTAL': ['1', 'Integer', 'Total number of insertion supporting reads'], \
-            'NBTUMOR': ['1', 'Integer', 'Number of insertion supporting reads in the tumour'], \
-            'NBNORMAL': ['1', 'Integer', 'Number of insertion supporting reads in the normal'], \
-            'NBSPAN': ['1', 'Integer', 'Number of spanning supporting reads'], \
-            'NBCLIP': ['1', 'Integer', 'Number of clipping supporting reads'], \
-            'LEN': ['1', 'Integer', 'Insertion length'], \
-            'CV': ['1', 'Float', 'Length coefficient of variation'], \
-            'RTLEN': ['1', 'Integer', 'Inserted retrotransposon length'], \
-            'TRUN5LEN': ['1', 'Integer', 'Size of 5prime truncation'], \
-            'TRUN3LEN': ['1', 'Integer', 'Size of 3prime truncation'], \
-            'FULL': ['0', 'Flag', 'Full length mobile element'], \
-            'TDLEN': ['1', 'Integer', 'Transduction length'], \
-            'INVLEN': ['1', 'Integer', '5-inversion length'], \
-            'PERCR': ['1', 'Float', 'Percentage of inserted sequence that has been resolved'], \
-            'QHITS': ['.', 'String', 'Coordinates for inserted sequence hits on the reference'], \
-            'THITS': ['.', 'String', 'Inserted sequence hits on the reference'], \
-            'RTCOORD': ['.', 'String', 'Coordinates for inserted retrotransposon piece of sequence'], \
-            'POLYA': ['0', 'Flag', 'PolyA tail identified'], \
-            'INSEQ': ['.', 'String', 'Inserted sequence'], \
-            'DISCORDANT': ['.', 'String', 'Discordant reads supporting the insertion'], \
-            'CLIPPING': ['.', 'String', 'Clipping reads supporting the insertion'], \
-            'NBDISCORDANT': ['1', 'Integer', 'Number of discordant reads supporting the insertion'], \
-            'NBCLIPPING': ['1', 'Integer', 'Number of clipping reads supporting the insertion'], \
-            'DISCORDANTMAPQ': ['1', 'Integer', 'Average of MAPQ of discordant reads supporting the insertion'], \
-            'CLIPPINGMAPQ': ['1', 'Integer', 'Average of MAPQ of clipping reads supporting the insertion'], \
-            'IDENTITY': ['.', 'String', 'Identity of the insertion'], \
-            'ORIENTATION': ['.', 'String', 'Orientation of the insertion: RECIPROCAL, PLUS or MINUS'], \
-            'BKP2': ['1', 'Integer', 'Reference position of second breakpoint of the insertion'], \
-            'CLIPDISC': ['0', 'Flag', 'There are discordant clipping reads supporting the insertion'], \
-            'SPECIDENT': ['.', 'String', 'Specific identities and number of discordant reads supporting it. SpecificIdentity:#reads'], \
-            'DISCDUP': ['1', 'Float', 'Percentage of discordant reads that are labeled as duplicates in input bam file.'], \
-            'CLIPDUP': ['1', 'Float', 'Percentage of clipping reads that are labeled as duplicates in input bam file.'], \
-            }
-            
-    ## Create header
-    VCF.create_header(source, build, species, refLengths, info)
-
-    ## 3. Add insertion calls to the VCF
-    ## 3.1 Load reference index
-    # TODO: fix mp.Aligner(fn_idx_in=index) in INS2VCF and INS2VCF_SR
-    reference = mp.Aligner(fn_idx_in=index) # comment as time consuming
-    #reference = None
-
-    ## 3.2 Iterate over INS metaclusters
+    ## 3.2 Iterate over metaclusters
     for metacluster in metaclusters:
 
         ## Collect insertion basic features
@@ -101,10 +33,8 @@ def INS2VCF_SR(metaclusters, index, refLengths, source, build, species, VCFInfoF
         POS = metacluster.refLeftBkp if metacluster.refLeftBkp != None else metacluster.refRightBkp
         if POS == None:
             POS = metacluster.beg 
+        # NOTE SR: ID, ALT and QUAL are same for all metaclusters. So it could be possible to write them at the end, instead of in each metcluster
         ID = '.'
-        # TODO SR: fix this
-        REF = reference.seq(CHROM, POS, POS + 1)
-        #REF = 'PRUEBA'
         ALT = '<INS>'
         QUAL = '.'
 
@@ -177,7 +107,7 @@ def INS2VCF_SR(metaclusters, index, refLengths, source, build, species, VCFInfoF
         #INFO['REP'] = ','.join([repeat['family'] for repeat in repeats]) if repeats else None 
         #INFO['REPSUB'] = ','.join([repeat['subfamily'] for repeat in repeats]) if repeats else None   
         #INFO['DIST'] = ','.join([str(repeat['distance']) for repeat in repeats]) if repeats else None
-        INFO['NBTOTAL'], INFO['NBTUMOR'], INFO['NBNORMAL'] = str(metacluster.nbTotal), str(metacluster.nbTumour), str(metacluster.nbNormal) 
+        INFO['NBTOTAL'], INFO['NBTUMOR'], INFO['NBNORMAL'] = metacluster.nbEvents()[0], metacluster.nbEvents()[1], metacluster.nbEvents()[2]
         #INFO['NBSPAN'], INFO['NBCLIP'] = str(metacluster.nbINS), str(metacluster.nbCLIPPING)
         INFO['LEN'] = metacluster.consensusEvent.length if metacluster.consensusEvent is not None else None
         #INFO['CV'] = metacluster.cv
@@ -207,29 +137,111 @@ def INS2VCF_SR(metaclusters, index, refLengths, source, build, species, VCFInfoF
         INFO['CLIPDUP'] = 0 if metacluster.percDuplicates()[1] == 0 else "{:.2f}".format(metacluster.percDuplicates()[1])
 
         ## Create VCF variant object
-        fields = [CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO]
+        fields = [CHROM, POS, ID, ALT, QUAL, FILTER, INFO]
+
+        metaclustersFields.append(fields)
+
+    return metaclustersFields
+
+
+def INS2VCF_SR(metaclustersFields, index, refLengths, source, build, species, VCFInfoFields, outName, outDir):
+    '''
+    Write INS calls into a VCF file
+
+    Input:
+        1. metaclustersFields: List of lists: containing VCF fields for each metacluster. Structure -> [[CHROM, POS, ID, ALT, QUAL, FILTER, INFO], [CHROM, POS, ID, ALT, QUAL, FILTER, INFO], ...]
+        2. index: minimap2 index for the reference genome 
+        3. refLengths: Dictionary containing reference ids as keys and as values the length for each reference
+        4. source: software version used to generate the insertion calls
+        5. build: reference genome build
+        6. species: specie
+        7. VCFInfoFields: List of INFO fields to display in output VCF.
+        8. outName: Output file name
+        9. outDir: Output directory
+
+    Output: vcf file containing identified metaclusters
+    '''
+
+    ## 1. Initialize VCF 
+    VCF = formats.VCF()
+
+    ## 2. Create header
+    ## Define info 
+    info = {'VTYPE': ['.', 'String', 'Type of variant'], \
+            'ITYPE': ['.', 'String', 'Type of structural variant'], \
+            'MECHANISM': ['.', 'String', 'Insertion mechanism'], \
+            'FAM': ['.', 'String', 'Repeat family'], \
+            'SUBFAM': ['.', 'String', 'Repeat subfamily'], \
+            'CIPOS': ['2', 'Integer', 'Confidence interval around POS for imprecise variants'], \
+            'CYTOID': ['.', 'String', 'Source element cytoband identifier'], \
+            'NBEXONS': ['1', 'Integer', 'Number of exons for a processed pseudogene insertion'], \
+            'SRCGENE': ['.', 'String', 'Source gene for a processed psendogene insertion'], \
+            'STRAND': ['.', 'String', 'Insertion DNA strand (+ or -)'], \
+            'REGION': ['.', 'String', 'Genomic region where insertion occurs'], \
+            'GENE': ['.', 'String', 'HUGO gene symbol'], \
+            'REP': ['.', 'String', 'Families for annotated repeats at the insertion region'], \
+            'REPSUB': ['.', 'String', 'Subfamilies for annotated repeats at the insertion region'], \
+            'DIST': ['.', 'Integer', 'Distance between insertion breakpoint and annotated repeat'], \
+            'NBTOTAL': ['1', 'Integer', 'Total number of insertion supporting reads'], \
+            'NBTUMOR': ['1', 'Integer', 'Number of insertion supporting reads in the tumour'], \
+            'NBNORMAL': ['1', 'Integer', 'Number of insertion supporting reads in the normal'], \
+            'NBSPAN': ['1', 'Integer', 'Number of spanning supporting reads'], \
+            'NBCLIP': ['1', 'Integer', 'Number of clipping supporting reads'], \
+            'LEN': ['1', 'Integer', 'Insertion length'], \
+            'CV': ['1', 'Float', 'Length coefficient of variation'], \
+            'RTLEN': ['1', 'Integer', 'Inserted retrotransposon length'], \
+            'TRUN5LEN': ['1', 'Integer', 'Size of 5prime truncation'], \
+            'TRUN3LEN': ['1', 'Integer', 'Size of 3prime truncation'], \
+            'FULL': ['0', 'Flag', 'Full length mobile element'], \
+            'TDLEN': ['1', 'Integer', 'Transduction length'], \
+            'INVLEN': ['1', 'Integer', '5-inversion length'], \
+            'PERCR': ['1', 'Float', 'Percentage of inserted sequence that has been resolved'], \
+            'QHITS': ['.', 'String', 'Coordinates for inserted sequence hits on the reference'], \
+            'THITS': ['.', 'String', 'Inserted sequence hits on the reference'], \
+            'RTCOORD': ['.', 'String', 'Coordinates for inserted retrotransposon piece of sequence'], \
+            'POLYA': ['0', 'Flag', 'PolyA tail identified'], \
+            'INSEQ': ['.', 'String', 'Inserted sequence'], \
+            'DISCORDANT': ['.', 'String', 'Discordant reads supporting the insertion'], \
+            'CLIPPING': ['.', 'String', 'Clipping reads supporting the insertion'], \
+            'NBDISCORDANT': ['1', 'Integer', 'Number of discordant reads supporting the insertion'], \
+            'NBCLIPPING': ['1', 'Integer', 'Number of clipping reads supporting the insertion'], \
+            'DISCORDANTMAPQ': ['1', 'Integer', 'Average of MAPQ of discordant reads supporting the insertion'], \
+            'CLIPPINGMAPQ': ['1', 'Integer', 'Average of MAPQ of clipping reads supporting the insertion'], \
+            'IDENTITY': ['.', 'String', 'Identity of the insertion'], \
+            'ORIENTATION': ['.', 'String', 'Orientation of the insertion: RECIPROCAL, PLUS or MINUS'], \
+            'BKP2': ['1', 'Integer', 'Reference position of second breakpoint of the insertion'], \
+            'CLIPDISC': ['0', 'Flag', 'There are discordant clipping reads supporting the insertion'], \
+            'SPECIDENT': ['.', 'String', 'Specific identities and number of discordant reads supporting it. SpecificIdentity:#reads'], \
+            'DISCDUP': ['1', 'Float', 'Percentage of discordant reads that are labeled as duplicates in input bam file.'], \
+            'CLIPDUP': ['1', 'Float', 'Percentage of clipping reads that are labeled as duplicates in input bam file.'], \
+            }
+            
+    ## Create header
+    VCF.create_header(source, build, species, refLengths, info)
+
+    ## 3. Add insertion calls to the VCF
+
+    ## 3.1 Load reference index
+    reference = mp.Aligner(fn_idx_in=index) # comment as time consuming
+
+    ## 3.2 Iterate over metaclusters fields
+    for fields in metaclustersFields:
+
+        # Get reference sequence (+- 5 bases)
+        REF = reference.seq(fields[0], int(fields[1]), int(fields[1]) + 1)
+
+        # Insert REF to fields list [CHROM, POS, ID, ALT, QUAL, FILTER, INFO] -> [CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO]
+        fields.insert(3, REF)
 
         ## Add variant to the VCF
         INS = formats.VCF_variant(fields)
-        VCF.add(INS)
         
+        VCF.add(INS)
+
     ## 4. Sort VCF
     VCF.sort()
 
     ## 5. Write VCF in disk
-    '''
-    IDS = ['VTYPE', 'ITYPE', 'MECHANISM', 'FAM', 'SUBFAM', 'CIPOS', 'CYTOID', \
-           'NBEXONS', 'SRCGENE', 'STRAND', 'REGION', 'GENE', 'REP', 'REPSUB', 'DIST', \
-           'NBTOTAL', 'NBTUMOR', 'NBNORMAL', 'NBSPAN', 'NBCLIP', 'LEN', 'CV', 'RTLEN', \
-           'TRUN5LEN', 'TRUN3LEN', 'FULL', 'TDLEN', 'INVLEN', 'PERCR', \
-           'QHITS', 'THITS', 'RTCOORD', 'POLYA', 'INSEQ']
-    
-    IDS = ['VTYPE', 'NBTOTAL', 'NBTUMOR', 'NBNORMAL', 'LEN', \
-        'DISCORDANT', 'CLIPPING', 'NBDISCORDANT', 'NBCLIPPING', \
-        'IDENTITY', 'ORIENTATION', 'BKP2', 'DISCORDANTMAPQ', 'CLIPPINGMAPQ', \
-        'CLIPDISC', 'SPECIDENT', 'DISCDUP', 'CLIPDUP']
-    '''
-
     IDS = VCFInfoFields
 
     VCF.write(IDS, outName, outDir)
