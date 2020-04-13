@@ -71,7 +71,6 @@ class SV_caller():
             annotations2load.append('EXONS')
 
         self.annotations = annotation.load_annotations(annotations2load, self.refLengths, self.refDir, self.confDict['processes'], annotDir)
-        
         unix.rm([annotDir])
 
 
@@ -686,9 +685,27 @@ class SV_caller_sureselect(SV_caller):
         counts = [str(len(eventsDict[SV_type])) for SV_type in SV_types]
         msg = 'Number of SV events in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
         log.step(step, msg)
-                                      
-        ## 2. Discordant and clipping clustering ##
-        ## 2.1 Organize discordant and clipping events into genomic bins prior clustering ##
+
+        ## 2. Search for supplementary alignments by realigning the clipped sequences
+        step = 'SEARCH4SUPPL'
+        msg = 'Search for supplementary alignments by realigning the clipped sequences'
+        log.step(step, msg)
+
+        ## Create output directory 
+        supplDir = self.outDir + '/SUPPLEMENTARY/' + srcId
+        unix.mkdir(supplDir)
+
+        ## Left-clippings
+        events.search4supplementary(eventsDict['LEFT-CLIPPING'], self.reference, srcId, supplDir)
+        
+        ## Rigth-clippings
+        events.search4supplementary(eventsDict['RIGHT-CLIPPING'], self.reference, srcId, supplDir)
+
+        ## Remove output directory
+        unix.rm([supplDir])
+
+        ## 3. Discordant and clipping clustering ##
+        ## 3.1 Organize discordant and clipping events into genomic bins prior clustering ##
         step = 'BINNING'
         msg = 'Organize discordant and clipping events into genomic bins prior clustering'
         log.step(step, msg)
@@ -708,7 +725,7 @@ class SV_caller_sureselect(SV_caller):
         binSizes = [self.confDict['maxBkpDist'], 100, 500, 1000, 10000, 100000, 1000000]
         clippingsBinDb = structures.create_bin_database_interval(ref, beg, end, clippingsDict, binSizes)
 
-        ## 2.2 Group discordant and clipping events into clusters ##
+        ## 3.2 Group discordant and clipping events into clusters ##
         step = 'CLUSTERING'
         msg = 'Group discordant and clipping events into clusters'
         log.step(step, msg)
@@ -719,7 +736,7 @@ class SV_caller_sureselect(SV_caller):
         ## Clipping clustering
         clippingClustersBinDb = clusters.create_clusters(clippingsBinDb, self.confDict)
 
-        ## 2.3 Group discordant read pairs based on mate position ##
+        ## 3.3 Group discordant read pairs based on mate position ##
         step = 'GROUP-BY-MATE'
         msg = 'Group discordant read pairs based on mate position'
         log.step(step, msg)
@@ -727,7 +744,7 @@ class SV_caller_sureselect(SV_caller):
         ## Make groups
         discordants = clusters.cluster_by_matePos(discordantClustersBinDb.collect(['DISCORDANT']), self.refLengths, self.confDict['minClusterSize'])
 
-        ## 2.4 Group clipping events based on suppl alignment position ##
+        ## 3.4 Group clipping events based on suppl alignment position ##
         step = 'GROUP-BY-SUPPL'
         msg = 'Group clipping events based on suppl alignment position'
         log.step(step, msg)
@@ -738,8 +755,8 @@ class SV_caller_sureselect(SV_caller):
         ## Right clipping
         rightClippingClusters = clusters.cluster_by_supplPos(clippingClustersBinDb.collect(['RIGHT-CLIPPING']), self.refLengths, self.confDict['minClusterSize'], 'RIGHT-CLIPPING')
 
-        ## 3. Cluster filtering ##
-        ## 3.1 Discordant cluster filtering ##
+        ## 4. Cluster filtering ##
+        ## 4.1 Discordant cluster filtering ##
         step = 'FILTER-DISCORDANT'
         msg = 'Discordant cluster filtering'
         log.step(step, msg)
@@ -747,7 +764,7 @@ class SV_caller_sureselect(SV_caller):
         filters2Apply = ['MIN-NBREADS', 'MATE-REF', 'MATE-SRC', 'MATE-MAPQ', 'GERMLINE', 'UNESPECIFIC', 'READ-DUP']
         filteredDiscordants = filters.filter_discordants(discordants, filters2Apply, self.bam, self.normalBam, self.confDict)
 
-        ## 3.2 Clipping cluster filtering ##
+        ## 4.2 Clipping cluster filtering ##
         step = 'FILTER-CLIPPING'
         msg = 'Clipping cluster filtering'
         log.step(step, msg)
@@ -756,9 +773,9 @@ class SV_caller_sureselect(SV_caller):
         filteredLeftClippings = filters.filter_clippings(leftClippingClusters, filters2Apply, self.confDict)
         filteredRightClippings = filters.filter_clippings(rightClippingClusters, filters2Apply, self.confDict)
 
-        ## 3. Create metaclusters ##
+        ## 5. Create metaclusters ##
         step = 'META-CLUSTERING'
-        msg = 'Group mates and suplementary clusters into metaclusters'
+        msg = 'Group discordant mates and suplementary clusters into metaclusters'
         log.step(step, msg)
         metaclusters = clusters.metacluster_mate_suppl(filteredDiscordants, filteredLeftClippings, filteredRightClippings, self.confDict['minReads'], self.refLengths)
 
