@@ -186,7 +186,6 @@ def alignment_blat(FASTA, reference, fileName, outDir):
     command = 'blat -stepSize=5 -repMatch=2253 -minScore=20 -minIdentity=0 -noHead -out=psl ' + reference + ' ' + FASTA + ' ' + PSL
     status = subprocess.call(command, stderr=err, shell=True)
 
-    print('BLAT: ', command)
     if status != 0:
         step = 'ALIGN'
         msg = 'Alignment failed' 
