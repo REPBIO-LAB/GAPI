@@ -178,8 +178,7 @@ def search4supplementary(clippings, reference, outName, outDir):
         2. outName: Output file name
         3. outDir: Output directory
 
-    Output:
-        1. clippings: clipping events with updated supplementary alignment information 
+    Output: Update supplementary alignment information for clipping events
     '''
     ## 1. Generate fasta containing soft clipped sequences
     clippedFasta = collect_soft_clipped_seqs(clippings)
@@ -193,8 +192,21 @@ def search4supplementary(clippings, reference, outName, outDir):
     clippedFasta.write(filePath)
 
     ## 4. Align clipped sequences with BWA-mem into the reference genome
-    alignment.alignment_blat(filePath, reference, outName, outDir)
- 
+    pslPath = alignment.alignment_blat(filePath, reference, outName, outDir)
+    PSL = formats.PSL()
+    PSL.read(pslPath)
+
+    ## 5. Filter alignments
+    ## 5.1 Filter partially aligned sequences
+    PSL.alignments = PSL.filter_align_perc(95)
+
+    ## 5.2 Filter ambiguously mapped sequences
+    PSL.alignments = PSL.filter_nb_hits(5)
+
+    ## 6. Convert alignments in psl format into SA string
+    clippingsDict = {clipping.fullReadName(): clipping for clipping in clippings}
+    PSL.hits2clipping(clippingsDict)
+
 
 def collect_soft_clipped_seqs(clippings):
     '''
@@ -662,7 +674,7 @@ class CLIPPING():
         
         # For each supplementary alignment
         for supplAlignment in self.supplAlignment.split(';')[:-1]:
-
+            
             # Extract info
             ref, beg, strand, CIGAR, mapQ, NM = supplAlignment.split(',')
             
