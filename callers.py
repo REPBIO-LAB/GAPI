@@ -462,10 +462,10 @@ class SV_caller_short(SV_caller):
             
             # Align with bwa allFastas vs viralDb and filter resulting bam
             # TODO SR: bwa allFastas vs viralDb: use exinting function (or do one) and check if bwa -T parameter does something that we need
-            '''
+            
             BAM = self.outDir + '/' + 'viralAligment' + '.bam'
             # TEMP SR: DESILENCE
-            '''
+            
             bwaProcesses = 5 if self.confDict['processes'] > 5 else self.confDict['processes']
             command = 'bwa mem -Y -t '+ str(bwaProcesses) + ' ' +  self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools view -h  | awk \'(($5=="60" && $6~/[' + str(self.confDict['viralBamParcialMatch']) + '-9][0-9]M/) || ($6~/[0-9][0-9][0-9]M/) || ($1 ~ /@/)){print}\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
             err = open(self.outDir + '/align.err', 'w') 
