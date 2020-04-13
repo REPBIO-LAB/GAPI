@@ -270,7 +270,7 @@ if __name__ == '__main__':
 	# b) Sureselect illumina data
 	elif (confDict['technology'] == 'SURESELECT'):
 		confDict['targetEvents'] = ['DISCORDANT', 'CLIPPING']
-		confDict['minCLIPPINGlen'] = 10
+		confDict['minCLIPPINGlen'] = 20
 		confDict['minNbDISCORDANT'] = 2
 		confDict['minNbCLIPPING'] = 2
 
