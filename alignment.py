@@ -5,6 +5,7 @@ Module 'alignment' - Contains funtions align sequences
 ## DEPENDENCIES ##
 # External
 import subprocess
+import os
 
 # Internal
 import log
@@ -294,3 +295,32 @@ def organize_hits_paf(PAF_path):
         hits[alignment.qName].alignments.append(alignment)
 
     return hits     
+
+
+def alignment_bwa_filtered(database, viralBamParcialMatch, processes, inFasta, outFile, outDir):
+    '''
+    Align fasta against DB and filter result with awk based on MAPQ and CIGAR matches.
+    Input:
+        1. database: bwa indexed database.
+        2. viralBamParcialMatch: Threshold partial matches against db. Example: 4 stands for >40 matches per read.
+        3. processes: Number of processes.
+        4. inFasta: Input FASTA.
+        5. outFile: Name of output bam file wo extension.
+        6. outDir: Output directory.
+    Output:
+        1. BAM: Complete path of BAM file resulting from the alignment.
+    '''
+    
+    BAM = outDir + '/' + outFile + '.bam'
+
+    bwaProcesses = 5 if processes > 5 else processes
+    command = 'bwa mem -Y -t '+ str(bwaProcesses) + ' ' +  database + ' ' + inFasta + ' | samtools view -F 4 -b | samtools view -h  | awk \'(($5=="60" && $6~/[' + str(viralBamParcialMatch) + '-9][0-9]M/) || ($6~/[0-9][0-9][0-9]M/) || ($1 ~ /@/)){print}\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
+    err = open(outDir + '/align.err', 'w') 
+    status = subprocess.call(command, stderr=err, shell=True)
+
+    if status != 0:
+        step = 'ALIGN'
+        msg = 'Alignment failed. PID: ' + str(os.getpid())
+        log.step(step, msg)
+    
+    return BAM

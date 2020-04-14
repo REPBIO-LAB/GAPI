@@ -339,3 +339,30 @@ def getPAFAlign(FASTA_file, indexDb, outDir):
         log.step(step, msg)
     
     return PAF_file
+
+def komplexityFilter(komplexityThreshold, inFasta, outFasta, outDir):
+    '''
+    Filter fasta file using komplexity tool
+    Input:
+        1. komplexityThreshold: Complexity threshold filter.
+        2. inFasta: input FASTA file name
+        3. outFasta: output FASTA file name
+        4. outDir: input AND output directory (it must be the same)
+    Output:
+        1. allFastas: Filteres FASTA file complete path.
+    '''
+
+    # Set input an output files
+    allFastas_all = outDir + '/' + inFasta
+    allFastas = outDir + '/' + outFasta
+
+    command = 'kz --filter --threshold ' + str(komplexityThreshold) + ' --fasta < ' + allFastas_all + ' > ' + allFastas
+    err = open(outDir + '/komplexity.err', 'w') 
+    status = subprocess.call(command, stderr=err, shell=True)
+
+    if status != 0:
+        step = 'KOMPLEXITY'
+        msg = 'Komplexity filter failed. PID: ' + str(os.getpid())
+        log.step(step, msg)
+    
+    return allFastas

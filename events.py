@@ -186,6 +186,7 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
                                     - Type: identity type. It can be retrotransposon family (L1, Alu, ...), source element (22q, 5p, ...), viral strain (HPV, ...)
     '''
     # TODO SR: If both, RT and virus, are analysed check if it is a virus only if it is not a RT.
+    discordantsIdentity1 = {}
     if 'ME' in targetINT2Search:
         ## 1. Assess if discordant read pairs support transduction insertion if transduction database provided
         if transducedBinDb is not None:
@@ -234,6 +235,7 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
     # TODO SR: Add RT analysis in determine_discordant_identity
     discordantEventsIdent = virus.is_virusSR(discordants)
     #discordantsIdentity = structures.merge_dictionaries([discordantEventsIdent, discordantsIdentity1])
+    discordantEventsIdent.update(discordantsIdentity1)
 
     #return discordantsIdentity
     return discordantEventsIdent

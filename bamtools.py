@@ -1214,3 +1214,47 @@ def collectDiscodantsLowMAPQSeq(ref, binBeg, binEnd, bam, discordantMatesMaxMAPQ
     del seqsFastaObj
 
     return
+
+def samtools_index_bam(BAM, outDir):
+    '''
+    Index bam file using samtools
+
+    Input:
+        1. BAM: Input bam file complete path.
+    
+    Output:
+        1. Doesn't return anything. Creates bam index files.
+    '''
+
+    command = 'samtools index ' + BAM
+    err = open(outDir + '/samtools_index_bam.err', 'w') 
+    status = subprocess.call(command, stderr=err, shell=True)
+
+    return
+
+def BAM2FastaDict(BAM):
+    '''
+    Pick reads names and sequences from bam file and write tham in FASTA format.
+
+    Input:
+        1. BAM: Input bam file complete path.
+
+    Output:
+        1. fastaDict: fastaDict[readName] = readSequence
+    '''
+
+    # Read bam and store in a dictionary
+    bamFile = pysam.AlignmentFile(BAM, 'rb')
+
+    iterator = bamFile.fetch()
+    
+    fastaDict= {}
+    # For each read alignment
+    for alignmentObj in iterator:
+        try:
+            fastaDict[alignmentObj.query_name].append(alignmentObj.reference_name)
+        except KeyError:
+            fastaDict[alignmentObj.query_name] = []
+            fastaDict[alignmentObj.query_name].append(alignmentObj.reference_name)
+
+    return fastaDict

@@ -27,6 +27,8 @@ import bkp
 import filters
 import gRanges
 import clustering
+import sequences
+import alignment
 
 ## FUNCTIONS ##
 
@@ -448,53 +450,20 @@ class SV_caller_short(SV_caller):
                 pool.join()
                         
 			# Filter by complexity (with komplexity)
-            allFastas_all = self.outDir + "/allFastas_all.fasta"
-            allFastas = self.outDir + "/allFastas.fasta"
-
-            command = 'kz --filter --threshold ' + str(self.confDict['komplexityThreshold']) + ' --fasta < ' + allFastas_all + ' > ' + allFastas
-            err = open(self.outDir + '/komplexity.err', 'w') 
-            status = subprocess.call(command, stderr=err, shell=True)
-
-            if status != 0:
-                step = 'KOMPLEXITY'
-                msg = 'Komplexity filter failed. PID: ' + str(os.getpid())
-                log.step(step, msg)
+            allFastas = sequences.komplexityFilter(self.confDict['komplexityThreshold'], 'allFastas_all.fasta', 'allFastas.fasta', self.outDir)
             
             # Align with bwa allFastas vs viralDb and filter resulting bam
-            # TODO SR: bwa allFastas vs viralDb: use exinting function (or do one) and check if bwa -T parameter does something that we need
-            
-            BAM = self.outDir + '/' + 'viralAligment' + '.bam'
-            # TEMP SR: DESILENCE
-            
-            bwaProcesses = 5 if self.confDict['processes'] > 5 else self.confDict['processes']
-            command = 'bwa mem -Y -t '+ str(bwaProcesses) + ' ' +  self.confDict['viralDb'] + ' ' + allFastas + ' | samtools view -F 4 -b | samtools view -h  | awk \'(($5=="60" && $6~/[' + str(self.confDict['viralBamParcialMatch']) + '-9][0-9]M/) || ($6~/[0-9][0-9][0-9]M/) || ($1 ~ /@/)){print}\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
-            err = open(self.outDir + '/align.err', 'w') 
-            status = subprocess.call(command, stderr=err, shell=True)
+            # TODO SR: bwa allFastas vs viralDb: check if bwa -T parameter does something that we need
+            BAM = alignment.alignment_bwa_filtered(self.confDict['viralDb'], self.confDict['viralBamParcialMatch'], self.confDict['processes'], allFastas, 'viralAligment', self.outDir)
 
-            if status != 0:
-                step = 'ALIGN'
-                msg = 'Alignment failed. PID: ' + str(os.getpid())
-                log.step(step, msg)
-
-            command = 'samtools index ' + BAM
-            status = subprocess.call(command, stderr=err, shell=True)
+            # Index bam
+            bamtools.samtools_index_bam(BAM, self.outDir)
 
             # TEMP SR: Remove allfastas
             #unix.rm([allFastas])
             
             # Read bwa result and store in a dictionary
-            bamFile = pysam.AlignmentFile(BAM, 'rb')
-
-            iterator = bamFile.fetch()
-            
-            self.viralSeqs= {}
-            # For each read alignment
-            for alignmentObj in iterator:
-                try:
-                    self.viralSeqs[alignmentObj.query_name].append(alignmentObj.reference_name)
-                except KeyError:
-                    self.viralSeqs[alignmentObj.query_name] = []
-                    self.viralSeqs[alignmentObj.query_name].append(alignmentObj.reference_name)
+            self.viralSeqs = bamtools.BAM2FastaDict(BAM)
             
         ### 1. Define genomic bins to search for SV ##
         bins = bamtools.binning(self.confDict['targetBins'], self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
