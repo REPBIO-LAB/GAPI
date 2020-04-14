@@ -207,20 +207,28 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
             discordantsTd = {}
 
         ## 2. Assess if discordant read pairs support retrotransposons insertion if repeats database provided
+        discordantsNone = {}
+        discordantsNone['PLUS-DISCORDANT-None'] = []
+        discordantsNone['MINUS-DISCORDANT-None'] = []
         if repeatsBinDb is not None:
             discordantsRt = annotation.intersect_mate_annotation(discordants, repeatsBinDb, 'family')
 
             if 'PLUS-DISCORDANT-None' in discordantsRt:
+                discordantsNone['PLUS-DISCORDANT-None'].extend(discordantsRt['PLUS-DISCORDANT-None'])
                 discordantsRt.pop('PLUS-DISCORDANT-None', None)
 
             if 'MINUS-DISCORDANT-None' in discordantsRt:
+                discordantsNone['MINUS-DISCORDANT-None'].extend(discordantsRt['MINUS-DISCORDANT-None'])
                 discordantsRt.pop('MINUS-DISCORDANT-None', None)
 
         else:
             discordantsRt = {}
-
         ## 3. Merge discordant read pairs supporting RT and transduction insertions if transduction database provided    
-        discordantsIdentity1 = structures.merge_dictionaries([discordantsTd, discordantsRt])
+        discordantsIdentity1 = structures.merge_dictionaries([discordantsTd, discordantsRt, discordantsNone])
+
+        # Remaining discordants for viruses:
+        # NOTE SR: If viruses and MEs are searched at once, those discordants identified as MEs are NOT checked for viral identities.
+        discordants = discordantsNone['PLUS-DISCORDANT-None'] + discordantsNone['MINUS-DISCORDANT-None']
     
 
 
@@ -233,7 +241,13 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
 
     # TODO SR: Make viruses optional in determine_discordant_identity
     # TODO SR: Add RT analysis in determine_discordant_identity
-    discordantEventsIdent = virus.is_virusSR(discordants)
+    discordantEventsIdent = {}
+
+    # Remove discordants events that were clasified as MEs (MAYBE CHANGE THIS WHEN ADDED NEW PARAMETER)
+
+        
+    if 'VIRUS' in targetINT2Search:
+        discordantEventsIdent = virus.is_virusSR(discordants)
     #discordantsIdentity = structures.merge_dictionaries([discordantEventsIdent, discordantsIdentity1])
     discordantEventsIdent.update(discordantsIdentity1)
 
