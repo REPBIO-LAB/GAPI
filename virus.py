@@ -32,6 +32,9 @@ def is_virusSR(events):
         ## Add discordant read pair to the dictionary
         identity = discordant.orientation + '-DISCORDANT-' + featureType
 
+        if featureType != 'None':
+            discordant.element = 'VIRUS'
+
         # a) There are already discordant read pairs with this identity
         if identity in matesIdentity:
             matesIdentity[identity].append(discordant)

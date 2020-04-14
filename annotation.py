@@ -407,6 +407,8 @@ def intersect_mate_annotation(discordants, annotation, targetField):
 
         ## Set discordant identity
         discordant.identity = featureType
+        if featureType != 'None':
+            discordant.element = 'ME'
 
         ## Add discordant read pair to the dictionary
         identity = discordant.orientation + '-DISCORDANT-' + featureType

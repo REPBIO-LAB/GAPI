@@ -812,6 +812,7 @@ class DISCORDANT():
         self.clusterId = None
         self.mapQual = alignmentObj.mapq
         self.cigarTuples = alignmentObj.cigartuples
+        self.element = None
         if identity == None:
             self.identity = None
             self.specificIdentity = None
