@@ -488,11 +488,8 @@ class SV_caller_short(SV_caller):
         # Remove output directory
         unix.rm([self.outDir + '/CLUSTER/'])
 
-        ### 3. Collapse metaclusters in a single dict and report metaclusters that failed filtering
-        #metaclustersPass = structures.merge_dictionaries(metaclustersPassList)
-        #metaclustersFailed = structures.merge_dictionaries(metaclustersFailedList)
-
         '''
+        EXPLANATION
         Tuple of lists of lists -> metaclustersFailedListofLists ([], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], {}, {}, [], [], [], [],
         [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [[CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}], [CHROM, POS, '.', '<INS>',
         '.', 'PASS', {INFO_Dict}], [CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}]], [[CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}]], [], [], [])
@@ -532,7 +529,7 @@ class SV_caller_short(SV_caller):
 
         ## 0. Set bin id and create bin directory ##
         binId = '_'.join([str(ref), str(beg), str(end)])
-        msg = 'SV calling in bin: ' + binId + ' PID: ' + str(os.getpid())
+        msg = 'INSERTION calling in bin: ' + binId + ' PID: ' + str(os.getpid())
         log.subHeader(msg)
         start = time.time()
 
@@ -570,10 +567,11 @@ class SV_caller_short(SV_caller):
             #discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], None, None,self.bam, None, binDir, self.confDict['viralDb'])
         
         del discordants
+
         step = 'IDENTITY'
         SV_types = sorted(discordantsIdentity.keys())
         counts = [str(len(discordantsIdentity[SV_type])) for SV_type in SV_types]
-        msg = 'Number of SV events per identity in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts) + '. PID: ' + str(os.getpid())
+        msg = 'Number of SV events per identity in bin ' + binId + '(' + ','.join(SV_types) + '): ' + ','.join(counts) + '. PID: ' + str(os.getpid())
         log.step(step, msg)
 
         ## 3. Organize discordant read pairs into genomic bins prior clustering ##
@@ -599,7 +597,7 @@ class SV_caller_short(SV_caller):
         step = 'DISCORDANT-CLUSTERING'
         SV_types = sorted(discordantClustersDict.keys())
         counts = [str(len(discordantClustersDict[SV_type])) for SV_type in SV_types]
-        msg = 'Number of created discordant clusters in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts) + '. PID: ' + str(os.getpid())
+        msg = 'Number of created discordant clusters in bin ' + binId + '(' + ','.join(SV_types) + '): ' + ','.join(counts) + '. PID: ' + str(os.getpid())
         log.step(step, msg)
 
         # Return if no DISCODANT clusters found.
@@ -643,9 +641,6 @@ class SV_caller_short(SV_caller):
         #unix.rm([binDir])
 
         ## 5. Filter discordant clusters ##
-        step = 'FILTER CLUSTERS'
-        msg = 'Filter out clusters'  + '. PID: ' + str(os.getpid())
-        log.step(step, msg)
         filters2Apply = {}
         # Filters to apply to non-identified clusters
         filters2Apply['GENERIC'] = ['MAX-NBREADS', 'AREAMAPQ', 'AREASMS', 'IDENTITY']
@@ -655,6 +650,10 @@ class SV_caller_short(SV_caller):
         # TODO SR: Add here proper filters for MEs clusters
         filters2Apply['ME']  = ['MAX-NBREADS', 'AREAMAPQ', 'AREASMS', 'IDENTITY']
         discordantClustersDict, discordantClustersDictFailed = filters.filter_clusters(discordantClustersDict, filters2Apply, self.confDict, self.bam)
+
+        step = 'FILTER-CLUSTERS'
+        msg = 'Filter out clusters'  + '. PID: ' + str(os.getpid())
+        log.step(step, msg)
 
         ## 6. Organize discordant clusters in bin database structure ##
         discordantClustersBinDb = structures.create_bin_database_interval(ref, beg, end, discordantClustersDict, binSizes)
@@ -667,6 +666,10 @@ class SV_caller_short(SV_caller):
         # TODO SR: Adjust parameters of clustering.reciprocal. Maybe it is worth it make them running arguments
         reciprocalClustersDict = clustering.reciprocal(discordantClustersBinDb, 1, 1, 300)
         reciprocalClustersFailedDict = clustering.reciprocal(discordantClustersFailedBinDb, 1, 1, 300)
+
+        step = 'RECIPROCAL-CLUSTERING'
+        msg = 'Performing reciprocal clustering. PID: ' + str(os.getpid())
+        log.step(step, msg)
 
         del discordantClustersBinDb
         del discordantClustersFailedBinDb
@@ -696,22 +699,21 @@ class SV_caller_short(SV_caller):
             metaclustersFailed.extend(clusters.create_discordant_metaclusters(reciprocalClustersFailedBinDb, currentEventTypesFailed))
 
         step = 'META-CLUSTERING'
-        #msg = '[META-CLUSTERING] Number of created metaclusters: ' + str(metaclustersBinDb.nbEvents()[0])
-        #log.subHeader(msg)
+        msg = 'Number of created metaclusters: PASS -> ' + str(len(metaclusters)) + ' FILTERED -> ' + str(len(metaclustersFailed)) + '. PID: ' + str(os.getpid())
+        log.step(step, msg)
 
         ## 10. Analyse metaclusters features and add supporting clipping reads ##
         # TODO SR: Now adding clipping step is better than before. Even though maybe it is not neccessary, it would be great to choose in a better way which clipping we should add to the metacluster.
         bkp.analyzeMetaclusters(metaclusters, self.confDict, self.bam, self.normalBam, self.mode, binDir)
         bkp.analyzeMetaclusters(metaclustersFailed, self.confDict, self.bam, self.normalBam, self.mode, binDir)
 
+        step = 'BKP-ANALYSIS'
+        msg = 'Analysing BKP and adding clipping supporting reads. PID: ' + str(os.getpid())
+        log.step(step, msg)
+
         metaclustersSVTypeBfSecondFilter = {}
         metaclustersSVTypeFailed = {}
-
-        '''
-        dictMetaclusters : 
-        {<clusters.META_cluster object at 0x7fe9e43936d8>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393b00>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393be0>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393c88>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393dd8>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}, <clusters.META_cluster object at 0x7fe9e4393e10>: {'refLeftBkp': None, 'refRightBkp': None, 'leftSeq': None, 'rightSeq': None, 'intLeftBkp': None, 'intRightBkp': None}}
-        '''
-       
+      
         metaclustersSVTypeBfSecondFilter['DISCORDANT'] = metaclusters
         metaclustersSVTypeFailed['DISCORDANT'] = metaclustersFailed
 
@@ -721,11 +723,6 @@ class SV_caller_short(SV_caller):
         # NOTE SR: BY THIS WAY WE ARE ALSO ASSEGING MUT.ORIGIN TO THE METACLUSTER.
         # NOTE SR: All failed metaclusters are going to only one file.
         # TODO SR: I think this could return a list instead of a dictionary.
-        step = 'FILTER METACLUSTERS'
-        msg = 'Filter out metaclusters' 
-        log.step(step, msg)
-
-
 
         filters2Apply = {}
         # Filters to apply to non-identified clusters
@@ -736,10 +733,13 @@ class SV_caller_short(SV_caller):
         filters2Apply['ME']  = ['MIN-NBREADS', 'MAX-NBREADS']
         dictMetaclustersSecondFilter, dictMetaclustersSecondFilterFailedTemp = filters.filter_metaclusters(metaclustersSVTypeBfSecondFilter, filters2Apply, self.confDict)
 
+        step = 'FILTER METACLUSTERS'
+        msg = 'Filter out metaclusters' 
+        log.step(step, msg)
+
         # Flat list
         #metaclustersList = list(itertools.chain(*dictMetaclustersSecondFilter.values()))
         metaclustersList = [item for sublist in dictMetaclustersSecondFilter.values() for item in sublist]
-
 
         # Get from metaclusters those fields that should be printed in VCF output
         metaclustersFields = output.VCFMetaclustersFields(metaclustersList)
@@ -760,38 +760,17 @@ class SV_caller_short(SV_caller):
         del dictMetaclustersSecondFilter
         del dictMetaclustersSecondFilterFailedTemp
 
-        '''
-        metaclustersSVType = {}
-        if dictMetaclustersSecondFilter:
-            metaclustersSVType['DISCORDANT'] = dictMetaclustersSecondFilter['DISCORDANT']
-        else:
-            metaclustersSVType['DISCORDANT'] = []
-        if dictMetaclustersSecondFilterFailedTemp:
-            metaclustersSVTypeFailed['DISCORDANT'].extend(dictMetaclustersSecondFilterFailedTemp['DISCORDANT'])
-        '''
-
         ### Do cleanup
         unix.rm([binDir])
 
-        ## 11. Lighten up metaclusters  ##
-        ## Metaclusters passing all the filters
-        #print ('eva1')
-        #print (metaclustersSVType)
         '''
+        ## 11. Lighten up metaclusters  ##
+        ## Metaclusters passing all the filters        
         clusters.lighten_up_metaclusters(metaclustersSVType)
 
-        #print ('eva2')
-        #print (metaclustersSVTypeFailed)
         ## Filtered metaclusters
         clusters.lighten_up_metaclusters(metaclustersSVTypeFailed)
         '''
-        # TODO SR: Remove this print
-        '''
-        for meta in list(dictMetaclusters.keys()):
-            for eventi in meta.events:
-                print (eventi.type)  --> DISCORDANT
-        '''
-
 
         return metaclustersFields, metaclustersFailedFields
 
