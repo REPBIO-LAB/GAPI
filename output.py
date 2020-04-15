@@ -225,6 +225,7 @@ def INS2VCF_SR(metaclustersFields, index, refLengths, source, build, species, VC
             'DIST': ['.', 'Integer', 'Distance between insertion breakpoint and annotated repeat'], \
             'REGION': ['.', 'String', 'Genomic region where insertion occurs'], \
             'GENE': ['.', 'String', 'HUGO gene symbol'], \
+            'REFSeq': ['.', 'String', 'Reference sequence at insertion point.'], \
             }
             
     ## Create header
@@ -242,8 +243,10 @@ def INS2VCF_SR(metaclustersFields, index, refLengths, source, build, species, VC
         # Get reference sequence (+- 5 bases)
         if VCFREF:
             REF = reference.seq(fields[0], int(fields[1]), int(fields[1]) + 1)
+            fields[-1]['REFSeq'] = reference.seq(fields[0], int(fields[1]) - 10, int(fields[1]) + 10)
         else:
             REF = '.'
+            fields[-1]['REFSeq'] = None
 
         # Insert REF to fields list [CHROM, POS, ID, ALT, QUAL, FILTER, INFO] -> [CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO]
         fields.insert(3, REF)
