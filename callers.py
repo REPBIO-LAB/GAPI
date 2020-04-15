@@ -358,6 +358,7 @@ class SV_caller_short(SV_caller):
         msg = '1. Create integration clusters. PID: ' + str(os.getpid())
         log.header(msg)      
         '''
+        EXPLANATION
         Tuple of lists of lists -> metaclustersListofLists ([], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], {}, {}, [], [], [], [],
         [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [[CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}], [CHROM, POS, '.', '<INS>',
         '.', 'PASS', {INFO_Dict}], [CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}]], [[CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}]], [], [], [])
@@ -366,6 +367,7 @@ class SV_caller_short(SV_caller):
 
         # Flat metaclustersList
         '''
+        EXPLANATION
         Lists of lists -> metaclustersList [[CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}], [CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}], [CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}], [CHROM, 56715108, '.', '<INS>', '.', 'PASS', {INFO_Dict}]]
         '''
         metaclustersList = list(itertools.chain(*metaclustersListofLists))
@@ -499,6 +501,7 @@ class SV_caller_short(SV_caller):
             outFileNameTSV = 'metaclusters.FAILED.tsv'
             outFileName = 'metaclusters.FAILED'
             '''
+            EXPLANATION
             Lists of lists -> metaclustersFailedList [[CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}], [CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}], [CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}], [CHROM, 56715108, '.', '<INS>', '.', 'PASS', {INFO_Dict}]]
             '''
             # Flat metaclustersFailedList
