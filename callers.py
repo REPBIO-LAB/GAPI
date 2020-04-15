@@ -536,17 +536,11 @@ class SV_caller_short(SV_caller):
         ## 1. Search for integration candidate events in the bam file/s ##
         # a) Single sample mode
         if self.mode == "SINGLE":
-            if 'VIRUS' in self.confDict['targetINT2Search']:
-                discordants = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, False, self.viralSeqs)
-            else:
-                discordants = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, False, None)
+            discordants = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, False, self.viralSeqs)
 
         # b) Paired sample mode (tumour & matched normal)
         else:
-            if 'VIRUS' in self.confDict['targetINT2Search']:
-                discordants = bamtools.collectDISCORDANT_paired(ref, beg, end, self.bam, self.normalBam, self.confDict, False, self.viralSeqs)
-            else:
-                discordants = bamtools.collectDISCORDANT_paired(ref, beg, end, self.bam, self.normalBam, self.confDict, False, None)
+            discordants = bamtools.collectDISCORDANT_paired(ref, beg, end, self.bam, self.normalBam, self.confDict, False, self.viralSeqs)
 
 
         counts = str(len(discordants))

@@ -814,7 +814,7 @@ def collectDISCORDANT(ref, binBeg, binEnd, bam, confDict, sample, supplementary,
             operations = [t[0] for t in alignmentObj.cigartuples]
             nbBlocks = operations.count(3) + 1 
 
-            if viralSeqs != None:
+            if viralSeqs:
                 if alignmentObj.query_name in viralSeqs.keys():
                     identity = viralSeqs[alignmentObj.query_name]
                 else:
