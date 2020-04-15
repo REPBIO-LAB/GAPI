@@ -310,12 +310,15 @@ def alignment_bwa_filtered(database, viralBamParcialMatch, processes, inFasta, o
     Output:
         1. BAM: Complete path of BAM file resulting from the alignment.
     '''
-    
-    BAM = outDir + '/' + outFile + '.bam'
+    collectVirusDir = outDir + '/COLLECT_VIRUS'
+    logDir = outDir + '/Logs'
+    unix.mkdir(logDir)
+
+    BAM = collectVirusDir + '/' + outFile + '.bam'
 
     bwaProcesses = 5 if processes > 5 else processes
     command = 'bwa mem -Y -t '+ str(bwaProcesses) + ' ' +  database + ' ' + inFasta + ' | samtools view -F 4 -b | samtools view -h  | awk \'(($5=="60" && $6~/[' + str(viralBamParcialMatch) + '-9][0-9]M/) || ($6~/[0-9][0-9][0-9]M/) || ($1 ~ /@/)){print}\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
-    err = open(outDir + '/align.err', 'w') 
+    err = open(logDir + '/align.err', 'w') 
     status = subprocess.call(command, stderr=err, shell=True)
 
     if status != 0:

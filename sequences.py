@@ -12,6 +12,7 @@ import formats
 
 ## [SR CHANGE]
 import log
+import unix
 
 
 ## FUNCTIONS ##
@@ -353,13 +354,16 @@ def komplexityFilter(komplexityThreshold, inFasta, outFasta, outDir):
     '''
 
     # Set input an output files
-    allFastas_all = outDir + '/' + inFasta
-    allFastas = outDir + '/' + outFasta
+    collectVirusDir = outDir + '/COLLECT_VIRUS'
+    allFastas_all = collectVirusDir + '/' + inFasta
+    allFastas = collectVirusDir + '/' + outFasta
+
+    logDir = outDir + '/Logs'
+    unix.mkdir(logDir)
 
     command = 'kz --filter --threshold ' + str(komplexityThreshold) + ' --fasta < ' + allFastas_all + ' > ' + allFastas
-    err = open(outDir + '/komplexity.err', 'w') 
+    err = open(logDir + '/komplexity.err', 'w') 
     status = subprocess.call(command, stderr=err, shell=True)
-
     if status != 0:
         step = 'KOMPLEXITY'
         msg = 'Komplexity filter failed. PID: ' + str(os.getpid())

@@ -1097,8 +1097,6 @@ def average_MAPQ_reads_interval(ref, beg, end, readIds, bam):
     return avMAPQ
 
 
-#def collectSeq(ref, binBeg, binEnd, bam, filterDuplicates, maxMAPQ, checkUnmapped, supplementary):
-
 def collectDiscodantsLowMAPQSeq(ref, binBeg, binEnd, bam, discordantMatesMaxMAPQ, discordantMatesCheckUnmapped, discordantMatesSupplementary, discordantMatesMaxBasePerc, discordantMatesMinLcc, outDir):
     '''
     Collecting read name and sequence of discordant low quality reads from all bam refs
@@ -1189,9 +1187,9 @@ def collectDiscodantsLowMAPQSeq(ref, binBeg, binEnd, bam, discordantMatesMaxMAPQ
         
     ## Close 
     bamFile.close()
-
+    collectVirusDir = outDir + '/COLLECT_VIRUS'
     # Set output FASTA file name
-    allFastas_all = outDir + "/allFastas_all.fasta"
+    allFastas_all = collectVirusDir + "/allFastas_all.fasta"
     # Create FASTA object
     seqsFastaObj= formats.FASTA()
     # Create FASTA dictionary
@@ -1215,9 +1213,11 @@ def samtools_index_bam(BAM, outDir):
     Output:
         1. Doesn't return anything. Creates bam index files.
     '''
+    logDir = outDir + '/Logs'
+    unix.mkdir(logDir)
 
     command = 'samtools index ' + BAM
-    err = open(outDir + '/samtools_index_bam.err', 'w') 
+    err = open(logDir + '/samtools_index_bam.err', 'w') 
     status = subprocess.call(command, stderr=err, shell=True)
 
     return

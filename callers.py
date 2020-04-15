@@ -427,14 +427,16 @@ class SV_caller_short(SV_caller):
         ### If viruses option is selected, collect read name and sequence of discordant low quality reads from all bam refs ##
         if 'VIRUS' in self.confDict['targetINT2Search']:
             # TEMP SR: DESILENCE
-            '''
+            
             # Make genomic bins
             bins = bamtools.makeGenomicBins(self.bam, self.confDict['binSize'], None)
-            '''
+            
             # Collect read name and sequence of discordant low quality reads from all bam refs
             l = mp.Lock()
             # TEMP SR: DESILENCE
-            '''
+            
+            collectVirusDir = self.outDir + '/COLLECT_VIRUS'
+            unix.mkdir(collectVirusDir)
             pool = mp.Pool(processes=self.confDict['processes'], initializer=init, initargs=(l,))
             pool.starmap(self.callCollectSeq, bins)
             pool.close()
@@ -461,10 +463,10 @@ class SV_caller_short(SV_caller):
             bamtools.samtools_index_bam(BAM, self.outDir)
 
             # TEMP SR: Remove allfastas
-            #unix.rm([allFastas])
-            '''
-            #TEMP
-            BAM = self.outDir + '/' + 'viralAligment' + '.bam'
+            #unix.rm([collectVirusDir])
+            
+            #TEMP DESILENCE
+            #BAM = self.outDir + '/' + 'viralAligment' + '.bam'
             # Read bwa result and store in a dictionary
             self.viralSeqs = bamtools.BAM2FastaDict(BAM)
             
