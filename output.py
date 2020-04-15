@@ -150,7 +150,7 @@ def VCFMetaclustersFields(metaclusters):
     return metaclustersFields
 
 
-def INS2VCF_SR(metaclustersFields, index, refLengths, source, build, species, VCFInfoFields, outName, outDir):
+def INS2VCF_SR(metaclustersFields, index, refLengths, source, build, species, VCFInfoFields, VCFREF, outName, outDir):
     '''
     Write INS calls into a VCF file
 
@@ -233,13 +233,17 @@ def INS2VCF_SR(metaclustersFields, index, refLengths, source, build, species, VC
     ## 3. Add insertion calls to the VCF
 
     ## 3.1 Load reference index
-    reference = mp.Aligner(fn_idx_in=index) # comment as time consuming
+    if VCFREF:
+        reference = mp.Aligner(fn_idx_in=index) # comment as time consuming
 
     ## 3.2 Iterate over metaclusters fields
     for fields in metaclustersFields:
 
         # Get reference sequence (+- 5 bases)
-        REF = reference.seq(fields[0], int(fields[1]), int(fields[1]) + 1)
+        if VCFREF:
+            REF = reference.seq(fields[0], int(fields[1]), int(fields[1]) + 1)
+        else:
+            REF = '.'
 
         # Insert REF to fields list [CHROM, POS, ID, ALT, QUAL, FILTER, INFO] -> [CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO]
         fields.insert(3, REF)

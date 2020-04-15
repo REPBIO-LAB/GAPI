@@ -88,8 +88,10 @@ if __name__ == '__main__':
 	parser.add_argument('--discordantMatesMinLcc', default=1.49, dest='discordantMatesMinLcc', type=float, help='Minimum local complexity of discordant read mates sequences. Default: 1.49')
 
 	# Output
-	parser.add_argument('--VCFInfoFields', default="VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,DISCORDANT,CLIPPING,NBDISCORDANT,NBCLIPPING,IDENTITY,ORIENTATION,BKP2,DISCORDANTMAPQ,CLIPPINGMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP,REP,REPSUB,DIST,REGION,GENE", dest='VCFInfoFields', type=str, help='Comma separated list of INFO fields to display in output VCF (VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,DISCORDANT,CLIPPING,NBDISCORDANT,NBCLIPPING,IDENTITY,ORIENTATION,BKP2,DISCORDANTMAPQ,CLIPPINGMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP,REP,REPSUB,DIST,REGION,GENE). Default: All are included')
+	#parser.add_argument('--VCFInfoFields', default="VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,DISCORDANT,CLIPPING,NBDISCORDANT,NBCLIPPING,IDENTITY,ORIENTATION,BKP2,DISCORDANTMAPQ,CLIPPINGMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP,REP,REPSUB,DIST,REGION,GENE,REFSeq", dest='VCFInfoFields', type=str, help='Comma separated list of INFO fields to display in output VCF (VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,DISCORDANT,CLIPPING,NBDISCORDANT,NBCLIPPING,IDENTITY,ORIENTATION,BKP2,DISCORDANTMAPQ,CLIPPINGMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP,REP,REPSUB,DIST,REGION,GENE,REFSeq) *NOTE that REFSeq is incompatible with --no-VCFREF. Default: All are included')
+	parser.add_argument('--VCFInfoFields', default="VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,DISCORDANT,CLIPPING,NBDISCORDANT,NBCLIPPING,IDENTITY,ORIENTATION,BKP2,DISCORDANTMAPQ,CLIPPINGMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP,REP,REPSUB,DIST,REGION,GENE", dest='VCFInfoFields', type=str, help='Comma separated list of INFO fields to display in output VCF (VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,DISCORDANT,CLIPPING,NBDISCORDANT,NBCLIPPING,IDENTITY,ORIENTATION,BKP2,DISCORDANTMAPQ,CLIPPINGMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP,REP,REPSUB,DIST,REGION,GENE) *NOTE that REFSeq is incompatible with --no-VCFREF. Default: All are included')
 	parser.add_argument('--no-annotRepeats', action="store_false", default=True, dest='annotRepeats', help='If selected, not show annotated repeats on the reference genome at insertion interval. Only works with VIRUS mode. If ME are analysed, annotation repeats step is always performed.')
+	parser.add_argument('--no-VCFREF', action="store_false", default=True, dest='VCFREF', help='If selected, not show REF field in VCF output file (it consumes ~5Gb).')
 
 	## 2. Parse user´s input and initialize variables ##
 	args = parser.parse_args()
@@ -157,6 +159,7 @@ if __name__ == '__main__':
 	# Ouput
 	VCFInfoFields = args.VCFInfoFields
 	annotRepeats = args.annotRepeats
+	VCFREF = args.VCFREF
 
 	# If no reference is specified, get all that are present in the bam file.
 	if refs == 'ALL':
@@ -250,7 +253,8 @@ if __name__ == '__main__':
 
 	print('** Output format**')
 	print ('VCFInfoFields: ', VCFInfoFields)
-	print ('annotRepeats: ', annotRepeats, "\n")
+	print ('annotRepeats: ', annotRepeats)
+	print ('VCFREF: ', VCFREF, "\n")
 
 	print('***** Executing ', scriptName, '.... *****', "\n")
 
@@ -321,6 +325,7 @@ if __name__ == '__main__':
 	# Output
 	confDict['VCFInfoFields'] = targetVCFInfoFields
 	confDict['annotRepeats'] = annotRepeats
+	confDict['VCFREF'] = VCFREF
 	
 	## 2. Execute structural variation caller
 	###########################################
