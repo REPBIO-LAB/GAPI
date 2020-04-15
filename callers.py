@@ -352,7 +352,6 @@ class SV_caller_short(SV_caller):
         '''
         Search for integrations genome wide or in a set of target genomic regions
         '''
-
         if 'ME' in self.confDict['targetINT2Search']:
             annotDir = self.outDir + '/ANNOT/'
             refLengths = bamtools.get_ref_lengths(self.bam)
@@ -362,46 +361,55 @@ class SV_caller_short(SV_caller):
         msg = '1. Create integration clusters. PID: ' + str(os.getpid())
         log.header(msg)      
         metaclustersListofLists = self.make_clusters()
+        #print ('metaclustersListofLists ' + str(metaclustersListofLists))
 
-        # TODO SR: ANNOTATE-REPEATS step: Desilence and put in the right place (now it is repeated in two different places) in case we want to analyse RT. If not, decide if it is neccessary or not.
-        if 'ME' in self.confDict['targetINT2Search']:
-            '''
-            ### 2. Annotate SV clusters intervals
-            msg = '2. Annotate SV clusters intervals'
-            log.header(msg)
+        # Flat metaclustersList
+        metaclustersListWEmpties = list(itertools.chain(*metaclustersListofLists))
+        # Remove empty lists
+        #metaclustersList = List of lists: containing VCF fields for each metacluster. Structure -> [[CHROM, POS, ID, ALT, QUAL, FILTER, INFO], [CHROM, POS, ID, ALT, QUAL, FILTER, INFO], ...]
+        metaclustersList = [x for x in metaclustersListWEmpties if x]
+        #print ('metaclustersList ' + str(metaclustersList))
 
-            ## 5. Check if annotated retrotransposon on the reference genome at cluster intervals ##
-            # COMMENT: This is temporary and will be incorporated into the filtering function at one point
-            step = 'ANNOTATE-REPEATS'
-            msg = 'Check if annotated retrotransposon on the reference genome at cluster intervals'
+
+        # NOTE SR: Perform repeats_annotation for both, MEIs and VIRUSES.
+        #if 'ME' in self.confDict['targetINT2Search']:
+
+        # If ME analysis is done, this is loaded at the beggining
+        # DESILENCE
+        if 'ME' not in self.confDict['targetINT2Search']:
+            annotDir = self.outDir + '/ANNOT/'
+            refLengths = bamtools.get_ref_lengths(self.bam)
+            self.annotations = annotation.load_annotations(['REPEATS', 'TRANSDUCTIONS'], refLengths, self.refDir, self.confDict['processes'], annotDir)
+
+
+        ### 2. Annotate SV clusters intervals
+        msg = '2. Annotate SV clusters intervals'
+        log.header(msg)
+
+        ## 5. Check if annotated retrotransposon on the reference genome at cluster intervals ##
+        # COMMENT: This is temporary and will be incorporated into the filtering function at one point
+        step = 'ANNOTATE-REPEATS'
+        msg = 'Check if annotated retrotransposon on the reference genome at cluster intervals'
+        log.step(step, msg)
+
+        ## Annotate
+        buffer = 100
+        annotation.repeats_annotation(metaclustersList, self.annotations['REPEATS'], buffer)
+        
+        ## 6. Perform gene-based annotation with ANNOVAR of discordant read pair clusters ##
+        # Do gene-based annotation step if enabled
+        
+        if self.confDict['annovarDir'] is not None:
+
+            step = 'ANNOTATE'
+            msg = 'Perform gene-based annotation with ANNOVAR of discordant read-pair clusters'
             log.step(step, msg)
 
-
-            ## Create a list containing all discordant read pair events:
-            allDiscordantClusters = []
-
-            for eventType in allMetaclusters.keys():
-                allDiscordantClusters.extend(allMetaclusters[eventType])
-
-
             ## Annotate
-            buffer = 100
-            annotation.repeats_annotation(allDiscordantClusters, self.annotations['REPEATS'], buffer)
-            
-            ## 6. Perform gene-based annotation with ANNOVAR of discordant read pair clusters ##
-            # Do gene-based annotation step if enabled
-            if self.confDict['annovarDir'] is not None:
+            annotation.gene_annotation(metaclustersList, self.confDict['annovarDir'], annotDir)
 
-                step = 'ANNOTATE'
-                msg = 'Perform gene-based annotation with ANNOVAR of discordant read-pair clusters'
-                log.step(step, msg)
-
-                ## Annotate
-                annotation.gene_annotation(allDiscordantClusters, self.confDict['annovarDir'], annotDir)
-
-            # Remove annotation directory
-            unix.rm([annotDir])
-            '''
+        # Remove annotation directory
+        unix.rm([annotDir])
 
         # TODO SR: Think if is worth it to make viral db inside MEIGA (headers, etc)
         # TODO SR: Index viral db
@@ -414,9 +422,6 @@ class SV_caller_short(SV_caller):
         #metaclustersListofLists = list(allMetaclusters.values())
         outFileNameTSV = 'metaclusters.PASS.tsv'
         outFileName = 'metaclusters.PASS'
-        # Flat metaclustersList
-        metaclustersListWEmpties = list(itertools.chain(*metaclustersListofLists))
-        metaclustersList = [x for x in metaclustersListWEmpties if x]
         #output.writeMetaclusters(metaclustersList, outFileNameTSV, self.outDir)
         output.INS2VCF_SR(metaclustersList, self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], self.confDict['VCFInfoFields'], outFileName, self.outDir)
 
@@ -426,14 +431,14 @@ class SV_caller_short(SV_caller):
         ### If viruses option is selected, collect read name and sequence of discordant low quality reads from all bam refs ##
         if 'VIRUS' in self.confDict['targetINT2Search']:
             # TEMP SR: DESILENCE
-            
+            '''
             # Make genomic bins
             bins = bamtools.makeGenomicBins(self.bam, self.confDict['binSize'], None)
-            
+            '''
             # Collect read name and sequence of discordant low quality reads from all bam refs
             l = mp.Lock()
             # TEMP SR: DESILENCE
-            
+            '''
             pool = mp.Pool(processes=self.confDict['processes'], initializer=init, initargs=(l,))
             pool.starmap(self.callCollectSeq, bins)
             pool.close()
@@ -461,7 +466,9 @@ class SV_caller_short(SV_caller):
 
             # TEMP SR: Remove allfastas
             #unix.rm([allFastas])
-            
+            '''
+            #TEMP
+            BAM = self.outDir + '/' + 'viralAligment' + '.bam'
             # Read bwa result and store in a dictionary
             self.viralSeqs = bamtools.BAM2FastaDict(BAM)
             
@@ -553,7 +560,12 @@ class SV_caller_short(SV_caller):
         # NOTE SR: I think adapting for PAIRED mode is not needed
         #if self.mode == "SINGLE":
             # TODO SR: If we want to analyse RT, we should call determine_discordant_identity in another way, depending if we are analysing RT, virus or both.
-        discordantsIdentity = events.determine_discordant_identity(discordants, self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'],self.bam, None, binDir, self.confDict['targetINT2Search'])
+
+        # If only viruses are being analysed
+        if 'ME' not in self.confDict['targetINT2Search']:
+            discordantsIdentity = events.determine_discordant_identity(discordants, None, None,self.bam, None, binDir, self.confDict['targetINT2Search'])
+        else:
+            discordantsIdentity = events.determine_discordant_identity(discordants, self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'],self.bam, None, binDir, self.confDict['targetINT2Search'])
         #discordantsIdentity = events.determine_discordant_identity(discordants, None, None,self.bam, None, binDir, self.confDict['targetINT2Search'])
         #else:
             #discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'],self.bam, None, binDir, self.confDict['viralDb'])

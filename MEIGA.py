@@ -88,7 +88,7 @@ if __name__ == '__main__':
 	parser.add_argument('--discordantMatesMinLcc', default=1.49, dest='discordantMatesMinLcc', type=float, help='Minimum local complexity of discordant read mates sequences. Default: 1.49')
 
 	# Output
-	parser.add_argument('--VCFInfoFields', default="VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,DISCORDANT,CLIPPING,NBDISCORDANT,NBCLIPPING,IDENTITY,ORIENTATION,BKP2,DISCORDANTMAPQ,CLIPPINGMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP", dest='VCFInfoFields', type=str, help='Comma separated list of INFO fields to display in output VCF (VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,DISCORDANT,CLIPPING,NBDISCORDANT,NBCLIPPING,IDENTITY,ORIENTATION,BKP2,DISCORDANTMAPQ,CLIPPINGMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP). Default: All are included')
+	parser.add_argument('--VCFInfoFields', default="VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,DISCORDANT,CLIPPING,NBDISCORDANT,NBCLIPPING,IDENTITY,ORIENTATION,BKP2,DISCORDANTMAPQ,CLIPPINGMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP,REP,REPSUB,DIST,REGION,GENE", dest='VCFInfoFields', type=str, help='Comma separated list of INFO fields to display in output VCF (VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,DISCORDANT,CLIPPING,NBDISCORDANT,NBCLIPPING,IDENTITY,ORIENTATION,BKP2,DISCORDANTMAPQ,CLIPPINGMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP,REP,REPSUB,DIST,REGION,GENE). Default: All are included')
 
 	## 2. Parse user´s input and initialize variables ##
 	args = parser.parse_args()

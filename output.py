@@ -135,6 +135,12 @@ def VCFMetaclustersFields(metaclusters):
         INFO['SPECIDENT'] = SPECIDENT
         INFO['DISCDUP'] = 0 if metacluster.percDuplicates()[0] == 0 else "{:.2f}".format(metacluster.percDuplicates()[0])
         INFO['CLIPDUP'] = 0 if metacluster.percDuplicates()[1] == 0 else "{:.2f}".format(metacluster.percDuplicates()[1])
+        # NOTE SR: Necessary for MEs annotation step.
+        # TODO SR: When MEs step is futher, maybe this INFO['END'] = metacluster.end can be replaced by BKP2
+        INFO['END'] = metacluster.end
+        # NOTE SR: Necessary for keeping only MEs in annotation step.
+        # NOTE SR: Perform repeats_annotation for both, MEIs and VIRUSES.
+        #INFO['INTERNAL_ELEMENT'] = metacluster.events[0].element
 
         ## Create VCF variant object
         fields = [CHROM, POS, ID, ALT, QUAL, FILTER, INFO]
@@ -214,6 +220,11 @@ def INS2VCF_SR(metaclustersFields, index, refLengths, source, build, species, VC
             'SPECIDENT': ['.', 'String', 'Specific identities and number of discordant reads supporting it. SpecificIdentity:#reads'], \
             'DISCDUP': ['1', 'Float', 'Percentage of discordant reads that are labeled as duplicates in input bam file.'], \
             'CLIPDUP': ['1', 'Float', 'Percentage of clipping reads that are labeled as duplicates in input bam file.'], \
+            'REP': ['.', 'String', 'Families for annotated repeats at the insertion region'], \
+            'REPSUB': ['.', 'String', 'Subfamilies for annotated repeats at the insertion region'], \
+            'DIST': ['.', 'Integer', 'Distance between insertion breakpoint and annotated repeat'], \
+            'REGION': ['.', 'String', 'Genomic region where insertion occurs'], \
+            'GENE': ['.', 'String', 'HUGO gene symbol'], \
             }
             
     ## Create header
