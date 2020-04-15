@@ -349,8 +349,7 @@ class SV_caller_short(SV_caller):
         # NOTE SR: if 'ME' in self.confDict['targetINT2Search'] annotRepeats is not and option
         if 'ME' in self.confDict['targetINT2Search']:
             annotDir = self.outDir + '/ANNOT/'
-            refLengths = bamtools.get_ref_lengths(self.bam)
-            self.annotations = annotation.load_annotations(['REPEATS', 'TRANSDUCTIONS'], refLengths, self.refDir, self.confDict['processes'], annotDir)
+            self.annotations = annotation.load_annotations(['REPEATS', 'TRANSDUCTIONS'], self.refLengths, self.refDir, self.confDict['processes'], annotDir)
         else:
             self.annotations = {}
             self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'] = None, None
@@ -378,8 +377,7 @@ class SV_caller_short(SV_caller):
         # DESILENCE
         if 'ME' not in self.confDict['targetINT2Search'] and self.confDict['annotRepeats']:
             annotDir = self.outDir + '/ANNOT/'
-            refLengths = bamtools.get_ref_lengths(self.bam)
-            self.annotations = annotation.load_annotations(['REPEATS', 'TRANSDUCTIONS'], refLengths, self.refDir, self.confDict['processes'], annotDir)
+            self.annotations = annotation.load_annotations(['REPEATS', 'TRANSDUCTIONS'], self.refLengths, self.refDir, self.confDict['processes'], annotDir)
 
         # NOTE SR: if 'ME' in self.confDict['targetINT2Search'] annotRepeats is not and option
         if 'ME' in self.confDict['targetINT2Search'] or self.confDict['annotRepeats']:
@@ -684,10 +682,6 @@ class SV_caller_short(SV_caller):
         identities = set([iden.split('-')[2] for iden in reciprocalClustersBinDb.eventTypes])
         identitiesFailed = set([iden.split('-')[2] for iden in reciprocalClustersFailedBinDb.eventTypes])
 
-        print ('identities ' + str(identities))
-        print ('identitiesFailed ' + str(identitiesFailed))
-
-
         metaclusters=[]
         metaclustersFailed=[]
         ## Create metaclusters from reciprocal and independent discordant clusters taking into account identities (eventType = those eventTypes (MINUS, PLUS and RECIPROCAL) that correspond to identity).
@@ -695,12 +689,10 @@ class SV_caller_short(SV_caller):
         # TODO SR: Review here, when calling create_discordant_metaclusters, maybe there are some parameters to adjust.
         for identity in identities:
             currentEventTypes = [eventType for eventType in reciprocalClustersBinDb.eventTypes if (identity in eventType)]
-            print ('currentEventTypes ' + str(currentEventTypes))
             metaclusters.extend(clusters.create_discordant_metaclusters(reciprocalClustersBinDb, currentEventTypes))
 
         for identityFailed in identitiesFailed:
             currentEventTypesFailed = [eventType for eventType in reciprocalClustersFailedBinDb.eventTypes if (identityFailed in eventType)]
-            print ('currentEventTypesFailed ' + str(currentEventTypesFailed))
             metaclustersFailed.extend(clusters.create_discordant_metaclusters(reciprocalClustersFailedBinDb, currentEventTypesFailed))
 
         step = 'META-CLUSTERING'
