@@ -335,6 +335,7 @@ class SV_caller_short(SV_caller):
         self.confDict = confDict
         self.outDir = outDir
         self.repeatsBinDb = None
+        self.viralSeqs = {}
 
         ## Compute reference lengths
         self.refLengths = bamtools.get_ref_lengths(self.bam)
