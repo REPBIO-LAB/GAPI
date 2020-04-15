@@ -418,11 +418,7 @@ class SV_caller_short(SV_caller):
         
   
         # Report integrations calls into output files
-        #output.write_DISCORDANT(discordantClusters, self.outDir)
-        #metaclustersListofLists = list(allMetaclusters.values())
-        outFileNameTSV = 'metaclusters.PASS.tsv'
         outFileName = 'metaclusters.PASS'
-        #output.writeMetaclusters(metaclustersList, outFileNameTSV, self.outDir)
         output.INS2VCF_SR(metaclustersList, self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], self.confDict['VCFInfoFields'], self.confDict['VCFREF'], outFileName, self.outDir)
 
 
@@ -496,8 +492,6 @@ class SV_caller_short(SV_caller):
         '.', 'PASS', {INFO_Dict}], [CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}]], [[CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}]], [], [], [])
         '''
         if metaclustersFailedListofLists:
-            #metaclustersFailedListofLists = list(metaclustersFailed.values())
-            outFileNameTSV = 'metaclusters.FAILED.tsv'
             outFileName = 'metaclusters.FAILED'
             '''
             EXPLANATION
@@ -505,7 +499,6 @@ class SV_caller_short(SV_caller):
             '''
             # Flat metaclustersFailedList
             metaclustersFailedList = list(itertools.chain(*metaclustersFailedListofLists))
-            #output.writeMetaclusters(metaclustersFailedList, outFileName, self.outDir)
             # Write VCF output
             output.INS2VCF_SR(metaclustersFailedList, self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], self.confDict['VCFInfoFields'], self.confDict['VCFREF'], outFileName, self.outDir)
 
