@@ -359,6 +359,7 @@ class SV_caller_short(SV_caller):
             refLengths = bamtools.get_ref_lengths(self.bam)
             self.annotations = annotation.load_annotations(['REPEATS', 'TRANSDUCTIONS'], refLengths, self.refDir, self.confDict['processes'], annotDir)
         else:
+            self.annotations = {}
             self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'] = None, None
 
         ### 1. Create integration clusters 
@@ -490,6 +491,7 @@ class SV_caller_short(SV_caller):
         pool.close()
         pool.join()
 
+        del self.viralSeqs
         # Remove output directory
         unix.rm([self.outDir + '/CLUSTER/'])
 
@@ -541,11 +543,11 @@ class SV_caller_short(SV_caller):
         ## 1. Search for integration candidate events in the bam file/s ##
         # a) Single sample mode
         if self.mode == "SINGLE":
-            discordants = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, False, self.viralSeqs)
+            discordants = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, False)
 
         # b) Paired sample mode (tumour & matched normal)
         else:
-            discordants = bamtools.collectDISCORDANT_paired(ref, beg, end, self.bam, self.normalBam, self.confDict, False, self.viralSeqs)
+            discordants = bamtools.collectDISCORDANT_paired(ref, beg, end, self.bam, self.normalBam, self.confDict, False)
 
 
         counts = str(len(discordants))
@@ -561,7 +563,7 @@ class SV_caller_short(SV_caller):
             # TODO SR: If we want to analyse RT, we should call determine_discordant_identity in another way, depending if we are analysing RT, virus or both.
 
 
-        discordantsIdentity = events.determine_discordant_identity(discordants, None, None,self.bam, None, binDir, self.confDict['targetINT2Search'])
+        discordantsIdentity = events.determine_discordant_identity(discordants, None, None,self.bam, None, binDir, self.confDict['targetINT2Search'], self.viralSeqs)
 
         #discordantsIdentity = events.determine_discordant_identity(discordants, None, None,self.bam, None, binDir, self.confDict['targetINT2Search'])
         #else:

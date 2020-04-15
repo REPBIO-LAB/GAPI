@@ -168,7 +168,7 @@ def determine_clippingType(alignmentObj, clippedSide):
     return clippingType
 
 
-def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, bam, normalBam, binDir, targetINT2Search):
+def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, bam, normalBam, binDir, targetINT2Search, viralSeqs):
     '''
     Determine discortant read pair identity based on the mapping position of anchor´s mate
 
@@ -176,6 +176,7 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
         1. discordants: list containing input discordant read pair events
         2. repeatsBinDb: dictionary containing annotated retrotransposons organized per chromosome (keys) into genomic bins (values)
         3. transducedBinDb: dictionary containing source element transduced regions (keys) into genomic bins (values)
+        . viralSeqs
 
     Output:
         1. discordantsIdentity: dictionary containing lists of discordant read pairs organized taking into account their orientation and if the mate aligns in an annotated retrotransposon 
@@ -246,8 +247,8 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
     # Remove discordants events that were clasified as MEs (MAYBE CHANGE THIS WHEN ADDED NEW PARAMETER)
 
         
-    if 'VIRUS' in targetINT2Search:
-        discordantEventsIdent = virus.is_virusSR(discordants)
+    if 'VIRUS' in targetINT2Search and viralSeqs:
+        discordantEventsIdent = virus.is_virusSR(discordants, viralSeqs)
     #discordantsIdentity = structures.merge_dictionaries([discordantEventsIdent, discordantsIdentity1])
     discordantEventsIdent.update(discordantsIdentity1)
 
@@ -797,7 +798,7 @@ class DISCORDANT():
     '''
     number = 0 # Number of instances
     
-    def __init__(self, ref, beg, end, orientation, pair, readName, alignmentObj, sample, identity, duplicate):
+    def __init__(self, ref, beg, end, orientation, pair, readName, alignmentObj, sample, duplicate):
         DISCORDANT.number += 1 # Update instances counter
         self.id = 'DISCORDANT_' + str(DISCORDANT.number)
         self.type = 'DISCORDANT'
@@ -813,6 +814,36 @@ class DISCORDANT():
         self.mapQual = alignmentObj.mapq
         self.cigarTuples = alignmentObj.cigartuples
         self.element = None
+       
+        ## Mate info
+        self.mateSeq = None
+
+        if alignmentObj is None:
+            self.mateRef = None
+            self.mateStart = None           
+        else:
+            self.mateRef = alignmentObj.next_reference_name
+            self.mateStart = alignmentObj.next_reference_start
+
+    def fullReadName(self):
+        '''
+        Return the supporting read name including mate info
+        '''
+        fullReadName = self.readName + '/' + self.pair
+
+        return fullReadName
+    
+    def fullReadName_mate(self):
+        '''
+        Return the supporting read name including mate info
+        '''
+
+        matePair = '2' if self.pair == '1' else '1'
+        fullReadName = self.readName + '/' + matePair
+
+        return fullReadName    
+
+    def setIdentity(self, identity):
         if identity == None:
             self.identity = None
             self.specificIdentity = None
@@ -857,32 +888,3 @@ class DISCORDANT():
                 
                 self.identity = identity
                 self.specificIdentity = specificIdentity
-        
-        ## Mate info
-        self.mateSeq = None
-
-        if alignmentObj is None:
-            self.mateRef = None
-            self.mateStart = None           
-        else:
-            self.mateRef = alignmentObj.next_reference_name
-            self.mateStart = alignmentObj.next_reference_start
-
-    def fullReadName(self):
-        '''
-        Return the supporting read name including mate info
-        '''
-        fullReadName = self.readName + '/' + self.pair
-
-        return fullReadName
-    
-    def fullReadName_mate(self):
-        '''
-        Return the supporting read name including mate info
-        '''
-
-        matePair = '2' if self.pair == '1' else '1'
-        fullReadName = self.readName + '/' + matePair
-
-        return fullReadName    
-

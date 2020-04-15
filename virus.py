@@ -16,13 +16,20 @@ import filters
 import os
 import re
 
-def is_virusSR(events):
+def is_virusSR(events, viralSeqs):
     '''
     TODO SR: NOW THIS IS SAME AS IN RT, SO I SHOULD DO ONLY 1!!
     '''
     matesIdentity = {}
 
     for discordant in events:
+
+        if discordant.readName in viralSeqs.keys():
+            identity = viralSeqs[discordant.readName]
+        else:
+            identity = None
+        
+        discordant.setIdentity(identity)
 
         if discordant.identity:
             featureType = discordant.identity
