@@ -365,16 +365,18 @@ class SV_caller_short(SV_caller):
         ### 1. Create integration clusters 
         msg = '1. Create integration clusters. PID: ' + str(os.getpid())
         log.header(msg)      
+        '''
+        Tuple of lists of lists -> metaclustersListofLists ([], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], {}, {}, [], [], [], [],
+        [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [[CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}], [CHROM, POS, '.', '<INS>',
+        '.', 'PASS', {INFO_Dict}], [CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}]], [[CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}]], [], [], [])
+        '''
         metaclustersListofLists = self.make_clusters()
-        #print ('metaclustersListofLists ' + str(metaclustersListofLists))
 
         # Flat metaclustersList
-        metaclustersListWEmpties = list(itertools.chain(*metaclustersListofLists))
-        # Remove empty lists
-        #metaclustersList = List of lists: containing VCF fields for each metacluster. Structure -> [[CHROM, POS, ID, ALT, QUAL, FILTER, INFO], [CHROM, POS, ID, ALT, QUAL, FILTER, INFO], ...]
-        metaclustersList = [x for x in metaclustersListWEmpties if x]
-        #print ('metaclustersList ' + str(metaclustersList))
-
+        '''
+        Lists of lists -> metaclustersList [[CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}], [CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}], [CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}], [CHROM, 56715108, '.', '<INS>', '.', 'PASS', {INFO_Dict}]]
+        '''
+        metaclustersList = list(itertools.chain(*metaclustersListofLists))
 
         # NOTE SR: Perform repeats_annotation for both, MEIs and VIRUSES.
         #if 'ME' in self.confDict['targetINT2Search']:
@@ -499,14 +501,20 @@ class SV_caller_short(SV_caller):
         #metaclustersPass = structures.merge_dictionaries(metaclustersPassList)
         #metaclustersFailed = structures.merge_dictionaries(metaclustersFailedList)
 
+        '''
+        Tuple of lists of lists -> metaclustersFailedListofLists ([], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], {}, {}, [], [], [], [],
+        [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [], [[CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}], [CHROM, POS, '.', '<INS>',
+        '.', 'PASS', {INFO_Dict}], [CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}]], [[CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}]], [], [], [])
+        '''
         if metaclustersFailedListofLists:
             #metaclustersFailedListofLists = list(metaclustersFailed.values())
             outFileNameTSV = 'metaclusters.FAILED.tsv'
             outFileName = 'metaclusters.FAILED'
-            # Flat metaclustersList
-            metaclustersFailedListWEmpties = list(itertools.chain(*metaclustersFailedListofLists))
-            # Remove empty lists
-            metaclustersFailedList = [x for x in metaclustersFailedListWEmpties if x]
+            '''
+            Lists of lists -> metaclustersFailedList [[CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}], [CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}], [CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}], [CHROM, 56715108, '.', '<INS>', '.', 'PASS', {INFO_Dict}]]
+            '''
+            # Flat metaclustersFailedList
+            metaclustersFailedList = list(itertools.chain(*metaclustersFailedListofLists))
             #output.writeMetaclusters(metaclustersFailedList, outFileName, self.outDir)
             # Write VCF output
             output.INS2VCF_SR(metaclustersFailedList, self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], self.confDict['VCFInfoFields'], self.confDict['VCFREF'], outFileName, self.outDir)
