@@ -358,6 +358,8 @@ class SV_caller_short(SV_caller):
             annotDir = self.outDir + '/ANNOT/'
             refLengths = bamtools.get_ref_lengths(self.bam)
             self.annotations = annotation.load_annotations(['REPEATS', 'TRANSDUCTIONS'], refLengths, self.refDir, self.confDict['processes'], annotDir)
+        else:
+            self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'] = None, None
 
         ### 1. Create integration clusters 
         msg = '1. Create integration clusters. PID: ' + str(os.getpid())
@@ -558,11 +560,9 @@ class SV_caller_short(SV_caller):
         #if self.mode == "SINGLE":
             # TODO SR: If we want to analyse RT, we should call determine_discordant_identity in another way, depending if we are analysing RT, virus or both.
 
-        # If only viruses are being analysed
-        if 'ME' not in self.confDict['targetINT2Search']:
-            discordantsIdentity = events.determine_discordant_identity(discordants, None, None,self.bam, None, binDir, self.confDict['targetINT2Search'])
-        else:
-            discordantsIdentity = events.determine_discordant_identity(discordants, self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'],self.bam, None, binDir, self.confDict['targetINT2Search'])
+
+        discordantsIdentity = events.determine_discordant_identity(discordants, None, None,self.bam, None, binDir, self.confDict['targetINT2Search'])
+
         #discordantsIdentity = events.determine_discordant_identity(discordants, None, None,self.bam, None, binDir, self.confDict['targetINT2Search'])
         #else:
             #discordantsIdentity = events.determine_discordant_identity(discordantDict['DISCORDANT'], self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'],self.bam, None, binDir, self.confDict['viralDb'])
