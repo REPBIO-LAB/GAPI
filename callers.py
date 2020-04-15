@@ -417,7 +417,7 @@ class SV_caller_short(SV_caller):
         #self.viralDb, self.viralDbIndex = databases.buildVirusDb(self.refDir, dbDir)
         
   
-        # Report integrations calls into output files
+        # Report integrations calls into output VCF files
         outFileName = 'metaclusters.PASS'
         output.INS2VCF_SR(metaclustersList, self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], self.confDict['VCFInfoFields'], self.confDict['VCFREF'], outFileName, self.outDir)
 
