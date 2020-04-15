@@ -225,7 +225,7 @@ def INS2VCF_SR(metaclustersFields, index, refLengths, source, build, species, VC
             'DIST': ['.', 'Integer', 'Distance between insertion breakpoint and annotated repeat'], \
             'REGION': ['.', 'String', 'Genomic region where insertion occurs'], \
             'GENE': ['.', 'String', 'HUGO gene symbol'], \
-            'REFSeq': ['.', 'String', 'Reference sequence at insertion point.'], \
+            'REFSeq': ['.', 'String', 'Reference sequence at insertion point (+- 10bp from insertion bkp).'], \
             }
             
     ## Create header
