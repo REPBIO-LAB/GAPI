@@ -80,9 +80,10 @@ def VCFMetaclustersFields(metaclusters):
         checkSpecIdent = {}
         for event in metacluster.events:
             if event.type != 'CLIPPING' and event.specificIdentity != None:
-                try:
+
+                if event.specificIdentity in checkSpecIdent.keys():
                     checkSpecIdent[event.specificIdentity] += 1
-                except KeyError:
+                else:
                     checkSpecIdent[event.specificIdentity] = 1
         
         if not checkSpecIdent:

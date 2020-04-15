@@ -1241,10 +1241,13 @@ def BAM2FastaDict(BAM):
     fastaDict= {}
     # For each read alignment
     for alignmentObj in iterator:
-        try:
+
+        if alignmentObj.query_name in fastaDict.keys():
             fastaDict[alignmentObj.query_name].append(alignmentObj.reference_name)
-        except KeyError:
+        else:
             fastaDict[alignmentObj.query_name] = []
             fastaDict[alignmentObj.query_name].append(alignmentObj.reference_name)
+
+
 
     return fastaDict
