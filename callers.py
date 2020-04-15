@@ -352,6 +352,7 @@ class SV_caller_short(SV_caller):
         '''
         Search for integrations genome wide or in a set of target genomic regions
         '''
+        # NOTE SR: if 'ME' in self.confDict['targetINT2Search'] annotRepeats is not and option
         if 'ME' in self.confDict['targetINT2Search']:
             annotDir = self.outDir + '/ANNOT/'
             refLengths = bamtools.get_ref_lengths(self.bam)
@@ -376,40 +377,41 @@ class SV_caller_short(SV_caller):
 
         # If ME analysis is done, this is loaded at the beggining
         # DESILENCE
-        if 'ME' not in self.confDict['targetINT2Search']:
+        if 'ME' not in self.confDict['targetINT2Search'] and self.confDict['annotRepeats']:
             annotDir = self.outDir + '/ANNOT/'
             refLengths = bamtools.get_ref_lengths(self.bam)
             self.annotations = annotation.load_annotations(['REPEATS', 'TRANSDUCTIONS'], refLengths, self.refDir, self.confDict['processes'], annotDir)
 
+        # NOTE SR: if 'ME' in self.confDict['targetINT2Search'] annotRepeats is not and option
+        if 'ME' in self.confDict['targetINT2Search'] or self.confDict['annotRepeats']:
+            ### 2. Annotate SV clusters intervals
+            msg = '2. Annotate SV clusters intervals'
+            log.header(msg)
 
-        ### 2. Annotate SV clusters intervals
-        msg = '2. Annotate SV clusters intervals'
-        log.header(msg)
-
-        ## 5. Check if annotated retrotransposon on the reference genome at cluster intervals ##
-        # COMMENT: This is temporary and will be incorporated into the filtering function at one point
-        step = 'ANNOTATE-REPEATS'
-        msg = 'Check if annotated retrotransposon on the reference genome at cluster intervals'
-        log.step(step, msg)
-
-        ## Annotate
-        buffer = 100
-        annotation.repeats_annotation(metaclustersList, self.annotations['REPEATS'], buffer)
-        
-        ## 6. Perform gene-based annotation with ANNOVAR of discordant read pair clusters ##
-        # Do gene-based annotation step if enabled
-        
-        if self.confDict['annovarDir'] is not None:
-
-            step = 'ANNOTATE'
-            msg = 'Perform gene-based annotation with ANNOVAR of discordant read-pair clusters'
+            ## 5. Check if annotated retrotransposon on the reference genome at cluster intervals ##
+            # COMMENT: This is temporary and will be incorporated into the filtering function at one point
+            step = 'ANNOTATE-REPEATS'
+            msg = 'Check if annotated retrotransposon on the reference genome at cluster intervals'
             log.step(step, msg)
 
             ## Annotate
-            annotation.gene_annotation(metaclustersList, self.confDict['annovarDir'], annotDir)
+            buffer = 100
+            annotation.repeats_annotation(metaclustersList, self.annotations['REPEATS'], buffer)
+            
+            ## 6. Perform gene-based annotation with ANNOVAR of discordant read pair clusters ##
+            # Do gene-based annotation step if enabled
+            
+            if self.confDict['annovarDir'] is not None:
 
-        # Remove annotation directory
-        unix.rm([annotDir])
+                step = 'ANNOTATE'
+                msg = 'Perform gene-based annotation with ANNOVAR of discordant read-pair clusters'
+                log.step(step, msg)
+
+                ## Annotate
+                annotation.gene_annotation(metaclustersList, self.confDict['annovarDir'], annotDir)
+
+            # Remove annotation directory
+            unix.rm([annotDir])
 
         # TODO SR: Think if is worth it to make viral db inside MEIGA (headers, etc)
         # TODO SR: Index viral db

@@ -82,13 +82,14 @@ if __name__ == '__main__':
 	parser.add_argument('--komplexityThreshold', default=0.4, dest='komplexityThreshold', type=float, help='Threshold for filtering mates sequence with komplexity tool. Default: 0.4')
 	parser.add_argument('--viralBamParcialMatch', default=4, dest='viralBamParcialMatch', type=int, help='Threshold partial matches against viral db. Example: 4 stands for >40 matches per read. Default: 4')
 	parser.add_argument('--discordantMatesMaxMAPQ', default=20, dest='discordantMatesMaxMAPQ', type=int, help='Maximum mapping quality used for collecting dicordant read mates. Default: 20')
-	parser.add_argument('--discordantMatesCheckUnmapped', default=True, dest='discordantMatesCheckUnmapped', type=bool, help='If True, when a dicordant read mate is unmapped, collect it no matter its MAPQ. Default: True')
-	parser.add_argument('--discordantMatesSupplementary', default=True, dest='discordantMatesSupplementary', type=bool, help='When False, avoid collecting dicordant read mates that are supplementary alignments. Default: True')
+	parser.add_argument('--no-discordantMatesCheckUnmapped', action="store_false", default=True, dest='discordantMatesCheckUnmapped', help='If not selected, when a dicordant read mate is unmapped, collect it no matter its MAPQ. If selected, mapping state is not checked.')
+	parser.add_argument('--no-discordantMatesSupplementary', action="store_false", default=True, dest='discordantMatesSupplementary', help='When selected, avoid collecting dicordant read mates that are supplementary alignments.')
 	parser.add_argument('--discordantMatesMaxBasePerc', default=85, dest='discordantMatesMaxBasePerc', type=int, help='Maximum base percentage of discordant read mates sequences. Default: 85')
 	parser.add_argument('--discordantMatesMinLcc', default=1.49, dest='discordantMatesMinLcc', type=float, help='Minimum local complexity of discordant read mates sequences. Default: 1.49')
 
 	# Output
 	parser.add_argument('--VCFInfoFields', default="VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,DISCORDANT,CLIPPING,NBDISCORDANT,NBCLIPPING,IDENTITY,ORIENTATION,BKP2,DISCORDANTMAPQ,CLIPPINGMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP,REP,REPSUB,DIST,REGION,GENE", dest='VCFInfoFields', type=str, help='Comma separated list of INFO fields to display in output VCF (VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,DISCORDANT,CLIPPING,NBDISCORDANT,NBCLIPPING,IDENTITY,ORIENTATION,BKP2,DISCORDANTMAPQ,CLIPPINGMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP,REP,REPSUB,DIST,REGION,GENE). Default: All are included')
+	parser.add_argument('--no-annotRepeats', action="store_false", default=True, dest='annotRepeats', help='If selected, not show annotated repeats on the reference genome at insertion interval. Only works with VIRUS mode. If ME are analysed, annotation repeats step is always performed.')
 
 	## 2. Parse user´s input and initialize variables ##
 	args = parser.parse_args()
@@ -155,6 +156,7 @@ if __name__ == '__main__':
 
 	# Ouput
 	VCFInfoFields = args.VCFInfoFields
+	annotRepeats = args.annotRepeats
 
 	# If no reference is specified, get all that are present in the bam file.
 	if refs == 'ALL':
@@ -247,7 +249,8 @@ if __name__ == '__main__':
 	print('discordantMatesMinLcc: ', discordantMatesMinLcc, "\n")
 
 	print('** Output format**')
-	print ('VCFInfoFields: ', VCFInfoFields, "\n")
+	print ('VCFInfoFields: ', VCFInfoFields)
+	print ('annotRepeats: ', annotRepeats, "\n")
 
 	print('***** Executing ', scriptName, '.... *****', "\n")
 
@@ -317,6 +320,7 @@ if __name__ == '__main__':
 
 	# Output
 	confDict['VCFInfoFields'] = targetVCFInfoFields
+	confDict['annotRepeats'] = annotRepeats
 	
 	## 2. Execute structural variation caller
 	###########################################
