@@ -40,7 +40,6 @@ def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
 
             # Set meacluster element:
             element = metacluster.setElement() if metacluster.setElement() else 'GENERIC'
-            print ('EVAAA element2' + str(element))
             ## Apply filters
             metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply[element], confDict)
 
@@ -424,7 +423,6 @@ def filter_clusters(clustersDict, filters2Apply, confDict, bam):
         ## For each cluster
         for index, cluster in enumerate(clusters):
             element = cluster.element if cluster.element else 'GENERIC'
-            print ('EVAAA element1' + str(element))
             ## Apply filters according to cluster.element
             cluster.failedFilters = filter_DISCORDANT_cluster(cluster, filters2Apply[element], confDict, bam)
 

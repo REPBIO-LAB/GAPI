@@ -327,13 +327,6 @@ class SV_caller_short(SV_caller):
 
         SV_caller.__init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir)
 
-        self.mode = mode
-        self.bam = bam
-        self.normalBam = normalBam
-        self.reference = reference
-        self.refDir = refDir
-        self.confDict = confDict
-        self.outDir = outDir
         self.repeatsBinDb = None
         self.viralSeqs = {}
 
