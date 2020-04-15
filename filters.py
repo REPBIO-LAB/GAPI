@@ -19,7 +19,7 @@ def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
 
     Input:
         1. metaclustersDict: dictionary with the following structure: keys -> SV_type, value -> list of metaclusters corresponding to this SV_type.
-        2. filters2Apply: list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
+        2. filters2Apply: dictionary containing lists as values list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
         3. confDict
 
     Output:
@@ -38,8 +38,11 @@ def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
         ## For each metacluster
         for index, metacluster in enumerate(metaclusters):
 
+            # Set meacluster element:
+            element = metacluster.setElement() if metacluster.setElement() else 'GENERIC'
+            print ('EVAAA element2' + str(element))
             ## Apply filters
-            metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply, confDict)
+            metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply[element], confDict)
 
             # Metacluster fails some filter
             if metacluster.failedFilters:
@@ -400,7 +403,7 @@ def filter_clusters(clustersDict, filters2Apply, confDict, bam):
 
     Input:
         1. clustersDict: dictionary with the following structure: keys -> SV_type, value -> list of clusters corresponding to this SV_type.
-        2. filters2Apply: list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
+        2. filters2Apply: dictionary containing lists as values containing the filters to apply (only those filters that make sense with the cluster type will be applied)
         3. confDict
         4. bam: bam file
 
@@ -420,9 +423,10 @@ def filter_clusters(clustersDict, filters2Apply, confDict, bam):
 
         ## For each cluster
         for index, cluster in enumerate(clusters):
-
-            ## Apply filters
-            cluster.failedFilters = filter_DISCORDANT_cluster(cluster, filters2Apply, confDict, bam)
+            element = cluster.element if cluster.element else 'GENERIC'
+            print ('EVAAA element1' + str(element))
+            ## Apply filters according to cluster.element
+            cluster.failedFilters = filter_DISCORDANT_cluster(cluster, filters2Apply[element], confDict, bam)
 
             # Cluster fails some filter
             if cluster.failedFilters:

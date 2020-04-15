@@ -645,8 +645,14 @@ class SV_caller_short(SV_caller):
         step = 'FILTER CLUSTERS'
         msg = 'Filter out clusters'  + '. PID: ' + str(os.getpid())
         log.step(step, msg)
+        filters2Apply = {}
+        # Filters to apply to non-identified clusters
+        filters2Apply['GENERIC'] = ['MAX-NBREADS', 'AREAMAPQ', 'AREASMS', 'IDENTITY']
+        # Filters to apply to VIRUS clusters
         # NOTE SR: dont look at 'MIN-NBREADS' at cluster level
-        filters2Apply = ['MAX-NBREADS', 'AREAMAPQ', 'AREASMS', 'IDENTITY']
+        filters2Apply['VIRUS'] = ['MAX-NBREADS', 'AREAMAPQ', 'AREASMS', 'IDENTITY']
+        # TODO SR: Add here proper filters for MEs clusters
+        filters2Apply['ME']  = ['MAX-NBREADS', 'AREAMAPQ', 'AREASMS', 'IDENTITY']
         discordantClustersDict, discordantClustersDictFailed = filters.filter_clusters(discordantClustersDict, filters2Apply, self.confDict, self.bam)
 
         ## 6. Organize discordant clusters in bin database structure ##
@@ -723,7 +729,16 @@ class SV_caller_short(SV_caller):
         step = 'FILTER METACLUSTERS'
         msg = 'Filter out metaclusters' 
         log.step(step, msg)
-        filters2Apply = ['MIN-NBREADS', 'MAX-NBREADS']
+
+
+
+        filters2Apply = {}
+        # Filters to apply to non-identified clusters
+        filters2Apply['GENERIC'] = ['MIN-NBREADS', 'MAX-NBREADS']
+        # Filters to apply to VIRUS clusters
+        filters2Apply['VIRUS'] = ['MIN-NBREADS', 'MAX-NBREADS']
+        # TODO SR: Add here proper filters for MEs clusters
+        filters2Apply['ME']  = ['MIN-NBREADS', 'MAX-NBREADS']
         dictMetaclustersSecondFilter, dictMetaclustersSecondFilterFailedTemp = filters.filter_metaclusters(metaclustersSVTypeBfSecondFilter, filters2Apply, self.confDict)
 
         # Flat list

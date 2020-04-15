@@ -1858,6 +1858,7 @@ class DISCORDANT_cluster(cluster):
         self.matesCluster = None
         self.identity = self.events[0].identity
         self.orientation = self.events[0].orientation
+        self.element = self.events[0].element
 
         # TODO SR:
         # Set specific identity doing something like the most common specific identity that events share.
@@ -3337,6 +3338,14 @@ class META_cluster():
             self.SV_features['PERC_RESOLVED'] = percResolved        
 
         return PSEUDOGENE, outHits
+    
+    def setElement(self):
+        self.element = None
+        for event in self.events:
+            if hasattr(event, 'element'):
+                self.element = event.element
+                break
+        return self.element
     
 class BRIDGE():
     '''
