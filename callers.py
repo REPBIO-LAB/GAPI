@@ -671,7 +671,7 @@ class SV_caller_short(SV_caller):
         for SVType, clustersList in reciprocalClustersDictRep.items():
             reciprocalClustersDict[SVType] = list(set(clustersList))
 
-        for SVTypeFailed, clustersListFailed in reciprocalClustersFailedDict.items():
+        for SVTypeFailed, clustersListFailed in reciprocalClustersFailedDictRep.items():
             reciprocalClustersFailedDict[SVTypeFailed] = list(set(clustersListFailed))
 
         step = 'RECIPROCAL-CLUSTERING'

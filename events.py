@@ -250,6 +250,7 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
     if 'VIRUS' in targetINT2Search and viralSeqs:
         discordantEventsIdent = virus.is_virusSR(discordants, viralSeqs)
     #discordantsIdentity = structures.merge_dictionaries([discordantEventsIdent, discordantsIdentity1])
+    # TODO SR: I guess that here is VIRUS and MEs are activated there will be some repeated clusters.
     discordantEventsIdent.update(discordantsIdentity1)
 
     #return discordantsIdentity
