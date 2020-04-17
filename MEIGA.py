@@ -63,7 +63,7 @@ if __name__ == '__main__':
 	parser.add_argument('--minPercOverlap', default=70, dest='minPercRcplOverlap', type=int, help='Minimum percentage of reciprocal overlap for DEL clustering. Default: 70')
 
 	## Databases
-	parser.add_argument('--viralDb', default=2, dest='viralDb', type=str, help='Viral database in fasta format or minimap index.')
+	parser.add_argument('--viralDb', default=None, dest='viralDb', type=str, help='Viral database in fasta format or minimap index.')
 
 	## Filtering
 	# Long
