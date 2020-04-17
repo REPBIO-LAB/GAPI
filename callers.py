@@ -556,7 +556,8 @@ class SV_caller_short(SV_caller):
             # TODO SR: If we want to analyse RT, we should call determine_discordant_identity in another way, depending if we are analysing RT, virus or both.
 
 
-        discordantsIdentity = events.determine_discordant_identity(discordants, None, None,self.bam, None, binDir, self.confDict['targetINT2Search'], self.viralSeqs)
+        discordantsIdentity = events.determine_discordant_identity(discordants, self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'], self.bam, None, binDir, self.confDict['targetINT2Search'], self.viralSeqs)
+        #discordantsIdentity = events.determine_discordant_identity(discordants, None, None,self.bam, None, binDir, self.confDict['targetINT2Search'], self.viralSeqs)
 
         #discordantsIdentity = events.determine_discordant_identity(discordants, None, None,self.bam, None, binDir, self.confDict['targetINT2Search'])
         #else:
@@ -661,8 +662,17 @@ class SV_caller_short(SV_caller):
 
         ## 7. Make reciprocal clusters ##
         # TODO SR: Adjust parameters of clustering.reciprocal. Maybe it is worth it make them running arguments
-        reciprocalClustersDict = clustering.reciprocal(discordantClustersBinDb, 1, 1, 300)
-        reciprocalClustersFailedDict = clustering.reciprocal(discordantClustersFailedBinDb, 1, 1, 300)
+        reciprocalClustersDictRep = clustering.reciprocal(discordantClustersBinDb, 1, 1, 300)
+        reciprocalClustersFailedDictRep = clustering.reciprocal(discordantClustersFailedBinDb, 1, 1, 300)
+
+        reciprocalClustersDict = {}
+        reciprocalClustersFailedDict = {}
+
+        for SVType, clustersList in reciprocalClustersDictRep.items():
+            reciprocalClustersDict[SVType] = list(set(clustersList))
+
+        for SVTypeFailed, clustersListFailed in reciprocalClustersFailedDict.items():
+            reciprocalClustersFailedDict[SVTypeFailed] = list(set(clustersListFailed))
 
         step = 'RECIPROCAL-CLUSTERING'
         msg = 'Performing reciprocal clustering. PID: ' + str(os.getpid())

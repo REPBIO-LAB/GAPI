@@ -814,6 +814,8 @@ class DISCORDANT():
         self.mapQual = alignmentObj.mapq
         self.cigarTuples = alignmentObj.cigartuples
         self.element = None
+        self.identity = None
+        self.specificIdentity = None
        
         ## Mate info
         self.mateSeq = None

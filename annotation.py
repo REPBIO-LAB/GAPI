@@ -447,6 +447,7 @@ def intersect_mate_annotation(discordants, annotation, targetField):
             featureType = 'None'
 
         ## Set discordant identity
+        #discordant.setIdentity(featureType)
         discordant.identity = featureType
         if featureType != 'None':
             discordant.element = 'ME'
