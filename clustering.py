@@ -265,12 +265,12 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
                     for cluster in clusters2merge:
                         clustersDict.pop(cluster.id, None)
 
-                    ## Update clustersOverlapA
-                    if 'META' in mergedCluster.id:
-                        if cluster.id in clustersOverlapA:
-                            clustersOverlapA.remove(cluster.id)
-                            if mergedCluster.id not in clustersOverlapA:
-                                clustersOverlapA.append(mergedCluster.id)
+                        ## Update clustersOverlapA
+                        if 'META' in mergedCluster.id:
+                            if cluster.id in clustersOverlapA:
+                                clustersOverlapA.remove(cluster.id)
+                                if mergedCluster.id not in clustersOverlapA:
+                                    clustersOverlapA.append(mergedCluster.id)
 
                 # C) No cluster overlaps A
                 else:
