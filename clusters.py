@@ -1948,6 +1948,7 @@ class META_cluster():
 
         # Organize events into subclusters
         self.subclusters = self.create_subclusters()
+        self.rawSubclusters = clusters
 
         # Set some metacluster properties as None
         self.bkpPos = None
@@ -2085,6 +2086,9 @@ class META_cluster():
         # Update input cluster's clusterId attribute
         for cluster in clusters2add:
             cluster.clusterId = self.id
+        
+        # Also add clusters to rawSubclusters:
+        self.rawSubclusters.extend(clusters2add)
 
     def remove(self, events2remove):
         '''
