@@ -941,3 +941,180 @@ class VCF_variant():
                     INFO = INFO + entry + ';'
 
         return INFO
+
+class PSL():
+    '''
+    Class for dealing with files in PSL format. 
+    '''
+
+    def __init__(self):
+        '''
+        Initialize empty class instance
+        '''
+        self.alignments = []
+
+    def read(self, filePath):
+        '''
+        PSL file reader. Read and store data line objects into a list:
+        '''
+        fh = open(filePath)
+
+        # For line in the file
+        for line in fh:
+            
+            # Skip comments and blank lines
+            if line.startswith('#') or not line:
+                continue
+
+            fields = line.split() 
+
+            self.alignments.append(PSL_alignment(fields))
+
+    def alignments2dict(self):
+        '''
+        Organize the alignments into a dictionary by query name
+        '''
+        alignDict = {}
+
+        for alignment in self.alignments:
+
+            if alignment.qName not in alignDict:
+                alignDict[alignment.qName] = []
+
+            alignDict[alignment.qName].append(alignment)
+
+        return alignDict
+
+    def hits2clipping(self, clippings):
+        '''
+        Add hits to clipping events as supplementary alignments.
+        '''
+        # For each alignment
+        for alignment in self.alignments:
+
+            ## Compute CIGAR
+            clipping = clippings[alignment.qName]
+            hitLen = alignment.qEnd - alignment.qBeg
+            hardClipLen = len(clipping.readSeq) - hitLen
+
+            if clipping.clippedSide == 'left':
+                CIGAR = str(hitLen) + 'M' + str(hardClipLen) + 'H'
+            
+            else:
+                CIGAR = str(hardClipLen) + 'H' + str(hitLen) + 'M' 
+
+            ## Create SA string
+            fields = [alignment.tName, str(alignment.tBeg), alignment.strand, CIGAR, '60', str(alignment.misMatches)] 
+            SA = ','.join(fields) + ';'
+
+            ## Add SA to the clipping event
+            if clippings[alignment.qName].supplAlignment is None:
+                clippings[alignment.qName].supplAlignment = SA
+            else:
+                clippings[alignment.qName].supplAlignment = clippings[alignment.qName].supplAlignment + SA 
+
+    def filter_align_perc(self, minPerc):
+        '''
+        Filter the alignments by the percentage of their sequence that is aligned
+
+        Input:
+            1. minPerc: minimum percentage of aligned sequence
+        
+        Output:
+            1. filteredAlignments: list of filtered alignments
+        '''
+        filteredAlignments = []
+
+        ## For each alignment
+        for alignment in self.alignments:
+
+            ## Select alignment as enough perc of sequence aligned
+            if alignment.perc_query_covered() >= minPerc:
+
+                filteredAlignments.append(alignment)
+
+        return filteredAlignments
+
+    def filter_nb_hits(self, maxNbHits):
+        '''
+        Filter alignments based on their number of hits. 
+
+        Input:
+            1. maxNbHits: maximum number of hits allowed
+
+        Output.
+            1. filteredAlignments: list of filtered alignments
+        '''
+        filteredAlignments = []
+
+        ## 1. Organize alignments by query name
+        alignDict = self.alignments2dict()
+
+        ## 2. Filter out alignments for queries with more than X hits
+        filteredAlignments = []
+
+        for queryName in alignDict:
+            nbHits = len(alignDict[queryName])
+
+            if nbHits <= maxNbHits:
+                filteredAlignments = filteredAlignments + alignDict[queryName]
+
+        return filteredAlignments
+
+
+class PSL_alignment():
+    '''
+    PSL alignment class
+    '''
+
+    def __init__(self, fields):
+        '''
+        '''
+
+        # Define blat alignment variables
+        self.matches = int(fields[0])
+        self.misMatches = int(fields[1])
+        self.repMatches = int(fields[2])
+        self.nCount = int(fields[3])
+        self.qNumInsert = int(fields[4])
+        self.qBaseInsert = int(fields[5])
+        self.tNumInsert = int(fields[6])
+        self.tBaseInsert = int(fields[7])
+        self.strand = fields[8]
+        self.qName = fields[9]
+        self.qSize = int(fields[10])
+        self.qBeg = int(fields[11])
+        self.qEnd = int(fields[12])
+        self.tName = fields[13]
+        self.tSize = int(fields[14])
+        self.tBeg = int(fields[15])
+        self.tEnd = int(fields[16])
+        self.blockCount = int(fields[17])
+        self.blockSizes = fields[18]
+        self.qStarts = fields[19]
+        self.tStarts = fields[20]
+
+        # Other
+        self.alignType = ""
+
+    def perc_query_covered(self):
+        '''
+        Compute percentage of query aligned 
+        '''
+        percQueryCovered = float(self.qEnd - self.qBeg) / self.qSize * 100  
+        return percQueryCovered
+
+    def rev_complement(self):
+        '''
+        Make the reverse complementary aligment. This would be the alignment information of the reverse complementary original sequence
+        '''
+        ## Reverse complement strand
+        switchStrandDict = {'+': '-', '-': '+'}
+        self.strand = switchStrandDict[self.strand]
+
+        ## Reverse complement query start and end positions
+        updatedBeg = self.qSize - self.qEnd
+        updatedEnd = self.qSize - self.qBeg
+
+        self.qBeg = updatedBeg
+        self.qEnd = updatedEnd

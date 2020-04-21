@@ -572,6 +572,13 @@ def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, sample):
     # Initialize as None
     left_CLIPPING, right_CLIPPING = (None, None)
 
+    ## 2. Determine if discordant is mate 1 or 2
+    if alignmentObj.is_read1:
+        pair = '1'
+
+    else:
+        pair = '2'
+
     # Select first and last operation from cigar to search for clipping
     firstOperation, firstOperationLen = alignmentObj.cigartuples[0]
     lastOperation, lastOperationLen = alignmentObj.cigartuples[-1]
@@ -586,7 +593,7 @@ def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, sample):
         if (targetInterval == None) or (gRanges.overlap(alignmentObj.reference_start, alignmentObj.reference_start, targetInterval[0], targetInterval[1])[0]):
             
             # Create CLIPPING object
-            left_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_start, firstOperationLen, 'left', alignmentObj.query_name, alignmentObj.query_sequence, alignmentObj.query_alignment_start, alignmentObj, sample)
+            left_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_start, firstOperationLen, 'left', alignmentObj.query_name, alignmentObj.query_sequence, alignmentObj.query_alignment_start, pair, alignmentObj, sample)
 
     ## Clipping > X bp at the RIGHT
     if ((lastOperation == 4) or (lastOperation == 5)) and (lastOperationLen >= minCLIPPINGlen):
@@ -597,7 +604,7 @@ def collectCLIPPING(alignmentObj, minCLIPPINGlen, targetInterval, sample):
         if (targetInterval == None) or (gRanges.overlap(alignmentObj.reference_end, alignmentObj.reference_end, targetInterval[0], targetInterval[1])[0]):
 
             # Create CLIPPING object
-            right_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_end, alignmentObj.reference_end, lastOperationLen, 'right', alignmentObj.query_name, alignmentObj.query_sequence, alignmentObj.query_alignment_end, alignmentObj, sample)         
+            right_CLIPPING = events.CLIPPING(alignmentObj.reference_name, alignmentObj.reference_end, alignmentObj.reference_end, lastOperationLen, 'right', alignmentObj.query_name, alignmentObj.query_sequence, alignmentObj.query_alignment_end, pair, alignmentObj, sample)         
 
     return left_CLIPPING, right_CLIPPING
 

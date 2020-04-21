@@ -463,7 +463,7 @@ class CLIPPING():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, length, clippedSide, readName, readSeq, readBkp, alignmentObj, sample):
+    def __init__(self, ref, beg, end, length, clippedSide, readName, readSeq, readBkp, pair, alignmentObj, sample):
         '''
         '''
         CLIPPING.number += 1 # Update instances counter
@@ -480,6 +480,9 @@ class CLIPPING():
         self.readBkp = readBkp        
         self.sample = sample
         self.clusterId = None
+        self.pair = str(pair)
+        self.blatIdentity = False
+        self.cigarTuples = alignmentObj.cigartuples
 
         # Supporting read alignment properties:
         if alignmentObj is None:
@@ -499,6 +502,43 @@ class CLIPPING():
             self.supplAlignment = alignmentObj.get_tag('SA') if alignmentObj.has_tag('SA') else None
             self.refLen = alignmentObj.reference_length
             self.is_duplicate = alignmentObj.is_duplicate
+
+    def fullReadName(self):
+        '''
+        Return the supporting read name including mate info
+        '''
+        fullReadName = self.readName + '/' + self.pair
+
+        return fullReadName
+
+    def ref_seq(self):
+        '''
+        Retrieve clipped piece of read sequence
+        '''
+        # a) Right clipping
+        if self.clippedSide == 'right':
+            refSeq = self.readSeq[:self.readBkp]
+
+        # b) Left clipping
+        else:
+            refSeq = self.readSeq[self.readBkp:]
+        
+        return refSeq
+
+
+    def clipped_seq(self):
+        '''
+        Retrieve clipped piece of read sequence
+        '''
+        # a) Right clipping
+        if self.clippedSide == 'right':
+            clippedSeq = self.readSeq[self.readBkp:]
+
+        # b) Left clipping
+        else:
+            clippedSeq = self.readSeq[:self.readBkp]
+        
+        return clippedSeq
 
     def readCoordinates(self):
         '''
@@ -891,3 +931,26 @@ class DISCORDANT():
                 
                 self.identity = identity
                 self.specificIdentity = specificIdentity
+
+
+def collect_clipped_seqs(clippings):
+    '''
+    Collect soft clipped sequences for a list of input clipping events. 
+
+    Input:
+        1. clippings: list of clipping events
+
+    Output:
+        1. clippedFasta: fasta file containing clipped sequences
+    '''
+    ## 1. Initialize fasta file object
+    clippedFasta = formats.FASTA()
+
+    ## 2. Extract clipped sequences per soft-clipping event and add to the dictionary
+    for clipping in clippings:
+
+        #if clipping.clippingType == 'soft':
+
+        clippedFasta.seqDict[clipping.fullReadName()] = clipping.clipped_seq()
+
+    return clippedFasta

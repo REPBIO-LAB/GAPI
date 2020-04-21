@@ -1893,6 +1893,7 @@ class META_cluster():
 
         # Define list of events composing the cluster 
         self.events = list(itertools.chain(*[cluster.events for cluster in clusters]))
+        self.clippingEvents = None
 
         # Set cluster's reference, begin and end position
         self.ref, self.beg, self.end = self.coordinates() 
@@ -1917,6 +1918,10 @@ class META_cluster():
         self.nbTotal, self.nbTumour, self.nbNormal, self.nbINS, self.nbDEL, self.nbCLIPPING = [None, None, None, None, None, None] 
         self.nbReadsTotal, self.nbReadsTumour, self.nbReadsNormal, self.reads, self.readsTumour, self.readsNormal = [None, None, None, None, None, None] 
         self.cv = None
+        self.leftSeq = None
+        self.rightSeq = None
+        self.intLeftBkp = None
+        self.intRightBkp = None
 
         # Shotr reads:
         self.identity = self.events[0].identity
@@ -2281,33 +2286,32 @@ class META_cluster():
         return percDiscordantDuplicates, percClippingDuplicates
         
 
-    def supportingCLIPPING(self, buffer, confDict, bam, normalBam, mode):
+    def supportingCLIPPING(self, buffer, confDict, bam, normalBam, mode, outDir):
         # Note: This function works but you have to allow duplicates in the clipping 
 
-        # TODO SR: Try to improve this function to identify clippings identity
-
-        # Make custom conf. dict for only selecting duplicates
         clippingRightEventsToAdd = {}
         clippingLeftEventsToAdd = {}
         clippingConfDict = dict(confDict)
+        clippingRightEventsToAddBlat = {}
+        clippingLeftEventsToAddBlat = {}
         clippingConfDict['targetSV'] = ['CLIPPING']
         clippingConfDict['minMAPQ'] = 10
         # NOTE SR: Think and check if this is neccessary. I think it is not
         #confDict['minCLIPPINGlen'] = 2
-
         clippingEventsDict = {}
         CLIPPING_clusters = []
 
         ## Define region
         if self.orientation != 'RECIPROCAL':
             if self.orientation == 'PLUS':
-                # Determine the area where clipping events must be searched
-                binBeg, binEnd = bkp.determinePlusBkpArea(self.beg, self.end, self.events, buffer)
+                # Determine the area where clipping events must be searched (narrow if there are discordatn clippings, wide otherwise).
+                binBeg, binEnd, discClip = bkp.determinePlusBkpArea(self.beg, self.end, self.events, buffer)
 
             elif self.orientation == 'MINUS':
-                # Determine the area where clipping events must be searched
-                binBeg, binEnd = bkp.determineMinusBkpArea(self.beg, self.end, self.events, buffer)
+                # Determine the area where clipping events must be searched (narrow if there are discordatn clippings, wide otherwise).
+                binBeg, binEnd, discClip = bkp.determineMinusBkpArea(self.beg, self.end, self.events, buffer)
 
+            # Collect clippings
             ref = self.ref
 
             if mode == "SINGLE":
@@ -2323,10 +2327,20 @@ class META_cluster():
                 if 'RIGHT-CLIPPING' in clippingEventsDict.keys():
                     # Keep only those clipping event which have their clipping bkp is in the desired area
                     clippingRightEventsToAdd = bkp.chooseBkpClippings(clippingEventsDict, 'RIGHT-CLIPPING', binBeg, binEnd)
+                    
 
-                    # Make clipping clusters and add events to metacluster
-                    # TODO SR: Think if making clusters is neccessary
-                    CLIPPING_clusters = self.add_clippingEvents(ref, binBeg, binEnd, clippingRightEventsToAdd, ['RIGHT-CLIPPING'], confDict)
+                    # If there are discordants with clipping, this is enough because the area of adding clippings is narrow:
+                    # TODO SR: For the moment, no BLAT id performed for MEs insertions.
+                    if discClip == True or not confDict['viralDb'] or not self.identity:
+                        # Make clipping clusters and add events to metacluster
+                        # TODO SR: Think if making clusters is neccessary
+                        CLIPPING_clusters = self.add_clippingEvents(ref, binBeg, binEnd, clippingRightEventsToAdd, ['RIGHT-CLIPPING'], confDict)
+                    # If there are No discordants with clipping, the area of adding clippings is wide, so we have to select them performing BLAT aligment:
+                    elif discClip == False and confDict['viralDb'] and self.identity:
+                        clippingsFasta = bkp.writeClippingsFasta(clippingRightEventsToAdd, 'RIGHT-CLIPPING')
+                        metacluster.clippingEvents = clippingRightEventsToAdd['RIGHT-CLIPPING']
+                        #clippingRightEventsToAddBlat = bkp.blatClippings(clippingRightEventsToAdd, 'RIGHT-CLIPPING', self.identity, self.id, confDict['viralDb'], outDir)
+                        #CLIPPING_clusters = self.add_clippingEvents(ref, binBeg, binEnd, clippingRightEventsToAddBlat, ['RIGHT-CLIPPING'], confDict)
 
             ## When the discordant cluster is LEFT, add the biggest left clipping cluster if any:
             #elif all (event.orientation == 'MINUS' for event in self.events):
@@ -2336,9 +2350,18 @@ class META_cluster():
                     # Keep only those clipping event which have their clipping bkp is in the desired area
                     clippingLeftEventsToAdd = bkp.chooseBkpClippings(clippingEventsDict, 'LEFT-CLIPPING', binBeg, binEnd)
 
-                    # Make clipping clusters and add events to metacluster
-                    # TODO SR: Think if making clusters is neccessary
-                    CLIPPING_clusters = self.add_clippingEvents(ref, binBeg, binEnd, clippingLeftEventsToAdd, ['LEFT-CLIPPING'], confDict)
+                    # If there are discordants with clipping:
+                    # TODO SR: For the moment, no BLAT id performed for MEs insertions.
+                    if discClip == True or not confDict['viralDb'] or not self.identity:
+                        # Make clipping clusters and add events to metacluster
+                        # TODO SR: Think if making clusters is neccessary
+                        CLIPPING_clusters = self.add_clippingEvents(ref, binBeg, binEnd, clippingLeftEventsToAdd, ['LEFT-CLIPPING'], confDict)
+                    
+                    # If there are No discordants with clipping -> BLAT:
+                    elif discClip == False and confDict['viralDb'] and self.identity:
+                        clippingLeftEventsToAddBlat = bkp.blatClippings(clippingLeftEventsToAdd, 'LEFT-CLIPPING', self.identity, self.id, confDict['viralDb'], outDir)
+                        CLIPPING_clusters = self.add_clippingEvents(ref, binBeg, binEnd, clippingLeftEventsToAddBlat, ['LEFT-CLIPPING'], confDict)
+
 
         # When the metacluster is RECIPROCAL:
         # Fisrt separate PLUS AND MINUS events and them do the same as above 
@@ -2346,12 +2369,14 @@ class META_cluster():
             clippingPlusEventsDict = {}
             clippingMinusEventsDict = {}
 
+            # Collect PLUS discordant events:
             reciprocalPlusEvents = [eventP for eventP in self.events if eventP.orientation == 'PLUS']
 
             #print ('reciprocalPlusEvents ' + str(reciprocalPlusEvents))
+            # Determine the area where clipping events must be searched (narrow if there are discordatn clippings, wide otherwise).
+            binBegP, binEndP, discClipPlus = bkp.determinePlusBkpArea(self.beg, self.end, reciprocalPlusEvents, buffer)
 
-            binBegP, binEndP = bkp.determinePlusBkpArea(self.beg, self.end, reciprocalPlusEvents, buffer)
-
+            # Collect right clippings
             ref = self.ref
 
             if mode == "SINGLE":
@@ -2362,17 +2387,29 @@ class META_cluster():
             if 'RIGHT-CLIPPING' in clippingPlusEventsDict.keys():
 
                 #print ('clippingPlusEventsDict ' + str(clippingPlusEventsDict))
-
+                # Keep only those clipping event which have their clipping bkp is in the desired area
                 clippingRightEventsToAdd = bkp.chooseBkpClippings(clippingPlusEventsDict, 'RIGHT-CLIPPING', binBegP, binEndP)
 
                 #print ('clippingRightEventsToAdd ' + str(clippingRightEventsToAdd))
 
+                # If there are No discordants with clipping, the area of adding clippings is wide, so we have to select them performing BLAT aligment.
+                # Also, delete prrevious dictionary to avoid add the clippings of the "narrow" region to final dictionary
+                # TODO SR: For the moment, no BLAT id performed for MEs insertions.
+
+                if discClipPlus == False and confDict['viralDb']:
+                    clippingRightEventsToAddBlat = bkp.blatClippings(clippingRightEventsToAdd, 'RIGHT-CLIPPING', self.identity, self.id, confDict['viralDb'], outDir)
+                    clippingRightEventsToAdd = {}
+
+
+            # Collect MINUS discordant events:
             reciprocalMinusEvents = [eventM for eventM in self.events if eventM.orientation == 'MINUS']
 
             #print ('reciprocalMinusEvents ' + str(reciprocalMinusEvents))
 
-            binBegM, binEndM = bkp.determineMinusBkpArea(self.beg, self.end, reciprocalMinusEvents, buffer)
+            # Determine the area where clipping events must be searched (narrow if there are discordatn clippings, wide otherwise).
+            binBegM, binEndM, discClipMinus = bkp.determineMinusBkpArea(self.beg, self.end, reciprocalMinusEvents, buffer)
 
+            # Collect left clippings
             ref = self.ref
 
             if mode == "SINGLE":
@@ -2383,20 +2420,31 @@ class META_cluster():
             if 'LEFT-CLIPPING' in clippingMinusEventsDict.keys():
 
                 #print ('clippingMinusEventsDict ' + str(clippingMinusEventsDict))
-
+                # Keep only those clipping event which have their clipping bkp is in the desired area
                 clippingLeftEventsToAdd = bkp.chooseBkpClippings(clippingMinusEventsDict, 'LEFT-CLIPPING', binBegM, binEndM)
+
+                # If there are No discordants with clipping, the area of adding clippings is wide, so we have to select them performing BLAT aligment.
+                # Also, delete prrevious dictionary to avoid add the clippings of the "narrow" region to final dictionary
+                # TODO SR: For the moment, no BLAT id performed for MEs insertions.
+                if discClipMinus == False and confDict['viralDb']:
+                    clippingLeftEventsToAddBlat = bkp.blatClippings(clippingLeftEventsToAdd, 'LEFT-CLIPPING', self.identity, self.id, confDict['viralDb'], outDir)
+                    clippingLeftEventsToAdd = {}
 
                 #print ('clippingLeftEventsToAdd ' + str(clippingLeftEventsToAdd))
 
+            # Merge all clipping events to add in only one dictionary.
             clippingRightEventsToAdd.update(clippingLeftEventsToAdd)
+            clippingRightEventsToAdd.update(clippingRightEventsToAddBlat)
+            clippingRightEventsToAdd.update(clippingLeftEventsToAddBlat)
             clippingEventsDict = clippingRightEventsToAdd
 
             #print ('clippingEventsDict ' + str(clippingEventsDict))
 
-
+            # Make clipping clusters and add them to metacluster:
             if clippingEventsDict:
                 CLIPPING_clusters = self.add_clippingEvents(ref, binBegP, binEndM, clippingEventsDict, ['RIGHT-CLIPPING', 'LEFT-CLIPPING'], confDict)
 
+            # Perform BLAT
         #print ('CLIPPING_clusters ' + str(CLIPPING_clusters))
 
         return CLIPPING_clusters

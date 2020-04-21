@@ -11,6 +11,7 @@ import pysam
 import time
 import subprocess
 import itertools
+from Bio import SeqIO
 
 # Internal
 import log
@@ -427,14 +428,14 @@ class SV_caller_short(SV_caller):
         ### If viruses option is selected, collect read name and sequence of discordant low quality reads from all bam refs ##
         if 'VIRUS' in self.confDict['targetINT2Search']:
             # TEMP SR: DESILENCE
-            
+            '''
             # Make genomic bins
             bins = bamtools.makeGenomicBins(self.bam, self.confDict['binSize'], None)
-            
+            '''
             # Collect read name and sequence of discordant low quality reads from all bam refs
             l = mp.Lock()
             # TEMP SR: DESILENCE
-            
+            '''
             collectVirusDir = self.outDir + '/COLLECT_VIRUS'
             unix.mkdir(collectVirusDir)
             pool = mp.Pool(processes=self.confDict['processes'], initializer=init, initargs=(l,))
@@ -464,11 +465,31 @@ class SV_caller_short(SV_caller):
 
             # TEMP SR: Remove allfastas
             #unix.rm([collectVirusDir])
-            
+            '''
             #TEMP DESILENCE
-            #BAM = self.outDir + '/' + 'viralAligment' + '.bam'
+            BAM = self.outDir + '/' + 'viralAligment' + '.bam'
             # Read bwa result and store in a dictionary
             self.viralSeqs = bamtools.BAM2FastaDict(BAM)
+
+            # Collect all identities that have hits in viralBam
+            fastaIdentities = list(set(list(itertools.chain(*self.viralSeqs.values()))))
+
+            # Write a fasta file containing only those sequences that are in identities:
+            # self.confDict['viralDb'] -> Papillomaviridae|LC270039.1 02-AUG-2017
+            # fastaIdentities = self.viralSeqs.values() -> Papillomaviridae|LC270039.1
+            self.blatDbPath = self.outDir + '/blatDb.fasta'
+            blatDb = open(self.blatDbPath, 'w')
+            viralDb = open(self.confDict['viralDb'], 'r')
+
+            for record in SeqIO.parse(viralDb,'fasta'):
+                for fastaIdentity in fastaIdentities:
+                    if fastaIdentity in record.id:
+                        blatDb.write(">" + record.id + "\n")
+                        blatDb.write(str(record.seq) + "\n")
+                        break
+
+            viralDb.close()
+            blatDb.close()
             
         ### 1. Define genomic bins to search for SV ##
         bins = bamtools.binning(self.confDict['targetBins'], self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
@@ -711,8 +732,8 @@ class SV_caller_short(SV_caller):
 
         ## 10. Analyse metaclusters features and add supporting clipping reads ##
         # TODO SR: Now adding clipping step is better than before. Even though maybe it is not neccessary, it would be great to choose in a better way which clipping we should add to the metacluster.
-        bkp.analyzeMetaclusters(metaclusters, self.confDict, self.bam, self.normalBam, self.mode, binDir)
-        bkp.analyzeMetaclusters(metaclustersFailed, self.confDict, self.bam, self.normalBam, self.mode, binDir)
+        bkp.analyzeMetaclusters(metaclusters, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, self.blatDbPath)
+        bkp.analyzeMetaclusters(metaclustersFailed, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, self.blatDbPath)
 
         step = 'BKP-ANALYSIS'
         msg = 'Analysing BKP and adding clipping supporting reads. PID: ' + str(os.getpid())

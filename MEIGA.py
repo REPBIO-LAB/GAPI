@@ -88,9 +88,10 @@ if __name__ == '__main__':
 	parser.add_argument('--discordantMatesMinLcc', default=1.49, dest='discordantMatesMinLcc', type=float, help='Minimum local complexity of discordant read mates sequences. Default: 1.49')
 
 	# Output
-	parser.add_argument('--VCFInfoFields', default="VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,DISCORDANT,CLIPPING,NBDISCORDANT,NBCLIPPING,IDENTITY,ORIENTATION,BKP2,DISCORDANTMAPQ,CLIPPINGMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP,REP,REPSUB,DIST,REGION,GENE,REFSeq", dest='VCFInfoFields', type=str, help='Comma separated list of INFO fields to display in output VCF (VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,DISCORDANT,CLIPPING,NBDISCORDANT,NBCLIPPING,IDENTITY,ORIENTATION,BKP2,DISCORDANTMAPQ,CLIPPINGMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP,REP,REPSUB,DIST,REGION,GENE,REFSeq) *NOTE that REFSeq is incompatible with --no-VCFREF. Default: All are included')
+	parser.add_argument('--VCFInfoFields', default="VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,DISCORDANT,CLIPPING,NBDISCORDANT,NBCLIPPING,IDENTITY,ORIENTATION,BKP2,DISCORDANTMAPQ,CLIPPINGMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP,REP,REPSUB,DIST,REGION,GENE,REFSeq,BKPSEQ,BKP2SEQ,INTBKP,INTBKP2", dest='VCFInfoFields', type=str, help='Comma separated list of INFO fields to display in output VCF (VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,DISCORDANT,CLIPPING,NBDISCORDANT,NBCLIPPING,IDENTITY,ORIENTATION,BKP2,DISCORDANTMAPQ,CLIPPINGMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP,REP,REPSUB,DIST,REGION,GENE,REFSeq,BKPSEQ,BKP2SEQ,INTBKP,INTBKP2) *NOTE that REFSeq is incompatible with --no-VCFREF. Default: All are included')
 	parser.add_argument('--no-annotRepeats', action="store_false", default=True, dest='annotRepeats', help='If selected, not show annotated repeats on the reference genome at insertion interval. Only works with VIRUS mode. If ME are analysed, annotation repeats step is always performed.')
 	parser.add_argument('--no-VCFREF', action="store_false", default=True, dest='VCFREF', help='If selected, not show REF field in VCF output file (it consumes ~5Gb).')
+	parser.add_argument('--no-consensusBkpSeq', action="store_false", default=True, dest='consBkpSeq', help='If selected, a representative read is selected for breakpoint sequence. Otherwise, make consensus of breakpoint sequence. Slightly time saver.')
 
 	## 2. Parse user´s input and initialize variables ##
 	args = parser.parse_args()
@@ -159,6 +160,7 @@ if __name__ == '__main__':
 	VCFInfoFields = args.VCFInfoFields
 	annotRepeats = args.annotRepeats
 	VCFREF = args.VCFREF
+	consBkpSeq = args.consBkpSeq
 
 	# If no reference is specified, get all that are present in the bam file.
 	if refs == 'ALL':
@@ -253,7 +255,8 @@ if __name__ == '__main__':
 	print('** Output format**')
 	print ('VCFInfoFields: ', VCFInfoFields)
 	print ('annotRepeats: ', annotRepeats)
-	print ('VCFREF: ', VCFREF, "\n")
+	print ('VCFREF: ', VCFREF)
+	print ('consBkpSeq: ',consBkpSeq, "\n")
 
 	print('***** Executing ', scriptName, '.... *****', "\n")
 
@@ -325,6 +328,7 @@ if __name__ == '__main__':
 	confDict['VCFInfoFields'] = targetVCFInfoFields
 	confDict['annotRepeats'] = annotRepeats
 	confDict['VCFREF'] = VCFREF
+	confDict['consBkpSeq'] = consBkpSeq
 	
 	## 2. Execute structural variation caller
 	###########################################

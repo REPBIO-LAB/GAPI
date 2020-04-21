@@ -327,3 +327,30 @@ def alignment_bwa_filtered(database, viralBamParcialMatch, processes, inFasta, o
         log.step(step, msg)
     
     return BAM
+
+
+def alignment_blat(FASTA, reference, fileName, outDir):
+    '''
+    Align a set of sequence into a reference with blat
+
+    Input:
+        1. FASTA: Path to FASTA file with sequences to align
+        2. reference: Path to the reference genome in fasta format (bwa mem index must be located in the same folder)
+        3. fileName: output file will be named accordingly
+        4. outDir: Output directory
+
+    Output:
+        1. SAM: Path to SAM file containing input sequences alignments or 'None' if alignment failed 
+    '''
+    ## Align the sequences into the reference
+    PSL = outDir + '/' + fileName + '.psl'
+    err = open(outDir + '/align.err', 'w') 
+    command = 'blat -stepSize=5 -repMatch=2253 -minScore=20 -minIdentity=0 -noHead -out=psl ' + reference + ' ' + FASTA + ' ' + PSL
+    status = subprocess.call(command, stderr=err, shell=True)
+
+    if status != 0:
+        step = 'ALIGN'
+        msg = 'Alignment failed' 
+        log.step(step, msg)
+
+    return PSL 
