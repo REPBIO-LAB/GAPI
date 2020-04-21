@@ -1893,7 +1893,6 @@ class META_cluster():
 
         # Define list of events composing the cluster 
         self.events = list(itertools.chain(*[cluster.events for cluster in clusters]))
-        self.clippingEvents = None
 
         # Set cluster's reference, begin and end position
         self.ref, self.beg, self.end = self.coordinates() 
