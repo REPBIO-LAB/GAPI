@@ -267,7 +267,7 @@ def reconstructSeq(metacluster, consSeq, orientation, outDir):
                     return clipped_seq, consFastaBool
 
                 elif not consSeq:
-                    clipped_seq = repreSeq(metacluster, orientation, clippingsBlat)
+                    clipped_seq = repreSeq(metacluster, orientation, clippings)
                     return clipped_seq, False
 
             # If there are no clippings, there are not representative sequence.

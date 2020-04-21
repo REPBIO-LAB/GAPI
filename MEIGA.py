@@ -91,7 +91,7 @@ if __name__ == '__main__':
 	parser.add_argument('--VCFInfoFields', default="VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,DISCORDANT,CLIPPING,NBDISCORDANT,NBCLIPPING,IDENTITY,ORIENTATION,BKP2,DISCORDANTMAPQ,CLIPPINGMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP,REP,REPSUB,DIST,REGION,GENE,REFSeq,BKPSEQ,BKP2SEQ,INTBKP,INTBKP2", dest='VCFInfoFields', type=str, help='Comma separated list of INFO fields to display in output VCF (VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,DISCORDANT,CLIPPING,NBDISCORDANT,NBCLIPPING,IDENTITY,ORIENTATION,BKP2,DISCORDANTMAPQ,CLIPPINGMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP,REP,REPSUB,DIST,REGION,GENE,REFSeq,BKPSEQ,BKP2SEQ,INTBKP,INTBKP2) *NOTE that REFSeq is incompatible with --no-VCFREF. Default: All are included')
 	parser.add_argument('--no-annotRepeats', action="store_false", default=True, dest='annotRepeats', help='If selected, not show annotated repeats on the reference genome at insertion interval. Only works with VIRUS mode. If ME are analysed, annotation repeats step is always performed.')
 	parser.add_argument('--no-VCFREF', action="store_false", default=True, dest='VCFREF', help='If selected, not show REF field in VCF output file (it consumes ~5Gb).')
-	parser.add_argument('--no-consensusBkpSeq', action="store_false", default=True, dest='consBkpSeq', help='If selected, a representative read is selected for breakpoint sequence. Otherwise, make consensus of breakpoint sequence. Slightly time saver.')
+	parser.add_argument('--no-consensusBkpSeq', action="store_false", default=True, dest='consBkpSeq', help='If selected, a representative read is selected for breakpoint sequence. Otherwise, make consensus of breakpoint sequence. Time saver.')
 
 	## 2. Parse user´s input and initialize variables ##
 	args = parser.parse_args()
