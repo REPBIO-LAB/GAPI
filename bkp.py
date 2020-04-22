@@ -47,7 +47,7 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, bi
     metaclustersWODiscClip = {}
 
     # a. Add supporting clipping to discordant metacluster.
-
+    
     for metacluster in metaclusters:
 
         # Make bkp directory
@@ -76,15 +76,16 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, bi
                 else:
                     metaclustersWODiscClip[metaWODiscClip] = clippingLeftEventsToAdd
     
-    # Look for clippings when there are no discordant clippings:
+    # Add clippings when there are no discordant clippings, but they have BLAT matches:
     whenNoDiscClip(metaclustersWODiscClip, blatDbPath, binId, outDir)
 
     
     for metacluster in metaclusters:
+        # b. Determine bkps.
+
         leftBkps = []
         rightBkps = []
 
-        # b. Determine bkps.
         # Choose bkp with highest number of clipping events
         for event in metacluster.events:
             if event.type == 'CLIPPING':
@@ -101,40 +102,47 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, bi
             metacluster.refRightBkp = rightBkp
         
         # c. Reconstruct bkp sequence:
+
         clipped_seqPlus = None
         clipped_seqMinus = None
         if metacluster.orientation == 'PLUS':
-            clipped_seqPlus, consFastaBool = reconstructSeq(metacluster, confDict['consBkpSeq'], 'PLUS', outDir)
+            clipped_seqPlus, consFastaBoolPlus = reconstructSeq(metacluster, confDict['consBkpSeq'], 'PLUS', outDir)
         elif metacluster.orientation == 'MINUS':
-            clipped_seqMinus, consFastaBool = reconstructSeq(metacluster, confDict['consBkpSeq'], 'MINUS', outDir)
+            clipped_seqMinus, consFastaBoolMinus = reconstructSeq(metacluster, confDict['consBkpSeq'], 'MINUS', outDir)
         elif metacluster.orientation == 'RECIPROCAL':
-            clipped_seqPlus, consFastaBool = reconstructSeq(metacluster, confDict['consBkpSeq'], 'PLUS', outDir)
-            clipped_seqMinus, consFastaBool = reconstructSeq(metacluster, confDict['consBkpSeq'], 'MINUS', outDir)
+            clipped_seqPlus, consFastaBoolPlus = reconstructSeq(metacluster, confDict['consBkpSeq'], 'PLUS', outDir)
+            clipped_seqMinus, consFastaBoolMinus = reconstructSeq(metacluster, confDict['consBkpSeq'], 'MINUS', outDir)
         
         # TODO: INT BKP -> simplmente contra la blat db
-
         if confDict['viralDb'] and metacluster.identity:
             if clipped_seqPlus != None:
-                if not confDict['consBkpSeq'] or not consFastaBool:
+                if not confDict['consBkpSeq'] or not consFastaBoolPlus:
                     # Create FASTA
                     clipped_seqPlusFastaPath = outDir + '/' + binId + '_clipped_seqPlusFastaPath.fasta'
                     clipped_seqPlusFasta = formats.FASTA()
                     clipped_seqPlusFasta.seqDict['clipped_seqPlusFasta'] = clipped_seqPlus
                     clipped_seqPlusFasta.write(clipped_seqPlusFastaPath)
+                    print ('clipped_seqPlusFastaPath1 ' + clipped_seqPlusFastaPath)
+                    print ('consFastaBoolPlus1 ' + str(consFastaBoolPlus))
                 elif confDict['consBkpSeq']:
                     clipped_seqPlusFastaPath = clipped_seqPlus
+                    print ('clipped_seqPlusFastaPath2 ' + clipped_seqPlusFastaPath)
+                    print ('consFastaBoolPlus2 ' + str(consFastaBoolPlus))
                 metacluster.intRightBkp = bkpINT(metacluster, clipped_seqPlusFastaPath, blatDbPath, bkpDir, metacluster.identity)
             if clipped_seqMinus != None:
-                if not confDict['consBkpSeq'] or not consFastaBool:
+                if not confDict['consBkpSeq'] or not consFastaBoolMinus:
                     # Create FASTA
                     clipped_seqMinusFastaPath = outDir + '/' + binId + '_clipped_seqMinusFastaPath.fasta'
                     clipped_seqMinusFasta = formats.FASTA()
                     clipped_seqMinusFasta.seqDict['clipped_seqMinusFasta'] = clipped_seqMinus
                     clipped_seqMinusFasta.write(clipped_seqMinusFastaPath)
+                    print ('clipped_seqMinusFastaPath1 ' + clipped_seqMinusFastaPath)
+                    print ('consFastaBoolMinus1 ' + str(consFastaBoolMinus))
                 elif confDict['consBkpSeq']:
                     clipped_seqMinusFastaPath = clipped_seqMinus
+                    print ('clipped_seqMinusFastaPath2 ' + clipped_seqMinusFastaPath)
+                    print ('consFastaBoolMinus2 ' + str(consFastaBoolMinus))
                 metacluster.intLeftBkp = bkpINT(metacluster, clipped_seqMinusFastaPath, blatDbPath, bkpDir, metacluster.identity)
-
 
     #clippings = [event for event in metacluster.events if event.type == 'CLIPPING']
     #discordants = [event for event in metacluster.events if event.type == 'DISCORDANT']
@@ -201,9 +209,8 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, bi
 
 def reconstructSeq(metacluster, consSeq, orientation, outDir):
     '''
-    return clipped seq!
     '''
-    # Collect discordant clipping left events
+    # Collect discordant clipping events
     discClip = {}
     clippingsDisc = {}
     for event in metacluster.events:
@@ -218,7 +225,7 @@ def reconstructSeq(metacluster, consSeq, orientation, outDir):
                 # Collect all clipping bkp genomic positions
                 if ((firstOperation == 4) or (firstOperationLen == 5)):
                     discClip[event.readName] = firstOperationLen
-    # If there are discordant clipping left events      
+    # If there are discordant clipping events      
     if discClip:
         # Collect clipping objects that are the same alignemten as discordant object:
         clippingsDisc = {}
@@ -226,12 +233,12 @@ def reconstructSeq(metacluster, consSeq, orientation, outDir):
             if eventC.type == 'CLIPPING' and eventC.readName in discClip.keys():
                 clippingsDisc[eventC] = discClip[eventC.readName]
 
-    # Make representative sequence
+    
     if clippingsDisc: # This can be empty if clipping of discordant is too small.
-        if consSeq:
+        if consSeq: # Make consensus sequence with discordant clipping events
             clipped_seq, consFastaBool = conSeq(metacluster, clippingsDisc, orientation, outDir)
             return clipped_seq, consFastaBool
-        elif not consSeq:
+        elif not consSeq: # Make representative sequence with discordant clipping events
             clipped_seq = repreSeq(metacluster, orientation, clippingsDisc)
             return clipped_seq, False
 
@@ -246,11 +253,11 @@ def reconstructSeq(metacluster, consSeq, orientation, outDir):
                     clippingsBlat[clippingB] = clippingB.cigarTuples[-1][1]
         # If there are clippings with BLAT hits
         if clippingsBlat:
-            if consSeq:
+            if consSeq: # Make consensus sequence with BLAT clipping events
                 clipped_seq, consFastaBool = conSeq(metacluster, clippingsBlat, orientation, outDir)
                 return clipped_seq, consFastaBool
 
-            elif not consSeq:
+            elif not consSeq: # Make representative sequence with BLAT clipping events
                 clipped_seq = repreSeq(metacluster, orientation, clippingsBlat)
                 return clipped_seq, False
 
@@ -264,11 +271,11 @@ def reconstructSeq(metacluster, consSeq, orientation, outDir):
             # If there are clippings
             if clippings:
                 # NOTE SR: this sequence will be less relayable
-                if consSeq:
+                if consSeq: # Make consensus sequence with clipping events
                     clipped_seq, consFastaBool = conSeq(metacluster, clippings, orientation, outDir)
                     return clipped_seq, consFastaBool
 
-                elif not consSeq:
+                elif not consSeq: # Make representative sequence with clipping events
                     clipped_seq = repreSeq(metacluster, orientation, clippings)
                     return clipped_seq, False
 
@@ -296,10 +303,8 @@ def repreSeq(metacluster, orientation, clippings):
         return largestClipping.clipped_seq()
 
 def conSeq(metacluster, clippings, orientation, outDir):
-    # TODO SR: Luego poner el return de otra manera!!
     if len(clippings) > 1: 
-        consFastaBool = False
-        # Probar haciendo consenso COMPROBAR TIEMPO ETC list(itertools.chain(*clippingsDisc.keys()))
+        consFastaBool = True
         if orientation == 'PLUS':
             metacluster.rightSeq, intConsensusPath = newConsensusSeq([*clippings], orientation, outDir)
             return intConsensusPath, consFastaBool
@@ -308,7 +313,7 @@ def conSeq(metacluster, clippings, orientation, outDir):
             return intConsensusPath, consFastaBool
     # If there are only one clipping, this will be the consensus.
     elif len(clippings) == 1:
-        consFastaBool = True
+        consFastaBool = False
         consClipping = [*clippings][0]
         if orientation == 'PLUS':
             metacluster.rightSeq = consClipping.ref_seq() + '[INT]>' + consClipping.clipped_seq()
@@ -330,7 +335,7 @@ def newConsensusSeq(clippings, orientation, outDir):
 
     #return consSeq, intConsensusPath
     # TEMP
-    return consSeq, intConsensusSeq
+    return consSeq, intConsensusPath
 
 def whenNoDiscClip(metaclustersWODiscClip, db, binId, outDir):
     # Write fasta with events collected in a wide region
@@ -343,6 +348,8 @@ def whenNoDiscClip(metaclustersWODiscClip, db, binId, outDir):
     pslDict = makePslDict(pslPath)
     matchClippings = collectMatchClippings(metaclustersWODiscClip, pslDict)
     if matchClippings != {}:
+        # Collect those clippings that have their bkp in same position as ones in BLAT.
+        # TODO SR: I think that here I can use a function than also can use in supportingClipping
         clippings2Add = collectClipBkpMatch(matchClippings, clippingEventsToAdd)
         if clippings2Add:
             for metacluster, clippings in clippings2Add:
@@ -366,10 +373,14 @@ def makePslDict(pslPath):
     
 
 def collectMatchClippings(metaclustersWODiscClip, pslDict):
+    '''
+    Collect those clippings with hits in BLAT search whose hit match with metacluster identities.
+    '''
     matchClippings = {}
     for metaclusterWODiscClip, clippings in metaclustersWODiscClip.items():
         for clip in clippings:
             if clip.readName in pslDict.keys():
+                # TODO SR: Aqui no s esi habrá que mirar todos los de una lista en otra lista:
                 if metaclusterWODiscClip.identity in pslDict[clip.readName]:
                     if metaclusterWODiscClip in matchClippings.keys():
                         matchClippings[metaclusterWODiscClip].append(clip)
@@ -380,6 +391,8 @@ def collectMatchClippings(metaclustersWODiscClip, pslDict):
     return matchClippings
                 
 def collectClipBkpMatch(matchClippings, clippingEventsToAdd):
+    '''
+    '''
     
     clippings2Add = {}
     for metacluster, clippings in matchClippings.items():
@@ -490,7 +503,7 @@ def supportingCLIPPING(metacluster, buffer, confDict, bam, normalBam, mode, outD
                 if discClip == True or not confDict['viralDb'] or not metacluster.identity:
                     # Add events to metacluster
                     metacluster.addEvents(clippings)
-                    return metacluster, clippings, discClip
+                    return None, clippings, discClip
                 # If there are no discordants with clipping, but there the metacluster has identity, return metacluster, clippings in wide area and dicClip = False, in order to perform clippings BLAT search:
                 elif metacluster.identity:
                     return metacluster, clippings, discClip
@@ -523,7 +536,7 @@ def supportingCLIPPING(metacluster, buffer, confDict, bam, normalBam, mode, outD
                     # TODO SR: Think if making clusters is neccessary
                     metacluster.addEvents(clippings) 
                     #CLIPPING_clusters = metacluster.add_clippingEvents(ref, binBeg, binEnd, clippingLeftEventsToAdd, ['LEFT-CLIPPING'], confDict)
-                    return metacluster, clippings, discClip
+                    return None, clippings, discClip
                 elif metacluster.identity:
                     return metacluster, clippings, discClip
                 else:
@@ -577,7 +590,7 @@ def supportingCLIPPING(metacluster, buffer, confDict, bam, normalBam, mode, outD
                     metacluster.addEvents(clippings) 
                     #clippingRightEventsToAddBlat = bkp.blatClippings(clippingRightEventsToAdd, 'RIGHT-CLIPPING', metacluster.identity, metacluster.id, confDict['viralDb'], outDir)
                     #clippingRightEventsToAdd = {}
-                    return metacluster, clippings, discClipPlus
+                    return None, clippings, discClipPlus
                 elif metacluster.identity:
                     return metacluster, clippings, discClipPlus
                 else:
@@ -620,7 +633,7 @@ def supportingCLIPPING(metacluster, buffer, confDict, bam, normalBam, mode, outD
                     metacluster.addEvents(clippings) 
                     #clippingLeftEventsToAddBlat = bkp.blatClippings(clippingLeftEventsToAdd, 'LEFT-CLIPPING', metacluster.identity, metacluster.id, confDict['viralDb'], outDir)
                     #clippingLeftEventsToAdd = {}
-                    return metacluster, clippings, discClipMinus
+                    return None, clippings, discClipMinus
                 elif metacluster.identity:
                     return metacluster, clippings, discClipMinus
                 else:
