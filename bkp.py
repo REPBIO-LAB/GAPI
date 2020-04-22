@@ -466,7 +466,6 @@ def supportingCLIPPING(metacluster, buffer, confDict, bam, normalBam, mode, outD
             binBeg, binEnd, discClip = determinePlusBkpArea(metacluster.beg, metacluster.end, metacluster.events, buffer)
         elif metacluster.orientation == 'RECIPROCAL':
             # Collect PLUS discordant events:
-            # TODO SR CAMBIAR POR EL DE MINUS!!
             reciprocalPlusEvents = [eventP for eventP in metacluster.events if eventP.orientation == 'PLUS']
 
             # HAcer el beg y el end en funcion solo de los PLUS!
@@ -481,7 +480,8 @@ def supportingCLIPPING(metacluster, buffer, confDict, bam, normalBam, mode, outD
             # Determine the area where clipping events must be searched (narrow if there are discordatn clippings, wide otherwise).
             binBeg, binEnd, discClip = determineMinusBkpArea(metacluster.beg, metacluster.end, metacluster.events, buffer)
         elif metacluster.orientation == 'RECIPROCAL':
-            # Collect MINUS discordant events:
+            # Collect MINUS discordant events
+            # As some CLIPPING PLUS events could be added in previous step, now they have to be collected this way
             reciprocalMinusEvents = []
             for eventM in metacluster.events:
                 if eventM.type == 'DISCORDANT':
@@ -518,101 +518,6 @@ def supportingCLIPPING(metacluster, buffer, confDict, bam, normalBam, mode, outD
     else:
         #TODO SR: Mirar si es None o False
         return None, None, None
-
-
-
-
-    '''
-    ## Define region
-    if metacluster.orientation != 'RECIPROCAL':
-        if metacluster.orientation == 'PLUS':
-            # Determine the area where clipping events must be searched (narrow if there are discordatn clippings, wide otherwise).
-            binBeg, binEnd, discClip = determinePlusBkpArea(metacluster.beg, metacluster.end, metacluster.events, buffer)
-
-        elif metacluster.orientation == 'MINUS':
-            # Determine the area where clipping events must be searched (narrow if there are discordatn clippings, wide otherwise).
-            binBeg, binEnd, discClip = determineMinusBkpArea(metacluster.beg, metacluster.end, metacluster.events, buffer)
-
-        # Collect clippings
-        ref = metacluster.ref
-
-        if mode == "SINGLE":
-            clippingEventsDict = bamtools.collectSV(ref, binBeg, binEnd, bam, clippingConfDict, None, False)
-
-        elif mode == "PAIRED":
-            clippingEventsDict = bamtools.collectSV_paired(ref, binBeg, binEnd, bam, normalBam, clippingConfDict)
-
-        # When the metacluster is RIGHT:
-        if metacluster.orientation == 'PLUS':
-
-            metacluster, clippings, discClip = addClippings(metacluster, clippingEventsDict, 'RIGHT-CLIPPING', binBeg, binEnd, discClip, confDict['viralDb'])
-            return metacluster, clippings, discClip
-
-        ## When the discordant cluster is LEFT, add the biggest left clipping cluster if any:
-        #elif all (event.orientation == 'MINUS' for event in self.events):
-        # When the metacluster is MINUS:
-        elif metacluster.orientation == 'MINUS':
-            metacluster, clippings, discClip = addClippings(metacluster, clippingEventsDict, 'LEFT-CLIPPING', binBeg, binEnd, discClip, confDict['viralDb'])
-            return metacluster, clippings, discClip
-
-    # When the metacluster is RECIPROCAL:
-    # Fisrt separate PLUS AND MINUS events and them do the same as above 
-    
-    elif metacluster.orientation == 'RECIPROCAL':
-        if side == 'PLUS':
-            clippingPlusEventsDict = {}
-            clippingMinusEventsDict = {}
-
-            # Collect PLUS discordant events:
-            reciprocalPlusEvents = [eventP for eventP in metacluster.events if eventP.orientation == 'PLUS']
-
-            # HAcer el beg y el end en funcion solo de los PLUS!
-            begPlus = min([eventPlus.beg for eventPlus in reciprocalPlusEvents])
-            endPlus = max([eventPlus.end for eventPlus in reciprocalPlusEvents])
-            #print ('reciprocalPlusEvents ' + str(reciprocalPlusEvents))
-            # Determine the area where clipping events must be searched (narrow if there are discordatn clippings, wide otherwise).
-            binBegP, binEndP, discClipPlus = determinePlusBkpArea(begPlus, endPlus, reciprocalPlusEvents, buffer)
-
-            # Collect right clippings
-            ref = metacluster.ref
-
-            if mode == "SINGLE":
-                clippingPlusEventsDict = bamtools.collectSV(ref, binBegP, binEndP, bam, clippingConfDict, None, False)
-            elif mode == "PAIRED":
-                clippingPlusEventsDict = bamtools.collectSV_paired(ref, binBegP, binEndP, bam, normalBam, clippingConfDict)
-            
-            if 'RIGHT-CLIPPING' in clippingPlusEventsDict.keys():
-                metacluster, clippings, discClip = addClippings(metacluster, clippingPlusEventsDict, 'RIGHT-CLIPPING', binBegP, binEndP, discClipPlus, confDict['viralDb'])
-                return metacluster, clippings, discClip
-
-        if side == 'MINUS':
-            # Collect MINUS discordant events:
-            reciprocalMinusEvents = []
-            for eventM in metacluster.events:
-                if eventM.type == 'DISCORDANT':
-                    if eventM.orientation == 'MINUS':
-                        reciprocalMinusEvents.append(eventM)
-
-            begMinus = min([eventMinus.beg for eventMinus in reciprocalMinusEvents])
-            endPlus = max([eventMinus.end for eventMinus in reciprocalMinusEvents])
-
-            # Determine the area where clipping events must be searched (narrow if there are discordatn clippings, wide otherwise).
-            binBegM, binEndM, discClipMinus = determineMinusBkpArea(begMinus, endPlus, reciprocalMinusEvents, buffer)
-
-            # Collect left clippings
-            ref = metacluster.ref
-
-            if mode == "SINGLE":
-                clippingMinusEventsDict = bamtools.collectSV(ref, binBegM, binEndM, bam, clippingConfDict, None, False)
-            elif mode == "PAIRED":
-                clippingMinusEventsDict = bamtools.collectSV_paired(ref, binBegM, binEndM, bam, normalBam, clippingConfDict)
-            
-            if 'LEFT-CLIPPING' in clippingMinusEventsDict.keys():
-
-                metacluster, clippings, discClip = addClippings(metacluster, clippingMinusEventsDict, 'LEFT-CLIPPING', binBegM, binEndM, discClipMinus, confDict['viralDb'])
-                return metacluster, clippings, discClip
-    '''
-
 
 def addClippings(metacluster, clippingEventsDict, eventType, binBeg, binEnd, discClip, viralDb):
     #print ('clippingPlusEventsDict ' + str(clippingPlusEventsDict))
