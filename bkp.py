@@ -117,36 +117,36 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, bi
         clipped_seqPlus = None
         clipped_seqMinus = None
         if metacluster.orientation == 'PLUS':
-            clipped_seqPlus, consFastaBoolPlus = reconstructSeq(metacluster, confDict['consBkpSeq'], 'PLUS', outDir)
+            clipped_seqPlus, clipped_seqFastaPlus = reconstructSeq(metacluster, confDict['consBkpSeq'], 'PLUS', outDir)
         elif metacluster.orientation == 'MINUS':
-            clipped_seqMinus, consFastaBoolMinus = reconstructSeq(metacluster, confDict['consBkpSeq'], 'MINUS', outDir)
+            clipped_seqMinus, clipped_seqFastaMinus = reconstructSeq(metacluster, confDict['consBkpSeq'], 'MINUS', outDir)
         elif metacluster.orientation == 'RECIPROCAL':
-            clipped_seqPlus, consFastaBoolPlus = reconstructSeq(metacluster, confDict['consBkpSeq'], 'PLUS', outDir)
-            clipped_seqMinus, consFastaBoolMinus = reconstructSeq(metacluster, confDict['consBkpSeq'], 'MINUS', outDir)
+            clipped_seqPlus, clipped_seqFastaPlus = reconstructSeq(metacluster, confDict['consBkpSeq'], 'PLUS', outDir)
+            clipped_seqMinus, clipped_seqFastaMinus = reconstructSeq(metacluster, confDict['consBkpSeq'], 'MINUS', outDir)
         
         # d. Determine inserted sequence bkp
 
         if confDict['viralDb'] and metacluster.identity:
             if clipped_seqPlus != None:
-                if not confDict['consBkpSeq'] or not consFastaBoolPlus:
+                if not confDict['consBkpSeq'] or not clipped_seqFastaPlus:
                     # Create FASTA
                     clipped_seqPlusFastaPath = outDir + '/' + binId + '_clipped_seqPlusFastaPath.fasta'
                     clipped_seqPlusFasta = formats.FASTA()
                     clipped_seqPlusFasta.seqDict['clipped_seqPlusFasta'] = clipped_seqPlus
                     clipped_seqPlusFasta.write(clipped_seqPlusFastaPath)
                 elif confDict['consBkpSeq']:
-                    clipped_seqPlusFastaPath = clipped_seqPlus
-                metacluster.intRightBkp = bkpINT(metacluster, clipped_seqPlusFastaPath, blatDbPath, bkpDir, metacluster.identity)
+                    clipped_seqPlusFastaPath = clipped_seqFastaPlus
+                metacluster.intRightBkp = bkpINT(clipped_seqPlusFastaPath, blatDbPath, bkpDir, metacluster.identity)
             if clipped_seqMinus != None:
-                if not confDict['consBkpSeq'] or not consFastaBoolMinus:
+                if not confDict['consBkpSeq'] or not clipped_seqFastaMinus:
                     # Create FASTA
                     clipped_seqMinusFastaPath = outDir + '/' + binId + '_clipped_seqMinusFastaPath.fasta'
                     clipped_seqMinusFasta = formats.FASTA()
                     clipped_seqMinusFasta.seqDict['clipped_seqMinusFasta'] = clipped_seqMinus
                     clipped_seqMinusFasta.write(clipped_seqMinusFastaPath)
                 elif confDict['consBkpSeq']:
-                    clipped_seqMinusFastaPath = clipped_seqMinus
-                metacluster.intLeftBkp = bkpINT(metacluster, clipped_seqMinusFastaPath, blatDbPath, bkpDir, metacluster.identity)
+                    clipped_seqMinusFastaPath = clipped_seqFastaMinus
+                metacluster.intLeftBkp = bkpINT(clipped_seqMinusFastaPath, blatDbPath, bkpDir, metacluster.identity)
 
     ### Do cleanup
     #unix.rm([bkpDir])
@@ -500,14 +500,18 @@ def reconstructSeq(metacluster, consSeq, orientation, outDir):
     Input:
         1. metacluster
         2. consSeq: boolean. If True make consensus sequence. Otherwise, choose a representative alignment as bkp sequence reconstruction.
-        3. orientation
+        3. orientation: 'PLUS' or 'MINUS'
         4. outDir
     
     Output:
+        Fill following metacluster attributes: metacluster.rightSeq and metacluster.leftSeq
+        1. clipped_seq: Path to consensus fasta file if it was made. Otherwise, clipped part of representative sequence.
+        2. consFastaBool: boolean. True is consensus fasta file was made, False otherwise.
     '''
-    # Collect discordant clipping events
+    # Collect discordant clipping events in dictionary, having clipping length as value
     discClip = {}
     clippingsDisc = {}
+    clipped_seqFasta = None
     for event in metacluster.events:
         if event.type == 'DISCORDANT':
             if orientation == 'PLUS':
@@ -530,17 +534,16 @@ def reconstructSeq(metacluster, consSeq, orientation, outDir):
 
     
     if clippingsDisc: # This can be empty if clipping of discordant is too small.
-        if consSeq: # Make consensus sequence with discordant clipping events
-            clipped_seq, consFastaBool = conSeq(metacluster, clippingsDisc, orientation, outDir)
-            return clipped_seq, consFastaBool
-        elif not consSeq: # Make representative sequence with discordant clipping events
+        if consSeq and len(clippingsDisc) > 1: # Make consensus sequence with discordant clipping events
+            clipped_seq, clipped_seqFasta = conSeq(metacluster, clippingsDisc, orientation, outDir)
+        else: # Make representative sequence with discordant clipping events
             clipped_seq = repreSeq(metacluster, orientation, clippingsDisc)
-            return clipped_seq, False
+        return clipped_seq, clipped_seqFasta
 
 
     # If there are no discordant clipping events  
     else:
-        # Collect those clippings with blat hits
+        # Collect those clippings with blat hits in dictionary, having clipping length as value
         clippingsBlat = {}
         for clippingB in metacluster.events:
             if clippingB.type == 'CLIPPING':
@@ -549,13 +552,11 @@ def reconstructSeq(metacluster, consSeq, orientation, outDir):
 
         # If there are clippings with BLAT hits
         if clippingsBlat:
-            if consSeq: # Make consensus sequence with BLAT clipping events
-                clipped_seq, consFastaBool = conSeq(metacluster, clippingsBlat, orientation, outDir)
-                return clipped_seq, consFastaBool
-
-            elif not consSeq: # Make representative sequence with BLAT clipping events
+            if consSeq and len(clippingsBlat) > 1: # Make consensus sequence with BLAT clipping events
+                clipped_seq, clipped_seqFasta = conSeq(metacluster, clippingsBlat, orientation, outDir)
+            else: # Make representative sequence with BLAT clipping events
                 clipped_seq = repreSeq(metacluster, orientation, clippingsBlat)
-                return clipped_seq, False
+            return clipped_seq, clipped_seqFasta
 
         # If there are no clippings with BLAT hits
         else:
@@ -567,22 +568,15 @@ def reconstructSeq(metacluster, consSeq, orientation, outDir):
             # If there are clippings
             if clippings:
                 # NOTE SR: this sequence will be less relayable
-                if consSeq: # Make consensus sequence with clipping events
-                    clipped_seq, consFastaBool = conSeq(metacluster, clippings, orientation, outDir)
-                    return clipped_seq, consFastaBool
-
-                elif not consSeq: # Make representative sequence with clipping events
+                if consSeq and len(clippings) > 1: # Make consensus sequence with clipping events
+                    clipped_seq, clipped_seqFasta = conSeq(metacluster, clippings, orientation, outDir)
+                else: # Make representative sequence with clipping events
                     clipped_seq = repreSeq(metacluster, orientation, clippings)
-                    return clipped_seq, False
+                return clipped_seq, clipped_seqFasta
 
             # If there are no clippings, there are not representative sequence.
             else:
-                if orientation == 'PLUS':
-                    metacluster.rightSeq = None
-                    return None, False
-                elif orientation == 'MINUS':
-                    metacluster.leftSeq = None
-                    return None, False
+                return None, None
 
 def repreSeq(metacluster, orientation, clippings):
     '''
@@ -592,7 +586,7 @@ def repreSeq(metacluster, orientation, clippings):
     Input:
         1. metacluster:
         2. orientation: bkp orientation -> 'PLUS' or 'MINUS'
-        3. clippings: list of clipping events that are candidates of be the representative alignment
+        3. clippings: dictionary -> key: clipping events that are candidates of be the representative alignment
     
     Output:
         This function fill metacluster.rightSeq when orientation == 'PLUS' and metacluster.leftSeq when orientation == 'MINUS'
@@ -604,32 +598,35 @@ def repreSeq(metacluster, orientation, clippings):
     # Make the representative sequence
     if orientation == 'PLUS':
         metacluster.rightSeq = largestClipping.ref_seq() + '[INT]>' + largestClipping.clipped_seq()
-        return largestClipping.clipped_seq()
     elif orientation == 'MINUS':
         metacluster.leftSeq = largestClipping.clipped_seq() + '<[INT]' + largestClipping.ref_seq()
-        return largestClipping.clipped_seq()
+    return largestClipping.clipped_seq()
 
 def conSeq(metacluster, clippings, orientation, outDir):
-    if len(clippings) > 1: 
-        consFastaBool = True
-        refConsensusSeq = makeConsSeqs([*clippings], 'REF', outDir)[1]
-        intConsensusPath, intConsensusSeq = makeConsSeqs([*clippings], 'INT', outDir)
-        if intConsensusSeq != None:
-            if orientation == 'PLUS':
-                metacluster.rightSeq = refConsensusSeq + '[INT]>' + intConsensusSeq
-            elif orientation == 'MINUS':
-                metacluster.leftSeq = intConsensusSeq + '<[INT]' + refConsensusSeq
-        return intConsensusPath, consFastaBool
+    '''
+    Perform consensus sequence from clipping events
+
+    Input:
+        1. metacluster
+        2. clippings: dictionary -> key: clipping events that are candidates of be the representative alignment
+        3. orientation: bkp orientation -> 'PLUS' or 'MINUS'
+        4. outDir
     
-    # If there are only one clipping, this will be the consensus.
-    elif len(clippings) == 1:
-        consFastaBool = False
-        consClipping = [*clippings][0]
+    Output:
+        Fill metacluster attributes: metacluster.rightSeq and metacluster.leftSeq
+        1. intConsensusSeq: Insertion part of consensus sequence
+        2. intConsensusPath: Path to consensus fasta file
+    '''
+    refConsensusSeq = makeConsSeqs([*clippings], 'REF', outDir)[1]
+    intConsensusPath, intConsensusSeq = makeConsSeqs([*clippings], 'INT', outDir)
+    if intConsensusSeq != None:
         if orientation == 'PLUS':
-            metacluster.rightSeq = consClipping.ref_seq() + '[INT]>' + consClipping.clipped_seq()
+            metacluster.rightSeq = refConsensusSeq + '[INT]>' + intConsensusSeq
         elif orientation == 'MINUS':
-            metacluster.leftSeq = consClipping.clipped_seq() + '<[INT]' + consClipping.ref_seq()
-        return consClipping.clipped_seq(), consFastaBool
+            metacluster.leftSeq = intConsensusSeq + '<[INT]' + refConsensusSeq
+    return intConsensusSeq, intConsensusPath
+
+
 
 def makeConsSeqs(clippingEvents, seqSide, outDir):
     '''
@@ -691,17 +688,28 @@ def clippingSeq(clippingEvents, CLIPPING_clusterID, seqSide, outDir):
     return fastaPath
 
 
-def bkpINT(metacluster, consensusPath, db, outDir, identity):
+def bkpINT(fastaPath, db, outDir, identity):
+    '''
+    Align sequence with minimap2 and get bkp pos in reference. Keep several hits, but only those ones that match with metacluster identity.
+
+    Input:
+        1. fastaPath: Path to FASTA file
+        2. db: Path to reference 
+        3. outDir
+        4. identity: metacluster indentity
+    
+    Output:
+        1. intBkp -> dictionary: intBkp[referenceName] = referencePosition
+    '''
 
     #indexDbSpecificIdentity = databases.buildIdentityDb(metacluster, db, outDir)   
 
-    PAF_file = sequences.getPAFAlign(consensusPath, db, outDir)
+    PAF_file = sequences.getPAFAlign(fastaPath, db, outDir)
     PAFObj = formats.PAF()
     PAFObj.read(PAF_file)
 
     intBkp = {}
     if not os.stat(PAF_file).st_size == 0:
-        # DE AQUI SACAMOS LA INFO QUE QUERAMOS DEL VIRUS
         for alig in PAFObj.alignments:
             # Check identity
             if alig.tName.split('|')[0] in identity:
