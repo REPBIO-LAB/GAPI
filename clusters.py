@@ -3214,8 +3214,8 @@ class META_cluster():
             percResolved = 100 
 
         ## 4. Determine if pseudogene or not
-        # a) Pseudogene
-        if percResolved >= 40:
+        # a) Pseudogene (enough % of sequence resolved + polyA)
+        if (percResolved >= 60) and (polyA):
 
             PSEUDOGENE = True
             self.SV_features['INS_TYPE'] = 'pseudogene'
