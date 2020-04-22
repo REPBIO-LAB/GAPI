@@ -7,6 +7,7 @@ Module 'formats' - Contains classes for dealing with file formats such as fasta,
 import itertools
 import sys
 import time
+import re
 
 # Internal
 import log
@@ -705,11 +706,11 @@ class VCF():
         self.header = None
         self.variants = []  # List of variants
 
-    '''
+    
     def read(self, filePath):
-        
+        '''
         Read VCF file
-        
+        '''
         print('READ_input: ', filePath)
 
         vcfFile = open(filePath)
@@ -736,28 +737,105 @@ class VCF():
             elif not line.startswith('#'):
                 variants.append(line)
         
-        #print('variants: ', variants)
-
         ## 2. Read header entries
         self.read_header(header)
 
         ## 3. Read variant entries
-        # self.read_variants()
+        self.read_variants(variants)
 
     def read_header(self, header):
-        
+        '''
         Read VCF file header
 
         Input:
             1. header: list of header lines
-        
+        '''
+        species = ''
+        refLengths = {} 
         info = {}
+
+        ## Read header line by line
         for line in header:
-            print('line: ', line)
 
-    {'VTYPE': ['.', 'String', 'Type of variant']
-    '''
+            ## A) Source
+            if line.startswith('##source'):
+                source = line.split('=')[1]
+            
+            ## B) Reference
+            elif line.startswith('##reference'):
+                build = line.split('=')[1]
 
+            ## C) Contig
+            elif line.startswith('##contig'):
+                substring = re.search('<(.*)>', line)
+
+                for field in substring.group(1).split(','):
+                    key, value = field.split('=')
+
+                    if key == 'ID':
+                        cId = value
+
+                    if key == 'length':
+                        cLen = value
+
+                    if key == 'species':
+                        species = value
+
+                refLengths[cId] = cLen
+            
+            ## D) Info
+            elif line.startswith('##INFO'):
+                substring = re.search('<(.*)>', line)
+
+                values = []
+
+                for field in substring.group(1).split(','):
+                    value = field.split('=')[1]
+                    values.append(value)
+
+                info[values[0]] = values[1:]
+
+        ## Create VCF header object
+        self.create_header(source, build, species, refLengths, info)
+
+    def read_variants(self, entries):
+        '''
+        Read variant entries from VCF file
+
+        Input:
+            1. entries: list VCF variant entries
+        '''
+        # For each entry
+        for entry in entries:
+
+            fields = entry.split("\t")
+
+            ## Parse info field
+            infoFields = fields[7].split(';')
+            INFO = {}
+
+            # For each feature at info
+            for feature in infoFields:
+                feature = feature.split('=')
+
+                # a) Flag 
+                if len(feature) == 1:
+                    key = str(feature[0])
+                    value = True
+                    INFO[key] = value
+
+                # b) Key and value pair
+                else:
+                    key = feature[0]
+                    value = feature[1]
+                    INFO[key] = value
+
+            ## Create VCF variant object
+            fields = fields[0:7] + [INFO]
+            variant = VCF_variant(fields)
+
+            ## Add variant to the VCF
+            self.add(variant)
 
     def add(self, variant):
         '''
