@@ -122,12 +122,8 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, bi
                     clipped_seqPlusFasta = formats.FASTA()
                     clipped_seqPlusFasta.seqDict['clipped_seqPlusFasta'] = clipped_seqPlus
                     clipped_seqPlusFasta.write(clipped_seqPlusFastaPath)
-                    print ('clipped_seqPlusFastaPath1 ' + clipped_seqPlusFastaPath)
-                    print ('consFastaBoolPlus1 ' + str(consFastaBoolPlus))
                 elif confDict['consBkpSeq']:
                     clipped_seqPlusFastaPath = clipped_seqPlus
-                    print ('clipped_seqPlusFastaPath2 ' + clipped_seqPlusFastaPath)
-                    print ('consFastaBoolPlus2 ' + str(consFastaBoolPlus))
                 metacluster.intRightBkp = bkpINT(metacluster, clipped_seqPlusFastaPath, blatDbPath, bkpDir, metacluster.identity)
             if clipped_seqMinus != None:
                 if not confDict['consBkpSeq'] or not consFastaBoolMinus:
@@ -136,12 +132,8 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, bi
                     clipped_seqMinusFasta = formats.FASTA()
                     clipped_seqMinusFasta.seqDict['clipped_seqMinusFasta'] = clipped_seqMinus
                     clipped_seqMinusFasta.write(clipped_seqMinusFastaPath)
-                    print ('clipped_seqMinusFastaPath1 ' + clipped_seqMinusFastaPath)
-                    print ('consFastaBoolMinus1 ' + str(consFastaBoolMinus))
                 elif confDict['consBkpSeq']:
                     clipped_seqMinusFastaPath = clipped_seqMinus
-                    print ('clipped_seqMinusFastaPath2 ' + clipped_seqMinusFastaPath)
-                    print ('consFastaBoolMinus2 ' + str(consFastaBoolMinus))
                 metacluster.intLeftBkp = bkpINT(metacluster, clipped_seqMinusFastaPath, blatDbPath, bkpDir, metacluster.identity)
 
     #clippings = [event for event in metacluster.events if event.type == 'CLIPPING']
