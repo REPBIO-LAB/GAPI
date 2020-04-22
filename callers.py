@@ -187,12 +187,12 @@ class SV_caller_long(SV_caller):
             output.INS2VCF(metaclustersPass['INS'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
 
         if 'INS' in metaclustersFailed:
-            outFileName = 'INS_MEIGA.FAILED_2'
+            outFileName = 'INS_MEIGA.FAILED'
             output.INS2VCF(metaclustersFailed['INS'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
 
         ## 7.2 Report BND junctions
         if allJunctions:
-            outFileName = 'BND_MEIGA.PASS.tsv'
+            outFileName = 'BND_MEIGA.tsv'
             output.write_junctions(allJunctions, outFileName, self.outDir)
         
     def make_clusters(self):
@@ -211,20 +211,16 @@ class SV_caller_long(SV_caller):
 
         # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
-        metaclustersPassList, metaclustersFailedList = zip(*pool.starmap(self.make_clusters_bin, bins))
+        metaclustersPass = pool.starmap(self.make_clusters_bin, bins)
+        
         pool.close()
         pool.join()
 
         # Remove output directory
         unix.rm([self.outDir + '/CLUSTER/'])
 
-        ### 3. Collapse metaclusters in a single dict and report metaclusters that failed filtering
-        metaclustersPass = structures.merge_dictionaries(metaclustersPassList)
-        metaclustersFailed = structures.merge_dictionaries(metaclustersFailedList)
-
-        if 'INS' in metaclustersFailed:
-            outFileName = 'INS_MEIGA.FAILED_1'
-            output.INS2VCF(metaclustersFailed['INS'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
+        ### 3. Collapse metaclusters in a single dict 
+        metaclustersPass = structures.merge_dictionaries(metaclustersPass)
 
         return metaclustersPass
 
@@ -309,7 +305,7 @@ class SV_caller_long(SV_caller):
         msg = 'Filter out metaclusters' 
         log.step(step, msg)
         filters2Apply = ['MIN-NBREADS', 'MAX-NBREADS', 'CV', 'SV-TYPE']
-        metaclustersSVType, metaclustersSVTypeFailed = filters.filter_metaclusters(metaclustersSVType, filters2Apply, self.confDict)
+        metaclustersSVType = filters.filter_metaclusters(metaclustersSVType, filters2Apply, self.confDict)[0]
 
         ## 8. Generate consensus event for SV metaclusters ##
         step = 'CONSENSUS'
@@ -321,11 +317,7 @@ class SV_caller_long(SV_caller):
         clusters.create_consensus(metaclustersSVType, self.confDict, self.reference, targetSV, outDir)       
 
         ## 9. Lighten up metaclusters  ##
-        ## Metaclusters passing all the filters
         clusters.lighten_up_metaclusters(metaclustersSVType)
-
-        ## Filtered metaclusters
-        clusters.lighten_up_metaclusters(metaclustersSVTypeFailed)
         
         # Do cleanup
         unix.rm([outDir, binDir])
@@ -336,7 +328,7 @@ class SV_caller_long(SV_caller):
         msg = 'SV calling in bin: ' + binId + ' finished in ' + str(time_taken)
         log.info(msg)
 
-        return metaclustersSVType, metaclustersSVTypeFailed
+        return metaclustersSVType
 
 
 class SV_caller_short(SV_caller):
