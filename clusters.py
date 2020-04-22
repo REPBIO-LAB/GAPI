@@ -105,10 +105,6 @@ def merge_clusters(clusters, clusterType):
 
         mergedCluster = create_cluster(subclusters, clusterType)
 
-        for metacluster in clusters:
-            for clusterNew in metacluster.rawSubclusters:
-                clusterNew.clusterId = mergedCluster.id
-
     # B) Merge standard clusters
     else:
 
