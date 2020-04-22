@@ -58,23 +58,36 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, bi
 
         if metacluster.orientation != 'RECIPROCAL':
             metaWODiscClip, clippingEventsToAdd, discClip = supportingCLIPPING(metacluster, 100, confDict, bam, normalBam, mode, bkpDir, metacluster.orientation)
-            if metaWODiscClip and not discClip:
+            # TODO SR: For the moment, no BLAT id performed for MEs insertions.
+            # Add clippings if there are discodant clippings.
+            if discClip == True or not confDict['viralDb'] or not metacluster.identity:
+                metacluster.addEvents(clippingEventsToAdd)
+            # If there are not discordant clippings, but metacluster has identity, return metacluster and clippings list in order to perform BLAT clippings search
+            elif metaWODiscClip and not discClip and metacluster.identity:
                 metaclustersWODiscClip[metaWODiscClip] = clippingEventsToAdd
 
         elif metacluster.orientation == 'RECIPROCAL':
             metaWODiscClip, clippingRightEventsToAdd, discClip = supportingCLIPPING(metacluster, 100, confDict, bam, normalBam, mode, bkpDir, 'PLUS')
-            if metaWODiscClip and not discClip:
+            # Add clippings if there are discodant clippings.
+            if discClip == True or not confDict['viralDb'] or not metacluster.identity:
+                metacluster.addEvents(clippingRightEventsToAdd)
+            # If there are not discordant clippings, but metacluster has identity, return metacluster and clippings list in order to perform BLAT clippings search
+            elif metaWODiscClip and not discClip and metacluster.identity:
                 metaclustersWODiscClip[metaWODiscClip] = clippingRightEventsToAdd
+            
             metaWODiscClip, clippingLeftEventsToAdd, discClip = supportingCLIPPING(metacluster, 100, confDict, bam, normalBam, mode, bkpDir, 'MINUS')
-            # Haces todo lo de abajo hasta add
-            if metaWODiscClip and not discClip:
+            # Add clippings if there are discodant clippings.
+            if discClip == True or not confDict['viralDb'] or not metacluster.identity:
+                metacluster.addEvents(clippingLeftEventsToAdd)
+            # If there are not discordant clippings, but metacluster has identity, return metacluster and clippings list in order to perform BLAT clippings search
+            elif metaWODiscClip and not discClip and metacluster.identity:
                 if metaWODiscClip in  metaclustersWODiscClip.keys():
                     metaclustersWODiscClip[metaWODiscClip].extend(clippingLeftEventsToAdd)
                 else:
                     metaclustersWODiscClip[metaWODiscClip] = clippingLeftEventsToAdd
     
     # Add clippings when there are no discordant clippings, but they have BLAT matches and clippings without blat hits but same bkp as the ones that match
-    blatClippings(metaclustersWODiscClip, blatDbPath, binId, outDir)
+    addBlatClippings(metaclustersWODiscClip, blatDbPath, binId, outDir)
 
     
     for metacluster in metaclusters:
@@ -138,10 +151,27 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, bi
 def supportingCLIPPING(metacluster, buffer, confDict, bam, normalBam, mode, outDir, side):
     '''
     # Determine the area where clipping events must be searched (narrow if there are discordant clippings, wide otherwise).
-    # Collect clipiing events
-    # Add clippings if there are discodant clippings. Otherwise, return metacluster and clippings list in order to perform BLAT clippings search
+    # Collect clipping events in previous area.
+    # Add clippings if there are discodant clippings. Otherwise, return metacluster and clippings list in order to perform BLAT search.
+
+    Input:
+        1. metacluster
+        2. buffer: buffer to add in wide clippings search
+        3. confDict
+        4. bam
+        5. normalBam
+        6. mode
+        7. outDir
+        8. side: orientation to look for clippings: PLUS or MINUS.
+    
+    Output:
+        1. metacluster
+        2. candidate clippings list
+        3. discClip: boolean. True if there are discordant clippings, False otherwise.
     '''
-    # Note: This function works but you have to allow duplicates in the clipping 
+    # Note: This function works but you have to allow duplicates in the clipping
+
+    # New dictionary for performing collecting collecting clippings
     clippingConfDict = dict(confDict)
     clippingConfDict['targetSV'] = ['CLIPPING']
     clippingConfDict['minMAPQ'] = 10
@@ -196,8 +226,11 @@ def supportingCLIPPING(metacluster, buffer, confDict, bam, normalBam, mode, outD
 
     # When the metacluster is RIGHT and there are some right clippings:
     if side == 'PLUS' and 'RIGHT-CLIPPING' in clippingEventsDict.keys():
-        # Add clippings if there are discodant clippings. Otherwise, return metacluster and clippings list in order to perform BLAT clippings search
-        metacluster, clippings = addClippings(metacluster, clippingEventsDict, 'RIGHT-CLIPPING', binBeg, binEnd, discClip, confDict['viralDb'])
+        # Keep only those clipping event which have their clipping bkp is in the desired area
+        clippingEventsToAdd = chooseBkpClippings(clippingEventsDict, 'RIGHT-CLIPPING', binBeg, binEnd)
+        # From dictionary to list
+        clippings = list(itertools.chain(*clippingEventsToAdd.values()))
+        #metacluster, clippings = addClippings(metacluster, clippingEventsDict, 'RIGHT-CLIPPING', binBeg, binEnd, discClip, confDict['viralDb'])
         return metacluster, clippings, discClip
 
     # When the metacluster is LEFT and there are some minus clippings:
@@ -205,10 +238,14 @@ def supportingCLIPPING(metacluster, buffer, confDict, bam, normalBam, mode, outD
         # Add clippings if there are discodant clippings. 
         # If there are not discordant clippings, but metacluster has identity, return metacluster and clippings list in order to perform BLAT clippings search
         # If there are not discordant clippings and the metacluster has no identity, dont add clippings.
-        metacluster, clippings = addClippings(metacluster, clippingEventsDict, 'LEFT-CLIPPING', binBeg, binEnd, discClip, confDict['viralDb'])
+        # Keep only those clipping event which have their clipping bkp is in the desired area
+        clippingEventsToAdd = chooseBkpClippings(clippingEventsDict, 'LEFT-CLIPPING', binBeg, binEnd)
+        # From dictionary to list
+        clippings = list(itertools.chain(*clippingEventsToAdd.values()))
+        #metacluster, clippings = addClippings(metacluster, clippingEventsDict, 'LEFT-CLIPPING', binBeg, binEnd, discClip, confDict['viralDb'])
         return metacluster, clippings, discClip
     else:
-        return None, None, None
+        return None, None, False
 
 
 def determinePlusBkpArea(beg, end, events, buffer):
@@ -293,16 +330,13 @@ def determineMinusBkpArea(beg, end, events, buffer):
     
     return binBeg, binEnd, discClip
 
-def addClippings(metacluster, clippingEventsDict, eventType, binBeg, binEnd, discClip, viralDb):
+#def addDiscClippings(metacluster, clippings, discClip, viralDb):
     '''
     # Add clippings if there are discodant clippings. 
     # If there are not discordant clippings, but metacluster has identity, return metacluster and clippings list in order to perform BLAT clippings search
     # If there are not discordant clippings and the metacluster has no identity, dont add clippings.
-    '''
+    
 
-    # Keep only those clipping event which have their clipping bkp is in the desired area
-    clippingEventsToAdd = chooseBkpClippings(clippingEventsDict, eventType, binBeg, binEnd)
-    clippings = list(itertools.chain(*clippingEventsToAdd.values()))
 
     # TODO SR: For the moment, no BLAT id performed for MEs insertions.
     # Add clippings if there are discodant clippings.
@@ -315,6 +349,7 @@ def addClippings(metacluster, clippingEventsDict, eventType, binBeg, binEnd, dis
     # If there are not discordant clippings and the metacluster has no identity, dont add clippings (return None)
     else:
         return None, None
+    '''
 
 def chooseBkpClippings(clippingEventsDict, eventType, binBeg, binEnd):
     '''
@@ -344,7 +379,7 @@ def chooseBkpClippings(clippingEventsDict, eventType, binBeg, binEnd):
 
     return clippingEventsDict
 
-def blatClippings(metaclustersWODiscClip, db, binId, outDir):
+def addBlatClippings(metaclustersWODiscClip, db, binId, outDir):
     # Write fasta with events collected in a wide region
     clippingEventsToAdd = list(itertools.chain(*metaclustersWODiscClip.values()))
     clippingsFasta = writeClippingsFasta(clippingEventsToAdd, binId, outDir)
