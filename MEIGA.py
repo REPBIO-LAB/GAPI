@@ -176,7 +176,7 @@ if __name__ == '__main__':
 	##############################################
 	scriptName = os.path.basename(sys.argv[0])
 	scriptName = os.path.splitext(scriptName)[0]
-	version='0.15.0'
+	version='0.16.0'
 
 	print()
 	print('***** ', scriptName, version, 'configuration *****')
