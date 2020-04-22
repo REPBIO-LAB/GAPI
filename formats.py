@@ -705,6 +705,60 @@ class VCF():
         self.header = None
         self.variants = []  # List of variants
 
+    '''
+    def read(self, filePath):
+        
+        Read VCF file
+        
+        print('READ_input: ', filePath)
+
+        vcfFile = open(filePath)
+
+        ## 1. Read VCF and differenciate between header and variant entries
+        header = []
+        variants = []
+
+        # For line in the file
+        for line in vcfFile:
+            
+            # Skip blank lines
+            if not line:
+                continue    
+
+            # Remove trailing spaces and new line
+            line = line.rstrip()
+
+            # a) Header
+            if line.startswith('##'):
+                header.append(line)
+
+            # b) Variant
+            elif not line.startswith('#'):
+                variants.append(line)
+        
+        #print('variants: ', variants)
+
+        ## 2. Read header entries
+        self.read_header(header)
+
+        ## 3. Read variant entries
+        # self.read_variants()
+
+    def read_header(self, header):
+        
+        Read VCF file header
+
+        Input:
+            1. header: list of header lines
+        
+        info = {}
+        for line in header:
+            print('line: ', line)
+
+    {'VTYPE': ['.', 'String', 'Type of variant']
+    '''
+
+
     def add(self, variant):
         '''
         Add VCF_variant instance to the VCF 
@@ -906,7 +960,7 @@ class VCF_variant():
         for index, ID in enumerate(IDS):
             
             ## Include field
-            if (ID in self.info) and self.info[ID] is not None:
+            if (ID in self.info) and (self.info[ID] is not None) and (self.info[ID] is not False):
 
                 # a) Boolean
                 if isinstance(self.info[ID], bool):
