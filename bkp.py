@@ -61,7 +61,7 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, bi
         unix.mkdir(specBkpDir)
 
         if metacluster.orientation != 'RECIPROCAL':
-            clippingEventsToAdd, discClip = supportingCLIPPING(metacluster, 100, confDict, bam, normalBam, mode, metacluster.orientation)
+            clippingEventsToAdd, discClip = supportingCLIPPING(metacluster, 150, confDict, bam, normalBam, mode, metacluster.orientation)
             # TODO SR: For the moment, no BLAT id performed for MEs insertions.
             # Add clippings if there are discodant clippings.
             if discClip == True or not 'VIRUS' in confDict['targetINT2Search'] or not metacluster.identity:
@@ -72,7 +72,7 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, bi
             # If there are not discordant clippings and the metacluster has no identity, dont add clippings.
 
         elif metacluster.orientation == 'RECIPROCAL':
-            clippingRightEventsToAdd, discClip = supportingCLIPPING(metacluster, 100, confDict, bam, normalBam, mode, 'PLUS')
+            clippingRightEventsToAdd, discClip = supportingCLIPPING(metacluster, 150, confDict, bam, normalBam, mode, 'PLUS')
             # Add clippings if there are discodant clippings.
             if discClip == True or not 'VIRUS' in confDict['targetINT2Search'] or not metacluster.identity:
                 metacluster.addEvents(clippingRightEventsToAdd)
@@ -80,7 +80,7 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, bi
             elif clippingRightEventsToAdd and not discClip and metacluster.identity:
                 metaclustersWODiscClip[metacluster] = clippingRightEventsToAdd
             
-            clippingLeftEventsToAdd, discClip = supportingCLIPPING(metacluster, 100, confDict, bam, normalBam, mode, 'MINUS')
+            clippingLeftEventsToAdd, discClip = supportingCLIPPING(metacluster, 150, confDict, bam, normalBam, mode, 'MINUS')
             # Add clippings if there are discodant clippings.
             if discClip == True or not 'VIRUS' in confDict['targetINT2Search'] or not metacluster.identity:
                 metacluster.addEvents(clippingLeftEventsToAdd)
