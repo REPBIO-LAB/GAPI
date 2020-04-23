@@ -70,7 +70,10 @@ class SV_caller():
         if True: # at one point include flag for pseudogene search
             annotations2load.append('EXONS')
 
-        self.annotations = annotation.load_annotations(annotations2load, self.refLengths, self.refDir, self.confDict['processes'], annotDir)
+        if self.confDict['germlineMEI'] is not None:
+            annotations2load.append('GERMLINE-MEI')
+
+        self.annotations = annotation.load_annotations(annotations2load, self.refLengths, self.refDir, self.confDict['germlineMEI'], self.confDict['processes'], annotDir)        
         unix.rm([annotDir])
 
 
@@ -98,7 +101,7 @@ class SV_caller_long(SV_caller):
 
         # Load annotations
         self.load_annotations()
-
+        
         # Create output directory
         annotDir = self.outDir + '/ANNOT/'
         unix.mkdir(annotDir)
@@ -171,17 +174,25 @@ class SV_caller_long(SV_caller):
             # Remove output directory
             unix.rm([outDir])
 
-        ### 6. Apply second round of filtering 
-        msg = '6. Apply second round of filtering'
+        ### 6. Assess MEI novelty
+        msg = '6. Assess MEI novelty'
+        log.header(msg)
+
+        if self.confDict['germlineMEI'] is not None:
+            steps = ['GERMLINE-MEI']
+            annotation.annotate(allMetaclusters['INS'], steps, self.annotations, self.confDict['annovarDir'], annotDir)
+
+        ### 7. Apply second round of filtering 
+        msg = '7. Apply second round of filtering'
         log.header(msg)
         filters2Apply = ['PERC-RESOLVED']
         metaclustersPass, metaclustersFailed = filters.filter_metaclusters(allMetaclusters, filters2Apply, self.confDict)
                 
-        ### 7. Report SV calls into output files
-        msg = '7. Report SV calls into output files'
+        ### 8. Report SV calls into output files
+        msg = '8. Report SV calls into output files'
         log.header(msg)
         
-        ##  7.1 Report INS
+        ##  8.1 Report INS
         if 'INS' in metaclustersPass:
             outFileName = 'INS_MEIGA.PASS'
             output.INS2VCF(metaclustersPass['INS'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
@@ -190,11 +201,11 @@ class SV_caller_long(SV_caller):
             outFileName = 'INS_MEIGA.FAILED'
             output.INS2VCF(metaclustersFailed['INS'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
 
-        ## 7.2 Report BND junctions
+        ## 8.2 Report BND junctions
         if allJunctions:
             outFileName = 'BND_MEIGA.tsv'
             output.write_junctions(allJunctions, outFileName, self.outDir)
-        
+
     def make_clusters(self):
         '''
         Search for structural variant (SV) clusters 
