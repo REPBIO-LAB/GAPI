@@ -34,6 +34,7 @@ def INS2VCF(metaclusters, index, refLengths, source, build, species, outName, ou
             'MECHANISM': ['.', 'String', 'Insertion mechanism'], \
             'FAM': ['.', 'String', 'Repeat family'], \
             'SUBFAM': ['.', 'String', 'Repeat subfamily'], \
+            'GERMDB': ['.', 'String', 'List of germline variation databases where the variant is reported'], \
             'CIPOS': ['2', 'Integer', 'Confidence interval around POS for imprecise variants'], \
             'CYTOID': ['.', 'String', 'Source element cytoband identifier'], \
             'NBEXONS': ['1', 'Integer', 'Number of exons for a processed pseudogene insertion'], \
@@ -93,6 +94,7 @@ def INS2VCF(metaclusters, index, refLengths, source, build, species, outName, ou
         INFO['MECHANISM'] = metacluster.SV_features['MECHANISM'] if 'MECHANISM' in metacluster.SV_features else None        
         INFO['FAM'] = ','.join(metacluster.SV_features['FAMILY']) if ('FAMILY' in metacluster.SV_features and metacluster.SV_features['FAMILY']) else None
         INFO['SUBFAM'] = ','.join(metacluster.SV_features['SUBFAMILY']) if ('SUBFAMILY' in metacluster.SV_features and metacluster.SV_features['SUBFAMILY']) else None
+        INFO['GERMDB'] = metacluster.germlineDb        
         INFO['CIPOS'] = str(CIPOS[0]) + ',' + str(CIPOS[1]) 
         INFO['CYTOID'] = ','.join(metacluster.SV_features['CYTOBAND']) if ('CYTOBAND' in metacluster.SV_features and metacluster.SV_features['CYTOBAND']) else None
         INFO['NBEXONS'] = metacluster.SV_features['NB_EXONS'] if 'NB_EXONS' in metacluster.SV_features else None
