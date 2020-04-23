@@ -40,6 +40,7 @@ if __name__ == '__main__':
 	parser.add_argument('--species', default='Homo sapiens', dest='species', help='Target species. Default: Homo sapiens')
 	parser.add_argument('--build', default='GRCh37', dest='build', help='Reference genome build. Default: GRCh37')
 	parser.add_argument('--normalBam', default=None, dest='normalBam', help='Matched normal bam file. If provided MEIGA will run in PAIRED mode')
+	parser.add_argument('--germlineMEI', default=None, dest='germlineMEI', help='Bed file containing set of known germline MEI')
 	parser.add_argument('--transduction-search', action="store_true", default=False, dest='transductionSearch', help='Enable transduction search. If not enabled only solo events will be identified')
 	parser.add_argument('--source-families', default=None, dest='srcFamilies', type=str, help='Comma separated list of possible families for source elements mediating transductions. Default: None. Mandatory if transduction search enabled')
 	parser.add_argument('--gene-annot-dir', default=None, dest='annovarDir', help='Directory containing annovar reference files for gene-based annotation of MEI breakpoints. If not provided gene annotation step will be skipped')
@@ -91,6 +92,7 @@ if __name__ == '__main__':
 	species = args.species
 	build = args.build
 	normalBam = args.normalBam
+	germlineMEI = args.germlineMEI
 	transductionSearch = args.transductionSearch
 	srcFamilies = args.srcFamilies
 	annovarDir = args.annovarDir
@@ -176,7 +178,7 @@ if __name__ == '__main__':
 	##############################################
 	scriptName = os.path.basename(sys.argv[0])
 	scriptName = os.path.splitext(scriptName)[0]
-	version='0.16.0'
+	version='0.17.0'
 
 	print()
 	print('***** ', scriptName, version, 'configuration *****')
@@ -192,6 +194,7 @@ if __name__ == '__main__':
 	print('species: ', species)
 	print('build: ', build)
 	print('normalBam: ', normalBam)
+	print('germlineMEI: ', germlineMEI)
 	print('transduction-search: ', transductionSearch)
 	print('source-families: ', srcFamilies)
 	print('gene-annot-dir: ', annovarDir)
@@ -242,6 +245,7 @@ if __name__ == '__main__':
 	confDict['source'] = 'MEIGA-' + version
 	confDict['species'] = species
 	confDict['build'] = build
+	confDict['germlineMEI'] = germlineMEI
 	confDict['transductionSearch'] = transductionSearch
 	confDict['srcFamilies'] = srcFamilies.split(',') if srcFamilies is not None else []
 	confDict['annovarDir'] = annovarDir
