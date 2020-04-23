@@ -30,7 +30,14 @@ def VCFMetaclustersFields(metaclusters):
         CHROM = metacluster.ref
         # TODO SR: fix this
         #POS, CIPOS = metacluster.mean_pos()
-        POS = metacluster.refLeftBkp if metacluster.refLeftBkp != None else metacluster.refRightBkp
+        # Give always most left position first
+        # If there are 2 bkps, show left first
+        if metacluster.refRightBkp and metacluster.refLeftBkp:
+            POS = min([metacluster.refRightBkp, metacluster.refLeftBkp])
+        # If there are only one, show that one
+        else:
+            POS = metacluster.refLeftBkp if metacluster.refLeftBkp != None else metacluster.refRightBkp
+
         if POS == None:
             POS = metacluster.beg 
         # NOTE SR: ID, ALT and QUAL are same for all metaclusters. So it could be possible to write them at the end, instead of in each metcluster
@@ -70,7 +77,11 @@ def VCFMetaclustersFields(metaclusters):
         discordantsMAPQMean = int(statistics.mean(discordantsMAPQ)) if discordantsMAPQ else None
         clippingsMAPQMean = int(statistics.mean(clippingsMAPQ)) if clippingsMAPQ else None
 
-        BKP2 = metacluster.refRightBkp if metacluster.refLeftBkp != None else None
+        # If there are 2 bkps, show left first
+        if metacluster.refRightBkp and metacluster.refLeftBkp:
+            BKP2 = max([metacluster.refRightBkp, metacluster.refLeftBkp])
+        else:
+            BKP2 = None
 
         # Label with information about if there are clipping-discordant reads.
         checkClipDisc = any(check in discordants for check in clippings)
