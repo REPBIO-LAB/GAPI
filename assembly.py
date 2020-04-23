@@ -200,7 +200,7 @@ def getConsensusSeq(FASTA_file, outDir):
         # 2. Make multiple sequence alignment
         msfPath = FASTA_file.replace("fa", "msf")
         # TODO: Add muscle to environment
-        err = open(outDir + '/mucle.err', 'w') 
+        err = open(outDir + '/muscle.err', 'w') 
         command = '/mnt/netapp2/uscmg_aplic/0_external_tools/13_MUSCLE/3.8.31/muscle -in ' + FASTA_file + ' -out ' + msfPath + ' -msf'
 
         status = subprocess.call(command, stderr=err, shell=True)
