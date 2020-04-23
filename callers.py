@@ -477,19 +477,19 @@ class SV_caller_short(SV_caller):
             # Write a fasta file containing only those sequences that are in identities:
             # self.confDict['viralDb'] -> Papillomaviridae|LC270039.1 02-AUG-2017
             # fastaIdentities = self.viralSeqs.values() -> Papillomaviridae|LC270039.1
-            self.blatDbPath = self.outDir + '/blatDb.fasta'
-            blatDb = open(self.blatDbPath, 'w')
+            self.identDbPath = self.outDir + '/identDb.fasta'
+            identDb = open(self.identDbPath, 'w')
             viralDb = open(self.confDict['viralDb'], 'r')
 
             for record in SeqIO.parse(viralDb,'fasta'):
                 for fastaIdentity in fastaIdentities:
                     if fastaIdentity in record.id:
-                        blatDb.write(">" + record.id + "\n")
-                        blatDb.write(str(record.seq) + "\n")
+                        identDb.write(">" + record.id + "\n")
+                        identDb.write(str(record.seq) + "\n")
                         break
 
             viralDb.close()
-            blatDb.close()
+            identDb.close()
             
         ### 1. Define genomic bins to search for SV ##
         bins = bamtools.binning(self.confDict['targetBins'], self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
@@ -732,8 +732,8 @@ class SV_caller_short(SV_caller):
 
         ## 10. Analyse metaclusters features and add supporting clipping reads ##
         # TODO SR: Now adding clipping step is better than before. Even though maybe it is not neccessary, it would be great to choose in a better way which clipping we should add to the metacluster.
-        bkp.analyzeMetaclusters(metaclusters, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, self.blatDbPath)
-        bkp.analyzeMetaclusters(metaclustersFailed, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, self.blatDbPath)
+        bkp.analyzeMetaclusters(metaclusters, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, self.identDbPath)
+        bkp.analyzeMetaclusters(metaclustersFailed, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, self.identDbPath)
 
         step = 'BKP-ANALYSIS'
         msg = 'Analysing BKP and adding clipping supporting reads. PID: ' + str(os.getpid())

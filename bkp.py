@@ -17,7 +17,7 @@ import itertools
 import bamtools
 
 
-def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, binId, blatDbPath):
+def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, binId, identDbPath):
     '''
     Four main steps
         a. Add supporting clipping events to discordant metacluster.
@@ -33,7 +33,7 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, bi
         5. mode
         6. outDir
         7. binId
-        8. blatDbPath
+        8. identDbPath
     
     Output
         Doesn't return anything, just fill some metaclusters attributes:
@@ -92,7 +92,7 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, bi
                     metaclustersWODiscClip[metacluster] = clippingLeftEventsToAdd
     
     # Add clippings when there are no discordant clippings, but they have BLAT matches and clippings without blat hits but same bkp as the ones that match
-    addBlatClippings(metaclustersWODiscClip, blatDbPath, binId, bkpDir)
+    addBlatClippings(metaclustersWODiscClip, identDbPath, binId, bkpDir)
 
     
     for metacluster in metaclusters:
@@ -140,7 +140,7 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, bi
                     clipped_seqPlusFasta.write(clipped_seqPlusFastaPath)
                 elif confDict['consBkpSeq']:
                     clipped_seqPlusFastaPath = clipped_seqFastaPlus
-                metacluster.intRightBkp = bkpINT(clipped_seqPlusFastaPath, blatDbPath, bkpDir, metacluster.identity)
+                metacluster.intRightBkp = bkpINT(clipped_seqPlusFastaPath, identDbPath, bkpDir, metacluster.identity)
             if clipped_seqMinus != None:
                 if not confDict['consBkpSeq'] or not clipped_seqFastaMinus:
                     # Create FASTA
@@ -150,7 +150,7 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, bi
                     clipped_seqMinusFasta.write(clipped_seqMinusFastaPath)
                 elif confDict['consBkpSeq']:
                     clipped_seqMinusFastaPath = clipped_seqFastaMinus
-                metacluster.intLeftBkp = bkpINT(clipped_seqMinusFastaPath, blatDbPath, bkpDir, metacluster.identity)
+                metacluster.intLeftBkp = bkpINT(clipped_seqMinusFastaPath, identDbPath, bkpDir, metacluster.identity)
 
     ### Do cleanup
     #TEMP
