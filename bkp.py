@@ -517,7 +517,7 @@ def reconstructSeq(metacluster, consSeq, orientation, outDir):
 
     
     if clippingsDisc: # This can be empty if clipping of discordant is too small.
-        if consSeq and len(clippingsDisc) > 1: # Make consensus sequence with discordant clipping events
+        if consSeq and len(clippingsDisc) > 1 and len(clippingsDisc) < 1000: # Make consensus sequence with discordant clipping events. len(clippingsDisc) > 1 in order to avoid long lasting muscle runs
             clipped_seq, clipped_seqFasta = conSeq(metacluster, clippingsDisc, orientation, outDir)
         else: # Make representative sequence with discordant clipping events
             clipped_seq = repreSeq(metacluster, orientation, clippingsDisc)
@@ -535,7 +535,7 @@ def reconstructSeq(metacluster, consSeq, orientation, outDir):
 
         # If there are clippings with BLAT hits
         if clippingsBlat:
-            if consSeq and len(clippingsBlat) > 1: # Make consensus sequence with BLAT clipping events
+            if consSeq and len(clippingsBlat) > 1 and len(clippingsDisc) < 1000: # Make consensus sequence with BLAT clipping events. len(clippingsDisc) > 1 in order to avoid long lasting muscle runs
                 clipped_seq, clipped_seqFasta = conSeq(metacluster, clippingsBlat, orientation, outDir)
             else: # Make representative sequence with BLAT clipping events
                 clipped_seq = repreSeq(metacluster, orientation, clippingsBlat)
@@ -551,7 +551,7 @@ def reconstructSeq(metacluster, consSeq, orientation, outDir):
             # If there are clippings
             if clippings:
                 # NOTE SR: this sequence will be less relayable
-                if consSeq and len(clippings) > 1: # Make consensus sequence with clipping events
+                if consSeq and len(clippings) > 1 and len(clippingsDisc) < 1000: # Make consensus sequence with clipping events. len(clippingsDisc) > 1 in order to avoid long lasting muscle runs
                     clipped_seq, clipped_seqFasta = conSeq(metacluster, clippings, orientation, outDir)
                 else: # Make representative sequence with clipping events
                     clipped_seq = repreSeq(metacluster, orientation, clippings)
