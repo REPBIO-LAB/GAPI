@@ -580,9 +580,9 @@ def repreSeq(metacluster, orientation, clippings):
     largestClipping = max(clippings.items(), key=operator.itemgetter(1))[0]
     # Make the representative sequence
     if orientation == 'PLUS':
-        metacluster.rightSeq = largestClipping.ref_seq() + '[INT]>' + largestClipping.clipped_seq()
+        metacluster.repreRightSeq = largestClipping.ref_seq() + '[INT]>' + largestClipping.clipped_seq()
     elif orientation == 'MINUS':
-        metacluster.leftSeq = largestClipping.clipped_seq() + '<[INT]' + largestClipping.ref_seq()
+        metacluster.repreLeftSeq = largestClipping.clipped_seq() + '<[INT]' + largestClipping.ref_seq()
     return largestClipping.clipped_seq()
 
 def conSeq(metacluster, clippings, orientation, outDir):
@@ -604,9 +604,9 @@ def conSeq(metacluster, clippings, orientation, outDir):
     intConsensusPath, intConsensusSeq = makeConsSeqs([*clippings], 'INT', outDir)
     if intConsensusSeq != None:
         if orientation == 'PLUS':
-            metacluster.rightSeq = refConsensusSeq + '[INT]>' + intConsensusSeq
+            metacluster.consRightSeq = refConsensusSeq + '[INT]>' + intConsensusSeq
         elif orientation == 'MINUS':
-            metacluster.leftSeq = intConsensusSeq + '<[INT]' + refConsensusSeq
+            metacluster.consLeftSeq = intConsensusSeq + '<[INT]' + refConsensusSeq
     return intConsensusSeq, intConsensusPath
 
 

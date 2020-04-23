@@ -142,8 +142,10 @@ def VCFMetaclustersFields(metaclusters):
         # NOTE SR: Necessary for keeping only MEs in annotation step.
         # NOTE SR: Perform repeats_annotation for both, MEIs and VIRUSES.
         #INFO['INTERNAL_ELEMENT'] = metacluster.events[0].element
-        INFO['BKPSEQ'] = metacluster.rightSeq if metacluster.rightSeq != None else None
-        INFO['BKP2SEQ'] = metacluster.leftSeq if metacluster.leftSeq != None else None
+        INFO['BKPREPRESEQ'] = metacluster.repreRightSeq if metacluster.repreRightSeq != None else None
+        INFO['BKP2REPRESEQ'] = metacluster.repreLeftSeq if metacluster.repreLeftSeq != None else None
+        INFO['BKPCONSSEQ'] = metacluster.consRightSeq if metacluster.consRightSeq != None else None
+        INFO['BKP2CONSSEQ'] = metacluster.consLeftSeq if metacluster.consLeftSeq != None else None
         INFO['INTBKP'] = ",".join("{}:{}".format(k, v) for k, v in metacluster.intRightBkp.items()) if metacluster.intRightBkp else None
         INFO['INTBKP2'] = ",".join("{}:{}".format(k, v) for k, v in metacluster.intLeftBkp.items()) if metacluster.intLeftBkp else None
 
@@ -231,8 +233,10 @@ def INS2VCF_SR(metaclustersFields, index, refLengths, source, build, species, VC
             'REGION': ['.', 'String', 'Genomic region where insertion occurs'], \
             'GENE': ['.', 'String', 'HUGO gene symbol'], \
             'REFSeq': ['.', 'String', 'Reference sequence at insertion point (+- 10bp from insertion bkp).'], \
-            'BKPSEQ': ['.', 'String', 'Consensus sequence at BKP.'], \
-            'BKP2SEQ': ['.', 'String', 'Consensus sequence at BKP2.'], \
+            'BKPCONSSEQ': ['.', 'String', 'Consensus sequence at BKP.'], \
+            'BKP2CONSSEQ': ['.', 'String', 'Consensus sequence at BKP2.'], \
+            'BKPREPRESEQ': ['.', 'String', 'Consensus sequence at BKP.'], \
+            'BKP2REPRESEQ': ['.', 'String', 'Consensus sequence at BKP2.'], \
             'INTBKP': ['.', 'String', 'Coordinates of inserted sequence at BKP.'], \
             'INTBKP2': ['.', 'String', 'Coordinates of inserted sequence at BKP2.'], \
             }

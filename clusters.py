@@ -1917,8 +1917,10 @@ class META_cluster():
         self.nbTotal, self.nbTumour, self.nbNormal, self.nbINS, self.nbDEL, self.nbCLIPPING = [None, None, None, None, None, None] 
         self.nbReadsTotal, self.nbReadsTumour, self.nbReadsNormal, self.reads, self.readsTumour, self.readsNormal = [None, None, None, None, None, None] 
         self.cv = None
-        self.leftSeq = None
-        self.rightSeq = None
+        self.repreLeftSeq = None
+        self.repreRightSeq = None
+        self.consLeftSeq = None
+        self.consRightSeq = None
         self.intLeftBkp = None
         self.intRightBkp = None
 
