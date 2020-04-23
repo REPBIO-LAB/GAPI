@@ -504,6 +504,9 @@ class SV_caller_short(SV_caller):
         pool.close()
         pool.join()
 
+        if not self.confDict['keepIdentDb']:
+            unix.rm([self.identDbPath])
+
         del self.viralSeqs
         # Remove output directory
         unix.rm([self.outDir + '/CLUSTER/'])

@@ -92,6 +92,7 @@ if __name__ == '__main__':
 	parser.add_argument('--no-annotRepeats', action="store_false", default=True, dest='annotRepeats', help='If selected, not show annotated repeats on the reference genome at insertion interval. Only works with VIRUS mode. If ME are analysed, annotation repeats step is always performed.')
 	parser.add_argument('--no-VCFREF', action="store_false", default=True, dest='VCFREF', help='If selected, not show REF field in VCF output file (it consumes ~5Gb).')
 	parser.add_argument('--no-consensusBkpSeq', action="store_false", default=True, dest='consBkpSeq', help='If selected, a representative read is selected for breakpoint sequence. Otherwise, make consensus of breakpoint sequence. Time saver.')
+	parser.add_argument('--keepIdentDb', action="store_true", default=False, dest='keepIdentDb', help='If selected, do not delete the fasta file that is created with detected identities in input sample.')
 
 	## 2. Parse user´s input and initialize variables ##
 	args = parser.parse_args()
@@ -161,6 +162,7 @@ if __name__ == '__main__':
 	annotRepeats = args.annotRepeats
 	VCFREF = args.VCFREF
 	consBkpSeq = args.consBkpSeq
+	keepIdentDb = args.keepIdentDb
 
 	# If no reference is specified, get all that are present in the bam file.
 	if refs == 'ALL':
@@ -256,7 +258,8 @@ if __name__ == '__main__':
 	print ('VCFInfoFields: ', VCFInfoFields)
 	print ('annotRepeats: ', annotRepeats)
 	print ('VCFREF: ', VCFREF)
-	print ('consBkpSeq: ',consBkpSeq, "\n")
+	print ('consBkpSeq: ', consBkpSeq)
+	print ('keepIdentDb: ', keepIdentDb, "\n")
 
 	print('***** Executing ', scriptName, '.... *****', "\n")
 
@@ -329,6 +332,7 @@ if __name__ == '__main__':
 	confDict['annotRepeats'] = annotRepeats
 	confDict['VCFREF'] = VCFREF
 	confDict['consBkpSeq'] = consBkpSeq
+	confDict['keepIdentDb'] = keepIdentDb
 	
 	## 2. Execute structural variation caller
 	###########################################
