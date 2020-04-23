@@ -15,7 +15,7 @@ import databases
 import log
 import gRanges
 
-def load_annotations(annotations2load, refLengths, annotationsDir, threads, outDir):
+def load_annotations(annotations2load, refLengths, annotationsDir, germlineMEI, threads, outDir):
     '''
     Load a set of annotation files in bed formats into a bin database
 
@@ -23,8 +23,9 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
         1. annotations2load: list of annotations to load. Annotations available: REPEATS, TRANSDUCTIONS and EXONS
         2. refLengths: Dictionary containing reference ids as keys and as values the length for each reference  
         3. annotationsDir: Directory containing annotation files
-        4. threads: number of threads used to parallelize the bin database creation
-        5. outDir: Output directory
+        4. germlineMEI: Bed file containing set of known germline MEI. None if not available
+        5. threads: number of threads used to parallelize the bin database creation
+        6. outDir: Output directory
     
     Output:
         1. annotations: dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
@@ -34,6 +35,7 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
     annotations['REPEATS'] = None
     annotations['TRANSDUCTIONS'] = None
     annotations['EXONS'] = None
+    annotations['GERMLINE-MEI'] = None
 
     ## Create output directory
     unix.mkdir(outDir)
@@ -41,9 +43,8 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
     ## 1. Load annotated repeats into a bin database
     if 'REPEATS' in annotations2load:
 
-        repeatsBed = annotationsDir + '/repeats.bed'
-        #repeatsBed = annotationsDir + '/repeats.L1.bed'
-        #repeatsBed = annotationsDir + '/repeats.chr22.bed'
+        #repeatsBed = annotationsDir + '/repeats.bed'
+        repeatsBed = annotationsDir + '/repeats.L1.bed'
         annotations['REPEATS'] = formats.bed2binDb(repeatsBed, refLengths, threads)
 
     ## 2. Create transduced regions database
@@ -60,8 +61,11 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
     if 'EXONS' in annotations2load:
 
         exonsBed = annotationsDir + '/exons.bed'
-        #exonsBed = annotationsDir + '/exons.test.bed'
         annotations['EXONS'] = formats.bed2binDb(exonsBed, refLengths, threads)
+
+    ## 4. Create germline MEI database
+    if 'GERMLINE-MEI' in annotations2load:
+        annotations['GERMLINE-MEI'] = formats.bed2binDb(germlineMEI, refLengths, threads)
 
     return annotations
 
@@ -102,6 +106,14 @@ def annotate(events, steps, annotations, annovarDir, outDir):
         log.info(msg)  
         gene_annotation(events, annovarDir, outDir)
 
+    ## 3. Perform known germline MEI annotation if enabled
+    msg = '3. Perform known germline MEI annotation if enabled'
+    log.subHeader(msg)
+
+    if 'GERMLINE-MEI' in steps:
+        msg = 'Perform known germline MEI annotation if enabled'
+        log.info(msg)  
+        germline_MEI_annotation(events, annotations['GERMLINE-MEI'], 150)
 
 def annotate_interval(ref, beg, end, annotDb):
     '''
@@ -261,6 +273,44 @@ def addGnAnnot2events(events, out1):
         gene = fields[1]
         name = fields[8]             
         eventsDict[name].geneAnnot = (region, gene)
+
+def germline_MEI_annotation(events, MEIDb, buffer):
+    '''
+    For each input event assess if overlaps with an already known germline MEI polymorphism
+
+    Input: 
+        1. events: list containing input events to be annotated. Events should be objects containing ref, beg and end attributes.
+        2. MEIDb: dictionary containing known germline MEI organized per chromosome (keys) into genomic bin databases (values)
+        3. buffer: number of base pairs to extend begin and end coordinates for each event prior assessing overlap
+
+    Output:
+        New 'germlineDb' attribute set for each input event. Attribute is a string
+        with the germline MEI databases where the MEI has already been reported
+    '''
+    ## Assess for each input event if it overlaps with an germline MEI repeat
+    for event in events:
+
+        # Skip event if family not available
+        if 'FAMILY' not in event.SV_features:
+            event.germlineDb = None            
+            continue
+
+        # A) Known germline MEIs in the same ref where theevent is located
+        if event.ref in MEIDb:
+            
+            ### Select bin database for the corresponding reference 
+            binDb = MEIDb[event.ref]        
+
+            ### Retrieve overlapping known germline MEI if any
+            overlaps = binDb.collect_interval(event.beg - buffer, event.end + buffer, event.SV_features['FAMILY']) 
+
+            ### a) Known germline MEI overlapping the event
+            if overlaps:
+                event.germlineDb = overlaps[0][0].optional['database']                     
+
+            ### b) No overlap found                    
+            else:
+                event.germlineDb = None
 
 def create_annovar_input(events, fileName, outDir):
     '''
