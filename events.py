@@ -225,7 +225,8 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
         else:
             discordantsRt = {}
         ## 3. Merge discordant read pairs supporting RT and transduction insertions if transduction database provided    
-        discordantsIdentity1 = structures.merge_dictionaries([discordantsTd, discordantsRt, discordantsNone])
+        #discordantsIdentity1 = structures.merge_dictionaries([discordantsTd, discordantsRt, discordantsNone])
+        discordantsIdentity1 = structures.merge_dictionaries([discordantsTd, discordantsRt])
 
         # Remaining discordants for viruses:
         # NOTE SR: If viruses and MEs are searched at once, those discordants identified as MEs are NOT checked for viral identities.
@@ -249,8 +250,10 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
         
     if 'VIRUS' in targetINT2Search and viralSeqs:
         discordantEventsIdent = virus.is_virusSR(discordants, viralSeqs)
+    # If VIRUS is not selected, add events with identity == None. (If VIRUS is selected they are already in discordantEventsIdent)
+    else:
+        discordantsIdentity1.update(discordantsNone)
     #discordantsIdentity = structures.merge_dictionaries([discordantEventsIdent, discordantsIdentity1])
-    # TODO SR: I guess that here is VIRUS and MEs are activated there will be some repeated clusters.
     discordantEventsIdent.update(discordantsIdentity1)
 
     #return discordantsIdentity
