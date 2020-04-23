@@ -353,7 +353,7 @@ class bin_database():
             overlap, overlapLen, coord = gRanges.overlap_extended(beg, end, event.beg, event.end)
 
             # Compute percentage of overlap
-            intervalLen = end - beg 
+            intervalLen = end - beg + 1
             overlapPerc = float(overlapLen) / intervalLen * 100
             
             # Overlap found -> Add to the list the tuple
