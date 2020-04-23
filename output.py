@@ -163,17 +163,22 @@ def VCFMetaclustersFields(metaclusters):
             INFO['BKP2CONSSEQ'] = metacluster.consLeftSeq if metacluster.consLeftSeq != None else None
             INFO['INTBKP'] = ",".join("{}:{}".format(k, v) for k, v in metacluster.intRightBkp.items()) if metacluster.intRightBkp else None
             INFO['INTBKP2'] = ",".join("{}:{}".format(k, v) for k, v in metacluster.intLeftBkp.items()) if metacluster.intLeftBkp else None
+            INFO['CLIPTYPE'] = metacluster.rightClipType if metacluster.rightClipType != None else None
+            INFO['CLIPTYPE2'] = metacluster.leftClipType if metacluster.leftClipType != None else None
+
         # If integration is not reciprocal (there are only one bkp)
         else:
             # Try with right bkp
             INFO['BKPREPRESEQ'] = metacluster.repreRightSeq if metacluster.repreRightSeq != None else None
             INFO['BKPCONSSEQ'] = metacluster.consRightSeq if metacluster.consRightSeq != None else None
             INFO['INTBKP'] = ",".join("{}:{}".format(k, v) for k, v in metacluster.intRightBkp.items()) if metacluster.intRightBkp else None
+            INFO['CLIPTYPE'] = metacluster.rightClipType if metacluster.rightClipType != None else None
             # If there are not info at all of right bkp, show the info of left bkp.
             if INFO['BKPREPRESEQ'] == None and INFO['BKPCONSSEQ'] == None and INFO['INTBKP'] == None:
                 INFO['BKPREPRESEQ'] = metacluster.repreLeftSeq if metacluster.repreLeftSeq != None else None
                 INFO['BKPCONSSEQ'] = metacluster.consLeftSeq if metacluster.consLeftSeq != None else None
                 INFO['INTBKP'] = ",".join("{}:{}".format(k, v) for k, v in metacluster.intLeftBkp.items()) if metacluster.intLeftBkp else None
+                INFO['CLIPTYPE'] = metacluster.leftClipType if metacluster.leftClipType != None else None
 
         ## Create VCF variant object
         fields = [CHROM, POS, ID, ALT, QUAL, FILTER, INFO]
@@ -265,6 +270,8 @@ def INS2VCF_SR(metaclustersFields, index, refLengths, source, build, species, VC
             'BKP2REPRESEQ': ['.', 'String', 'Consensus sequence at BKP2.'], \
             'INTBKP': ['.', 'String', 'Coordinates of inserted sequence at BKP.'], \
             'INTBKP2': ['.', 'String', 'Coordinates of inserted sequence at BKP2.'], \
+            'CLIPTYPE': ['.', 'String', 'Way that clipping where collected at BKP. DISC: Based on discordant clippings. BLAT: Based on BLAT search. REG: Based on cluster position.'], \
+            'CLIPTYPE2': ['.', 'String', 'Way that clipping where collected at BKP2. DISC: Based on discordant clippings. BLAT: Based on BLAT search. REG: Based on cluster position.'], \
             }
             
     ## Create header

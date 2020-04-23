@@ -66,6 +66,19 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, bi
             # Add clippings if there are discodant clippings.
             if discClip == True or not 'VIRUS' in confDict['targetINT2Search'] or not metacluster.identity:
                 metacluster.addEvents(clippingEventsToAdd)
+                # Set bkp clipping type
+                if discClip == True:
+                    if metacluster.orientation == 'PLUS':
+                        metacluster.rightClipType = 'DISC'
+                    elif metacluster.orientation == 'MINUS':
+                        metacluster.leftClipType = 'DISC'
+
+                else:
+                    if metacluster.orientation == 'PLUS':
+                        metacluster.rightClipType = 'REG'
+                    elif metacluster.orientation == 'MINUS':
+                        metacluster.leftClipType = 'REG'
+
             # If there are not discordant clippings, but metacluster has identity, return metacluster and clippings list in order to perform BLAT clippings search
             elif clippingEventsToAdd and not discClip and metacluster.identity:
                 metaclustersWODiscClip[metacluster] = clippingEventsToAdd
@@ -76,6 +89,11 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, bi
             # Add clippings if there are discodant clippings.
             if discClip == True or not 'VIRUS' in confDict['targetINT2Search'] or not metacluster.identity:
                 metacluster.addEvents(clippingRightEventsToAdd)
+                if discClip == True:
+                    metacluster.rightClipType = 'DISC'
+                else:
+                    metacluster.rightClipType = 'REG'
+
             # If there are not discordant clippings, but metacluster has identity, return metacluster and clippings list in order to perform BLAT clippings search
             elif clippingRightEventsToAdd and not discClip and metacluster.identity:
                 metaclustersWODiscClip[metacluster] = clippingRightEventsToAdd
@@ -84,6 +102,11 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, bi
             # Add clippings if there are discodant clippings.
             if discClip == True or not 'VIRUS' in confDict['targetINT2Search'] or not metacluster.identity:
                 metacluster.addEvents(clippingLeftEventsToAdd)
+                if discClip == True:
+                    metacluster.leftClipType = 'DISC'
+                else:
+                    metacluster.leftClipType = 'REG'
+
             # If there are not discordant clippings, but metacluster has identity, return metacluster and clippings list in order to perform BLAT clippings search
             elif clippingLeftEventsToAdd and not discClip and metacluster.identity:
                 if metacluster in  metaclustersWODiscClip.keys():
@@ -387,6 +410,10 @@ def addBlatClippings(metaclustersWODiscClip, db, binId, outDir):
         if clippings2Add:
             for metacluster, clippings in clippings2Add:
                 metacluster.addEvents(clippings)
+                if metacluster.orientation == 'PLUS':
+                    metacluster.rightClipType = 'BLAT'
+                elif metacluster.orientation == 'MINUS':
+                    metacluster.leftClipType = 'BLAT'
 
 def writeClippingsFasta(clippings, binId, outDir):
     '''

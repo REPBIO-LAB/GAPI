@@ -1923,6 +1923,8 @@ class META_cluster():
         self.consRightSeq = None
         self.intLeftBkp = None
         self.intRightBkp = None
+        self.rightClipType = None
+        self.leftClipType = None
 
         # Shotr reads:
         self.identity = self.events[0].identity
