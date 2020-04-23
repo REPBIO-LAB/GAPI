@@ -1118,3 +1118,25 @@ class PSL_alignment():
 
         self.qBeg = updatedBeg
         self.qEnd = updatedEnd
+
+def pslQueryRefDict(pslPath):
+    '''
+    Read BLAT results and store qName and tName in a dictionary
+
+    Input:
+        1. pslPath: path to blat result file (psl format)
+    Output:
+        1. pslDict: dictionary -> pslDict[qName] = tName 
+    '''
+    # Read PSL
+    pslClipping = formats.PSL()
+    pslClipping.read(pslPath)
+    ## TODO SR: mirar filtros
+    pslDict = {}
+    for pslAlign in pslClipping.alignments:
+        if pslAlign.qName in pslDict.keys():
+            pslDict[pslAlign.qName].append(pslAlign.tName)
+        else:
+            pslDict[pslAlign.qName] = []
+            pslDict[pslAlign.qName].append(pslAlign.tName)
+    return pslDict

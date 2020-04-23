@@ -378,7 +378,7 @@ def addBlatClippings(metaclustersWODiscClip, db, binId, outDir):
     outName = binId + '_clippingsBlat'
     pslPath = alignment.alignment_blat(clippingsFasta, db, outName, outDir)
     # Make dictionary from blat results.
-    pslDict = makePslDict(pslPath)
+    pslDict = formats.pslQueryRefDict(pslPath)
     matchClippings = collectMatchClippings(metaclustersWODiscClip, pslDict)
     if matchClippings != {}:
         # Collect those clippings that have their bkp in same position as ones in BLAT.
@@ -410,27 +410,6 @@ def writeClippingsFasta(clippings, binId, outDir):
 
     return filePath
 
-def makePslDict(pslPath):
-    '''
-    Read BLAT results and store qName and tName in a dictionary
-
-    Input:
-        1. pslPath: path to blat result file (psl format)
-    Output:
-        1. pslDict: dictionary -> pslDict[qName] = tName 
-    '''
-    # Read PSL
-    pslClipping = formats.PSL()
-    pslClipping.read(pslPath)
-    ## TODO SR: mirar filtros
-    pslDict = {}
-    for pslAlign in pslClipping.alignments:
-        if pslAlign.qName in pslDict.keys():
-            pslDict[pslAlign.qName].append(pslAlign.tName)
-        else:
-            pslDict[pslAlign.qName] = []
-            pslDict[pslAlign.qName].append(pslAlign.tName)
-    return pslDict
 
 def collectMatchClippings(metaclustersWODiscClip, pslDict):
     '''
