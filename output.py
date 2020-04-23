@@ -34,9 +34,15 @@ def VCFMetaclustersFields(metaclusters):
         # If there are 2 bkps, show left first
         if metacluster.refRightBkp and metacluster.refLeftBkp:
             POS = min([metacluster.refRightBkp, metacluster.refLeftBkp])
-        # If there are only one, show that one
+            BKP2 = max([metacluster.refRightBkp, metacluster.refLeftBkp])
+            # Check what side is POS right or left
+            if POS == metacluster.refRightBkp:
+                posCluster = 'RIGHT'
+            elif POS == metacluster.refLeftBkp:
+                posCluster = 'LEFT'
         else:
             POS = metacluster.refLeftBkp if metacluster.refLeftBkp != None else metacluster.refRightBkp
+            BKP2 = None
 
         if POS == None:
             POS = metacluster.beg 
@@ -76,12 +82,6 @@ def VCFMetaclustersFields(metaclusters):
 
         discordantsMAPQMean = int(statistics.mean(discordantsMAPQ)) if discordantsMAPQ else None
         clippingsMAPQMean = int(statistics.mean(clippingsMAPQ)) if clippingsMAPQ else None
-
-        # If there are 2 bkps, show left first
-        if metacluster.refRightBkp and metacluster.refLeftBkp:
-            BKP2 = max([metacluster.refRightBkp, metacluster.refLeftBkp])
-        else:
-            BKP2 = None
 
         # Label with information about if there are clipping-discordant reads.
         checkClipDisc = any(check in discordants for check in clippings)
@@ -155,16 +155,26 @@ def VCFMetaclustersFields(metaclusters):
         #INFO['INTERNAL_ELEMENT'] = metacluster.events[0].element
 
         # Avoid showing BKP2 fields when there is not BKP2:
-        # If integration is reciprocal (there are 2 bkps)
+        # If integration is reciprocal (there are 2 bkps), put VCF tags of corresponding clusters
         if BKP2:
-            INFO['BKPREPRESEQ'] = metacluster.repreRightSeq if metacluster.repreRightSeq != None else None
-            INFO['BKP2REPRESEQ'] = metacluster.repreLeftSeq if metacluster.repreLeftSeq != None else None
-            INFO['BKPCONSSEQ'] = metacluster.consRightSeq if metacluster.consRightSeq != None else None
-            INFO['BKP2CONSSEQ'] = metacluster.consLeftSeq if metacluster.consLeftSeq != None else None
-            INFO['INTBKP'] = ",".join("{}:{}".format(k, v) for k, v in metacluster.intRightBkp.items()) if metacluster.intRightBkp else None
-            INFO['INTBKP2'] = ",".join("{}:{}".format(k, v) for k, v in metacluster.intLeftBkp.items()) if metacluster.intLeftBkp else None
-            INFO['CLIPTYPE'] = metacluster.rightClipType if metacluster.rightClipType != None else None
-            INFO['CLIPTYPE2'] = metacluster.leftClipType if metacluster.leftClipType != None else None
+            if posCluster == 'RIGHT':
+                INFO['BKPREPRESEQ'] = metacluster.repreRightSeq if metacluster.repreRightSeq != None else None
+                INFO['BKP2REPRESEQ'] = metacluster.repreLeftSeq if metacluster.repreLeftSeq != None else None
+                INFO['BKPCONSSEQ'] = metacluster.consRightSeq if metacluster.consRightSeq != None else None
+                INFO['BKP2CONSSEQ'] = metacluster.consLeftSeq if metacluster.consLeftSeq != None else None
+                INFO['INTBKP'] = ",".join("{}:{}".format(k, v) for k, v in metacluster.intRightBkp.items()) if metacluster.intRightBkp else None
+                INFO['INTBKP2'] = ",".join("{}:{}".format(k, v) for k, v in metacluster.intLeftBkp.items()) if metacluster.intLeftBkp else None
+                INFO['CLIPTYPE'] = metacluster.rightClipType if metacluster.rightClipType != None else None
+                INFO['CLIPTYPE2'] = metacluster.leftClipType if metacluster.leftClipType != None else None
+            elif posCluster == 'LEFT':
+                INFO['BKPREPRESEQ'] = metacluster.repreLeftSeq if metacluster.repreLeftSeq != None else None
+                INFO['BKP2REPRESEQ'] = metacluster.repreRightSeq if metacluster.repreRightSeq != None else None
+                INFO['BKPCONSSEQ'] = metacluster.consLeftSeq if metacluster.consLeftSeq != None else None
+                INFO['BKP2CONSSEQ'] = metacluster.consRightSeq if metacluster.consRightSeq != None else None
+                INFO['INTBKP'] = ",".join("{}:{}".format(k, v) for k, v in metacluster.intLeftBkp.items()) if metacluster.intLeftBkp else None
+                INFO['INTBKP2'] = ",".join("{}:{}".format(k, v) for k, v in metacluster.intRightBkp.items()) if metacluster.intRightBkp else None
+                INFO['CLIPTYPE'] = metacluster.leftClipType if metacluster.leftClipType != None else None
+                INFO['CLIPTYPE2'] = metacluster.rightClipType if metacluster.rightClipType != None else None
 
         # If integration is not reciprocal (there are only one bkp)
         else:
