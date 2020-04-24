@@ -711,8 +711,6 @@ class VCF():
         '''
         Read VCF file
         '''
-        print('READ_input: ', filePath)
-
         vcfFile = open(filePath)
 
         ## 1. Read VCF and differenciate between header and variant entries
