@@ -765,7 +765,7 @@ class SV_caller_short(SV_caller):
         dictMetaclustersSecondFilter, dictMetaclustersSecondFilterFailedTemp = filters.filter_metaclusters(metaclustersSVTypeBfSecondFilter, filters2Apply, self.confDict)
 
         step = 'FILTER METACLUSTERS'
-        msg = 'Filter out metaclusters' 
+        msg = 'Filter out metaclusters. PID: ' + str(os.getpid())
         log.step(step, msg)
 
         # Flat list
