@@ -332,11 +332,12 @@ def getPAFAlign(FASTA_file, indexDb, outDir):
 
     #err = open(logDir + '/align.err', 'w') 
     command = 'minimap2 ' + indexDb + ' ' + FASTA_file + ' > ' + PAF_file
-    status = subprocess.call(command, shell=True)
+    err = open(outDir + '/minimap2.err', 'w') 
+    status = subprocess.call(command, stderr=err, shell=True)
 
     if status != 0:
         step = 'ALIGN-INSERT'
-        msg = 'Insert alignment failed' 
+        msg = 'minimap2 alignment failed' 
         log.step(step, msg)
     
     return PAF_file
