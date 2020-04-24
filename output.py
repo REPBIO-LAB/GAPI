@@ -132,7 +132,7 @@ def INS2VCF(metaclusters, index, refLengths, source, build, species, outName, ou
     VCF.sort()
 
     ## 5. Write VCF in disk
-    IDS = ['VTYPE', 'ITYPE', 'MECHANISM', 'FAM', 'SUBFAM', 'CIPOS', 'CYTOID', \
+    IDS = ['VTYPE', 'ITYPE', 'MECHANISM', 'FAM', 'SUBFAM', 'GERMDB', 'CIPOS', 'CYTOID', \
            'NBEXONS', 'SRCGENE', 'STRAND', 'REGION', 'GENE', 'REP', 'REPSUB', 'DIST', \
            'NBTOTAL', 'NBTUMOR', 'NBNORMAL', 'NBSPAN', 'NBCLIP', 'LEN', 'CV', 'RTLEN', \
            'TRUN5LEN', 'TRUN3LEN', 'FULL', 'TDLEN', 'INVLEN', 'PERCR', \
