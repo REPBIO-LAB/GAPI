@@ -94,7 +94,7 @@ def INS2VCF(metaclusters, index, refLengths, source, build, species, outName, ou
         INFO['MECHANISM'] = metacluster.SV_features['MECHANISM'] if 'MECHANISM' in metacluster.SV_features else None        
         INFO['FAM'] = ','.join(metacluster.SV_features['FAMILY']) if ('FAMILY' in metacluster.SV_features and metacluster.SV_features['FAMILY']) else None
         INFO['SUBFAM'] = ','.join(metacluster.SV_features['SUBFAMILY']) if ('SUBFAMILY' in metacluster.SV_features and metacluster.SV_features['SUBFAMILY']) else None
-        INFO['GERMDB'] = metacluster.germlineDb        
+        INFO['GERMDB'] = metacluster.germlineDb if hasattr(metacluster, 'germlineDb') else None       
         INFO['CIPOS'] = str(CIPOS[0]) + ',' + str(CIPOS[1]) 
         INFO['CYTOID'] = ','.join(metacluster.SV_features['CYTOBAND']) if ('CYTOBAND' in metacluster.SV_features and metacluster.SV_features['CYTOBAND']) else None
         INFO['NBEXONS'] = metacluster.SV_features['NB_EXONS'] if 'NB_EXONS' in metacluster.SV_features else None
