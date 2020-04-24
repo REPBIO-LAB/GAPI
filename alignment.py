@@ -329,7 +329,7 @@ def alignment_bwa_filtered(database, viralBamParcialMatch, processes, inFasta, o
     return BAM
 
 
-def alignment_blat(FASTA, reference, fileName, outDir):
+def alignment_blat(FASTA, reference, args, fileName, outDir):
     '''
     Align a set of sequence into a reference with blat
 
@@ -345,7 +345,16 @@ def alignment_blat(FASTA, reference, fileName, outDir):
     ## Align the sequences into the reference
     PSL = outDir + '/' + fileName + '.psl'
     err = open(outDir + '/align.err', 'w') 
-    command = 'blat -stepSize=5 -repMatch=2253 -minScore=20 -minIdentity=0 -noHead -out=psl ' + reference + ' ' + FASTA + ' ' + PSL
+
+    # Set blat arguments
+    blatArgs = []
+
+    if 'stepSize' in args.keys():
+        blatArgs.append('-stepSize='+str(args['stepSize']))
+    if 'tileSize' in args.keys():
+        blatArgs.append('-tileSize='+str(args['tileSize']))
+
+    command = 'blat ' + ' '.join(blatArgs) + ' -repMatch=2253 -minScore=20 -minIdentity=0 -noHead -out=psl ' + reference + ' ' + FASTA + ' ' + PSL
     status = subprocess.call(command, stderr=err, shell=True)
 
     if status != 0:

@@ -396,10 +396,11 @@ def addBlatClippings(metaclustersWODiscClip, db, binId, outDir):
     # Write fasta with events collected in a wide region
     clippingEventsToAdd = list(itertools.chain(*metaclustersWODiscClip.values()))
     clippingsFasta = writeClippingsFasta(clippingEventsToAdd, binId, outDir)
-
     # Align clipped sequences with BLAT against db
+    blatArgs = {}
+    blatArgs['tileSize'] = 7
     outName = binId + '_clippingsBlat'
-    pslPath = alignment.alignment_blat(clippingsFasta, db, outName, outDir)
+    pslPath = alignment.alignment_blat(clippingsFasta, db, blatArgs, outName, outDir)
     # Make dictionary from blat results.
     pslDict = formats.pslQueryRefDict(pslPath)
     matchClippings = collectMatchClippings(metaclustersWODiscClip, pslDict)
@@ -408,7 +409,7 @@ def addBlatClippings(metaclustersWODiscClip, db, binId, outDir):
         clippings2Add = collectClipBkpMatch(matchClippings, clippingEventsToAdd)
         # Add all clippings to metacluster
         if clippings2Add:
-            for metacluster, clippings in clippings2Add:
+            for metacluster, clippings in clippings2Add.items():
                 metacluster.addEvents(clippings)
                 if metacluster.orientation == 'PLUS':
                     metacluster.rightClipType = 'BLAT'
@@ -454,15 +455,28 @@ def collectMatchClippings(metaclustersWODiscClip, pslDict):
     for metaclusterWODiscClip, clippings in metaclustersWODiscClip.items():
         for clip in clippings:
             if clip.readName in pslDict.keys():
-                # TODO SR: Aqui no s esi habrá que mirar todos los de una lista en otra lista:
-                if metaclusterWODiscClip.identity in pslDict[clip.readName]:
-                    if metaclusterWODiscClip in matchClippings.keys():
-                        matchClippings[metaclusterWODiscClip].append(clip)
-                        clip.blatIdentity = True
-                    else:
-                        matchClippings[metaclusterWODiscClip] = []
-                        matchClippings[metaclusterWODiscClip].append(clip)
-                        clip.blatIdentity = True
+                # If metacluster.identity is a string
+                # Check if metacluster.identity is in blat hits list. Identity has partial name (i.e Hepadnaviridae) wheter pslDict complete names (i.e. Hepadnaviridae|KR811803.1).
+                if type(metaclusterWODiscClip.identity) is str:
+                    if any(metaclusterWODiscClip.identity in iden for iden in pslDict[clip.readName]):
+                        if metaclusterWODiscClip in matchClippings.keys():
+                            matchClippings[metaclusterWODiscClip].append(clip)
+                            clip.blatIdentity = True
+                        else:
+                            matchClippings[metaclusterWODiscClip] = []
+                            matchClippings[metaclusterWODiscClip].append(clip)
+                            clip.blatIdentity = True
+                # If metacluster.identity is a list
+                # Check if any element of metacluster.identity is in blat hits list. Identity has partial names (i.e Hepadnaviridae) wheter pslDict complete names (i.e. Hepadnaviridae|KR811803.1).
+                elif type(metaclusterWODiscClip.identity) is list:
+                    if [i for e in metaclusterWODiscClip.identity for i in pslDict[clip.readName] if e in i]:
+                        if metaclusterWODiscClip in matchClippings.keys():
+                            matchClippings[metaclusterWODiscClip].append(clip)
+                            clip.blatIdentity = True
+                        else:
+                            matchClippings[metaclusterWODiscClip] = []
+                            matchClippings[metaclusterWODiscClip].append(clip)
+                            clip.blatIdentity = True                     
 
     return matchClippings
                 
@@ -562,7 +576,7 @@ def reconstructSeq(metacluster, consSeq, orientation, outDir):
 
         # If there are clippings with BLAT hits
         if clippingsBlat:
-            if consSeq and len(clippingsBlat) > 1 and len(clippingsDisc) < 1000: # Make consensus sequence with BLAT clipping events. len(clippingsDisc) > 1 in order to avoid long lasting muscle runs
+            if consSeq and len(clippingsBlat) > 1 and len(clippingsBlat) < 1000: # Make consensus sequence with BLAT clipping events. len(clippingsDisc) > 1 in order to avoid long lasting muscle runs
                 clipped_seq, clipped_seqFasta = conSeq(metacluster, clippingsBlat, orientation, outDir)
             else: # Make representative sequence with BLAT clipping events
                 clipped_seq = repreSeq(metacluster, orientation, clippingsBlat)
@@ -578,7 +592,7 @@ def reconstructSeq(metacluster, consSeq, orientation, outDir):
             # If there are clippings
             if clippings:
                 # NOTE SR: this sequence will be less relayable
-                if consSeq and len(clippings) > 1 and len(clippingsDisc) < 1000: # Make consensus sequence with clipping events. len(clippingsDisc) > 1 in order to avoid long lasting muscle runs
+                if consSeq and len(clippings) > 1 and len(clippings) < 1000: # Make consensus sequence with clipping events. len(clippingsDisc) > 1 in order to avoid long lasting muscle runs
                     clipped_seq, clipped_seqFasta = conSeq(metacluster, clippings, orientation, outDir)
                 else: # Make representative sequence with clipping events
                     clipped_seq = repreSeq(metacluster, orientation, clippings)

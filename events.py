@@ -954,6 +954,6 @@ def collect_clipped_seqs(clippings):
 
         #if clipping.clippingType == 'soft':
 
-        clippedFasta.seqDict[clipping.fullReadName()] = clipping.clipped_seq()
+        clippedFasta.seqDict[clipping.readName] = clipping.clipped_seq()
 
     return clippedFasta
