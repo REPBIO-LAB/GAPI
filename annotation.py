@@ -115,6 +115,7 @@ def annotate(events, steps, annotations, annovarDir, outDir):
         log.info(msg)  
         germline_MEI_annotation(events, annotations['GERMLINE-MEI'], 150)
 
+
 def annotate_interval(ref, beg, end, annotDb):
     '''
     Intersect input interval (ref:beg-end) with a given annotation 
@@ -290,27 +291,24 @@ def germline_MEI_annotation(events, MEIDb, buffer):
     ## Assess for each input event if it overlaps with an germline MEI repeat
     for event in events:
 
-        # Skip event if family not available
-        if 'FAMILY' not in event.SV_features:
+        # Skip event if family not available or no MEI on the same reference
+        if ('FAMILY' not in event.SV_features) or (event.ref not in MEIDb):
             event.germlineDb = None            
             continue
 
-        # A) Known germline MEIs in the same ref where theevent is located
-        if event.ref in MEIDb:
-            
-            ### Select bin database for the corresponding reference 
-            binDb = MEIDb[event.ref]        
+        ### Select bin database for the corresponding reference 
+        binDb = MEIDb[event.ref]        
 
-            ### Retrieve overlapping known germline MEI if any
-            overlaps = binDb.collect_interval(event.beg - buffer, event.end + buffer, event.SV_features['FAMILY']) 
+        ### Retrieve overlapping known germline MEI if any
+        overlaps = binDb.collect_interval(event.beg - buffer, event.end + buffer, event.SV_features['FAMILY']) 
 
-            ### a) Known germline MEI overlapping the event
-            if overlaps:
-                event.germlineDb = overlaps[0][0].optional['database']                     
+        ### a) Known germline MEI overlapping the event
+        if overlaps:
+            event.germlineDb = overlaps[0][0].optional['database']                     
 
-            ### b) No overlap found                    
-            else:
-                event.germlineDb = None
+        ### b) No overlap found                    
+        else:
+            event.germlineDb = None
 
 def create_annovar_input(events, fileName, outDir):
     '''
