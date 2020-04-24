@@ -105,7 +105,7 @@ def VCFMetaclustersFields(metaclusters):
         # TODO SR: Avoid non-existing fields in another way and add interesting fields
         INFO['VTYPE'] = metacluster.mutOrigin
         # TODO SR: Put metacluster.identity as metacluster.SV_features['INS_TYPE'], so this INFO field can be deleted.
-        INFO['IDENTITY'] = metacluster.identity
+        INFO['IDENT'] = metacluster.identity
         #INFO['ITYPE'] = metacluster.SV_features['INS_TYPE'] if 'INS_TYPE' in metacluster.SV_features else None
         #INFO['MECHANISM'] = metacluster.SV_features['MECHANISM'] if 'MECHANISM' in metacluster.SV_features else None        
         #INFO['FAM'] = ','.join(metacluster.SV_features['FAMILY']) if ('FAMILY' in metacluster.SV_features and metacluster.SV_features['FAMILY']) else None
@@ -135,14 +135,14 @@ def VCFMetaclustersFields(metaclusters):
         #INFO['RTCOORD'] = metacluster.SV_features['RETRO_LEN'] if 'RETRO_LEN' in metacluster.SV_features else None
         #INFO['POLYA'] = metacluster.SV_features['POLYA'] if 'POLYA' in metacluster.SV_features else None
         #INFO['INSEQ'] = metacluster.consensusEvent.pick_insert() if metacluster.consensusEvent is not None else None
-        INFO['DISCORDANT'] = ','.join(discordants) if discordants else None
-        INFO['CLIPPING'] = ','.join(clippings) if clippings else None
-        INFO['NBDISCORDANT'] = len(discordants)
-        INFO['NBCLIPPING'] = len(clippings)
-        INFO['ORIENTATION'] = metacluster.orientation
+        INFO['DISC'] = ','.join(discordants) if discordants else None
+        INFO['CLIP'] = ','.join(clippings) if clippings else None
+        INFO['NBDISC'] = len(discordants)
+        INFO['NBCLIP'] = len(clippings)
+        INFO['ORIENT'] = metacluster.orientation
         INFO['BKP2'] = BKP2
-        INFO['DISCORDANTMAPQ'] = discordantsMAPQMean
-        INFO['CLIPPINGMAPQ'] = clippingsMAPQMean
+        INFO['DISCMAPQ'] = discordantsMAPQMean
+        INFO['CLIPMAPQ'] = clippingsMAPQMean
         INFO['CLIPDISC'] = CLIPDISC
         INFO['SPECIDENT'] = SPECIDENT
         INFO['DISCDUP'] = 0 if metacluster.percDuplicates()[0] == 0 else "{:.2f}".format(metacluster.percDuplicates()[0])
@@ -158,19 +158,19 @@ def VCFMetaclustersFields(metaclusters):
         # If integration is reciprocal (there are 2 bkps), put VCF tags of corresponding clusters
         if BKP2:
             if posCluster == 'RIGHT':
-                INFO['BKPREPRESEQ'] = metacluster.repreRightSeq if metacluster.repreRightSeq != None else None
-                INFO['BKP2REPRESEQ'] = metacluster.repreLeftSeq if metacluster.repreLeftSeq != None else None
-                INFO['BKPCONSSEQ'] = metacluster.consRightSeq if metacluster.consRightSeq != None else None
-                INFO['BKP2CONSSEQ'] = metacluster.consLeftSeq if metacluster.consLeftSeq != None else None
+                INFO['BKPRSEQ'] = metacluster.repreRightSeq if metacluster.repreRightSeq != None else None
+                INFO['BKP2RSEQ'] = metacluster.repreLeftSeq if metacluster.repreLeftSeq != None else None
+                INFO['BKPCSEQ'] = metacluster.consRightSeq if metacluster.consRightSeq != None else None
+                INFO['BKP2CSEQ'] = metacluster.consLeftSeq if metacluster.consLeftSeq != None else None
                 INFO['INTBKP'] = ",".join("{}:{}".format(k, v) for k, v in metacluster.intRightBkp.items()) if metacluster.intRightBkp else None
                 INFO['INTBKP2'] = ",".join("{}:{}".format(k, v) for k, v in metacluster.intLeftBkp.items()) if metacluster.intLeftBkp else None
                 INFO['CLIPTYPE'] = metacluster.rightClipType if metacluster.rightClipType != None else None
                 INFO['CLIPTYPE2'] = metacluster.leftClipType if metacluster.leftClipType != None else None
             elif posCluster == 'LEFT':
-                INFO['BKPREPRESEQ'] = metacluster.repreLeftSeq if metacluster.repreLeftSeq != None else None
-                INFO['BKP2REPRESEQ'] = metacluster.repreRightSeq if metacluster.repreRightSeq != None else None
-                INFO['BKPCONSSEQ'] = metacluster.consLeftSeq if metacluster.consLeftSeq != None else None
-                INFO['BKP2CONSSEQ'] = metacluster.consRightSeq if metacluster.consRightSeq != None else None
+                INFO['BKPRSEQ'] = metacluster.repreLeftSeq if metacluster.repreLeftSeq != None else None
+                INFO['BKP2RSEQ'] = metacluster.repreRightSeq if metacluster.repreRightSeq != None else None
+                INFO['BKPCSEQ'] = metacluster.consLeftSeq if metacluster.consLeftSeq != None else None
+                INFO['BKP2CSEQ'] = metacluster.consRightSeq if metacluster.consRightSeq != None else None
                 INFO['INTBKP'] = ",".join("{}:{}".format(k, v) for k, v in metacluster.intLeftBkp.items()) if metacluster.intLeftBkp else None
                 INFO['INTBKP2'] = ",".join("{}:{}".format(k, v) for k, v in metacluster.intRightBkp.items()) if metacluster.intRightBkp else None
                 INFO['CLIPTYPE'] = metacluster.leftClipType if metacluster.leftClipType != None else None
@@ -179,14 +179,14 @@ def VCFMetaclustersFields(metaclusters):
         # If integration is not reciprocal (there are only one bkp)
         else:
             # Try with right bkp
-            INFO['BKPREPRESEQ'] = metacluster.repreRightSeq if metacluster.repreRightSeq != None else None
-            INFO['BKPCONSSEQ'] = metacluster.consRightSeq if metacluster.consRightSeq != None else None
+            INFO['BKPRSEQ'] = metacluster.repreRightSeq if metacluster.repreRightSeq != None else None
+            INFO['BKPCSEQ'] = metacluster.consRightSeq if metacluster.consRightSeq != None else None
             INFO['INTBKP'] = ",".join("{}:{}".format(k, v) for k, v in metacluster.intRightBkp.items()) if metacluster.intRightBkp else None
             INFO['CLIPTYPE'] = metacluster.rightClipType if metacluster.rightClipType != None else None
             # If there are not info at all of right bkp, show the info of left bkp.
-            if INFO['BKPREPRESEQ'] == None and INFO['BKPCONSSEQ'] == None and INFO['INTBKP'] == None:
-                INFO['BKPREPRESEQ'] = metacluster.repreLeftSeq if metacluster.repreLeftSeq != None else None
-                INFO['BKPCONSSEQ'] = metacluster.consLeftSeq if metacluster.consLeftSeq != None else None
+            if INFO['BKPRSEQ'] == None and INFO['BKPCSEQ'] == None and INFO['INTBKP'] == None:
+                INFO['BKPRSEQ'] = metacluster.repreLeftSeq if metacluster.repreLeftSeq != None else None
+                INFO['BKPCSEQ'] = metacluster.consLeftSeq if metacluster.consLeftSeq != None else None
                 INFO['INTBKP'] = ",".join("{}:{}".format(k, v) for k, v in metacluster.intLeftBkp.items()) if metacluster.intLeftBkp else None
                 INFO['CLIPTYPE'] = metacluster.leftClipType if metacluster.leftClipType != None else None
 
@@ -255,14 +255,14 @@ def INS2VCF_SR(metaclustersFields, index, refLengths, source, build, species, VC
             'RTCOORD': ['.', 'String', 'Coordinates for inserted retrotransposon piece of sequence'], \
             'POLYA': ['0', 'Flag', 'PolyA tail identified'], \
             'INSEQ': ['.', 'String', 'Inserted sequence'], \
-            'DISCORDANT': ['.', 'String', 'Discordant reads supporting the insertion'], \
-            'CLIPPING': ['.', 'String', 'Clipping reads supporting the insertion'], \
-            'NBDISCORDANT': ['1', 'Integer', 'Number of discordant reads supporting the insertion'], \
-            'NBCLIPPING': ['1', 'Integer', 'Number of clipping reads supporting the insertion'], \
-            'DISCORDANTMAPQ': ['1', 'Integer', 'Average of MAPQ of discordant reads supporting the insertion'], \
-            'CLIPPINGMAPQ': ['1', 'Integer', 'Average of MAPQ of clipping reads supporting the insertion'], \
-            'IDENTITY': ['.', 'String', 'Identity of the insertion'], \
-            'ORIENTATION': ['.', 'String', 'Orientation of the insertion: RECIPROCAL, PLUS or MINUS'], \
+            'DISC': ['.', 'String', 'Discordant reads supporting the insertion'], \
+            'CLIP': ['.', 'String', 'Clipping reads supporting the insertion'], \
+            'NBDISC': ['1', 'Integer', 'Number of discordant reads supporting the insertion'], \
+            'NBCLIP': ['1', 'Integer', 'Number of clipping reads supporting the insertion'], \
+            'DISCMAPQ': ['1', 'Integer', 'Average of MAPQ of discordant reads supporting the insertion'], \
+            'CLIPMAPQ': ['1', 'Integer', 'Average of MAPQ of clipping reads supporting the insertion'], \
+            'IDENT': ['.', 'String', 'Identity of the insertion'], \
+            'ORIENT': ['.', 'String', 'Orientation of the insertion: RECIPROCAL, PLUS or MINUS'], \
             'BKP2': ['1', 'Integer', 'Reference position of second breakpoint of the insertion'], \
             'CLIPDISC': ['0', 'Flag', 'There are discordant clipping reads supporting the insertion'], \
             'SPECIDENT': ['.', 'String', 'Specific identities and number of discordant reads supporting it. SpecificIdentity:#reads'], \
@@ -274,10 +274,10 @@ def INS2VCF_SR(metaclustersFields, index, refLengths, source, build, species, VC
             'REGION': ['.', 'String', 'Genomic region where insertion occurs'], \
             'GENE': ['.', 'String', 'HUGO gene symbol'], \
             'REFSeq': ['.', 'String', 'Reference sequence at insertion point (+- 10bp from insertion bkp).'], \
-            'BKPCONSSEQ': ['.', 'String', 'Consensus sequence at BKP.'], \
-            'BKP2CONSSEQ': ['.', 'String', 'Consensus sequence at BKP2.'], \
-            'BKPREPRESEQ': ['.', 'String', 'Consensus sequence at BKP.'], \
-            'BKP2REPRESEQ': ['.', 'String', 'Consensus sequence at BKP2.'], \
+            'BKPCSEQ': ['.', 'String', 'Consensus sequence at BKP.'], \
+            'BKP2CSEQ': ['.', 'String', 'Consensus sequence at BKP2.'], \
+            'BKPRSEQ': ['.', 'String', 'Consensus sequence at BKP.'], \
+            'BKP2RSEQ': ['.', 'String', 'Consensus sequence at BKP2.'], \
             'INTBKP': ['.', 'String', 'Coordinates of inserted sequence at BKP.'], \
             'INTBKP2': ['.', 'String', 'Coordinates of inserted sequence at BKP2.'], \
             'CLIPTYPE': ['.', 'String', 'Way that clipping where collected at BKP. DISC: Based on discordant clippings. BLAT: Based on BLAT search. REG: Based on cluster position.'], \
