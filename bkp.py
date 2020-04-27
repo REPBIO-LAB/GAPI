@@ -363,7 +363,7 @@ def chooseBkpClippings(clippingEventsDict, eventType, binBeg, binEnd):
         3. binBeg: beg position
         4. binEnd: end position
     Output:
-        1. clippingEventsDict: same structure as input dictionary, containing only those clipping events which clipping bkp is between input coordinates.
+        1. clippingEventsToAdd: same structure as input dictionary, containing only those clipping events which clipping bkp is between input coordinates.
     '''
     # eventType = 'RIGHT-CLIPPING' or 'LEFT-CLIPPING'
     clippingEventsToAdd = {}
@@ -379,7 +379,7 @@ def chooseBkpClippings(clippingEventsDict, eventType, binBeg, binEnd):
             if binBeg <= clippingEvent.beg <= binEnd:
                 clippingEventsToAdd[eventType].append(clippingEvent)
 
-    return clippingEventsDict
+    return clippingEventsToAdd
 
 def addBlatClippings(metaclustersWODiscClip, db, binId, outDir):
     '''
