@@ -918,7 +918,7 @@ def reciprocal(binDb, minPercOverlap, minClusterSize, buffer):
     for eventPlus, nestDict in eventsPlusDict.items():
         maximumEventMinus = max(nestDict, key=nestDict.get)
         # Save the best pair in reciprocalDict:
-        if 'RECIPROCAL-' + str(eventPlus.identity) in reciprocalDict.keys():
+        if 'RECIPROCAL-' + str(eventPlus.clusterType) + '-' + str(eventPlus.identity) in reciprocalDict.keys():
             reciprocalDict['RECIPROCAL-' + str(eventPlus.clusterType) + '-' + str(eventPlus.identity)].append(maximumEventMinus)
             reciprocalDict['RECIPROCAL-' + str(eventPlus.clusterType) + '-' + str(eventPlus.identity)].append(eventPlus)
         else:
@@ -935,19 +935,19 @@ def reciprocal(binDb, minPercOverlap, minClusterSize, buffer):
 
     for plusEvent in binDb.collect(plusEventTypes):
         if not any(plusEvent in value1 for value1 in reciprocalDict.values()) and not any(plusEvent in value2 for value2 in plusDict.values()):
-            if 'PLUS-' + commonEventType in plusDict.keys():
-                plusDict['PLUS-' + commonEventType].append(plusEvent)
+            if 'PLUS-' + str(plusEvent.clusterType) + '-' + str(plusEvent.identity) in plusDict.keys():
+                plusDict['PLUS-' + str(plusEvent.clusterType) + '-' + str(plusEvent.identity)].append(plusEvent)
             else:
-                plusDict['PLUS-' + commonEventType] = []
-                plusDict['PLUS-' + commonEventType].append(plusEvent)
+                plusDict['PLUS-' + str(plusEvent.clusterType) + '-' + str(plusEvent.identity)] = []
+                plusDict['PLUS-' + str(plusEvent.clusterType) + '-' + str(plusEvent.identity)].append(plusEvent)
 
     for minusEvent in binDb.collect(minusEventTypes):
         if not any(minusEvent in value3 for value3 in reciprocalDict.values()) and not any(minusEvent in value4 for value4 in minusDict.values()):
-            if 'MINUS-' + commonEventType in minusDict.keys():
-                minusDict['MINUS-' + commonEventType].append(minusEvent)
+            if 'MINUS-' + str(minusEvent.clusterType) + '-' + str(minusEvent.identity) in minusDict.keys():
+                minusDict['MINUS-' + str(minusEvent.clusterType) + '-' + str(minusEvent.identity)].append(minusEvent)
             else:
-                minusDict['MINUS-' + commonEventType] = []
-                minusDict['MINUS-' + commonEventType].append(minusEvent)
+                minusDict['MINUS-' + str(minusEvent.clusterType) + '-' + str(minusEvent.identity)] = []
+                minusDict['MINUS-' + str(minusEvent.clusterType) + '-' + str(minusEvent.identity)].append(minusEvent)
                         
 
     # Merge the three dictionaries:
