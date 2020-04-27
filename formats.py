@@ -85,6 +85,66 @@ def bed2binDb(bedPath, refLengths, threads):
 
     return wgBinDb
 
+
+def INS2binDb(VCFs, refLengths, threads):
+    '''
+    Organize INS events from a set of input VCFs into a bin database
+    
+    Input:
+        1. VCFs: list of VCF of objects containing INS events
+        2. refLengths: Dictionary containing reference ids as keys and as values the length for each reference
+        3. threads: number of threads used to parallelize the bin database creation
+
+    Output:
+        1. wgBinDb: dictionary containing references as keys and the corresponding 'bin_database' as value
+    '''
+    ## For each insertion event compute beg and end coordinates:
+    for VCF in VCFs:
+
+        for variant in VCF.variants:
+
+            variant.beg, variant.end = variant.pos_interval()
+
+    ## Organize INS events into a dict
+    insDict = INS2Dict(VCFs)
+
+    ## Create bin database
+    wgBinDb = structures.create_bin_database_parallel(refLengths, insDict, threads)
+
+    return wgBinDb
+
+def INS2Dict(VCFs):
+    '''
+    Organize INS events from a set of input VCFs into a dictionary 
+
+    Input:
+        1. VCFs: List of VCF objects
+
+    Output:
+        1. VCFs_dict: Nested dictionary with first level keys as chromosomes, second level as insertion type and list of INS variants as values 
+    '''
+    outDict = {}
+
+    for VCF in VCFs:
+
+        for variant in VCF.variants:
+            ref = variant.chrom
+            iType = variant.info['ITYPE'] + '-' + variant.info['FAM'] if 'FAM' in variant.info else variant.info['ITYPE'] 
+
+            if ref not in outDict:
+                outDict[ref] = {}
+                outDict[ref][iType] = [variant]
+                continue
+            
+            if iType not in outDict[ref]:
+                outDict[ref][iType] = [variant]
+                continue
+
+            outDict[ref][iType].append(variant)
+
+    return outDict
+
+
 ## CLASSES ##
 class FASTA():
     '''
@@ -751,6 +811,7 @@ class VCF():
         species = ''
         refLengths = {} 
         info = {}
+        self.info_order = []
 
         ## Read header line by line
         for line in header:
@@ -792,6 +853,7 @@ class VCF():
                     values.append(value)
 
                 info[values[0]] = values[1:]
+                self.info_order.append(values[0])
 
         ## Create VCF header object
         self.create_header(source, build, species, refLengths, info)
@@ -889,7 +951,7 @@ class VCF():
         for variant in self.variants:
 
             INFO = variant.build_info(IDS)
-            row = variant.chrom + "\t" + str(variant.pos) + "\t" + str(variant.id) + "\t" + variant.ref + "\t" + variant.alt + "\t" + variant.qual + "\t" + variant.filter + "\t" + INFO + "\n"
+            row = variant.chrom + "\t" + str(variant.pos) + "\t" + str(variant.ID) + "\t" + variant.ref + "\t" + variant.alt + "\t" + variant.qual + "\t" + variant.filter + "\t" + INFO + "\n"
             outFile.write(row)
 
         ## Close output file
@@ -1012,14 +1074,18 @@ class VCF_variant():
         Initialize VCF variant class
         '''
         VCF_variant.number += 1 # Update instances counter
+        self.id = 'variant_' + str(VCF_variant.number)
+
         self.chrom = fields[0]
         self.pos = int(fields[1])
-        self.id = fields[2]
+        self.ID = fields[2]
         self.ref = fields[3]
         self.alt = fields[4]
         self.qual = fields[5]
         self.filter = fields[6]
         self.info = fields[7]
+
+        self.clusterId = None
 
     def build_info(self, IDS):
         '''
@@ -1056,6 +1122,53 @@ class VCF_variant():
 
         return INFO
 
+    def pos_interval(self):
+        '''
+        Compute position interval
+        '''        
+
+        if 'CIPOS' in self.info:
+            ciBeg, ciEnd = self.info['CIPOS'].split(',')
+            beg = self.pos + int(ciBeg)
+            end = self.pos + int(ciEnd)
+
+        return beg, end
+
+class INS_cluster():
+    '''
+    '''
+    number = 0 # Number of instances
+
+    def __init__(self, variants):
+        '''
+        Initialize class instance
+        '''
+        ## Set cluster id
+        INS_cluster.number += 1 # Update instances counter
+        self.id = 'CLUSTER_' + str(INS_cluster.number)
+
+        # Define list of events composing the cluster 
+        self.variants = variants
+
+        # Update event's clusterId attribute
+        for event in self.variants:
+            event.clusterId = self.id   
+
+    def consensus(self):
+        '''
+        Select representative INS variant for the cluster
+
+        Note: right now I will pick an arbitrary variant. Improve in the future. Ideas
+            - Improve consensus sequence quality by making a consensus of consensus sequences
+        '''
+        ## Select arbitrary event as consensus (improve later)
+        consensus = self.variants[0]
+
+        ## Add list of samples where the event is identified
+        sampleIds = ','.join(set([event.sampleId for event in self.variants]))
+        consensus.info['SAMPLES'] = sampleIds
+
+        return consensus
 
 class PSL():
     '''

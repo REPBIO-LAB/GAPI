@@ -204,7 +204,7 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
 
                 ## Identify events overlapping A (skip A itself and event pairs already assessed)
                 for eventB in events[idx + 1:]:
-
+                    
                     ## Skip comparison if B belongs to a cluster already known to overlap A
                     if (eventB.clusterId in clustersOverlapA):
                         continue

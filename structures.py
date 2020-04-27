@@ -83,7 +83,7 @@ def create_bin_database_parallel(refLengths, eventsDict, threads):
             continue
 
         # Define bin sizes
-        binSizes = [10000, 100000, 1000000, refLen]
+        binSizes = [10000, 100000, 1000000, int(refLen)]
 
         # Add to the list of tuples
         fields = (ref, 0, refLen, eventsDict[ref], binSizes)

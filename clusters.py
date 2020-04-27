@@ -77,7 +77,11 @@ def create_cluster(events, clusterType):
     elif 'SUPPLEMENTARY' in clusterType:
         cluster = SUPPLEMENTARY_cluster(events)
 
-    ## g) Unexpected cluster type
+    ## g) Create INS_VCF cluster
+    elif 'INS_VCF' in clusterType:
+        cluster = formats.INS_cluster(events)
+
+    ## h) Unexpected cluster type
     else:
         log.info('Error at \'create_cluster\'. Unexpected cluster type')
         sys.exit(1)
@@ -1123,7 +1127,7 @@ class cluster():
         self.nbOutliers = 0
 
         # Update event's clusterId attribute
-        for event in events:
+        for event in self.events:
             event.clusterId = self.id        
 
     def length(self):
@@ -1334,8 +1338,6 @@ class cluster():
         
         return dupPercentage
         
-
-
 class INS_cluster(cluster):
     '''
     Insertion (INS) cluster subclass
