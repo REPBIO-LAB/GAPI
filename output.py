@@ -22,6 +22,8 @@ def VCFMetaclustersFields(metaclusters):
         1. metaclustersFields: List of lists: containing VCF fields for each metacluster. Structure -> [[CHROM, POS, ID, ALT, QUAL, FILTER, INFO], [CHROM, POS, ID, ALT, QUAL, FILTER, INFO], ...]
     '''
     metaclustersFields = []
+    posCluster = None
+    BKP2 = None
 
     ## 3.2 Iterate over metaclusters
     for metacluster in metaclusters:
@@ -40,17 +42,37 @@ def VCFMetaclustersFields(metaclusters):
                 posCluster = 'RIGHT'
             elif POS == metacluster.refLeftBkp:
                 posCluster = 'LEFT'
+        
+        # If there is only one clipping bkp
         else:
             POS = metacluster.refLeftBkp if metacluster.refLeftBkp != None else metacluster.refRightBkp
-            BKP2 = None
+            # If it's reciprocal even though there is only one clipping bkp
+            if metacluster.orientation == 'RECIPROCAL' and POS == metacluster.refLeftBkp:
+                POS = min([metacluster.refLeftBkp, metacluster.end])
+                BKP2 = max([metacluster.refLeftBkp, metacluster.end])
+                if POS == metacluster.refLeftBkp:
+                    posCluster = 'LEFT'
+                elif POS == metacluster.end:
+                    posCluster = 'RIGHT'
+            elif metacluster.orientation == 'RECIPROCAL' and POS == metacluster.refRightBkp:
+                POS = min([metacluster.refRightBkp, metacluster.beg])
+                BKP2 = max([metacluster.refRightBkp, metacluster.beg])
+                if POS == metacluster.refRightBkp:
+                    posCluster = 'RIGHT'
+                elif POS == metacluster.beg:
+                    posCluster = 'LEFT'             
 
+        # If there are no clipping bkp
         if POS == None:
-            if metacluster.orientation == 'PLUS' or metacluster.orientation == 'RECIPROCAL':
+            if metacluster.orientation == 'PLUS':
                 POS = metacluster.end
                 posCluster = 'RIGHT'
             elif metacluster.orientation == 'MINUS':
                 POS = metacluster.beg
                 posCluster = 'LEFT'
+            elif metacluster.orientation == 'RECIPROCAL':
+                POS = min([metacluster.beg, metacluster.end])
+                BKP2 = max([metacluster.beg, metacluster.end])
 
         # NOTE SR: ID, ALT and QUAL are same for all metaclusters. So it could be possible to write them at the end, instead of in each metcluster
         ID = '.'

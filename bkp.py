@@ -571,8 +571,9 @@ def reconstructSeq(metacluster, consSeq, orientation, outDir):
         clippingsBlat = {}
         for clippingB in metacluster.events:
             if clippingB.type == 'CLIPPING':
-                if clippingB.blatIdentity == True:
-                    clippingsBlat[clippingB] = clippingB.cigarTuples[-1][1]
+                if (orientation == 'PLUS' and clippingB.clippedSide == 'right') or (orientation == 'MINUS' and clippingB.clippedSide == 'left'):
+                    if clippingB.blatIdentity == True:
+                        clippingsBlat[clippingB] = clippingB.cigarTuples[-1][1]
 
         # If there are clippings with BLAT hits
         if clippingsBlat:
@@ -588,7 +589,8 @@ def reconstructSeq(metacluster, consSeq, orientation, outDir):
             clippings = {}
             for clipping in metacluster.events:
                 if clipping.type == 'CLIPPING':
-                    clippings[clipping] = clipping.cigarTuples[-1][1]
+                    if (orientation == 'PLUS' and clipping.clippedSide == 'right') or (orientation == 'MINUS' and clipping.clippedSide == 'left'):
+                        clippings[clipping] = clipping.cigarTuples[-1][1]
             # If there are clippings
             if clippings:
                 # NOTE SR: this sequence will be less relayable

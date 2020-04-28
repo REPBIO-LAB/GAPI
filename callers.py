@@ -431,11 +431,10 @@ class SV_caller_short(SV_caller):
             '''
             # Make genomic bins
             bins = bamtools.makeGenomicBins(self.bam, self.confDict['binSize'], None)
-            '''
+            
             # Collect read name and sequence of discordant low quality reads from all bam refs
             l = mp.Lock()
-            # TEMP SR: DESILENCE
-            '''
+            
             collectVirusDir = self.outDir + '/COLLECT_VIRUS'
             unix.mkdir(collectVirusDir)
             pool = mp.Pool(processes=self.confDict['processes'], initializer=init, initargs=(l,))
