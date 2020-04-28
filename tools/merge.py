@@ -3,6 +3,7 @@
 import os
 import sys
 import argparse
+import pandas as pd
 
 # Internal
 import formats
@@ -40,7 +41,7 @@ print('outDir: ', outDir, "\n")
 ## 1. Read VCFs ##
 paths = open(paths)
 VCFs = []
-samples = []
+allSamples = []
 
 # For line in the file
 for line in paths:
@@ -48,7 +49,7 @@ for line in paths:
     sampleId, VCF_path = line.split() 
 
     ## Add sample to the list
-    samples.append(sampleId)
+    allSamples.append(sampleId)
 
     ## Read VCF
     VCF = formats.VCF()
@@ -98,3 +99,34 @@ outVCF.variants = cVariants
 order = VCFs[0].info_order + ['SAMPLES']
 outName = 'MERGED'
 outVCF.write(order, outName, outDir)
+
+## 6. Create intersection table ##
+data = []
+
+for variant in outVCF.variants:
+
+    ## Define variant family
+    FAM = variant.info['FAM'] if 'FAM' in variant.info else 'None'
+
+    ## For each sample assess if it has the variant or not
+    samples =  variant.info['SAMPLES'].split(',')
+    bools = []
+
+    for sample in allSamples:
+
+        if sample in samples:
+            bools.append(1)
+
+        else:
+            bools.append(0)
+
+    ## Create data entry
+    data.append([variant.chrom, variant.pos, variant.info['ITYPE'], FAM] + bools)
+
+## Create dataframe
+columns = ['chrom', 'pos', 'type', 'fam'] + allSamples
+df = pd.DataFrame(data, columns=columns)
+
+## Write dataframe into tsv file
+outFile = outDir + '/intersection.tsv' 
+df.to_csv(outFile, sep='\t', index=False)
