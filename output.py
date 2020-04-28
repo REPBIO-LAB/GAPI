@@ -45,7 +45,13 @@ def VCFMetaclustersFields(metaclusters):
             BKP2 = None
 
         if POS == None:
-            POS = metacluster.beg 
+            if metacluster.orientation == 'PLUS' or metacluster.orientation == 'RECIPROCAL':
+                POS = metacluster.end
+                posCluster = 'RIGHT'
+            elif metacluster.orientation == 'MINUS':
+                POS = metacluster.beg
+                posCluster = 'LEFT'
+
         # NOTE SR: ID, ALT and QUAL are same for all metaclusters. So it could be possible to write them at the end, instead of in each metcluster
         ID = '.'
         ALT = '<INS>'
