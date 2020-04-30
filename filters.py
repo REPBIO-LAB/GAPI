@@ -906,3 +906,37 @@ def filter_highDup_clusters(cluster, maxDupPerc):
         PASS = False
                 
     return PASS
+
+
+
+def filter_clusterRange(discordants, buffer, readSize):
+    '''
+    
+    Filter out those clusters whose range is not greater than the read size
+    
+    Input:
+        1. discordants: list of discordant clusters formed by DISCORDANT events
+        3. buffer: clusterRange > readSize + buffer
+        4. readSize: read size ILLUMINA
+    
+    Output:
+        1. filteredDiscordants: list of discordant clusters whose range is greater than readSize + buffer
+    '''
+
+    filteredDiscordants = []
+    
+    print('DISCARDED CLUSTERS BECAUSE OF CLUSTER RANGE:')
+    
+    for cluster in discordants:
+        
+        clusterRange = cluster.end - cluster.beg
+        
+        if clusterRange > (readSize + buffer):
+            
+            filteredDiscordants.append(cluster)
+        
+        else: 
+            
+            print(cluster.ref, cluster.beg, cluster.end)
+                   
+    return filteredDiscordants
