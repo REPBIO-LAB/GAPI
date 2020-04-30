@@ -179,9 +179,16 @@ def filter_discordant(discordant, filters2Apply, bam, normalBam, confDict):
 
         if not filter_highDup_clusters(discordant, 50):
             failedFilters.append('READ-DUP')
+            
+    ## 8. FILTER 8: Filter out clusters based on duplicate percentage (Ex: 50%) ##
+    if 'CLUSTER-RANGE' in filters2Apply:
 
+        if not filter_clusterRange(discordant, 10, confDict['readSize']):
+            failedFilters.append('CLUSTER-RANGE')
+    
     return failedFilters
-        
+
+
 def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
     '''
     Function to apply filters to a set of metaclusters organized in a dictionary
@@ -909,34 +916,29 @@ def filter_highDup_clusters(cluster, maxDupPerc):
 
 
 
-def filter_clusterRange(discordants, buffer, readSize):
+def filter_clusterRange(cluster, buffer, readSize):
     '''
     
-    Filter out those clusters whose range is not greater than the read size
+    Filter out those clusters whose range is not greater than the read size and buffer together
     
     Input:
-        1. discordants: list of discordant clusters formed by DISCORDANT events
+        1. cluster: cluster formed by DISCORDANT events
         3. buffer: clusterRange > readSize + buffer
         4. readSize: read size ILLUMINA
     
     Output:
-        1. filteredDiscordants: list of discordant clusters whose range is greater than readSize + buffer
+        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
     '''
 
     filteredDiscordants = []
     
-    print('DISCARDED CLUSTERS BECAUSE OF CLUSTER RANGE:')
+    # Define cluster range
+    clusterRange = cluster.end - cluster.beg
     
-    for cluster in discordants:
+    if clusterRange > (readSize + buffer):
+        PASS = True
         
-        clusterRange = cluster.end - cluster.beg
-        
-        if clusterRange > (readSize + buffer):
-            
-            filteredDiscordants.append(cluster)
-        
-        else: 
-            
-            print(cluster.ref, cluster.beg, cluster.end)
+    else:
+        PASS = False
                    
-    return filteredDiscordants
+    return PASS

@@ -797,17 +797,8 @@ class SV_caller_sureselect(SV_caller):
         msg = 'Discordant cluster filtering'
         log.step(step, msg)
 
-        filters2Apply = ['MIN-NBREADS', 'MATE-REF', 'MATE-SRC', 'MATE-MAPQ', 'GERMLINE', 'UNESPECIFIC', 'READ-DUP']
+        filters2Apply = ['MIN-NBREADS', 'MATE-REF', 'MATE-SRC', 'MATE-MAPQ', 'GERMLINE', 'UNESPECIFIC', 'READ-DUP', 'CLUSTER-RANGE']
         filteredDiscordants = filters.filter_discordants(discordants, filters2Apply, self.bam, self.normalBam, self.confDict)
-        
-        # TEMPORAL. It should be moved to filters 
-        ## 9. Filter out clusters where cluster range is equal to readSize
-        step = 'FILTER-CLUSTER-RANGE'
-        msg = 'Filter out clusters whose range is not greater than readSize'
-        log.step(step, msg)
-        buffer = 20
-        filteredDiscordants = filters.filter_clusterRange(filteredDiscordants, buffer, self.confDict['readSize'])
-
 
         ## 4.2 Clipping cluster filtering ##
         step = 'FILTER-CLIPPING'
