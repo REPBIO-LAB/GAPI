@@ -934,9 +934,11 @@ def filter_clusterRange(cluster, buffer, readSize):
     
     # if there is more than a discordant alignment
     if len(cluster.events) > 1:
+        
+        matesCluster = cluster.create_matesCluster()
                
-        # define cluster range
-        clusterRange = cluster.end - cluster.beg
+        # define mates cluster range
+        clusterRange = matesCluster.end - matesCluster.beg
         
         # compare cluster range with read size
         if clusterRange <= (readSize + buffer):
@@ -944,6 +946,9 @@ def filter_clusterRange(cluster, buffer, readSize):
             
             print("cluster discarded by cluster range")
             print(cluster.ref, cluster.beg, cluster.end)
-            print(cluster.events)
+            print(matesCluster.ref, matesCluster.beg, matesCluster.end)
+            
+            for event in cluster.events:
+                print(event.readName)
                    
     return PASS
