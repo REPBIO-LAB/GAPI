@@ -183,7 +183,7 @@ def filter_discordant(discordant, filters2Apply, bam, normalBam, confDict):
     ## 8. FILTER 8: Filter out clusters based on cluster range ##
     if 'CLUSTER-RANGE' in filters2Apply:
 
-        if not filter_clusterRange(discordant, 0, confDict['readSize']):
+        if not filter_clusterRange(discordant, 1):
             failedFilters.append('CLUSTER-RANGE')
     
     return failedFilters
@@ -916,15 +916,14 @@ def filter_highDup_clusters(cluster, maxDupPerc):
 
 
 
-def filter_clusterRange(cluster, buffer, readSize):
+def filter_clusterRange(cluster, minDist):
     '''
     Filter out those clusters whose range is not greater than the read size and buffer together
     This filter is only applied to clusters formed by more than a discordant alignment
     
     Input:
         1. cluster: cluster formed by DISCORDANT events
-        3. buffer: clusterRange > readSize + buffer
-        4. readSize: read size ILLUMINA
+        2. minDist: minimum distance between coordinates 
     
     Output:
         1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
@@ -937,13 +936,13 @@ def filter_clusterRange(cluster, buffer, readSize):
         
         matesCluster = cluster.create_matesCluster()
                
-        # define mates cluster range
+        # define mates cluster start range
         clusterRange = matesCluster.end - matesCluster.beg
         
-        # compare cluster range with read size
-        if clusterRange <= (readSize + buffer):
+        if clusterRange < minDist:
             PASS = False
             
+            ## PRINTS
             print("cluster discarded by cluster range")
             print(cluster.ref, cluster.beg, cluster.end)
             print(matesCluster.ref, matesCluster.beg, matesCluster.end)
