@@ -110,7 +110,7 @@ def filter_discordants(discordants, filters2Apply, bam, normalBam, confDict):
         1. discordantsPass: List of discordant clusters passing all the filters
     '''
     discordantsPass = []
-
+    
     # For discordant cluster
     for discordant in discordants:
 
@@ -180,10 +180,10 @@ def filter_discordant(discordant, filters2Apply, bam, normalBam, confDict):
         if not filter_highDup_clusters(discordant, 50):
             failedFilters.append('READ-DUP')
             
-    ## 8. FILTER 8: Filter out clusters based on duplicate percentage (Ex: 50%) ##
+    ## 8. FILTER 8: Filter out clusters based on cluster range ##
     if 'CLUSTER-RANGE' in filters2Apply:
 
-        if not filter_clusterRange(discordant, 10, confDict['readSize']):
+        if not filter_clusterRange(discordant, 0, confDict['readSize']):
             failedFilters.append('CLUSTER-RANGE')
     
     return failedFilters
@@ -918,8 +918,8 @@ def filter_highDup_clusters(cluster, maxDupPerc):
 
 def filter_clusterRange(cluster, buffer, readSize):
     '''
-    
     Filter out those clusters whose range is not greater than the read size and buffer together
+    This filter is only applied to clusters formed by more than a discordant alignment
     
     Input:
         1. cluster: cluster formed by DISCORDANT events
@@ -930,15 +930,16 @@ def filter_clusterRange(cluster, buffer, readSize):
         1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
     '''
 
-    filteredDiscordants = []
+    PASS = True
     
-    # Define cluster range
-    clusterRange = cluster.end - cluster.beg
-    
-    if clusterRange > (readSize + buffer):
-        PASS = True
+    # if there is more than a discordant alignment
+    if len(cluster.events) > 1:
+               
+        # define cluster range
+        clusterRange = cluster.end - cluster.beg
         
-    else:
-        PASS = False
+        # compare cluster range with read size
+        if clusterRange <= (readSize + buffer):
+            PASS = False
                    
     return PASS
