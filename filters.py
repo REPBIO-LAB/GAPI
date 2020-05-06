@@ -941,5 +941,9 @@ def filter_clusterRange(cluster, buffer, readSize):
         # compare cluster range with read size
         if clusterRange <= (readSize + buffer):
             PASS = False
+            
+            print("cluster discarded by cluster range")
+            print(cluster.ref, cluster.beg, cluster.end)
+            print(cluster.events)
                    
     return PASS
