@@ -1290,10 +1290,19 @@ class cluster():
 
         ## 2. Compute number of supporting reads
         nbTotal = len(reads) # total
-        nbTumour = len(readsTumour) # tumour
-        nbNormal = len(readsNormal) # normal
+
+        # a) Unpaired mode
+        if self.events[0].sample is None:
+            nbTumour, nbNormal, readsTumour, readsNormal = [None, None, None, None]
+
+        # b) Paired mode
+        else:
+
+            nbTumour = len(readsTumour) # tumour
+            nbNormal = len(readsNormal) # normal
 
         return nbTotal, nbTumour, nbNormal, reads, readsTumour, readsNormal
+      
         
     def nbEvents(self):
         '''
@@ -2178,9 +2187,17 @@ class META_cluster():
                     readsNormal.append(event.readName)            
 
         ## 2. Compute number of supporting reads
-        nbTotal = len(reads) # total
-        nbTumour = len(readsTumour) # tumour
-        nbNormal = len(readsNormal) # normal
+        nbTotal = len(reads) 
+
+        # a) Unpaired mode
+        if self.events[0].sample is None:
+            nbTumour, nbNormal, readsTumour, readsNormal = [None, None, None, None]
+
+        # b) Paired mode
+        else:
+
+            nbTumour = len(readsTumour) # tumour
+            nbNormal = len(readsNormal) # normal
 
         return nbTotal, nbTumour, nbNormal, reads, readsTumour, readsNormal
 
