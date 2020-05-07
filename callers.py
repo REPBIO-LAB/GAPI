@@ -665,6 +665,10 @@ class SV_caller_sureselect(SV_caller):
         ## 5.2 Transduction calls
         output.write_tdCalls_sureselect(clusterPerSrcDict, self.outDir)
         
+        ### Do cleanup
+        supplDir = self.outDir + '/SUPPLEMENTARY/'
+        unix.rm([supplDir])
+
     def make_clusters_bin(self, ref, beg, end, srcId):
         '''
         Search for structural variant (SV) clusters in a genomic bin/window
