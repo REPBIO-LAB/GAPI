@@ -65,12 +65,13 @@ if __name__ == '__main__':
 	parser.add_argument('--minPercOverlap', default=70, dest='minPercRcplOverlap', type=int, help='Minimum percentage of reciprocal overlap for DEL clustering. Default: 70')
 
 	## Filtering
-	# Long
 	parser.add_argument('--minClusterSize', default=4, dest='minClusterSize', type=int, help='Minimum number of reads composing a cluster. Default: 4')
 	parser.add_argument('--maxClusterSize', default=500, dest='maxClusterSize', type=int, help='Maximum number of reads composing a metacluster. Default: 500')
-	parser.add_argument('--maxClusterCV', default=40, dest='maxClusterCV', type=int, help='Maximum coefficient of variation of a metacluster. Default: 40')
 	parser.add_argument('--minReads', default=4, dest='minReads', type=int, help='Minimum number of reads supporting a SV. Default: 4')
 	parser.add_argument('--minNormalReads', default=2, dest='minNormalReads', type=int, help='Minimum number of reads supporting a SV in normal sample. Default: 2')
+
+	# Long
+	parser.add_argument('--maxClusterCV', default=40, dest='maxClusterCV', type=int, help='Maximum coefficient of variation of a metacluster. Default: 40')
 	parser.add_argument('--targetStatus', default='resolved,partially_resolved', dest='targetStatus', type=str, help='Filter out those insertions with an status not included in the list. Default: resolved,partially_resolved')
 
 	# Short
@@ -178,7 +179,7 @@ if __name__ == '__main__':
 	##############################################
 	scriptName = os.path.basename(sys.argv[0])
 	scriptName = os.path.splitext(scriptName)[0]
-	version='0.17.0'
+	version='0.18.0'
 
 	print()
 	print('***** ', scriptName, version, 'configuration *****')
