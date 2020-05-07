@@ -86,10 +86,10 @@ def filter_clipping(clipping, filters2Apply, confDict):
         if not filter_germline(clipping, confDict['minNormalReads']):
             failedFilters.append('GERMLINE')
 
-    ## 6. FILTER 6: Filter out clusters based on duplicate percentage (Ex: 50%) 
+    ## 6. FILTER 6: Filter out clusters based on duplicate percentage (Ex: 40%) 
     if 'READ-DUP' in filters2Apply:
 
-        if not filter_highDup_clusters(clipping, 50):
+        if not filter_highDup_clusters(clipping, 40):
             failedFilters.append('READ-DUP')
 
     return failedFilters
@@ -944,13 +944,5 @@ def filter_clusterRange(cluster, minDist):
         
         if clusterRange < minDist:
             PASS = False
-            
-            ## PRINTS
-            print("cluster discarded by cluster range")
-            print(cluster.ref, cluster.beg, cluster.end)
-            print(matesCluster.ref, matesCluster.beg, matesCluster.end)
-            
-            for event in cluster.events:
-                print(event.readName)
                    
     return PASS
