@@ -45,7 +45,7 @@ def filter_clippings(clippings, filters2Apply, confDict):
 
 def filter_clipping(clipping, filters2Apply, confDict):
     '''
-    Apply selected filters to a discordant cluster provided as input
+    Apply selected filters to a clipping cluster provided as input
 
     Input:
         1. clipping: clipping cluster object
@@ -308,7 +308,7 @@ def filter_min_nb_reads(cluster, minReads, minNormalReads):
             cluster.mutOrigin = 'somatic-tumour'
             PASS = True
 
-        elif not nbTumour >= minReads and nbNormal >= minNormalReads:
+        elif nbNormal >= minReads:
             cluster.mutOrigin = 'somatic-normal'
             PASS = True
 
