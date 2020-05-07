@@ -9,6 +9,8 @@ import multiprocessing as mp
 import os
 import pysam
 import time
+import subprocess
+import statistics
 
 # Internal
 import log
@@ -632,14 +634,17 @@ class SV_caller_sureselect(SV_caller):
         unix.mkdir(tdDir)
         sourceBed = self.refDir + '/srcElements.bed'
         transducedPath = databases.create_transduced_bed(sourceBed, 10000, tdDir)
+        
+        ### 2. Infer read size
+        self.confDict['readSize'] = self.infer_readSize()
                 
-        ### 2. Define genomic bins to search for SV (will correspond to transduced areas)
+        ### 3. Define genomic bins to search for SV (will correspond to transduced areas)
         bins = bamtools.binning(transducedPath, None, None, None)
 
         ## Organize bins into a dictionary
         self.confDict['rangesDict'] = gRanges.rangeList2dict(bins)
 
-        ### 3. Associate to each bin the src identifier
+        ### 4. Associate to each bin the src identifier
         BED = formats.BED()
         BED.read(transducedPath, 'List', None)   
 
@@ -648,7 +653,7 @@ class SV_caller_sureselect(SV_caller):
         
         unix.rm([tdDir])
         
-        ### 4. Search for SV clusters in each bin 
+        ### 5. Search for SV clusters in each bin 
         # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
         clusterPerSrc = pool.starmap(self.make_clusters_bin, bins)
@@ -658,12 +663,40 @@ class SV_caller_sureselect(SV_caller):
         # Convert into dictionary
         clusterPerSrcDict = {srcId:clusters for srcId,clusters in clusterPerSrc}
 
-        ### 5. Write calls to file
-        ## 5.1 Transduction counts per source element
+        ### 6. Write calls to file
+        ## 6.1 Transduction counts per source element
         output.write_tdCounts_sureselect(clusterPerSrcDict, self.outDir)
 
-        ## 5.2 Transduction calls
+        ## 6.2 Transduction calls
         output.write_tdCalls_sureselect(clusterPerSrcDict, self.outDir)
+    
+    
+    def infer_readSize(self):
+        '''
+        Infer read size from bam file
+        '''
+        
+        # take the first 500 reads of the bam file
+        command = 'samtools view ' + self.bam + '| awk \'{print length($10)}\' | head -500 | tr \'\n\' \' \''
+        result = subprocess.run(command, stdout=subprocess.PIPE, shell=True)
+        
+        # if command fails, exit
+        if result.returncode != 0:
+            step = 'infer_readSize'
+            msg = 'readSize inference failed' 
+            log.step(step, msg)
+            sys.exit(1)
+        
+        # save the result in a list of integers
+        readSizes_str = result.stdout.decode('utf-8').split(" ")
+        readSizes_str.remove("")
+        readSizes_int = [int(i) for i in readSizes_str]
+        
+        # calculate the mode
+        readSize = statistics.mode(readSizes_int)
+        
+        return(readSize)
+        
         
         ### Do cleanup
         supplDir = self.outDir + '/SUPPLEMENTARY/'
@@ -768,7 +801,7 @@ class SV_caller_sureselect(SV_caller):
         msg = 'Discordant cluster filtering'
         log.step(step, msg)
 
-        filters2Apply = ['MIN-NBREADS', 'MATE-REF', 'MATE-SRC', 'MATE-MAPQ', 'GERMLINE', 'UNESPECIFIC', 'READ-DUP']
+        filters2Apply = ['MIN-NBREADS', 'MATE-REF', 'MATE-SRC', 'MATE-MAPQ', 'GERMLINE', 'UNESPECIFIC', 'READ-DUP', 'CLUSTER-RANGE']
         filteredDiscordants = filters.filter_discordants(discordants, filters2Apply, self.bam, self.normalBam, self.confDict)
 
         ## 4.2 Clipping cluster filtering ##

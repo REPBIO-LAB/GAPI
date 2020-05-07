@@ -110,7 +110,7 @@ def filter_discordants(discordants, filters2Apply, bam, normalBam, confDict):
         1. discordantsPass: List of discordant clusters passing all the filters
     '''
     discordantsPass = []
-
+    
     # For discordant cluster
     for discordant in discordants:
 
@@ -120,6 +120,9 @@ def filter_discordants(discordants, filters2Apply, bam, normalBam, confDict):
         # Metacluster pass all the filters
         if not failedFilters: 
             discordantsPass.append(discordant)
+            
+        else:
+            print(failedFilters)
     
     return discordantsPass
 
@@ -179,9 +182,16 @@ def filter_discordant(discordant, filters2Apply, bam, normalBam, confDict):
 
         if not filter_highDup_clusters(discordant, 50):
             failedFilters.append('READ-DUP')
-
-    return failedFilters
+            
+    ## 8. FILTER 8: Filter out clusters based on mates beg coordinates ##
+    if 'CLUSTER-RANGE' in filters2Apply:
         
+        if not filter_clusterRange(discordant, 1):
+            failedFilters.append('CLUSTER-RANGE')
+    
+    return failedFilters
+
+
 def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
     '''
     Function to apply filters to a set of metaclusters organized in a dictionary
@@ -905,4 +915,42 @@ def filter_highDup_clusters(cluster, maxDupPerc):
     else:
         PASS = False
                 
+    return PASS
+
+
+
+def filter_clusterRange(cluster, minDist):
+    '''
+    Filter out those clusters in which all mates have the same beg coordinate or separated by less than minDist
+    This filter is only applied to clusters formed by more than a discordant alignment
+    
+    Input:
+        1. cluster: cluster formed by DISCORDANT events
+        2. minDist: minimum distance between mate beg coordinates (It should be 1 or greater)
+    
+    Output:
+        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
+    '''
+
+    PASS = True
+    
+    # if there is more than a discordant alignment
+    if len(cluster.events) > 1:
+        
+        matesCluster = cluster.create_matesCluster()
+               
+        # define mates cluster start range
+        clusterRange = matesCluster.end - matesCluster.beg
+        
+        if clusterRange < minDist:
+            PASS = False
+            
+            ## PRINTS
+            print("cluster discarded by cluster range")
+            print(cluster.ref, cluster.beg, cluster.end)
+            print(matesCluster.ref, matesCluster.beg, matesCluster.end)
+            
+            for event in cluster.events:
+                print(event.readName)
+                   
     return PASS
