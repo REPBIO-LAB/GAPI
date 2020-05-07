@@ -120,6 +120,9 @@ def filter_discordants(discordants, filters2Apply, bam, normalBam, confDict):
         # Metacluster pass all the filters
         if not failedFilters: 
             discordantsPass.append(discordant)
+            
+        else:
+            print(failedFilters)
     
     return discordantsPass
 
@@ -180,9 +183,9 @@ def filter_discordant(discordant, filters2Apply, bam, normalBam, confDict):
         if not filter_highDup_clusters(discordant, 50):
             failedFilters.append('READ-DUP')
             
-    ## 8. FILTER 8: Filter out clusters based on cluster range ##
+    ## 8. FILTER 8: Filter out clusters based on mates beg coordinates ##
     if 'CLUSTER-RANGE' in filters2Apply:
-
+        
         if not filter_clusterRange(discordant, 1):
             failedFilters.append('CLUSTER-RANGE')
     
@@ -918,12 +921,12 @@ def filter_highDup_clusters(cluster, maxDupPerc):
 
 def filter_clusterRange(cluster, minDist):
     '''
-    Filter out those clusters whose range is not greater than the read size and buffer together
+    Filter out those clusters in which all mates have the same beg coordinate or separated by less than minDist
     This filter is only applied to clusters formed by more than a discordant alignment
     
     Input:
         1. cluster: cluster formed by DISCORDANT events
-        2. minDist: minimum distance between coordinates 
+        2. minDist: minimum distance between mate beg coordinates (It should be 1 or greater)
     
     Output:
         1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
