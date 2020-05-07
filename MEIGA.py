@@ -146,7 +146,6 @@ if __name__ == '__main__':
 	import log
 	import bamtools
 
-
 	# If no reference is specified, get all that are present in the bam file.
 	if refs == 'ALL':
 		refs = bamtools.get_refs(bam)
