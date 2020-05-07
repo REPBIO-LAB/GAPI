@@ -89,7 +89,7 @@ def filter_clipping(clipping, filters2Apply, confDict):
     ## 6. FILTER 6: Filter out clusters based on duplicate percentage (Ex: 40%) 
     if 'READ-DUP' in filters2Apply:
 
-        if not filter_highDup_clusters(clipping, 40):
+        if not filter_highDup_clusters(clipping, 50):
             failedFilters.append('READ-DUP')
 
     return failedFilters
@@ -900,7 +900,7 @@ def filter_highDup_clusters(cluster, maxDupPerc):
     
     Input:
         1. cluster: list of discordant clusters formed by DISCORDANT events
-        2. maxDupPerc: Percentage of duplicates by cluster to filter out
+        2. maxDupPerc: Maximun % of duplicates allowed (not included)
     
     Output:
         1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
@@ -908,7 +908,7 @@ def filter_highDup_clusters(cluster, maxDupPerc):
     
     dupPerc = cluster.dupPercentage()
         
-    if dupPerc <= maxDupPerc:
+    if dupPerc < maxDupPerc:
             
         PASS = True
 
