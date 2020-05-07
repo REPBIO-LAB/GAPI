@@ -3446,7 +3446,7 @@ def metacluster_mate_suppl(discordants, leftClippings, rightClippings, minReads,
 
     for meta in allMeta:
 
-        if meta.nbEvents()[0] >= minReads:
+        if meta.supportingReads()[0] >= minReads:
             filteredMeta.append(meta)
 
     return filteredMeta
