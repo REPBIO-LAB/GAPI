@@ -74,6 +74,18 @@ for variant in inVCF.variants:
         if filtered:
             continue
             
+    ## Filter Solo Alu, L1 and SVA insertions based on their length (max length threshold)
+    if (variant.info['ITYPE'] == 'solo') and (variant.info['FAM'] in ['L1', 'Alu', 'SVA']):
+
+        if (variant.info['FAM'] == 'L1') and (int(variant.info['LEN']) > 6500):
+            continue
+        
+        elif (variant.info['FAM'] == 'Alu') and (int(variant.info['LEN']) > 400): 
+            continue
+
+        elif (variant.info['FAM'] == 'SVA') and (int(variant.info['LEN']) > 4500): 
+            continue
+
     ## Add variant passing all the filters to the output VCF
     outVCF.variants.append(variant)
 
