@@ -24,7 +24,6 @@ def search4polyA(sequence):
     maxWindowDist = 2
     minMonomerSize = 10
     minPurity = 80  
-    maxDist2Ends = 10 
 
     ## Seach poly(A) monomers
     targetMonomer = 'A'
@@ -57,7 +56,6 @@ def search4polyT(sequence):
     maxWindowDist = 2
     minMonomerSize = 10
     minPurity = 80  
-    maxDist2Ends = 10 
 
     ## Seach poly(T) monomers
     targetMonomer = 'T'
@@ -80,11 +78,9 @@ def search4polyT(sequence):
 
     return polyT, candidate
 
-def candidate_MEI(VCF):
+def call_MEI_candidate(VCF):
     '''
     '''
-    tails = {}
-
     ## Create VCF with filtered calls
     filteredVCF = formats.VCF()
     filteredVCF.header = VCF.header
@@ -109,78 +105,83 @@ def candidate_MEI(VCF):
         ## Add variant passing all the filters
         filteredVCF.add(variant)
 
-        ## Add polyA/T information to the dict
-        insId = variant.chrom + '_' + str(variant.pos) 
-        tails[insId] = {}
+    return filteredVCF
 
-        # a) PolyA and polyT tracts identified
-        if polyA and polyT:
-            tails[insId]['polyA'] = monomerA 
-            tails[insId]['polyT'] = monomerT
-
-        # b) PolyA identified
-        elif polyA:
-            tails[insId]['polyA'] = monomerA
-
-        # c) PolyT identified
-        else:
-            tails[insId]['polyT'] = monomerT
-
-    return filteredVCF, tails
-
-def call_MEI(vcf, tails):
+def call_MEI(vcf):
     '''
     '''
-    # Write inserted sequences into fasta file
+    ## 1. Write inserted sequences into fasta file
     fastaPath = outDir + '/insertions.fa'
     fasta = ins2fasta(vcf, outDir)
     fasta.write(fastaPath)
 
-    ## 4. Realign inserted sequence against retrotransposon consensus database
-    ## 4.1 Create index or consensus sequences
+    ## 2. Create index or consensus sequences
     fileName = 'consensus'  
     consensusIndex = alignment.index_minimap2(consensus, fileName, outDir)
 
-    ## 4.2 Realign inserted sequences against consensus:
+    ## 3. Realign inserted sequences against consensus:
     pafPath = alignment.alignment_minimap2(fastaPath, consensusIndex, 'hits2consensus', 1, outDir)
     paf = formats.PAF()
     paf.read(pafPath)
 
-    ## 4.2 Generate a single paf object per inserted sequence:
-    pafDict = {}
+    ## 4. Generate a single paf object per inserted sequence:
+    pafDict = group_alignments(paf)
 
-    for hit in paf.alignments:
-
-        if hit.qName not in pafDict:
-            pafDict[hit.qName] = formats.PAF()
-    
-        pafDict[hit.qName].alignments.append(hit)
-
-    ## Add PolyA/T calls to the paf
-    for insId in pafDict.keys():
-
-        insLen = len(fasta.seqDict[insId])
-
-        if 'polyA' in tails[insId]:
-            polyA = tails[insId]['polyA']
-            fields = [insId, insLen, polyA.beg, polyA.end, None, 'polyA', 0, 0, 0, 0, 0, 0]
-            hit = formats.PAF_alignment(fields)
-            pafDict[hit.qName].alignments.append(hit) 
-
-        if 'polyT' in tails[insId]:
-            polyT = tails[insId]['polyT']
-
-            fields = [insId, insLen, polyT.beg, polyT.end, None, 'polyT', 0, 0, 0, 0, 0, 0]
-            hit = formats.PAF_alignment(fields)
-            pafDict[hit.qName].alignments.append(hit) 
-
+    ## 5. Resolve structure for each insertion with matches on retrotransposon consensus sequences
     for insId in pafDict:
-        chain = pafDict[insId].chain(20, 50)
-        alignments = ';'.join([str(hit.qBeg) + '_' + str(hit.qEnd) + '_' + hit.tName for hit in chain.alignments])
-        print('chain: ', chain.interval(), chain.perc_query_covered(), alignments, len(fasta.seqDict[insId]), fasta.seqDict[insId])
+        
+        print('input: ', pafDict[insId], fasta.seqDict[insId])
+        resolve_structure(pafDict[insId], fasta.seqDict[insId])
+
+def resolve_structure(paf, insertSeq):
+    '''
+    '''
+    structure = {}
+
+    ## 1. Chain alignments
+    chain = paf.chain(20, 50)
+
+    print('TIOO: ', chain.interval(), chain.perc_query_covered(), insertSeq)
+
+    ## 2. Search for polyA/T tails at unresolved insert ends
+    cBeg, cEnd = chain.interval()
+
+    windowSize = 8
+    maxWindowDist = 2
+    minMonomerSize = 10
+    minPurity = 80  
+
+    ## 2.1 PolyA search
+    targetSeq = insertSeq[cEnd:]
+    monomersA = sequences.find_monomers(targetSeq, 'A', windowSize, maxWindowDist, minMonomerSize, minPurity)
+
+    print('POLYA_SEARCH: ', targetSeq, monomersA)
+
+    ## 2.2 PolyT search 
+    targetSeq = insertSeq[:cBeg]
+    monomersT = sequences.find_monomers(targetSeq, 'T', windowSize, maxWindowDist, minMonomerSize, minPurity)
+
+    print('POLYT_SEARCH: ', targetSeq, monomersT)
+
+    ## 3. Determine insertion strand
+    if (not monomersA and not monomersT) or (monomersA and monomersT):
+        structure['STRAND'] = None
+        
+    elif monomersA:
+        structure['STRAND'] = '+'
+        monomers = monomersA
+
+    else monomersT:
+        structure['STRAND'] = '-'
+        monomers = monomersT
+
+        print('monomers: ', len(monomers))
+    
+    ## 4. Determine candidate insertion type
 
 
-
+    ## 
+    
 def ins2fasta(vcf, outDir):
     '''
     Write inserted sequences into a fasta
@@ -204,6 +205,24 @@ def ins2fasta(vcf, outDir):
         fasta.seqDict[insId] = seq
 
     return fasta
+
+def group_alignments(paf):
+    '''
+
+    '''     
+    pafDict = {}
+
+    ## For each hit
+    for hit in paf.alignments:
+
+        # Initialize paf object for this inserted sequence
+        if hit.qName not in pafDict:
+            pafDict[hit.qName] = formats.PAF()
+    
+        # Add hit to the corresponding paf
+        pafDict[hit.qName].alignments.append(hit)
+
+    return pafDict
 
 ######################
 ## Get user's input ##
@@ -242,9 +261,34 @@ VCF.read(vcf)
 
 ## 2. Filter VCF by selecting retrotransposition insertion candidates 
 # (inserted sequences with polyA/T tails at their ends)
-filteredVCF, tails = candidate_MEI(VCF)
+filteredVCF = call_MEI_candidate(VCF)
 print('filteredVCF: ', filteredVCF, len(filteredVCF.variants))
 
 ## 3. Do MEI calling for candidate insertions
-call_MEI(filteredVCF, tails)
+call_MEI(filteredVCF)
  
+
+'''
+    ## Add PolyA/T calls to the paf
+    for insId in pafDict.keys():
+
+        insLen = len(fasta.seqDict[insId])
+
+        if 'polyA' in tails[insId]:
+            polyA = tails[insId]['polyA']
+            fields = [insId, insLen, polyA.beg, polyA.end, None, 'polyA', 0, 0, 0, 0, 0, 0]
+            hit = formats.PAF_alignment(fields)
+            pafDict[hit.qName].alignments.append(hit) 
+
+        if 'polyT' in tails[insId]:
+            polyT = tails[insId]['polyT']
+
+            fields = [insId, insLen, polyT.beg, polyT.end, None, 'polyT', 0, 0, 0, 0, 0, 0]
+            hit = formats.PAF_alignment(fields)
+            pafDict[hit.qName].alignments.append(hit) 
+
+    for insId in pafDict:
+        chain = pafDict[insId].chain(20, 50)
+        alignments = ';'.join([str(hit.qBeg) + '_' + str(hit.qEnd) + '_' + hit.tName for hit in chain.alignments])
+        print('chain: ', chain.interval(), chain.perc_query_covered(), alignments, len(fasta.seqDict[insId]), fasta.seqDict[insId])
+'''
