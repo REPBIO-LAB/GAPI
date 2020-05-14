@@ -736,8 +736,31 @@ class SV_caller_short(SV_caller):
 
         ## 10. Analyse metaclusters features and add supporting clipping reads ##
         # TODO SR: Now adding clipping step is better than before. Even though maybe it is not neccessary, it would be great to choose in a better way which clipping we should add to the metacluster.
-        bkp.analyzeMetaclusters(metaclusters, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, self.identDbPath)
-        bkp.analyzeMetaclusters(metaclustersFailed, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, self.identDbPath)
+        # If we are analysing VIRUS and MEs at the same time, merge their DBs:
+        if 'VIRUS' in self.confDict['targetINT2Search'] and 'ME' in self.confDict['targetINT2Search']:
+
+            filenames = [self.confDict['MEDB'], self.identDbPath]
+            mergedDbPath = self.outDir + '/ME_VIRUS_DB.fa'
+            with open(mergedDbPath, 'w') as outfile:
+                for fname in filenames:
+                    with open(fname) as infile:
+                        for line in infile:
+                            outfile.write(line)
+            
+            outfile.close()
+
+            bkp.analyzeMetaclusters(metaclusters, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, mergedDbPath)
+            bkp.analyzeMetaclusters(metaclustersFailed, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, mergedDbPath)
+
+        # If only VIRUS are being analysed, pick viral identities db which is created internally.
+        elif self.confDict['targetINT2Search'] == 'VIRUS':
+            bkp.analyzeMetaclusters(metaclusters, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, self.identDbPath)
+            bkp.analyzeMetaclusters(metaclustersFailed, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, self.identDbPath)
+
+        # If only ME are analysed, pick a ME db that is given to the pipeline as an argument
+        elif self.confDict['targetINT2Search'] == 'ME':
+            bkp.analyzeMetaclusters(metaclusters, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, self.confDict['MEDB'])
+            bkp.analyzeMetaclusters(metaclustersFailed, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, self.confDict['MEDB'])
 
         step = 'BKP-ANALYSIS'
         msg = 'Analysing BKP and adding clipping supporting reads. PID: ' + str(os.getpid())

@@ -86,6 +86,7 @@ if __name__ == '__main__':
 	parser.add_argument('--no-discordantMatesSupplementary', action="store_false", default=True, dest='discordantMatesSupplementary', help='When selected, avoid collecting dicordant read mates that are supplementary alignments.')
 	parser.add_argument('--discordantMatesMaxBasePerc', default=85, dest='discordantMatesMaxBasePerc', type=int, help='Maximum base percentage of discordant read mates sequences. Default: 85')
 	parser.add_argument('--discordantMatesMinLcc', default=1.49, dest='discordantMatesMinLcc', type=float, help='Minimum local complexity of discordant read mates sequences. Default: 1.49')
+	parser.add_argument('--MEDB', default=None, dest='MEDB', type=str, help='Path to ME database used for analysing metacluster bkp.')
 
 	# Output
 	parser.add_argument('--VCFInfoFields', default="VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,NBDISC,NBCLIP,IDENT,ORIENT,BKP2,DISCMAPQ,CLIPMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP,REP,REPSUB,DIST,REGION,GENE,INTBKP,INTBKP2,CLIPTYPE,REFSeq,BKPCSEQ,BKP2CSEQ,BKPRSEQ,BKP2RSEQ,CLIPTYPE2,DISC,CLIP", dest='VCFInfoFields', type=str, help='Comma separated list of INFO fields to display in output VCF (VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,NBDISC,NBCLIP,IDENT,ORIENT,BKP2,DISCMAPQ,CLIPMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP,REP,REPSUB,DIST,REGION,GENE,INTBKP,INTBKP2,CLIPTYPE,REFSeq,BKPCSEQ,BKP2CSEQ,BKPRSEQ,BKP2RSEQ,CLIPTYPE2,DISC,CLIP) *NOTE that REFSeq is incompatible with --no-VCFREF. Default: All are included')
@@ -156,6 +157,7 @@ if __name__ == '__main__':
 	discordantMatesSupplementary = args.discordantMatesSupplementary
 	discordantMatesMaxBasePerc = args.discordantMatesMaxBasePerc
 	discordantMatesMinLcc = args.discordantMatesMinLcc
+	MEDB = args.MEDB
 
 	# Ouput
 	VCFInfoFields = args.VCFInfoFields
@@ -252,7 +254,8 @@ if __name__ == '__main__':
 	print('discordantMatesCheckUnmapped: ', discordantMatesCheckUnmapped)
 	print('discordantMatesSupplementary: ', discordantMatesSupplementary)
 	print('discordantMatesMaxBasePerc: ', discordantMatesMaxBasePerc)
-	print('discordantMatesMinLcc: ', discordantMatesMinLcc, "\n")
+	print('discordantMatesMinLcc: ', discordantMatesMinLcc)
+	print('MEDB: ', MEDB, "\n")
 
 	print('** Output format**')
 	print ('VCFInfoFields: ', VCFInfoFields)
@@ -326,6 +329,7 @@ if __name__ == '__main__':
 	confDict['discordantMatesSupplementary'] = discordantMatesSupplementary
 	confDict['discordantMatesMaxBasePerc'] = discordantMatesMaxBasePerc
 	confDict['discordantMatesMinLcc'] = discordantMatesMinLcc
+	confDict['MEDB'] = MEDB
 
 	# Output
 	confDict['VCFInfoFields'] = targetVCFInfoFields
