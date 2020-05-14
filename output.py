@@ -22,11 +22,12 @@ def VCFMetaclustersFields(metaclusters):
         1. metaclustersFields: List of lists: containing VCF fields for each metacluster. Structure -> [[CHROM, POS, ID, ALT, QUAL, FILTER, INFO], [CHROM, POS, ID, ALT, QUAL, FILTER, INFO], ...]
     '''
     metaclustersFields = []
-    posCluster = None
-    BKP2 = None
 
     ## 3.2 Iterate over metaclusters
     for metacluster in metaclusters:
+
+        posCluster = None
+        BKP2 = None
 
         ## Collect insertion basic features
         CHROM = metacluster.ref
@@ -47,14 +48,14 @@ def VCFMetaclustersFields(metaclusters):
         else:
             POS = metacluster.refLeftBkp if metacluster.refLeftBkp != None else metacluster.refRightBkp
             # If it's reciprocal even though there is only one clipping bkp
-            if metacluster.orientation == 'RECIPROCAL' and POS == metacluster.refLeftBkp:
+            if metacluster.orientation == 'RECIPROCAL' and POS == metacluster.refLeftBkp and POS != metacluster.refLeftBkp:
                 POS = min([metacluster.refLeftBkp, metacluster.end])
                 BKP2 = max([metacluster.refLeftBkp, metacluster.end])
                 if POS == metacluster.refLeftBkp:
                     posCluster = 'LEFT'
                 elif POS == metacluster.end:
                     posCluster = 'RIGHT'
-            elif metacluster.orientation == 'RECIPROCAL' and POS == metacluster.refRightBkp:
+            elif metacluster.orientation == 'RECIPROCAL' and POS == metacluster.refRightBkp and POS != metacluster.refLeftBkp:
                 POS = min([metacluster.refRightBkp, metacluster.beg])
                 BKP2 = max([metacluster.refRightBkp, metacluster.beg])
                 if POS == metacluster.refRightBkp:

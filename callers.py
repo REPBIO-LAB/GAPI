@@ -399,15 +399,17 @@ class SV_caller_short(SV_caller):
             
             ## 6. Perform gene-based annotation with ANNOVAR of discordant read pair clusters ##
             # Do gene-based annotation step if enabled
+            # Remove annotation directory
+            unix.rm([annotDir])
             
-            if self.confDict['annovarDir'] is not None:
+        if self.confDict['annovarDir'] is not None:
+            annotDir = self.outDir + '/ANNOT/'
+            step = 'ANNOTATE'
+            msg = 'Perform gene-based annotation with ANNOVAR of discordant read-pair clusters'
+            log.step(step, msg)
 
-                step = 'ANNOTATE'
-                msg = 'Perform gene-based annotation with ANNOVAR of discordant read-pair clusters'
-                log.step(step, msg)
-
-                ## Annotate
-                annotation.gene_annotation(metaclustersList, self.confDict['annovarDir'], annotDir)
+            ## Annotate
+            annotation.gene_annotation(metaclustersList, self.confDict['annovarDir'], annotDir)
 
             # Remove annotation directory
             unix.rm([annotDir])
@@ -428,7 +430,7 @@ class SV_caller_short(SV_caller):
         ### If viruses option is selected, collect read name and sequence of discordant low quality reads from all bam refs ##
         if 'VIRUS' in self.confDict['targetINT2Search']:
             # TEMP SR: DESILENCE
-            '''
+            
             # Make genomic bins
             bins = bamtools.makeGenomicBins(self.bam, self.confDict['binSize'], None)
             
@@ -464,9 +466,9 @@ class SV_caller_short(SV_caller):
 
             # TEMP SR: Remove allfastas
             #unix.rm([collectVirusDir])
-            '''
+            
             #TEMP DESILENCE
-            BAM = self.outDir + '/' + 'viralAligment' + '.bam'
+            #BAM = self.outDir + '/' + 'viralAligment' + '.bam'
             # Read bwa result and store in a dictionary
             self.viralSeqs = bamtools.BAM2FastaDict(BAM)
 
