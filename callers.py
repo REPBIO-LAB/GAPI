@@ -807,8 +807,8 @@ class SV_caller_sureselect(SV_caller):
         step = 'FILTER-CLIPPING'
         msg = 'Clipping cluster filtering'
         log.step(step, msg)
-
-        filters2Apply = ['MIN-NBREADS', 'SUPPL-REF', 'SUPPL-SRC', 'SUPPL-MAPQ', 'GERMLINE', 'READ-DUP']
+        
+        filters2Apply = ['MIN-NBREADS', 'SUPPL-REF', 'SUPPL-SRC', 'SUPPL-MAPQ', 'GERMLINE', 'READ-DUP', 'CLUSTER-RANGE']
         filteredLeftClippings = filters.filter_clippings(leftClippingClusters, filters2Apply, self.confDict)
         filteredRightClippings = filters.filter_clippings(rightClippingClusters, filters2Apply, self.confDict)
 
