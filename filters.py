@@ -33,12 +33,18 @@ def filter_clippings(clippings, filters2Apply, confDict):
     # For discordant cluster
     for clipping in clippings:
         
-        ## Apply filters
+        ## Apply filters
         failedFilters = filter_clipping(clipping, filters2Apply, confDict)
 
         # Metacluster pass all the filters
         if not failedFilters: 
             clippingsPass.append(clipping)
+        
+        else:
+            print("Discarded clipping cluster")
+            print(clipping.ref, clipping.beg, clipping.end)
+            print(failedFilters)
+            print([event.readName for event in clipping.events])
 
     return clippingsPass
 
@@ -103,7 +109,7 @@ def filter_clipping(clipping, filters2Apply, confDict):
 
 def filter_discordants(discordants, filters2Apply, bam, normalBam, confDict):
     '''
-    Function to apply filters all metaclusters. 
+    Function to apply filters all discordant clusters. 
 
     Input:
         1. discordants: list of discordant clusters
@@ -120,15 +126,18 @@ def filter_discordants(discordants, filters2Apply, bam, normalBam, confDict):
     # For discordant cluster
     for discordant in discordants:
 
-        ## Apply filters
+        ## Apply filters
         failedFilters = filter_discordant(discordant, filters2Apply, bam, normalBam, confDict)
 
-        # Metacluster pass all the filters
+        # Cluster pass all the filters
         if not failedFilters: 
             discordantsPass.append(discordant)
             
         else:
+            print("Discarded discordant cluster")
+            print(discordant.ref, discordant.beg, discordant.end)
             print(failedFilters)
+            print([event.readName for event in discordant.events])
     
     return discordantsPass
 
