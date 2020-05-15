@@ -918,11 +918,14 @@ class DISCORDANT():
         if alignmentObj is None:
             self.isDup = None
             self.mateRef = None
-            self.mateStart = None           
+            self.mateStart = None
+            self.CIGAR = None
+             
         else:
             self.isDup = alignmentObj.is_duplicate
             self.mateRef = alignmentObj.next_reference_name
             self.mateStart = alignmentObj.next_reference_start
+            self.CIGAR = alignmentObj.cigarstring            
 
     def fullReadName(self):
         '''
@@ -940,5 +943,16 @@ class DISCORDANT():
         matePair = '2' if self.pair == '1' else '1'
         fullReadName = self.readName + '/' + matePair
 
-        return fullReadName    
+        return fullReadName
+    
+    def readCoordinates(self):
+        '''
+        Compute read level alignment coordinates
+
+        Output:
+            1. begQuery: query start alignment position
+            2. endQuery: query end alignment position
+        '''
+        begQuery, endQuery = bamtools.alignment_interval_query(self.CIGAR, self.orientation)
+        return begQuery, endQuery
 

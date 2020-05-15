@@ -33,12 +33,18 @@ def filter_clippings(clippings, filters2Apply, confDict):
     # For discordant cluster
     for clipping in clippings:
         
-        ## Apply filters
+        ## Apply filters
         failedFilters = filter_clipping(clipping, filters2Apply, confDict)
 
         # Metacluster pass all the filters
         if not failedFilters: 
             clippingsPass.append(clipping)
+        
+        else:
+            print("Discarded clipping cluster")
+            print(clipping.ref, clipping.beg, clipping.end)
+            print(failedFilters)
+            print([event.readName for event in clipping.events])
 
     return clippingsPass
 
@@ -89,15 +95,21 @@ def filter_clipping(clipping, filters2Apply, confDict):
     ## 6. FILTER 6: Filter out clusters based on duplicate percentage (Ex: 40%) 
     if 'READ-DUP' in filters2Apply:
 
-        if not filter_highDup_clusters(clipping, 50):
+        if not filter_highDup_clusters(clipping, 75):
             failedFilters.append('READ-DUP')
+    
+    ## 7. FILTER 7: Filter out clusters based on cluster coordinates ##
+    if 'CLUSTER-RANGE' in filters2Apply:
+        
+        if not filter_clusterRange_clipping(clipping):
+            failedFilters.append('CLUSTER-RANGE')
 
     return failedFilters
 
 
 def filter_discordants(discordants, filters2Apply, bam, normalBam, confDict):
     '''
-    Function to apply filters all metaclusters. 
+    Function to apply filters all discordant clusters. 
 
     Input:
         1. discordants: list of discordant clusters
@@ -114,15 +126,18 @@ def filter_discordants(discordants, filters2Apply, bam, normalBam, confDict):
     # For discordant cluster
     for discordant in discordants:
 
-        ## Apply filters
+        ## Apply filters
         failedFilters = filter_discordant(discordant, filters2Apply, bam, normalBam, confDict)
 
-        # Metacluster pass all the filters
+        # Cluster pass all the filters
         if not failedFilters: 
             discordantsPass.append(discordant)
             
         else:
+            print("Discarded discordant cluster")
+            print(discordant.ref, discordant.beg, discordant.end)
             print(failedFilters)
+            print([event.readName for event in discordant.events])
     
     return discordantsPass
 
@@ -180,13 +195,13 @@ def filter_discordant(discordant, filters2Apply, bam, normalBam, confDict):
     ## 7. FILTER 7: Filter out clusters based on duplicate percentage (Ex: 50%) ##
     if 'READ-DUP' in filters2Apply:
 
-        if not filter_highDup_clusters(discordant, 50):
+        if not filter_highDup_clusters(discordant, 75):
             failedFilters.append('READ-DUP')
             
     ## 8. FILTER 8: Filter out clusters based on mates beg coordinates ##
     if 'CLUSTER-RANGE' in filters2Apply:
         
-        if not filter_clusterRange(discordant, 1):
+        if not filter_clusterRange_discordant(discordant):
             failedFilters.append('CLUSTER-RANGE')
     
     return failedFilters
@@ -919,30 +934,92 @@ def filter_highDup_clusters(cluster, maxDupPerc):
 
 
 
-def filter_clusterRange(cluster, minDist):
+def filter_clusterRange_discordant(cluster):
     '''
-    Filter out those clusters in which all mates have the same beg coordinate or separated by less than minDist
+    Filter out those discordant clusters in which all reads are piled up.
     This filter is only applied to clusters formed by more than a discordant alignment
+    
+    ----------****>                       ---------******>
+       -------*******>                    ---------******>
+     ---------*****>                      ---------******>
+         -----*********>                  ---------******>
+    |         |                          |         |   
+    beg      end                         beg      end
+    ----------       clusterRange         ----------
+         -----      min(alignRanges)      ----------
+       True             PASS                 False      
     
     Input:
         1. cluster: cluster formed by DISCORDANT events
-        2. minDist: minimum distance between mate beg coordinates (It should be 1 or greater)
     
     Output:
         1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
     '''
-
-    PASS = True
     
+    PASS = True
+        
     # if there is more than a discordant alignment
     if len(cluster.events) > 1:
-        
-        matesCluster = cluster.create_matesCluster()
                
-        # define mates cluster start range
-        clusterRange = matesCluster.end - matesCluster.beg
+        # define cluster range
+        clusterRange = cluster.end - cluster.beg
         
-        if clusterRange < minDist:
+        # define minimum alignment range of all reads supporting the cluster
+        readRanges = []
+        
+        for event in cluster.events:
+            beg, end = event.readCoordinates()
+            readRange = abs(abs(end) - abs(beg))
+            readRanges.append(readRange)
+        
+        alignRange = min(readRanges)
+        
+        # if the cluster range is smaller or equal to the minimum alignment range
+        if (clusterRange <= alignRange):
+            
+            # discard the cluster
             PASS = False
-                   
+    
+    return PASS
+
+
+
+def filter_clusterRange_clipping(cluster):
+    '''
+    Filter out those clipping clusters in which all clippings have the same 
+    coordinates relative to the read. This filter is only applied to clusters 
+    formed by more than a clipping alignment
+    
+    ----------****>                       ---------******>
+             55   75                              40    75
+       -------*******>                    ---------******>
+              38    75                            40    75
+     ---------*****>                      ---------******>
+              61   75                             40    75
+                          clusterCoord 
+    [55, 75, 38, 75, 61, 75]        [40, 75, 40, 75, 40, 75]
+          True              PASS                False      
+    
+    Input:
+        1. cluster: cluster formed by CLIPPING events
+    
+    Output:
+        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
+    '''
+    
+    PASS = True
+       
+    # if there is more than a clipping
+    if len(cluster.events) > 1:
+               
+        # with clipping events beg and end coordinates are the same. However, readCoordinates()
+        # returns the aligment coordinates relative to the read. If more than 2 coordinates, 
+        # it is not a piled up cluster of clippings        
+        clusterCoord = [event.readCoordinates() for event in cluster.events]
+        clusterCoord_flatList = [item for sublist in clusterCoord for item in sublist]
+        n_clusterCoord = len(set(clusterCoord_flatList))
+              
+        if(n_clusterCoord <= 2):
+            PASS = False
+        
     return PASS
