@@ -173,7 +173,7 @@ def alignment_blat(FASTA, reference, fileName, outDir):
 
     Input:
         1. FASTA: Path to FASTA file with sequences to align
-        2. reference: Path to the reference genome in fasta format (bwa mem index must be located in the same folder)
+        2. reference: Path to the reference genome in fasta format 
         3. fileName: output file will be named accordingly
         4. outDir: Output directory
 
