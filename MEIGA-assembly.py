@@ -128,60 +128,214 @@ def call_MEI(vcf):
     pafDict = group_alignments(paf)
 
     ## 5. Resolve structure for each insertion with matches on retrotransposon consensus sequences
-    for insId in pafDict:
-        
-        print('input: ', pafDict[insId], fasta.seqDict[insId])
-        resolve_structure(pafDict[insId], fasta.seqDict[insId])
+    structures = {}
 
-def resolve_structure(paf, insertSeq):
+    for insId in pafDict:
+        structures[insId] = MEI_structure(pafDict[insId], fasta.seqDict[insId])
+
+    ## 6. Realign full or bits of the inserted sequence into the reference genome to:
+    # - Determine partnered transduction procedence
+    # - Identify orphan transductions
+    # - Identify processed pseudogene insertions
+
+    ## 7. Generate output VCF containing MEI calls
+
+    ## Add MEI specific fields to the VCF header
+
+    ## For each INS calls a
+
+def MEI_structure(paf, insertSeq):
     '''
     '''
     structure = {}
+    seqLen = len(insertSeq)
 
     ## 1. Chain alignments
-    chain = paf.chain(20, 50)
+    structure['CHAIN'] = paf.chain(20, 50)
 
-    print('TIOO: ', chain.interval(), chain.perc_query_covered(), insertSeq)
+    ## 2. Determine insertion family
+    families = list(set([hit.tName.split('|')[1] for hit in structure['CHAIN'].alignments]))
 
-    ## 2. Search for polyA/T tails at unresolved insert ends
-    cBeg, cEnd = chain.interval()
+    # a) L1 insertion
+    if 'L1' in families:
+        structure['FAM'] = 'L1'
 
+    # b) SVA insertion
+    elif 'SVA' in families:
+        structure['FAM'] = 'SVA'
+
+    # c) Alu insertion
+    elif 'Alu' in families:
+        structure['FAM'] = 'Alu'
+
+    ## 3. Search for polyA/T tails at unresolved insert ends and determine insertion type
+    structure['ITYPE'] = 'solo'
+    rtBeg, rtEnd = structure['CHAIN'].interval()
+
+    ## Set parameters for monomer search
     windowSize = 8
     maxWindowDist = 2
     minMonomerSize = 10
     minPurity = 80  
 
-    ## 2.1 PolyA search
-    targetSeq = insertSeq[cEnd:]
+    ### 3.1 PolyA search
+    ## Search for monomers
+    targetSeq = insertSeq[rtEnd:]
     monomersA = sequences.find_monomers(targetSeq, 'A', windowSize, maxWindowDist, minMonomerSize, minPurity)
 
-    print('POLYA_SEARCH: ', targetSeq, monomersA)
+    ## Map to insert sequence coordinates
+    for monomer in monomersA:
+        monomer.beg = monomer.beg + rtEnd
+        monomer.end = monomer.end + rtEnd
 
-    ## 2.2 PolyT search 
-    targetSeq = insertSeq[:cBeg]
+    ## Make polyA calls
+    structure['POLYA'] = 0
+    structure['STRAND'] = None
+
+    # a) Single polyA
+    if (len(monomersA) == 1):
+        dist2rt = monomersA[0].beg - rtEnd
+        dist2end = seqLen - monomersA[0].end
+
+        # Apply filter
+        if (dist2rt <= 30) and (dist2end <= 30):
+            structure['ITYPE'] = 'solo'
+            structure['POLYA'] = 1
+            structure['STRAND'] = '+'
+
+    # b) Multiple polyA (Transduction candidate)
+    # AAAAAAAAAAAAAA-------------AAAAAAAAAAAAAA
+    elif (len(monomersA) > 1):
+        dist2rt = monomersA[0].beg - rtEnd
+        dist2end = seqLen - monomersA[-1].end
+
+        # Apply filter
+        if (dist2rt <= 30) and (dist2end <= 30):
+            structure['ITYPE'] = 'Partnered'
+            structure['POLYA'] = len(monomersA)
+            structure['STRAND'] = '+'
+
+    ## 3.2 PolyT search 
+    ## Search for monomers
+    targetSeq = insertSeq[:rtBeg]
     monomersT = sequences.find_monomers(targetSeq, 'T', windowSize, maxWindowDist, minMonomerSize, minPurity)
 
-    print('POLYT_SEARCH: ', targetSeq, monomersT)
+    ## Make polyT calls
+    structure['POLYT'] = 0
 
-    ## 3. Determine insertion strand
-    if (not monomersA and not monomersT) or (monomersA and monomersT):
-        structure['STRAND'] = None
+    # a) Single polyT
+    if (len(monomersT) == 1):
+        dist2end = monomersT[0].beg
+        dist2rt = rtBeg - monomersT[0].end 
+
+        # Apply filter
+        if (dist2rt <= 30) and (dist2end <= 30):
+            structure['ITYPE'] = 'solo'
+            structure['POLYT'] = 1
+            structure['STRAND'] = '-'
+
+    # b) Multiple polyT (Partnered transduction candidate)
+    # TTTTTTTTTTTTT-------------TTTTTTTTTTTTT
+    elif (len(monomersT) == 2):
+        dist2end = monomersT[0].beg
+        dist2rt = rtBeg - monomersT[-1].end 
+
+        # Apply filter
+        if (dist2rt <= 30) and (dist2end <= 30):
+            structure['ITYPE'] = 'Partnered'
+            structure['POLYT'] = len(monomersT)
+            structure['STRAND'] = '-'
         
-    elif monomersA:
-        structure['STRAND'] = '+'
-        monomers = monomersA
+    ## 3.3 Add polyA/T annotation to the chain
+    # A) PolyA found
+    if (structure['POLYA'] != 0) and (structure['POLYT'] == 0):
 
-    else monomersT:
-        structure['STRAND'] = '-'
-        monomers = monomersT
+        # a) Solo
+        if (structure['POLYA'] == 1):
+            fields = [structure['CHAIN'].alignments[0].qName, seqLen, monomersA[0].beg, monomersA[0].end, None, 'polyA', 0, 0, 0, 0, 0, 0]
+            hit = formats.PAF_alignment(fields)
+            structure['CHAIN'].alignments.append(hit) 
 
-        print('monomers: ', len(monomers))
-    
-    ## 4. Determine candidate insertion type
+        # b) Partnered
+        else:
+            # First polyA
+            fields = [structure['CHAIN'].alignments[0].qName, seqLen, monomersA[0].beg, monomersA[0].end, None, 'polyA', 0, 0, 0, 0, 0, 0]
+            hit = formats.PAF_alignment(fields)
+            structure['CHAIN'].alignments.append(hit)
+
+            # Partnered 
+            fields = [structure['CHAIN'].alignments[0].qName, seqLen, monomersA[0].end, monomersA[-1].beg, None, 'partnered', 0, 0, 0, 0, 0, 0]
+            hit = formats.PAF_alignment(fields)
+            structure['CHAIN'].alignments.append(hit)       
+
+            # Second polyA
+            fields = [structure['CHAIN'].alignments[0].qName, seqLen, monomersA[-1].beg, monomersA[-1].end, None, 'polyA', 0, 0, 0, 0, 0, 0]
+            hit = formats.PAF_alignment(fields)
+            structure['CHAIN'].alignments.append(hit)            
+
+    # B) PolyT found
+    elif (structure['POLYT'] != 0) and (structure['POLYA'] == 0): 
+
+        # a) Solo
+        if (structure['POLYT'] == 1):
+  
+            fields = [structure['CHAIN'].alignments[0].qName, seqLen, monomersT[0].beg, monomersT[0].end, None, 'polyT', 0, 0, 0, 0, 0, 0]
+            hit = formats.PAF_alignment(fields)
+            structure['CHAIN'].alignments.insert(0, hit)
+
+        # b) Partnered
+        else:
+            # Second polyT
+            fields = [structure['CHAIN'].alignments[0].qName, seqLen, monomersT[-1].beg, monomersT[-1].end, None, 'polyT', 0, 0, 0, 0, 0, 0]
+            hit = formats.PAF_alignment(fields)
+            structure['CHAIN'].alignments.insert(0, hit)
+
+            # Partnered 
+            fields = [structure['CHAIN'].alignments[0].qName, seqLen, monomersT[0].end, monomersT[-1].beg, None, 'partnered', 0, 0, 0, 0, 0, 0]
+            hit = formats.PAF_alignment(fields)
+            structure['CHAIN'].alignments.insert(0, hit)
+
+            # First polyT
+            fields = [structure['CHAIN'].alignments[0].qName, seqLen, monomersT[0].beg, monomersT[0].end, None, 'polyT', 0, 0, 0, 0, 0, 0]
+            hit = formats.PAF_alignment(fields)
+            structure['CHAIN'].alignments.insert(0, hit)
+
+    # Compute % of inserted resolved
+    structure['PERC-RESOLVED'] = structure['CHAIN'].perc_query_covered()
+
+    ## 4. Apply filters 
+    failed = []
+
+    # 4.1 Percentage resolved filter
+
+    if structure['PERC-RESOLVED'] < 60:
+        failed.append('PERC-RESOLVED')
+
+    # 4.2 Length filtering for solo insertions
+    if structure['ITYPE'] == 'solo':
+
+        if (structure['FAM'] == 'L1') and (seqLen > 6500):
+            failed.append('LEN')
+        
+        elif (structure['FAM'] == 'Alu') and (seqLen > 400): 
+            failed.append('LEN')
+
+        elif (structure['FAM'] == 'SVA') and (seqLen > 4500): 
+            failed.append('LEN')
+
+    # a) Insertions passes all the filters
+    if not failed:
+        structure['PASS'] = True
+
+    # b) At least one failed filter
+    else:
+        structure['PASS'] = False
+
+    print('RESULT: ', structure['FAM'], structure['ITYPE'], structure['POLYA'], structure['POLYT'], structure['PERC-RESOLVED'], structure['PASS'], failed, insertSeq)
+
+    return structure
 
 
-    ## 
-    
 def ins2fasta(vcf, outDir):
     '''
     Write inserted sequences into a fasta
@@ -268,27 +422,3 @@ print('filteredVCF: ', filteredVCF, len(filteredVCF.variants))
 call_MEI(filteredVCF)
  
 
-'''
-    ## Add PolyA/T calls to the paf
-    for insId in pafDict.keys():
-
-        insLen = len(fasta.seqDict[insId])
-
-        if 'polyA' in tails[insId]:
-            polyA = tails[insId]['polyA']
-            fields = [insId, insLen, polyA.beg, polyA.end, None, 'polyA', 0, 0, 0, 0, 0, 0]
-            hit = formats.PAF_alignment(fields)
-            pafDict[hit.qName].alignments.append(hit) 
-
-        if 'polyT' in tails[insId]:
-            polyT = tails[insId]['polyT']
-
-            fields = [insId, insLen, polyT.beg, polyT.end, None, 'polyT', 0, 0, 0, 0, 0, 0]
-            hit = formats.PAF_alignment(fields)
-            pafDict[hit.qName].alignments.append(hit) 
-
-    for insId in pafDict:
-        chain = pafDict[insId].chain(20, 50)
-        alignments = ';'.join([str(hit.qBeg) + '_' + str(hit.qEnd) + '_' + hit.tName for hit in chain.alignments])
-        print('chain: ', chain.interval(), chain.perc_query_covered(), alignments, len(fasta.seqDict[insId]), fasta.seqDict[insId])
-'''
