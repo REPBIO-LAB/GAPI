@@ -766,7 +766,6 @@ class VCF():
         self.header = None
         self.variants = []  # List of variants
 
-    
     def read(self, filePath):
         '''
         Read VCF file
@@ -813,6 +812,10 @@ class VCF():
         info = {}
         self.info_order = []
 
+
+        source = None
+        build = None
+
         ## Read header line by line
         for line in header:
 
@@ -845,12 +848,13 @@ class VCF():
             ## D) Info
             elif line.startswith('##INFO'):
                 substring = re.search('<(.*)>', line)
-
                 values = []
 
                 for field in substring.group(1).split(','):
-                    value = field.split('=')[1]
-                    values.append(value)
+                    fields = field.split('=')
+                    
+                    if len(fields) == 2:
+                        values.append(fields[1])
 
                 info[values[0]] = values[1:]
                 self.info_order.append(values[0])
@@ -938,7 +942,6 @@ class VCF():
 
         Output: Write VCF file 
         '''     
-
         ## 1. Open output filehandle    
         outFile = outDir + '/' + outName + '.vcf'
         outFile = open(outFile, 'w')
@@ -956,6 +959,37 @@ class VCF():
 
         ## Close output file
         outFile.close()
+
+    def ins2fasta(self, itype, fam, outDir):
+        '''
+        Write inserted sequence into a fasta
+
+        Input:
+            1. itype: Target insertion type
+            2. fam: Target family
+            3. outDir: Output directory
+
+        Output: 
+            1. fasta: path to fasta file containing inserted sequences
+        '''     
+        ## 1. Initialize fasta object
+        fasta = FASTA() 
+
+        ## 2. Collect inserted sequences
+        for variant in self.variants:
+
+            if (variant.info['ITYPE'] == itype) and ('FAM' in variant.info) and (variant.info['FAM'] == fam):
+                
+                seqId = variant.chrom + '_' + str(variant.pos) + '_' + variant.info['FAM'] 
+                seq = variant.info['INSEQ'] 
+
+                fasta.seqDict[seqId] = seq
+
+        ## 3. Write inserted sequences into fasta file
+        outFile = outDir + '/' + itype + '_' + fam + '.fa'
+        fasta.write(outFile)
+
+        return outFile
 
 
 class VCF_header():
