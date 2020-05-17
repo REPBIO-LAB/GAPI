@@ -3,6 +3,7 @@
 import os
 import sys
 import argparse
+import copy
 
 # Internal
 import formats
@@ -110,17 +111,21 @@ def call_MEI_candidate(VCF):
 def call_MEI(vcf):
     '''
     '''
+    ## 0. Create temporary folder
+    tmpDir = outDir + '/tmp'
+    unix.mkdir(tmpDir)
+
     ## 1. Write inserted sequences into fasta file
-    fastaPath = outDir + '/insertions.fa'
-    fasta = ins2fasta(vcf, outDir)
+    fastaPath = tmpDir + '/insertions.fa'
+    fasta = ins2fasta(vcf, tmpDir)
     fasta.write(fastaPath)
 
     ## 2. Create index or consensus sequences
     fileName = 'consensus'  
-    consensusIndex = alignment.index_minimap2(consensus, fileName, outDir)
+    consensusIndex = alignment.index_minimap2(consensus, fileName, tmpDir)
 
     ## 3. Realign inserted sequences against consensus:
-    pafPath = alignment.alignment_minimap2(fastaPath, consensusIndex, 'hits2consensus', 1, outDir)
+    pafPath = alignment.alignment_minimap2(fastaPath, consensusIndex, 'hits2consensus', 1, tmpDir)
     paf = formats.PAF()
     paf.read(pafPath)
 
@@ -132,23 +137,48 @@ def call_MEI(vcf):
 
     for insId in pafDict:
         structures[insId] = MEI_structure(pafDict[insId], fasta.seqDict[insId])
-
+    
     ## 6. Realign full or bits of the inserted sequence into the reference genome to:
     # - Determine partnered transduction procedence
     # - Identify orphan transductions
     # - Identify processed pseudogene insertions
 
     ## 7. Generate output VCF containing MEI calls
+    ## Create header for output dictionary
+    outVCF = formats.VCF()
+    outVCF.header = vcf.header
 
     ## Add MEI specific fields to the VCF header
+    info2add = {'ITYPE': ['.', 'String', 'Type of insertion (solo, partnered or orphan)'], \
+                'FAM': ['.', 'String', 'Repeat family'], \
+                'STRAND': ['.', 'String', 'Insertion DNA strand (+ or -)'], \
+                'NBPOLY': ['1', 'Integer', 'Number of PolyA/T stretches identified']
+                }
 
-    ## For each INS calls a
+    outVCF.header.info.update(info2add)
+
+    ## Select INS corresponding to MEI calls and add update info field with MEI features
+    for variant in vcf.variants:
+        insId = variant.chrom + '_' + str(variant.pos) 
+        
+        # Discard unresolved inserted sequences
+        if (insId not in structures) or ((insId in structures) and (structures[insId]['PASS'] is False)):
+            continue
+        
+        variant2add = copy.deepcopy(variant)
+        variant2add.info.update(structures[insId])
+        outVCF.add(variant2add)
+
+    ## 8. Do cleanup
+    unix.rm([tmpDir])
+
+    return outVCF
 
 def MEI_structure(paf, insertSeq):
     '''
     '''
     structure = {}
-    seqLen = len(insertSeq)
+    structure['LEN'] = len(insertSeq)
 
     ## 1. Chain alignments
     structure['CHAIN'] = paf.chain(20, 50)
@@ -195,7 +225,7 @@ def MEI_structure(paf, insertSeq):
     # a) Single polyA
     if (len(monomersA) == 1):
         dist2rt = monomersA[0].beg - rtEnd
-        dist2end = seqLen - monomersA[0].end
+        dist2end = structure['LEN'] - monomersA[0].end
 
         # Apply filter
         if (dist2rt <= 30) and (dist2end <= 30):
@@ -207,7 +237,7 @@ def MEI_structure(paf, insertSeq):
     # AAAAAAAAAAAAAA-------------AAAAAAAAAAAAAA
     elif (len(monomersA) > 1):
         dist2rt = monomersA[0].beg - rtEnd
-        dist2end = seqLen - monomersA[-1].end
+        dist2end = structure['LEN'] - monomersA[-1].end
 
         # Apply filter
         if (dist2rt <= 30) and (dist2end <= 30):
@@ -247,56 +277,62 @@ def MEI_structure(paf, insertSeq):
             structure['STRAND'] = '-'
         
     ## 3.3 Add polyA/T annotation to the chain
+    structure['NBPOLY'] = 0
+
     # A) PolyA found
     if (structure['POLYA'] != 0) and (structure['POLYT'] == 0):
 
+        structure['NBPOLY'] = structure['POLYA']
+
         # a) Solo
         if (structure['POLYA'] == 1):
-            fields = [structure['CHAIN'].alignments[0].qName, seqLen, monomersA[0].beg, monomersA[0].end, None, 'polyA', 0, 0, 0, 0, 0, 0]
+            fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomersA[0].beg, monomersA[0].end, None, 'polyA', 0, 0, 0, 0, 0, 0]
             hit = formats.PAF_alignment(fields)
             structure['CHAIN'].alignments.append(hit) 
 
         # b) Partnered
         else:
             # First polyA
-            fields = [structure['CHAIN'].alignments[0].qName, seqLen, monomersA[0].beg, monomersA[0].end, None, 'polyA', 0, 0, 0, 0, 0, 0]
+            fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomersA[0].beg, monomersA[0].end, None, 'polyA', 0, 0, 0, 0, 0, 0]
             hit = formats.PAF_alignment(fields)
             structure['CHAIN'].alignments.append(hit)
 
             # Partnered 
-            fields = [structure['CHAIN'].alignments[0].qName, seqLen, monomersA[0].end, monomersA[-1].beg, None, 'partnered', 0, 0, 0, 0, 0, 0]
+            fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomersA[0].end, monomersA[-1].beg, None, 'partnered', 0, 0, 0, 0, 0, 0]
             hit = formats.PAF_alignment(fields)
             structure['CHAIN'].alignments.append(hit)       
 
             # Second polyA
-            fields = [structure['CHAIN'].alignments[0].qName, seqLen, monomersA[-1].beg, monomersA[-1].end, None, 'polyA', 0, 0, 0, 0, 0, 0]
+            fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomersA[-1].beg, monomersA[-1].end, None, 'polyA', 0, 0, 0, 0, 0, 0]
             hit = formats.PAF_alignment(fields)
             structure['CHAIN'].alignments.append(hit)            
 
     # B) PolyT found
     elif (structure['POLYT'] != 0) and (structure['POLYA'] == 0): 
 
+        structure['NBPOLY'] = structure['POLYT']
+
         # a) Solo
         if (structure['POLYT'] == 1):
   
-            fields = [structure['CHAIN'].alignments[0].qName, seqLen, monomersT[0].beg, monomersT[0].end, None, 'polyT', 0, 0, 0, 0, 0, 0]
+            fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomersT[0].beg, monomersT[0].end, None, 'polyT', 0, 0, 0, 0, 0, 0]
             hit = formats.PAF_alignment(fields)
             structure['CHAIN'].alignments.insert(0, hit)
 
         # b) Partnered
         else:
             # Second polyT
-            fields = [structure['CHAIN'].alignments[0].qName, seqLen, monomersT[-1].beg, monomersT[-1].end, None, 'polyT', 0, 0, 0, 0, 0, 0]
+            fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomersT[-1].beg, monomersT[-1].end, None, 'polyT', 0, 0, 0, 0, 0, 0]
             hit = formats.PAF_alignment(fields)
             structure['CHAIN'].alignments.insert(0, hit)
 
             # Partnered 
-            fields = [structure['CHAIN'].alignments[0].qName, seqLen, monomersT[0].end, monomersT[-1].beg, None, 'partnered', 0, 0, 0, 0, 0, 0]
+            fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomersT[0].end, monomersT[-1].beg, None, 'partnered', 0, 0, 0, 0, 0, 0]
             hit = formats.PAF_alignment(fields)
             structure['CHAIN'].alignments.insert(0, hit)
 
             # First polyT
-            fields = [structure['CHAIN'].alignments[0].qName, seqLen, monomersT[0].beg, monomersT[0].end, None, 'polyT', 0, 0, 0, 0, 0, 0]
+            fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomersT[0].beg, monomersT[0].end, None, 'polyT', 0, 0, 0, 0, 0, 0]
             hit = formats.PAF_alignment(fields)
             structure['CHAIN'].alignments.insert(0, hit)
 
@@ -307,20 +343,19 @@ def MEI_structure(paf, insertSeq):
     failed = []
 
     # 4.1 Percentage resolved filter
-
     if structure['PERC-RESOLVED'] < 60:
         failed.append('PERC-RESOLVED')
 
     # 4.2 Length filtering for solo insertions
     if structure['ITYPE'] == 'solo':
 
-        if (structure['FAM'] == 'L1') and (seqLen > 6500):
+        if (structure['FAM'] == 'L1') and (structure['LEN'] > 6500):
             failed.append('LEN')
         
-        elif (structure['FAM'] == 'Alu') and (seqLen > 400): 
+        elif (structure['FAM'] == 'Alu') and (structure['LEN'] > 400): 
             failed.append('LEN')
 
-        elif (structure['FAM'] == 'SVA') and (seqLen > 4500): 
+        elif (structure['FAM'] == 'SVA') and (structure['LEN'] > 4500): 
             failed.append('LEN')
 
     # a) Insertions passes all the filters
@@ -330,8 +365,6 @@ def MEI_structure(paf, insertSeq):
     # b) At least one failed filter
     else:
         structure['PASS'] = False
-
-    print('RESULT: ', structure['FAM'], structure['ITYPE'], structure['POLYA'], structure['POLYT'], structure['PERC-RESOLVED'], structure['PASS'], failed, insertSeq)
 
     return structure
 
@@ -386,12 +419,14 @@ def group_alignments(paf):
 parser = argparse.ArgumentParser(description='')
 parser.add_argument('vcf', help='Path to VCF file with assembly-based SV calls')
 parser.add_argument('consensus', help='Path to FASTA file containing consensus retrotransposon sequences')
+parser.add_argument('fileName', help='Output file name')
 parser.add_argument('-o', '--outDir', default=os.getcwd(), dest='outDir', help='output directory. Default: current working directory' )
 
 ## 2. Parse user input ##
 args = parser.parse_args()
 vcf = args.vcf
 consensus = args.consensus
+fileName = args.fileName
 outDir = args.outDir
 
 ## 3. Display configuration to standard output ##
@@ -402,6 +437,7 @@ print()
 print('***** ', scriptName, 'configuration *****')
 print('vcf: ', vcf)
 print('consensus: ', consensus)
+print('fileName: ', fileName)
 print('outDir: ', outDir, "\n")
 
 
@@ -416,9 +452,12 @@ VCF.read(vcf)
 ## 2. Filter VCF by selecting retrotransposition insertion candidates 
 # (inserted sequences with polyA/T tails at their ends)
 filteredVCF = call_MEI_candidate(VCF)
-print('filteredVCF: ', filteredVCF, len(filteredVCF.variants))
 
 ## 3. Do MEI calling for candidate insertions
-call_MEI(filteredVCF)
- 
+outVCF = call_MEI(filteredVCF)
 
+## 4. Write VCF containing MEI calls
+IDS = ['VARTYPE', 'SVTYPE', 'SVLEN', 'CONTIG', 'CONTIG_COORD', 'CONTIG_STRAND', \
+       'ITYPE', 'FAM', 'STRAND', 'NBPOLY']
+
+outVCF.write(IDS, fileName, outDir)
