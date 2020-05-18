@@ -297,7 +297,7 @@ def organize_hits_paf(PAF_path):
     return hits     
 
 
-def alignment_bwa_filtered(database, viralBamParcialMatch, processes, inFasta, outFile, outDir):
+def alignment_bwa_filtered(database, viralBamMAPQ, viralBamParcialMatch, processes, inFasta, outFile, outDir):
     '''
     Align fasta against DB and filter result with awk based on MAPQ and CIGAR matches.
     Input:
@@ -317,7 +317,8 @@ def alignment_bwa_filtered(database, viralBamParcialMatch, processes, inFasta, o
     BAM = collectVirusDir + '/' + outFile + '.bam'
 
     bwaProcesses = 5 if processes > 5 else processes
-    command = 'bwa mem -Y -t '+ str(bwaProcesses) + ' ' +  database + ' ' + inFasta + ' | samtools view -F 4 -b | samtools view -h  | awk \'(($5=="60" && $6~/[' + str(viralBamParcialMatch) + '-9][0-9]M/) || ($6~/[0-9][0-9][0-9]M/) || ($1 ~ /@/)){print}\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
+    #command = 'bwa mem -Y -t '+ str(bwaProcesses) + ' ' +  database + ' ' + inFasta + ' | samtools view -F 4 -b | samtools view -h  | awk \'(($5=="60" && $6~/[' + str(viralBamParcialMatch) + '-9][0-9]M/) || ($6~/[0-9][0-9][0-9]M/) || ($1 ~ /@/)){print}\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
+    command = 'bwa mem -Y -t '+ str(bwaProcesses) + ' ' +  database + ' ' + inFasta + ' | samtools view -F 4 -b | samtools view -h  | awk \'(($5>=' + str(viralBamMAPQ) + ' && $6~/[' + str(viralBamParcialMatch) + '-9][0-9]M/) || ($6~/9[0-9]M/) || ($6~/[0-9][0-9][0-9]M/) || ($1 ~ /@/)){print}\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
     err = open(logDir + '/align.err', 'w') 
     status = subprocess.call(command, stderr=err, shell=True)
 

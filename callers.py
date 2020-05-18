@@ -459,7 +459,7 @@ class SV_caller_short(SV_caller):
             
             # Align with bwa allFastas vs viralDb and filter resulting bam
             # TODO SR: bwa allFastas vs viralDb: check if bwa -T parameter does something that we need
-            BAM = alignment.alignment_bwa_filtered(self.confDict['viralDb'], self.confDict['viralBamParcialMatch'], self.confDict['processes'], allFastas, 'viralAligment', self.outDir)
+            BAM = alignment.alignment_bwa_filtered(self.confDict['viralDb'], self.confDict['viralBamMAPQ'], self.confDict['viralBamParcialMatch'], self.confDict['processes'], allFastas, 'viralAligment', self.outDir)
 
             # Index bam
             bamtools.samtools_index_bam(BAM, self.outDir)
@@ -753,12 +753,12 @@ class SV_caller_short(SV_caller):
             bkp.analyzeMetaclusters(metaclustersFailed, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, mergedDbPath)
 
         # If only VIRUS are being analysed, pick viral identities db which is created internally.
-        elif self.confDict['targetINT2Search'] == 'VIRUS':
+        elif 'VIRUS' in self.confDict['targetINT2Search'] and not 'ME' in self.confDict['targetINT2Search']:
             bkp.analyzeMetaclusters(metaclusters, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, self.identDbPath)
             bkp.analyzeMetaclusters(metaclustersFailed, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, self.identDbPath)
 
         # If only ME are analysed, pick a ME db that is given to the pipeline as an argument
-        elif self.confDict['targetINT2Search'] == 'ME':
+        elif not 'VIRUS' in self.confDict['targetINT2Search'] and 'ME' in self.confDict['targetINT2Search']:
             bkp.analyzeMetaclusters(metaclusters, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, self.confDict['MEDB'])
             bkp.analyzeMetaclusters(metaclustersFailed, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, self.confDict['MEDB'])
 
