@@ -108,9 +108,9 @@ def call_MEI_candidate(VCF):
 
     return filteredVCF
 
-def call_MEI(vcf):
+def call_MEI(vcf, consensus, reference, outDir):
     '''
-    '''
+    '''    
     ## 0. Create temporary folder
     tmpDir = outDir + '/tmp'
     unix.mkdir(tmpDir)
@@ -120,30 +120,26 @@ def call_MEI(vcf):
     fasta = ins2fasta(vcf, tmpDir)
     fasta.write(fastaPath)
 
-    ## 2. Create index or consensus sequences
+    ## 2. Create index for consensus sequences
     fileName = 'consensus'  
     consensusIndex = alignment.index_minimap2(consensus, fileName, tmpDir)
 
     ## 3. Realign inserted sequences against consensus:
-    pafPath = alignment.alignment_minimap2(fastaPath, consensusIndex, 'hits2consensus', 1, tmpDir)
-    paf = formats.PAF()
-    paf.read(pafPath)
+    PAF_path = alignment.alignment_minimap2(fastaPath, consensusIndex, 'hits2consensus', 1, tmpDir)
+    PAF = formats.PAF()
+    PAF.read(PAF_path)
 
     ## 4. Generate a single paf object per inserted sequence:
-    pafDict = group_alignments(paf)
+    PAF_dict = group_alignments(PAF)
 
     ## 5. Resolve structure for each insertion with matches on retrotransposon consensus sequences
     structures = {}
 
-    for insId in pafDict:
-        structures[insId] = MEI_structure(pafDict[insId], fasta.seqDict[insId])
-    
-    ## 6. Realign full or bits of the inserted sequence into the reference genome to:
-    # - Determine partnered transduction procedence
-    # - Identify orphan transductions
-    # - Identify processed pseudogene insertions
+    for insId in PAF_dict:
+        structures[insId] = MEI_structure(PAF_dict[insId], fasta.seqDict[insId])
+        seqBeg, seqEnd = structures[insId]['CHAIN'].interval()
 
-    ## 7. Generate output VCF containing MEI calls
+    ## 6. Generate output VCF containing MEI calls
     ## Create header for output dictionary
     outVCF = formats.VCF()
     outVCF.header = vcf.header
@@ -169,19 +165,19 @@ def call_MEI(vcf):
         variant2add.info.update(structures[insId])
         outVCF.add(variant2add)
 
-    ## 8. Do cleanup
+    ## 7. Do cleanup
     unix.rm([tmpDir])
 
     return outVCF
 
-def MEI_structure(paf, insertSeq):
+def MEI_structure(PAF, insertSeq):
     '''
     '''
     structure = {}
     structure['LEN'] = len(insertSeq)
 
     ## 1. Chain alignments
-    structure['CHAIN'] = paf.chain(20, 50)
+    structure['CHAIN'] = PAF.chain(20, 50)
 
     ## 2. Determine insertion family
     families = list(set([hit.tName.split('|')[1] for hit in structure['CHAIN'].alignments]))
@@ -369,6 +365,7 @@ def MEI_structure(paf, insertSeq):
     return structure
 
 
+
 def ins2fasta(vcf, outDir):
     '''
     Write inserted sequences into a fasta
@@ -419,6 +416,7 @@ def group_alignments(paf):
 parser = argparse.ArgumentParser(description='')
 parser.add_argument('vcf', help='Path to VCF file with assembly-based SV calls')
 parser.add_argument('consensus', help='Path to FASTA file containing consensus retrotransposon sequences')
+parser.add_argument('reference', help='Path to FASTA file containing the reference genome')
 parser.add_argument('fileName', help='Output file name')
 parser.add_argument('-o', '--outDir', default=os.getcwd(), dest='outDir', help='output directory. Default: current working directory' )
 
@@ -426,6 +424,7 @@ parser.add_argument('-o', '--outDir', default=os.getcwd(), dest='outDir', help='
 args = parser.parse_args()
 vcf = args.vcf
 consensus = args.consensus
+reference = args.reference
 fileName = args.fileName
 outDir = args.outDir
 
@@ -437,6 +436,7 @@ print()
 print('***** ', scriptName, 'configuration *****')
 print('vcf: ', vcf)
 print('consensus: ', consensus)
+print('reference: ', reference)
 print('fileName: ', fileName)
 print('outDir: ', outDir, "\n")
 
@@ -454,7 +454,7 @@ VCF.read(vcf)
 filteredVCF = call_MEI_candidate(VCF)
 
 ## 3. Do MEI calling for candidate insertions
-outVCF = call_MEI(filteredVCF)
+outVCF = call_MEI(filteredVCF, consensus, reference, outDir)
 
 ## 4. Write VCF containing MEI calls
 IDS = ['VARTYPE', 'SVTYPE', 'SVLEN', 'CONTIG', 'CONTIG_COORD', 'CONTIG_STRAND', \
