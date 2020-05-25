@@ -328,9 +328,18 @@ class BED():
 
         # c) Entries organized into a nested dict (TO IMPLEMENT LATER)
         #elif (self.structure == 'nestedDict'):
-
-        ## Write entries into output bed file
         with open(outPath, 'w') as outFile:
+
+            ## Write header
+            fields = ['#ref', 'beg', 'end']
+
+            if hasattr(outEntries[0], 'name'):
+                fields.append('name')
+
+            row = "\t".join(fields)
+            outFile.write(row + '\n')
+
+            ## Write entries 
             for entry in outEntries:
 
                 fields = [entry.ref, str(entry.beg), str(entry.end)]
@@ -427,7 +436,6 @@ class BED():
         Output:
             1) lines: dictionary containing bed entries
         '''
-
         bedFile = open(filePath)
         lines = {}
         header = []
@@ -569,7 +577,6 @@ class BED_entry():
 
         for i in range(3, len(header), 1):
             self.optional[header[i]] = fields[i]
-        
 
 class PAF():
     '''
