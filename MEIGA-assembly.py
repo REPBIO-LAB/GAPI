@@ -139,7 +139,13 @@ def call_MEI(vcf, consensus, reference, outDir):
         structures[insId] = MEI_structure(PAF_dict[insId], fasta.seqDict[insId])
         seqBeg, seqEnd = structures[insId]['CHAIN'].interval()
 
-    ## 6. Generate output VCF containing MEI calls
+    ## 6. Resolve partnered mobilized bit of sequence
+    #resolve_partnered(structures, reference, tmpDir)
+
+    ## 7. Search for orphan transductions and processed pseudogene insertions
+    #search4orphan_psd()
+
+    ## 8. Generate output VCF containing MEI calls
     ## Create header for output dictionary
     outVCF = formats.VCF()
     outVCF.header = vcf.header
@@ -165,10 +171,31 @@ def call_MEI(vcf, consensus, reference, outDir):
         variant2add.info.update(structures[insId])
         outVCF.add(variant2add)
 
-    ## 7. Do cleanup
+    ## 9. Do cleanup
     unix.rm([tmpDir])
 
     return outVCF
+
+def resolve_partnered(structures, reference, outDir):
+    '''
+    '''
+    ## 1. Create Fasta with sequences to realign
+    seq2realign = formats.FASTA()
+
+    for insId in structures:
+
+        # Discard solo
+        if structures[insId]['ITYPE'] != 'Partnered':
+            continue
+
+        print('insId: ', insId, structures[insId]['ITYPE'], structures[insId]['STRAND'])
+
+        # Select polyA/T hits:
+        for hit in structures[insId]['CHAIN'].alignments:
+            print('HIT: ', hit.tName)
+
+        
+
 
 def MEI_structure(PAF, insertSeq):
     '''
@@ -272,65 +299,65 @@ def MEI_structure(PAF, insertSeq):
             structure['POLYT'] = len(monomersT)
             structure['STRAND'] = '-'
         
-    ## 3.3 Add polyA/T annotation to the chain
-    structure['NBPOLY'] = 0
-
-    # A) PolyA found
+    ## 3.3 Determine if polyA or polyT found
+    # a) PolyA found
     if (structure['POLYA'] != 0) and (structure['POLYT'] == 0):
 
+        tail = 'polyA'
         structure['NBPOLY'] = structure['POLYA']
+        monomers = monomersA
 
-        # a) Solo
-        if (structure['POLYA'] == 1):
-            fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomersA[0].beg, monomersA[0].end, None, 'polyA', 0, 0, 0, 0, 0, 0]
-            hit = formats.PAF_alignment(fields)
-            structure['CHAIN'].alignments.append(hit) 
-
-        # b) Partnered
-        else:
-            # First polyA
-            fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomersA[0].beg, monomersA[0].end, None, 'polyA', 0, 0, 0, 0, 0, 0]
-            hit = formats.PAF_alignment(fields)
-            structure['CHAIN'].alignments.append(hit)
-
-            # Partnered 
-            fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomersA[0].end, monomersA[-1].beg, None, 'partnered', 0, 0, 0, 0, 0, 0]
-            hit = formats.PAF_alignment(fields)
-            structure['CHAIN'].alignments.append(hit)       
-
-            # Second polyA
-            fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomersA[-1].beg, monomersA[-1].end, None, 'polyA', 0, 0, 0, 0, 0, 0]
-            hit = formats.PAF_alignment(fields)
-            structure['CHAIN'].alignments.append(hit)            
-
-    # B) PolyT found
-    elif (structure['POLYT'] != 0) and (structure['POLYA'] == 0): 
-
+    # b) PolyT found
+    elif (structure['POLYT'] != 0) and (structure['POLYA'] == 0):
+        tail = 'polyT'
         structure['NBPOLY'] = structure['POLYT']
+        monomers = monomersT
 
-        # a) Solo
-        if (structure['POLYT'] == 1):
-  
-            fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomersT[0].beg, monomersT[0].end, None, 'polyT', 0, 0, 0, 0, 0, 0]
-            hit = formats.PAF_alignment(fields)
-            structure['CHAIN'].alignments.insert(0, hit)
+    # c) No tail or ambiguous
+    else:
+        tail = None
+        structure['NBPOLY'] = 0
 
-        # b) Partnered
-        else:
-            # Second polyT
-            fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomersT[-1].beg, monomersT[-1].end, None, 'polyT', 0, 0, 0, 0, 0, 0]
-            hit = formats.PAF_alignment(fields)
-            structure['CHAIN'].alignments.insert(0, hit)
+    ## 3.4 Determine candidate insertion type based on the number of polyA/T tails found
+    hits2add = []
+
+    # a) Solo
+    if structure['NBPOLY'] == 1:
+        fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomers[0].beg, monomers[0].end, None, 'polyA/T', 0, 0, 0, 0, 0, 0]
+        hit = formats.PAF_alignment(fields)
+        hits2add.append(hit)
+
+    # b) Partnered
+    elif structure['NBPOLY'] > 1:
+
+        ## First polyA/T
+        fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomers[0].beg, monomers[0].end, None, 'polyA/T', 0, 0, 0, 0, 0, 0]
+        hit = formats.PAF_alignment(fields)
+        hits2add.append(hit)
+
+        ## Add partnered region/s plus polyAT/s
+        counter = 1
+
+        for monomer1, monomer2 in zip(monomers, monomers[1:]):
 
             # Partnered 
-            fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomersT[0].end, monomersT[-1].beg, None, 'partnered', 0, 0, 0, 0, 0, 0]
+            fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomer1.end, monomer2.beg, None, 'partnered_' + str(counter), 0, 0, 0, 0, 0, 0]
             hit = formats.PAF_alignment(fields)
-            structure['CHAIN'].alignments.insert(0, hit)
+            hits2add.append(hit)
 
-            # First polyT
-            fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomersT[0].beg, monomersT[0].end, None, 'polyT', 0, 0, 0, 0, 0, 0]
+            # Next polyA/T
+            fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomer2.beg, monomer2.end, None, 'polyA/T', 0, 0, 0, 0, 0, 0]
             hit = formats.PAF_alignment(fields)
-            structure['CHAIN'].alignments.insert(0, hit)
+            hits2add.append(hit)
+
+            counter += 1        
+      
+    ## 3.5 Add polyA/T plus transduced annotation to the chain
+    if tail == 'polyA':
+        structure['CHAIN'].alignments = structure['CHAIN'].alignments + hits2add
+
+    elif tail == 'polyT':
+        structure['CHAIN'].alignments = hits2add + structure['CHAIN'].alignments 
 
     # Compute % of inserted resolved
     structure['PERC-RESOLVED'] = structure['CHAIN'].perc_query_covered()
