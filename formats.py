@@ -775,7 +775,7 @@ class VCF():
         for variant in self.variants:
 
             INFO = variant.build_info(IDS)
-            row = variant.chrom + "\t" + str(variant.pos) + "\t" + str(variant.id) + "\t" + variant.ref + "\t" + variant.alt + "\t" + variant.qual + "\t" + variant.filter + "\t" + INFO + "\n"
+            row = str(variant.chrom) + "\t" + str(variant.pos) + "\t" + str(variant.id) + "\t" + str(variant.ref) + "\t" + str(variant.alt) + "\t" + str(variant.qual) + "\t" + str(variant.filter) + "\t" + str(INFO) + "\n"
             outFile.write(row)
 
         ## Close output file
