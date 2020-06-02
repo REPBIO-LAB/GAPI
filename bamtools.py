@@ -1259,7 +1259,7 @@ def BAM2FastaDict(BAM):
 
     return fastaDict
 
-def filterBAM2FastaDict(BAM, viralBamMAPQ, viralBamParcialMatch):
+def filterBAM2FastaDict(BAM, viralBamMAPQ):
     '''
     '''
 

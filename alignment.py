@@ -296,7 +296,7 @@ def organize_hits_paf(PAF_path):
 
     return hits     
 
-
+# UNUSED SINCE 02/05/2020
 def alignment_bwa_filtered(database, viralBamMAPQ, viralBamParcialMatch, processes, inFasta, outFile, outDir):
     '''
     Align fasta against DB and filter result with awk based on MAPQ and CIGAR matches.
