@@ -80,13 +80,19 @@ if __name__ == '__main__':
 	parser.add_argument('--maxRegionSMS', default=0.15, dest='maxRegionSMS', type=int, help='Maximum percentage of SMS clipping reads in cluster´s region. Default: 0.15')
 	parser.add_argument('--INT2Search', default="ME,VIRUS", dest='INT2Search', type=str, help='Comma separated list of insertion types to collect (Mobile Elements (ME),VIRUS). Default: ME,VIRUS')
 	parser.add_argument('--komplexityThreshold', default=0.4, dest='komplexityThreshold', type=float, help='Threshold for filtering mates sequence with komplexity tool. Default: 0.4')
-	parser.add_argument('--viralBamMAPQ', default=60, dest='viralBamMAPQ', type=int, help='Mapping quality of partial matches against viral db. Default: 60')
 	parser.add_argument('--discordantMatesMaxMAPQ', default=20, dest='discordantMatesMaxMAPQ', type=int, help='Maximum mapping quality used for collecting dicordant read mates. Default: 20')
 	parser.add_argument('--no-discordantMatesCheckUnmapped', action="store_false", default=True, dest='discordantMatesCheckUnmapped', help='If not selected, when a dicordant read mate is unmapped, collect it no matter its MAPQ. If selected, mapping state is not checked.')
 	parser.add_argument('--no-discordantMatesSupplementary', action="store_false", default=True, dest='discordantMatesSupplementary', help='When selected, avoid collecting dicordant read mates that are supplementary alignments.')
 	parser.add_argument('--discordantMatesMaxBasePerc', default=85, dest='discordantMatesMaxBasePerc', type=int, help='Maximum base percentage of discordant read mates sequences. Default: 85')
 	parser.add_argument('--discordantMatesMinLcc', default=1.49, dest='discordantMatesMinLcc', type=float, help='Minimum local complexity of discordant read mates sequences. Default: 1.49')
 	parser.add_argument('--MEDB', default=None, dest='MEDB', type=str, help='Path to ME database used for analysing metacluster bkp.')
+	# Filtering viral bam
+	parser.add_argument('--minTotalMatchVirus', default=40, dest='minTotalMatchVirus', type=int, help='Minimum total matches of a read against viral DB. Default: 40.')
+	parser.add_argument('--minParcialMatchVirus', default=15, dest='minParcialMatchVirus', type=int, help='Minimum length of a match against viral DB. Default: 15.')
+	parser.add_argument('--maxMatchCheckMAPQVirus', default=60, dest='maxMatchCheckMAPQVirus', type=int, help='MAPQ of viral DB matches above this threshold is not interrogated. Default: 60.')
+	parser.add_argument('--minMAPQVirus', default=0, dest='minMAPQVirus', type=int, help='MAPQ of viral DB matches has to be above this threshold. Default: 0.')
+	parser.add_argument('--maxBasePercVirus', default=85, dest='maxBasePercVirus', type=int, help='Maximum base percentage of a match against viralDB. Default: 85.')
+	parser.add_argument('--minLccVirus', default=1.49, dest='minLccVirus', type=float, help='Minimum local complexity (lcc) of a match against viralDB. Default: 1.49.')
 
 	# Output
 	parser.add_argument('--VCFInfoFields', default="VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,NBDISC,NBCLIP,IDENT,ORIENT,BKP2,DISCMAPQ,CLIPMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP,REP,REPSUB,DIST,REGION,GENE,INTBKP,INTBKP2,CLIPTYPE,REFSeq,BKPCSEQ,BKP2CSEQ,BKPRSEQ,BKP2RSEQ,CLIPTYPE2,DISC,CLIP", dest='VCFInfoFields', type=str, help='Comma separated list of INFO fields to display in output VCF (VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,NBDISC,NBCLIP,IDENT,ORIENT,BKP2,DISCMAPQ,CLIPMAPQ,CLIPDISC,SPECIDENT,DISCDUP,CLIPDUP,REP,REPSUB,DIST,REGION,GENE,INTBKP,INTBKP2,CLIPTYPE,REFSeq,BKPCSEQ,BKP2CSEQ,BKPRSEQ,BKP2RSEQ,CLIPTYPE2,DISC,CLIP) *NOTE that REFSeq is incompatible with --no-VCFREF. Default: All are included')
@@ -151,13 +157,18 @@ if __name__ == '__main__':
 	maxRegionSMS = args.maxRegionSMS
 	INT2Search = args.INT2Search
 	komplexityThreshold = args.komplexityThreshold
-	viralBamMAPQ = args.viralBamMAPQ
 	discordantMatesMaxMAPQ = args.discordantMatesMaxMAPQ
 	discordantMatesCheckUnmapped = args.discordantMatesCheckUnmapped
 	discordantMatesSupplementary = args.discordantMatesSupplementary
 	discordantMatesMaxBasePerc = args.discordantMatesMaxBasePerc
 	discordantMatesMinLcc = args.discordantMatesMinLcc
 	MEDB = args.MEDB
+	minTotalMatchVirus = args.minTotalMatchVirus
+	minParcialMatchVirus = args.minParcialMatchVirus
+	maxMatchCheckMAPQVirus = args.maxMatchCheckMAPQVirus
+	minMAPQVirus = args.minMAPQVirus
+	maxBasePercVirus = args.maxBasePercVirus
+	minLccVirus = args.minLccVirus
 
 	# Ouput
 	VCFInfoFields = args.VCFInfoFields
@@ -249,13 +260,18 @@ if __name__ == '__main__':
 	print('maxRegionlowMQ: ', maxRegionlowMQ)
 	print('maxRegionSMS: ', maxRegionSMS)
 	print('komplexityThreshold: ', komplexityThreshold)
-	print('viralBamMAPQ: ', viralBamMAPQ)
 	print('discordantMatesMaxMAPQ: ', discordantMatesMaxMAPQ)
 	print('discordantMatesCheckUnmapped: ', discordantMatesCheckUnmapped)
 	print('discordantMatesSupplementary: ', discordantMatesSupplementary)
 	print('discordantMatesMaxBasePerc: ', discordantMatesMaxBasePerc)
 	print('discordantMatesMinLcc: ', discordantMatesMinLcc)
-	print('MEDB: ', MEDB, "\n")
+	print('MEDB: ', MEDB)
+	print('minTotalMatchVirus', minTotalMatchVirus)
+	print('minParcialMatchVirus', minParcialMatchVirus)
+	print('maxMatchCheckMAPQVirus', maxMatchCheckMAPQVirus)
+	print('minMAPQVirus', minMAPQVirus)
+	print('maxBasePercVirus', maxBasePercVirus)
+	print('minLccVirus', minLccVirus, "\n")
 
 	print('** Output format**')
 	print ('VCFInfoFields: ', VCFInfoFields)
@@ -323,13 +339,18 @@ if __name__ == '__main__':
 	confDict['maxRegionSMS'] = maxRegionSMS
 	confDict['targetINT2Search'] = targetINT2Search
 	confDict['komplexityThreshold'] = komplexityThreshold
-	confDict['viralBamMAPQ'] = viralBamMAPQ
 	confDict['discordantMatesMaxMAPQ'] = discordantMatesMaxMAPQ
 	confDict['discordantMatesCheckUnmapped'] = discordantMatesCheckUnmapped
 	confDict['discordantMatesSupplementary'] = discordantMatesSupplementary
 	confDict['discordantMatesMaxBasePerc'] = discordantMatesMaxBasePerc
 	confDict['discordantMatesMinLcc'] = discordantMatesMinLcc
 	confDict['MEDB'] = MEDB
+	confDict['minTotalMatchVirus'] = minTotalMatchVirus
+	confDict['minParcialMatchVirus'] = minParcialMatchVirus
+	confDict['maxMatchCheckMAPQVirus'] = maxMatchCheckMAPQVirus
+	confDict['minMAPQVirus'] = minMAPQVirus
+	confDict['maxBasePercVirus'] = maxBasePercVirus
+	confDict['minLccVirus'] = minLccVirus
 
 	# Output
 	confDict['VCFInfoFields'] = targetVCFInfoFields

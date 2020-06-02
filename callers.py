@@ -466,7 +466,7 @@ class SV_caller_short(SV_caller):
             bamtools.samtools_index_bam(allSam, self.outDir)
 
             ## STARTS NEW!!!
-            self.viralSeqs = bamtools.filterBAM2FastaDict(allSam, self.confDict['viralBamMAPQ'])
+            self.viralSeqs = bamtools.filterBAM2FastaDict(allSam, self.confDict['minTotalMatchVirus'], self.confDict['minParcialMatchVirus'], self.confDict['maxMatchCheckMAPQVirus'], self.confDict['minMAPQVirus'], self.confDict['maxBasePercVirus'], self.confDict['minLccVirus'])
 
             # TEMP SR: Remove allfastas
             #unix.rm([collectVirusDir])

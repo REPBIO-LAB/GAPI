@@ -1259,7 +1259,7 @@ def BAM2FastaDict(BAM):
 
     return fastaDict
 
-def filterBAM2FastaDict(BAM, viralBamMAPQ):
+def filterBAM2FastaDict(BAM, minTotalMatchVirus, minParcialMatchVirus, maxMatchCheckMAPQVirus, minMAPQVirus, maxBasePercVirus, minLccVirus):
     '''
     '''
 
@@ -1269,7 +1269,7 @@ def filterBAM2FastaDict(BAM, viralBamMAPQ):
     iterator = bamFile.fetch()
     
     fastaDict= {}
-    #selectedPartialMatches = str(viralBamParcialMatch) + '0'
+
     # For each read alignment
     for alignmentObj in iterator:
         alignmentPass = False
@@ -1278,32 +1278,27 @@ def filterBAM2FastaDict(BAM, viralBamMAPQ):
 
         if not alignmentObj.is_unmapped:
             ctuples = alignmentObj.cigartuples
-            # TODO SR: Comtemplar otros parecidos el M = y asi
             allMatches = [t[1] for t in ctuples if t[0] == 0]
             totalMatch = sum (allMatches)
-            if totalMatch >= 40:
+            if totalMatch >= minTotalMatchVirus:
                 c = Cigar(alignmentObj.cigarstring)
                 for citem  in list(c.items()):
-                    #### MIRAR: if (operation == 'M') or (operation == '='): ################
                     # If cigar is query consuming, update query coordinates:
-                    if citem[1] != 'M' and citem[1] != 'D':
+                    if citem[1] != 'M' and citem[1] != 'D' and citem[1] != '=':
                         queryCoord = queryCoord + int(citem[0])
-                    elif citem[1] == 'M':
-                        # TODO SR: PUT AS AN OPTION!!
-                        # NOTE SR: If it doesnt work, try till other threshold
-                        if citem[0] >= 15:
-                            if (citem[0] <= 60 and alignmentObj.mapping_quality > 0) or citem[0] > 60:
+                    elif citem[1] == 'M' or citem[1] == '=':
+                        if citem[0] >= minParcialMatchVirus:
+                            if (citem[0] <= maxMatchCheckMAPQVirus and alignmentObj.mapping_quality > minMAPQVirus) or citem[0] > maxMatchCheckMAPQVirus:
                                 sequence = alignmentObj.query_sequence[queryCoord:(queryCoord + int(citem[0]))]
                                 # Calculate base percentage
                                 basePercs = sequences.baseComposition(sequence)[1]
                                 # Delete total value of base percentage result
                                 del basePercs['total']
                                 # Only those sequences with base percentage lower than 85 are collected:
-                                # TODO SR: PUT AS AN OPTION!!
-                                if all(perc < 85 for perc in basePercs.values()):
+                                if all(perc < maxBasePercVirus for perc in basePercs.values()):
                                     # Calculate complexity
                                     complexity = Bio.SeqUtils.lcc.lcc_simp(sequence)
-                                    if complexity > 1.49:
+                                    if complexity > minLccVirus:
                                         alignmentPass = True
                                         break
                                     else:
