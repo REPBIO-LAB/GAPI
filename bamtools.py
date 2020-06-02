@@ -1261,16 +1261,6 @@ def BAM2FastaDict(BAM):
 
 def filterBAM2FastaDict(BAM, viralBamMAPQ, viralBamParcialMatch):
     '''
-    awk \'(($5>=' + str(viralBamMAPQ) + ' && $6~/[' + str(viralBamParcialMatch) + '-9][0-9]M/) 
-    || 
-    #($6~/9[0-9]M/) 
-    || 
-    #($6~/[0-9][0-9][0-9]M/) 
-    || 
-    ($1 ~ /@/)){print}\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
-
-
-    (database, viralBamMAPQ, viralBamParcialMatch, processes, inFasta, outFile, outDir):
     '''
 
     # Read bam and store in a dictionary
@@ -1286,19 +1276,11 @@ def filterBAM2FastaDict(BAM, viralBamMAPQ, viralBamParcialMatch):
         #numMatches = 0
         queryCoord = 0
 
-        print ('alignmentObj.reference_name' + str(alignmentObj.reference_name))
-        print ('alignmentObj.query_name' + str(alignmentObj.query_name))
-        print ('alignmentObj.query_sequence' + str(alignmentObj.query_sequence))
-        print ('alignmentObj.mapping_quality' + str(alignmentObj.mapping_quality))
-        print ('alignmentObj.cigarstring' + str(alignmentObj.cigarstring))
-
         if not alignmentObj.is_unmapped:
             ctuples = alignmentObj.cigartuples
             # TODO SR: Comtemplar otros parecidos el M = y asi
             allMatches = [t[1] for t in ctuples if t[0] == 0]
-            print ('allMatches' + str(allMatches))
             totalMatch = sum (allMatches)
-            print ('totalMatch' + str(totalMatch))
             if totalMatch >= 40:
                 c = Cigar(alignmentObj.cigarstring)
                 for citem  in list(c.items()):
@@ -1312,18 +1294,15 @@ def filterBAM2FastaDict(BAM, viralBamMAPQ, viralBamParcialMatch):
                         if citem[0] >= 15:
                             if (citem[0] <= 60 and alignmentObj.mapping_quality > 0) or citem[0] > 60:
                                 sequence = alignmentObj.query_sequence[queryCoord:(queryCoord + int(citem[0]))]
-                                print ('sequence' + str(sequence))
                                 # Calculate base percentage
                                 basePercs = sequences.baseComposition(sequence)[1]
                                 # Delete total value of base percentage result
                                 del basePercs['total']
                                 # Only those sequences with base percentage lower than 85 are collected:
                                 # TODO SR: PUT AS AN OPTION!!
-                                print ('basePercs' + str(basePercs))
                                 if all(perc < 85 for perc in basePercs.values()):
                                     # Calculate complexity
                                     complexity = Bio.SeqUtils.lcc.lcc_simp(sequence)
-                                    print ('complexity' + str(complexity))
                                     if complexity > 1.49:
                                         alignmentPass = True
                                         break
@@ -1344,7 +1323,6 @@ def filterBAM2FastaDict(BAM, viralBamMAPQ, viralBamParcialMatch):
         elif alignmentObj.mapping_quality >= 40 and numMatches >= 60:
             alignmentPass = True
         '''
-        print ('alignmentPass' + str(alignmentPass))
         if alignmentPass == True:
             # Add to fasta dict
             if alignmentObj.query_name in fastaDict.keys():
