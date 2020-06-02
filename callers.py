@@ -459,10 +459,14 @@ class SV_caller_short(SV_caller):
             
             # Align with bwa allFastas vs viralDb and filter resulting bam
             # TODO SR: bwa allFastas vs viralDb: check if bwa -T parameter does something that we need
-            BAM = alignment.alignment_bwa_filtered(self.confDict['viralDb'], self.confDict['viralBamMAPQ'], self.confDict['viralBamParcialMatch'], self.confDict['processes'], allFastas, 'viralAligment', self.outDir)
+            #BAM = alignment.alignment_bwa_filtered(self.confDict['viralDb'], self.confDict['viralBamMAPQ'], self.confDict['viralBamParcialMatch'], self.confDict['processes'], allFastas, 'viralAligment', self.outDir)
+            allSam = alignment.alignment_bwa(allFastas, self.confDict['viralDb'], 'allSam', self.confDict['processes'], self.outDir)
 
             # Index bam
-            bamtools.samtools_index_bam(BAM, self.outDir)
+            bamtools.samtools_index_bam(allSam, self.outDir)
+
+            ## STARTS NEW!!!
+            self.viralSeqs = bamtools.filterBAM2FastaDict(allSam, self.confDict['viralBamMAPQ'], self.confDict['viralBamParcialMatch'])
 
             # TEMP SR: Remove allfastas
             #unix.rm([collectVirusDir])
@@ -470,7 +474,7 @@ class SV_caller_short(SV_caller):
             #TEMP DESILENCE
             #BAM = self.outDir + '/' + 'viralAligment' + '.bam'
             # Read bwa result and store in a dictionary
-            self.viralSeqs = bamtools.BAM2FastaDict(BAM)
+            #self.viralSeqs = bamtools.BAM2FastaDict(BAM)
 
             # Collect all identities that have hits in viralBam
             fastaIdentities = list(set(list(itertools.chain(*self.viralSeqs.values()))))
