@@ -686,6 +686,25 @@ class PAF():
 
         return chain
 
+    def hits2dict(self):
+        '''
+        Reorganize hits into a dictionary
+        '''
+
+        hitsDict = {}
+
+        # For each hit
+        for hit in self.alignments:
+
+            # Initialize list
+            if hit.qName not in hitsDict:
+                hitsDict[hit.qName] = []
+            
+            # Add hit to list
+            hitsDict[hit.qName].append(hit)
+    
+        return hitsDict
+
 class PAF_alignment():
     '''
     PAF entry class 
@@ -717,6 +736,14 @@ class PAF_alignment():
         '''
 
         return self.qEnd - self.qBeg
+
+    def alignmentPerc(self):
+        '''
+        Compute the query alignment length percentage
+        '''
+        percLen = float(self.alignmentLen()) / self.qLen * 100
+
+        return percLen
 
 class PAF_chain():
     '''    
