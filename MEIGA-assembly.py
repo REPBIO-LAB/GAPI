@@ -4,12 +4,15 @@ import os
 import sys
 import argparse
 import copy
+import re
 
 # Internal
 import formats
 import alignment
 import unix
 import sequences
+import gRanges
+import annotation
 
 ###############
 ## Functions ##
@@ -108,7 +111,7 @@ def call_MEI_candidate(VCF):
 
     return filteredVCF
 
-def call_MEI(vcf, consensus, reference, outDir):
+def call_MEI(vcf, consensus, reference, sourceDb, outDir):
     '''
     '''    
     ## 0. Create temporary folder
@@ -124,26 +127,44 @@ def call_MEI(vcf, consensus, reference, outDir):
     fileName = 'consensus'  
     consensusIndex = alignment.index_minimap2(consensus, fileName, tmpDir)
 
-    ## 3. Realign inserted sequences against consensus:
+    ## 3. Align inserted sequences against consensus:
     PAF_path = alignment.alignment_minimap2(fastaPath, consensusIndex, 'hits2consensus', 1, tmpDir)
-    PAF = formats.PAF()
-    PAF.read(PAF_path)
+    #PAF_path = '/Users/brodriguez/Research/Projects/MEIGA/MEIGA/test/0.20.0/assembly_caller/tmp/hits2consensus.paf'
+    PAF_consensus = formats.PAF()
+    PAF_consensus.read(PAF_path)
 
-    ## 4. Generate a single paf object per inserted sequence:
-    PAF_dict = group_alignments(PAF)
+    ## Align inserted sequences against the reference genome
+    SAM_path = alignment.alignment_bwa(fastaPath, reference, 'hits2genome', 1, tmpDir)
+    #SAM_path = '/Users/brodriguez/Research/Projects/MEIGA/MEIGA/test/0.20.0/assembly_caller/tmp/hits2genome.sam'
+    PAF_path = alignment.sam2paf(SAM_path, 'hits2genome', tmpDir)
+    PAF_genome = formats.PAF()
+    PAF_genome.read(PAF_path)
+
+    ## 4. Generate single PAF objects per inserted sequence:
+    PAFs_consensus = group_alignments(PAF_consensus)
+    PAFs_genome = group_alignments(PAF_genome)
 
     ## 5. Resolve structure for each insertion with matches on retrotransposon consensus sequences
     structures = {}
 
-    for insId in PAF_dict:
-        structures[insId] = MEI_structure(PAF_dict[insId], fasta.seqDict[insId])
+    for insId in PAFs_consensus:
+        structures[insId] = MEI_structure(PAFs_consensus[insId], fasta.seqDict[insId])
         seqBeg, seqEnd = structures[insId]['CHAIN'].interval()
 
-    ## 6. Resolve partnered mobilized bit of sequence
-    #resolve_partnered(structures, reference, tmpDir)
+    ## 6. Resolve 3' partnered transductions
+    structures = resolve_partnered_3prime(structures, fasta, reference, sourceDb, tmpDir)
 
-    ## 7. Search for orphan transductions and processed pseudogene insertions
-    #search4orphan_psd()
+    ## 6. Search for 5' partnered transductions
+    structures = search4partnered_5prime(structures, fasta, reference, tmpDir)
+
+    ## 7. Search for orphan transductions
+    ## Remove resolved insertions
+    for insId in structures:
+        if structures[insId]['PASS']:
+            del PAFs_genome[insId]
+
+    ## Do orphan transduction search
+    search4orphan(PAFs_genome, sourceDb, fasta) # TO FINISH LATER (Only two L1 orphan transductions so far..)
 
     ## 8. Generate output VCF containing MEI calls
     ## Create header for output dictionary
@@ -152,31 +173,57 @@ def call_MEI(vcf, consensus, reference, outDir):
 
     ## Add MEI specific fields to the VCF header
     info2add = {'ITYPE': ['.', 'String', 'Type of insertion (solo, partnered or orphan)'], \
+                '3PRIME': ['0', 'Flag', 'Partnered 3-prime transduction'], \
+                '5PRIME': ['0', 'Flag', 'Partnered 5-prime transduction'], \
                 'FAM': ['.', 'String', 'Repeat family'], \
+                'CYTOID': ['.', 'String', 'Source element cytoband identifier'], \
+                'TDCOORD': ['1', 'Integer', 'Transduced sequence coordinates'], \
+                'TDLEN': ['1', 'Integer', 'Transduction length'], \
                 'STRAND': ['.', 'String', 'Insertion DNA strand (+ or -)'], \
-                'NBPOLY': ['1', 'Integer', 'Number of PolyA/T stretches identified']
                 }
 
     outVCF.header.info.update(info2add)
 
     ## Select INS corresponding to MEI calls and add update info field with MEI features
     for variant in vcf.variants:
-        insId = variant.chrom + '_' + str(variant.pos) 
-        
+        insId = variant.chrom + ':' + str(variant.pos) 
+                            
         # Discard unresolved inserted sequences
         if (insId not in structures) or ((insId in structures) and (structures[insId]['PASS'] is False)):
             continue
-        
+
         variant2add = copy.deepcopy(variant)
         variant2add.info.update(structures[insId])
         outVCF.add(variant2add)
 
     ## 9. Do cleanup
-    unix.rm([tmpDir])
+    #unix.rm([tmpDir])
 
     return outVCF
 
-def resolve_partnered(structures, reference, outDir):
+def search4orphan(hits, sourceDb, fasta):
+    '''
+    TO FINISH LATER
+    '''
+    
+    # For each partnered event
+    for insId in hits:
+    
+        # For each hit
+        for hit in hits[insId].alignments:
+
+            hit.tName = 'chr' + hit.tName
+
+            #print('CANDIDATE: ', insId, hit.qLen, hit.qBeg, hit.qEnd, hit.alignmentPerc(), hit.MAPQ, fasta.seqDict[insId], sourceDb[hit.tName].collect_interval(hit.tBeg, hit.tEnd, 'ALL'))
+
+            ## Filter out hits 
+            if (hit.alignmentPerc() < 75) or (hit.MAPQ < 30) or (hit.tName not in sourceDb):
+                continue            
+            
+            #if sourceDb[hit.tName].collect_interval(hit.tBeg, hit.tEnd, 'ALL'):
+                #print('CALL: ', insId, hit.qLen, hit.qBeg, hit.qEnd, hit.alignmentPerc(), hit.MAPQ, fasta.seqDict[insId], sourceDb[hit.tName].collect_interval(hit.tBeg, hit.tEnd, 'ALL'))
+
+def search4partnered_5prime(structures, fasta, reference, outDir):
     '''
     '''
     ## 1. Create Fasta with sequences to realign
@@ -184,17 +231,141 @@ def resolve_partnered(structures, reference, outDir):
 
     for insId in structures:
 
-        # Discard solo
-        if structures[insId]['ITYPE'] != 'Partnered':
+        # Discard if strand not determined
+        if structures[insId]['STRAND'] is None:
             continue
 
-        print('insId: ', insId, structures[insId]['ITYPE'], structures[insId]['STRAND'])
+        ## Extract unresolved 5' sequence if any
+        qBeg, qEnd = structures[insId]['CHAIN'].interval()
 
-        # Select polyA/T hits:
-        for hit in structures[insId]['CHAIN'].alignments:
-            print('HIT: ', hit.tName)
+        if structures[insId]['STRAND'] == '+':
+            seq2realign.seqDict[insId] = fasta.seqDict[insId][:qBeg]
 
+        else:
+            seq2realign.seqDict[insId] = fasta.seqDict[insId][qEnd:]
+
+    fastaPath = outDir + '/seq2realign.5prime.fasta'
+    seq2realign.write(fastaPath)
+
+    ## 2. Realign sequences on the reference with BWA-mem
+    SAM_path = alignment.alignment_bwa(fastaPath, reference, 'hits2genome.5prime', 1, outDir)
+    #SAM_path = '/Users/brodriguez/Research/Projects/MEIGA/MEIGA/test/0.20.0/assembly_caller/tmp/hits2genome.5prime.sam'
+    PAF_path = alignment.sam2paf(SAM_path, 'hits2genome.5prime', outDir)
+    
+    PAF = formats.PAF()
+    PAF.read(PAF_path)
+
+    ## 3. Make 5' transduction calls
+    # For each hit
+    for hit in PAF.alignments:
         
+        hit.tName = 'chr' + hit.tName
+        iRef, coord = hit.qName.split(':')
+        iBeg = int(coord) - 500
+        iEnd = int(coord) + 500
+
+        ## Filter out hits 
+        if (hit.alignmentPerc() < 75) or (hit.MAPQ < 30) or (iRef == hit.tName and gRanges.overlap(iBeg, iEnd, hit.tBeg, hit.tEnd)[0]):
+            continue
+
+        ## Make call
+        structures[hit.qName]['ITYPE'] = 'partnered'
+        structures[hit.qName]['5PRIME'] = True
+        structures[hit.qName]['TDCOORD'] = hit.tName + ':' + str(hit.tBeg) + '-' +  str(hit.tEnd)
+        structures[hit.qName]['TDLEN'] = hit.tEnd - hit.tBeg
+        
+    return structures
+        
+
+def resolve_partnered_3prime(structures, fasta, reference, sourceDb, outDir):
+    '''
+    '''
+    ## 1. Create Fasta with sequences to realign
+    seq2realign = formats.FASTA()
+    pattern = re.compile("Partnered_[0-9]+")
+    partneredDict = {}
+
+    for insId in structures:
+
+        # Discard solo
+        if structures[insId]['ITYPE'] != 'partnered':
+            continue
+
+        ## Initialize partnered dict for the ins
+        partneredDict[insId] = {}
+        partneredDict[insId]['NB_PARTNERED'] = 0
+        partneredDict[insId]['NB_RESOLVED'] = 0
+
+        # For each hit
+        for hit in structures[insId]['CHAIN'].alignments:
+
+            # Discard if not partnered
+            if not pattern.match(hit.tName):
+                continue
+
+            # Add candidate partnered sequence to the fasta
+            seqId = insId + '|' + hit.tName
+            seq = fasta.seqDict[insId][hit.qBeg:hit.qEnd]
+            seq2realign.seqDict[seqId] = seq
+
+            ## Update partnered dictionary
+            partneredDict[insId]['NB_PARTNERED'] += 1       
+            partneredDict[insId][hit.tName] = hit
+
+
+    fastaPath = outDir + '/seq2realign.3prime.fasta'
+    seq2realign.write(fastaPath)
+
+    ## 2. Realign sequences on the reference with BWA-mem
+    SAM_path = alignment.alignment_bwa(fastaPath, reference, 'hits2genome.3prime', 1, outDir)
+    #SAM_path = '/Users/brodriguez/Research/Projects/MEIGA/MEIGA/test/0.20.0/assembly_caller/tmp/hits2genome.3prime.sam'
+    PAF_path = alignment.sam2paf(SAM_path, 'hits2genome.3prime', outDir)
+    PAF = formats.PAF()
+    PAF.read(PAF_path)
+
+    ## 3. Add hit information to partnered transduction candidates
+    hits = PAF.hits2dict()
+
+    # For each partnered event
+    for ID in hits:
+    
+        insId, tdId = ID.split('|')
+        partneredDict[insId]['CYTOID'] = None
+
+        # For each hit
+        for hit in hits[ID]:
+
+            hit.tName = 'chr' + hit.tName
+
+            ## Check if it´s a partnered transduction from a known source element
+            if (hit.tName in sourceDb) and sourceDb[hit.tName].collect_interval(hit.tBeg, hit.tEnd, 'ALL'):
+                source = sourceDb[hit.tName].collect_interval(hit.tBeg, hit.tEnd, 'ALL')[0][0]
+                partneredDict[insId]['CYTOID'] = source.optional['cytobandId']
+
+            ## Filter out hits 
+            if (hit.alignmentPerc() < 75 or hit.MAPQ < 30) and (partneredDict[insId]['CYTOID'] is None):
+                continue
+            
+            ## Add hit information  
+            partneredDict[insId]['NB_RESOLVED'] += 1
+            partneredDict[insId][tdId].tName = hit.tName + ':' + str(hit.tBeg) + '-' + str(hit.tEnd)
+            
+    ## 4. Filter partnered transduction candidates
+    for insId in partneredDict:
+
+        # a) Make transduction call
+        if (partneredDict[insId]['NB_PARTNERED'] > 0) and (partneredDict[insId]['NB_PARTNERED'] == partneredDict[insId]['NB_RESOLVED']):
+
+            tdIds = [key for key in partneredDict[insId].keys() if key not in ['NB_PARTNERED', 'NB_RESOLVED', 'CYTOID']]
+            structures[insId]['TDCOORD'] = ','.join([partneredDict[insId][tdId].tName for tdId in tdIds])
+            structures[insId]['CYTOID'] = partneredDict[insId]['CYTOID']
+            structures[insId]['TDLEN'] = ','.join([str(partneredDict[insId][tdId].qEnd - partneredDict[insId][tdId].qBeg) for tdId in tdIds])
+
+        # b) Filter out event
+        else:
+            structures[insId]['PASS'] = False
+    
+    return structures
 
 
 def MEI_structure(PAF, insertSeq):
@@ -264,7 +435,8 @@ def MEI_structure(PAF, insertSeq):
 
         # Apply filter
         if (dist2rt <= 30) and (dist2end <= 30):
-            structure['ITYPE'] = 'Partnered'
+            structure['ITYPE'] = 'partnered'
+            structure['3PRIME'] = True
             structure['POLYA'] = len(monomersA)
             structure['STRAND'] = '+'
 
@@ -295,7 +467,8 @@ def MEI_structure(PAF, insertSeq):
 
         # Apply filter
         if (dist2rt <= 30) and (dist2end <= 30):
-            structure['ITYPE'] = 'Partnered'
+            structure['ITYPE'] = 'partnered'
+            structure['3PRIME'] = True
             structure['POLYT'] = len(monomersT)
             structure['STRAND'] = '-'
         
@@ -323,7 +496,7 @@ def MEI_structure(PAF, insertSeq):
 
     # a) Solo
     if structure['NBPOLY'] == 1:
-        fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomers[0].beg, monomers[0].end, None, 'polyA/T', 0, 0, 0, 0, 0, 0]
+        fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomers[0].beg, monomers[0].end, None, 'PolyA/T', 0, 0, 0, 0, 0, 0]
         hit = formats.PAF_alignment(fields)
         hits2add.append(hit)
 
@@ -331,7 +504,7 @@ def MEI_structure(PAF, insertSeq):
     elif structure['NBPOLY'] > 1:
 
         ## First polyA/T
-        fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomers[0].beg, monomers[0].end, None, 'polyA/T', 0, 0, 0, 0, 0, 0]
+        fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomers[0].beg, monomers[0].end, None, 'PolyA/T', 0, 0, 0, 0, 0, 0]
         hit = formats.PAF_alignment(fields)
         hits2add.append(hit)
 
@@ -341,12 +514,12 @@ def MEI_structure(PAF, insertSeq):
         for monomer1, monomer2 in zip(monomers, monomers[1:]):
 
             # Partnered 
-            fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomer1.end, monomer2.beg, None, 'partnered_' + str(counter), 0, 0, 0, 0, 0, 0]
+            fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomer1.end, monomer2.beg, None, 'Partnered_' + str(counter), 0, 0, 0, 0, 0, 0]
             hit = formats.PAF_alignment(fields)
             hits2add.append(hit)
 
             # Next polyA/T
-            fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomer2.beg, monomer2.end, None, 'polyA/T', 0, 0, 0, 0, 0, 0]
+            fields = [structure['CHAIN'].alignments[0].qName, structure['LEN'], monomer2.beg, monomer2.end, None, 'PolyA/T', 0, 0, 0, 0, 0, 0]
             hit = formats.PAF_alignment(fields)
             hits2add.append(hit)
 
@@ -392,7 +565,6 @@ def MEI_structure(PAF, insertSeq):
     return structure
 
 
-
 def ins2fasta(vcf, outDir):
     '''
     Write inserted sequences into a fasta
@@ -410,7 +582,7 @@ def ins2fasta(vcf, outDir):
     ## 2. Collect inserted sequences
     for variant in vcf.variants:
  
-        insId = variant.chrom + '_' + str(variant.pos) 
+        insId = variant.chrom + ':' + str(variant.pos) 
         seq = variant.alt
 
         fasta.seqDict[insId] = seq
@@ -476,15 +648,22 @@ print('outDir: ', outDir, "\n")
 VCF = formats.VCF()
 VCF.read(vcf)
 
+
+## 2. Load source elements database
+annotDir = '/Users/brodriguez/Research/Projects/MEIGA/MEIGA/databases/H.Sapiens/hg38/'
+annotations = annotation.load_annotations(['TRANSDUCTIONS'], VCF.header.refLengths, annotDir, None, 1, outDir)
+
+print('sourceDb: ', annotations['TRANSDUCTIONS'])
+
 ## 2. Filter VCF by selecting retrotransposition insertion candidates 
 # (inserted sequences with polyA/T tails at their ends)
 filteredVCF = call_MEI_candidate(VCF)
 
 ## 3. Do MEI calling for candidate insertions
-outVCF = call_MEI(filteredVCF, consensus, reference, outDir)
+outVCF = call_MEI(filteredVCF, consensus, reference, annotations['TRANSDUCTIONS'], outDir)
 
 ## 4. Write VCF containing MEI calls
 IDS = ['VARTYPE', 'SVTYPE', 'SVLEN', 'CONTIG', 'CONTIG_COORD', 'CONTIG_STRAND', \
-       'ITYPE', 'FAM', 'STRAND', 'NBPOLY']
+       'ITYPE', '3PRIME', '5PRIME', 'FAM', 'CYTOID', 'TDCOORD', 'TDLEN', 'STRAND']
 
 outVCF.write(IDS, fileName, outDir)
