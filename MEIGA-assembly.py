@@ -151,9 +151,6 @@ def call_MEI(vcf, consensus, reference, sourceDb, outDir):
     PAF_genome = formats.PAF()
     PAF_genome.read(PAF_path)
 
-    # Convert SAM2BAM
-    #bamtools.SAM2BAM(SAM_path, tmpDir)
-
     ## 4. Generate single PAF objects per inserted sequence:
     PAFs_consensus = group_alignments(PAF_consensus)
     PAFs_genome = group_alignments(PAF_genome)
@@ -722,8 +719,6 @@ def call_NUMT(vcf, mtGenome, outDir):
         if (insId not in NUMTs):
             continue
 
-        print('NUMT: ', insId, NUMTs[insId])                 
-
 
         variant2add = copy.deepcopy(variant)
         variant2add.info.update(NUMTs[insId])
@@ -760,6 +755,7 @@ outDir = args.outDir
 ## 3. Display configuration to standard output ##
 scriptName = os.path.basename(sys.argv[0])
 scriptName = os.path.splitext(scriptName)[0]
+
 
 print()
 print('***** ', scriptName, 'configuration *****')
@@ -798,7 +794,8 @@ outVCF = MEI_VCF
 outVCF.variants = MEI_VCF.variants + NUMT_VCF.variants
 
 ## 6. Write VCF containing MEI calls
-IDS = ['VARTYPE', 'SVTYPE', 'SVLEN', 'CONTIG', 'CONTIG_COORD', 'CONTIG_STRAND', \
+infoIds = ['VARTYPE', 'SVTYPE', 'SVLEN', 'CONTIG', 'CONTIG_COORD', 'CONTIG_STRAND', \
        'ITYPE', '3PRIME', '5PRIME', 'FAM', 'CYTOID', 'RETRO_LEN', 'TRUNCATION_5_LEN', 'TRUNCATION_3_LEN', 'INVERSION_LEN', 'RETRO_COORD', 'IS_FULL', 'ORF1', 'ORF2', 'COMPETENT', 'TDCOORD', 'TDLEN', 'STRAND', 'MT_COORD']
+formatIds = ['GT']
 
-outVCF.write(IDS, fileName, outDir)
+outVCF.write(infoIds, formatIds, fileName, outDir)
