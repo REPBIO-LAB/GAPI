@@ -767,7 +767,16 @@ class PAF_chain():
         lastAlignment = self.alignments[-1]
         
         return firstAlignment.qBeg, lastAlignment.qEnd
-    
+
+    def interval_template(self):
+        '''
+        Return query interval covered by the chain
+        '''
+        firstAlignment = self.alignments[0]
+        lastAlignment = self.alignments[-1]
+        
+        return firstAlignment.tBeg, lastAlignment.tEnd
+
     def perc_query_covered(self):
         '''
         Compute the percentage of the query sequence covered by the chain of alignments
