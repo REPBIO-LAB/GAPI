@@ -186,8 +186,10 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
                                     - Event type: DISCORDANT   
                                     - Type: identity type. It can be retrotransposon family (L1, Alu, ...), source element (22q, 5p, ...), viral strain (HPV, ...)
     '''
-    # TODO SR: If both, RT and virus, are analysed check if it is a virus only if it is not a RT.
-    discordantsIdentity1 = {}
+    # If both, RT and virus, are analysed check if it is a virus only if it is not a RT.
+    discordantsIdentityMEs = {}
+    discordantsNone = {}
+
     if 'ME' in targetINT2Search:
         ## 1. Assess if discordant read pairs support transduction insertion if transduction database provided
         if transducedBinDb is not None:
@@ -225,8 +227,8 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
         else:
             discordantsRt = {}
         ## 3. Merge discordant read pairs supporting RT and transduction insertions if transduction database provided    
-        #discordantsIdentity1 = structures.merge_dictionaries([discordantsTd, discordantsRt, discordantsNone])
-        discordantsIdentity1 = structures.merge_dictionaries([discordantsTd, discordantsRt])
+        #discordantsIdentityMEs = structures.merge_dictionaries([discordantsTd, discordantsRt, discordantsNone])
+        discordantsIdentityMEs = structures.merge_dictionaries([discordantsTd, discordantsRt])
 
         # Remaining discordants for viruses:
         # NOTE SR: If viruses and MEs are searched at once, those discordants identified as MEs are NOT checked for viral identities.
@@ -252,9 +254,9 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
         discordantEventsIdent = virus.is_virusSR(discordants, viralSeqs)
     # If VIRUS is not selected, add events with identity == None. (If VIRUS is selected they are already in discordantEventsIdent)
     else:
-        discordantsIdentity1.update(discordantsNone)
-    #discordantsIdentity = structures.merge_dictionaries([discordantEventsIdent, discordantsIdentity1])
-    discordantEventsIdent.update(discordantsIdentity1)
+        discordantsIdentityMEs.update(discordantsNone)
+    #discordantsIdentity = structures.merge_dictionaries([discordantEventsIdent, discordantsIdentityMEs])
+    discordantEventsIdent.update(discordantsIdentityMEs)
 
     #return discordantsIdentity
     return discordantEventsIdent

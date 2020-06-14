@@ -716,8 +716,7 @@ def collectDISCORDANT_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict
         6. confDict:
             * minMAPQ -> minimum mapping quality
             * filterDuplicates -> If True filter out reads labeled as duplicates in bam file.
-        7. sample: type of sample (TUMOUR, NORMAL or None)
-        8. supplementary: Filter out supplementary alignments if False. (Neccesary to avoid pick supplementary clipping reads while adding to discordant clusters in short reads mode)
+        7. supplementary: Filter out supplementary alignments if False. (Neccesary to avoid pick supplementary clipping reads while adding to discordant clusters in short reads mode)
 
     Output:
         1. DISCORDANTS: list containing input discordant read pair events
@@ -790,7 +789,7 @@ def collectDISCORDANT(ref, binBeg, binEnd, bam, confDict, sample, supplementary)
         if supplementary == False and alignmentObj.is_supplementary == True:
             continue
 
-        # Filter SMS reads
+        # Filter SMS reads (reads with CIGAR #S#M#S)
         firstOperation, firstOperationLen = alignmentObj.cigartuples[0]
         lastOperation, lastOperationLen = alignmentObj.cigartuples[-1]
         if ((firstOperation == 4) or (firstOperation == 5)) and ((lastOperation == 4) or (lastOperation == 5)):
