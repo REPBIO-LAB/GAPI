@@ -112,10 +112,6 @@ def VCFMetaclustersFields(metaclusters):
         discordantsMAPQMean = int(statistics.mean(discordantsMAPQ)) if discordantsMAPQ else None
         clippingsMAPQMean = int(statistics.mean(clippingsMAPQ)) if clippingsMAPQ else None
 
-        # Label with information about if there are clipping-discordant reads.
-        checkClipDisc = any(check in discordants for check in clippings)
-        CLIPDISC = True if checkClipDisc else None
-
         # Set specific identities
         checkSpecIdent = {}
         for event in metacluster.events:
@@ -129,7 +125,7 @@ def VCFMetaclustersFields(metaclusters):
         if not checkSpecIdent:
             SPECIDENT = None
         else: 
-            SPECIDENT = ",".join("{}:{}".format(k, v) for k, v in checkSpecIdent.items())
+            SPECIDENT = ",".join("{}:{}".format(k, checkSpecIdent[k]) for k in sorted(checkSpecIdent))
         
         # TODO SR: Avoid non-existing fields in another way and add interesting fields
         INFO['VTYPE'] = metacluster.mutOrigin
@@ -172,7 +168,6 @@ def VCFMetaclustersFields(metaclusters):
         INFO['BKP2'] = BKP2
         INFO['DISCMAPQ'] = discordantsMAPQMean
         INFO['CLIPMAPQ'] = clippingsMAPQMean
-        INFO['CLIPDISC'] = CLIPDISC
         INFO['SPECIDENT'] = SPECIDENT
         INFO['DISCDUP'] = 0 if metacluster.percDuplicates()[0] == 0 else "{:.2f}".format(metacluster.percDuplicates()[0])
         INFO['CLIPDUP'] = 0 if metacluster.percDuplicates()[1] == 0 else "{:.2f}".format(metacluster.percDuplicates()[1])
@@ -191,8 +186,8 @@ def VCFMetaclustersFields(metaclusters):
                 INFO['BKP2RSEQ'] = metacluster.repreLeftSeq if metacluster.repreLeftSeq != None else None
                 INFO['BKPCSEQ'] = metacluster.consRightSeq if metacluster.consRightSeq != None else None
                 INFO['BKP2CSEQ'] = metacluster.consLeftSeq if metacluster.consLeftSeq != None else None
-                INFO['INTBKP'] = ",".join("{}:{}".format(k, v) for k, v in metacluster.intRightBkp.items()) if metacluster.intRightBkp else None
-                INFO['INTBKP2'] = ",".join("{}:{}".format(k, v) for k, v in metacluster.intLeftBkp.items()) if metacluster.intLeftBkp else None
+                INFO['INTBKP'] = ",".join("{}:{}".format(k, metacluster.intRightBkp[k]) for k in sorted(metacluster.intRightBkp)) if metacluster.intRightBkp else None
+                INFO['INTBKP2'] = ",".join("{}:{}".format(k, metacluster.intLeftBkp[k]) for k in sorted(metacluster.intLeftBkp)) if metacluster.intLeftBkp else None
                 INFO['CLIPTYPE'] = metacluster.rightClipType if metacluster.rightClipType != None else None
                 INFO['CLIPTYPE2'] = metacluster.leftClipType if metacluster.leftClipType != None else None
             elif posCluster == 'LEFT':
@@ -293,7 +288,6 @@ def INS2VCF_SR(metaclustersFields, index, refLengths, source, build, species, VC
             'IDENT': ['.', 'String', 'Identity of the insertion'], \
             'ORIENT': ['.', 'String', 'Orientation of the insertion: RECIPROCAL, PLUS or MINUS'], \
             'BKP2': ['1', 'Integer', 'Reference position of second breakpoint of the insertion'], \
-            'CLIPDISC': ['0', 'Flag', 'There are discordant clipping reads supporting the insertion'], \
             'SPECIDENT': ['.', 'String', 'Specific identities and number of discordant reads supporting it. SpecificIdentity:#reads'], \
             'DISCDUP': ['1', 'Float', 'Percentage of discordant reads that are labeled as duplicates in input bam file.'], \
             'CLIPDUP': ['1', 'Float', 'Percentage of clipping reads that are labeled as duplicates in input bam file.'], \
