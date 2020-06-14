@@ -21,6 +21,7 @@ def filter_metaclusters(metaclusters, filters2Apply, confDict, bam):
         1. metaclustersDict: dictionary with the following structure: keys -> SV_type, value -> list of metaclusters corresponding to this SV_type.
         2. filters2Apply: dictionary containing lists as values list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
         3. confDict
+        4. bam
 
     Output:
         1. metaclustersPassDict: Dictionary with same structure as the input one, containing those metaclusters that passed all the filters.
