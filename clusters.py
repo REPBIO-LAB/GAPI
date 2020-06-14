@@ -139,7 +139,8 @@ def create_discordantClusters(discordantBinDb, minClusterSize, buffer):
         
         # Do clustering based on reciprocal overlap
         #discordantClustersDict[clusterType] = clustering.reciprocal_overlap_clustering(discordantBinDb[clusterType], 1, minClusterSize, [clusterType], buffer, clusterType)
-        discordantClusters.extend(clustering.reciprocal_overlap_clustering(discordantBinDb[clusterType], 1, minClusterSize, [clusterType], buffer, clusterType))
+        #discordantClusters.extend(clustering.reciprocal_overlap_clustering(discordantBinDb[clusterType], 1, minClusterSize, [clusterType], buffer, clusterType))
+        discordantClusters.extend(clustering.distance_clustering_SR(discordantBinDb[clusterType], 1, minClusterSize, [clusterType], buffer, clusterType))
         #discordantClusters = clustering.reciprocal_overlap_clustering(discordantBinDb, 1, minClusterSize, [clusterType], buffer, clusterType)
 
     end = time.time()
