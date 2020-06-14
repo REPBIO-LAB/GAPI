@@ -525,15 +525,17 @@ class SV_caller_short(SV_caller):
         '.', 'PASS', {INFO_Dict}], [CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}]], [[CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}]], [], [], [])
         '''
         if metaclustersFailedListofLists:
-            outFileName = 'metaclusters.FAILED'
-            '''
-            EXPLANATION
-            Lists of lists -> metaclustersFailedList [[CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}], [CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}], [CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}], [CHROM, 56715108, '.', '<INS>', '.', 'PASS', {INFO_Dict}]]
-            '''
             # Flat metaclustersFailedList
             metaclustersFailedList = list(itertools.chain(*metaclustersFailedListofLists))
-            # Write VCF output
-            output.INS2VCF_SR(metaclustersFailedList, self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], self.confDict['VCFInfoFields'], self.confDict['VCFREF'], outFileName, self.outDir)
+            if metaclustersFailedList:
+                outFileName = 'metaclusters.FAILED'
+                '''
+                EXPLANATION
+                Lists of lists -> metaclustersFailedList [[CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}], [CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}], [CHROM, POS, '.', '<INS>', '.', 'PASS', {INFO_Dict}], [CHROM, 56715108, '.', '<INS>', '.', 'PASS', {INFO_Dict}]]
+                '''
+
+                # Write VCF output
+                output.INS2VCF_SR(metaclustersFailedList, self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], self.confDict['VCFInfoFields'], self.confDict['VCFREF'], outFileName, self.outDir)
 
         return metaclustersPassListofLists
     
@@ -649,6 +651,10 @@ class SV_caller_short(SV_caller):
         filters2Apply['ME']  = self.confDict['filtersBfClip']
         metaclustersPass1, metaclustersFailed1 = filters.filter_metaclusters(metaclusters, filters2Apply, self.confDict, self.bam)
 
+        # Remove those metaclusters that didnt pass the filteres if the option for not printting them is selected
+        if not self.confDict['printFiltered']:
+            metaclustersFailed1 = []
+
         step = 'FILTER METACLUSTERS BEFORE ADDING CLIPPING READS'
         msg = 'Filter out metaclusters. Nb PASS metaclusters: '+ str(len(metaclustersPass1)) +'. Nb NOT PASS: ' + str(len(metaclustersFailed1)) + '. PID: ' + str(os.getpid())
         log.step(step, msg)
@@ -703,7 +709,13 @@ class SV_caller_short(SV_caller):
         filters2Apply['ME']  = self.confDict['filtersAfClip']
 
         metaclustersList, metaclustersFailed2 = filters.filter_metaclusters(metaclustersPass1, filters2Apply, self.confDict, self.bam)
-        metaclustersFailedList = metaclustersFailed1 + metaclustersFailed2
+
+        # Remove those metaclusters that didnt pass the filteres if the option for not printting them is selected
+        if not self.confDict['printFiltered']:
+            del metaclustersFailed2
+            metaclustersFailedList = []
+        else:
+            metaclustersFailedList = metaclustersFailed1 + metaclustersFailed2
 
         step = 'FILTER METACLUSTERS AFTER ADDING CLIPPING READS'
         msg = 'Filter out metaclusters. Nb PASS metaclusters: '+ str(len(metaclustersList)) +'. Nb NOT PASS: ' + str(len(metaclustersFailedList)) + '. PID: ' + str(os.getpid())
@@ -715,7 +727,10 @@ class SV_caller_short(SV_caller):
         metaclustersFields = output.VCFMetaclustersFields(metaclustersList)
 
         # Get from metaclusters those fields that should be printed in VCF output
-        metaclustersFailedFields = output.VCFMetaclustersFields(metaclustersFailedList)
+        if not self.confDict['printFiltered']:
+            metaclustersFailedFields = []
+        else:
+            metaclustersFailedFields = output.VCFMetaclustersFields(metaclustersFailedList)
 
         ### 8. Do cleanup
         unix.rm([binDir])
