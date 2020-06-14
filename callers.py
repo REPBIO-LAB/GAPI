@@ -30,6 +30,7 @@ import gRanges
 import clustering
 import sequences
 import alignment
+import virus
 
 ## FUNCTIONS ##
 
@@ -430,15 +431,15 @@ class SV_caller_short(SV_caller):
         ### If viruses option is selected, collect read name and sequence of discordant low quality reads from all bam refs ##
         if 'VIRUS' in self.confDict['targetINT2Search']:
             # TEMP SR: DESILENCE
-            '''
             # Make genomic bins
             bins = bamtools.makeGenomicBins(self.bam, self.confDict['binSize'], None)
             
-            # Collect read name and sequence of discordant low quality reads from all bam refs
             l = mp.Lock()
-            
+
+            # Collect read name and sequence of discordant low quality reads from all bam refs
             collectVirusDir = self.outDir + '/COLLECT_VIRUS'
             unix.mkdir(collectVirusDir)
+
             pool = mp.Pool(processes=self.confDict['processes'], initializer=init, initargs=(l,))
             pool.starmap(self.callCollectSeq, bins)
             pool.close()
@@ -453,50 +454,11 @@ class SV_caller_short(SV_caller):
                 pool.starmap(self.callCollectSeqNormal, bins)
                 pool.close()
                 pool.join()
-                        
-			# Filter by complexity (with komplexity)
-            allFastas = sequences.komplexityFilter(self.confDict['komplexityThreshold'], 'allFastas_all.fasta', 'allFastas.fasta', self.outDir)
-            
-            # Align with bwa allFastas vs viralDb and filter resulting bam
-            # TODO SR: bwa allFastas vs viralDb: check if bwa -T parameter does something that we need
-            #BAM = alignment.alignment_bwa_filtered(self.confDict['viralDb'], self.confDict['viralBamMAPQ'], self.confDict['viralBamParcialMatch'], self.confDict['processes'], allFastas, 'viralAligment', self.outDir)
-            allSam = alignment.alignment_bwa(allFastas, self.confDict['viralDb'], 'allSam', self.confDict['processes'], self.outDir)
-
-            # Index bam
-            bamtools.samtools_index_bam(allSam, self.outDir)
-            '''
-            ## STARTS NEW!!!
-            # DESILENCE:
-            allSam = self.outDir + '/allSam.sam'
-            self.viralSeqs = bamtools.filterBAM2FastaDict(allSam, self.confDict['minTotalMatchVirus'], self.confDict['minParcialMatchVirus'], self.confDict['maxMatchCheckMAPQVirus'], self.confDict['minMAPQVirus'], self.confDict['maxBasePercVirus'], self.confDict['minLccVirus'])
-
+        
+            # Filter viral discodants and store them in a dictionary. Algo make a fasta file with those viral sequences from viralDB found in bam.
+            self.viralSeqs, self.identDbPath = virus.find_virus_discordants(self.bam, self.normalBam, self.confDict['viralDb'], self.confDict['komplexityThreshold'], self.confDict['minTotalMatchVirus'], self.confDict['minParcialMatchVirus'], self.confDict['maxMatchCheckMAPQVirus'], self.confDict['minMAPQVirus'], self.confDict['maxBasePercVirus'], self.confDict['minLccVirus'], self.confDict['processes'], self.outDir)
             # TEMP SR: Remove allfastas
             #unix.rm([collectVirusDir])
-            
-            #TEMP DESILENCE
-            #BAM = self.outDir + '/' + 'viralAligment' + '.bam'
-            # Read bwa result and store in a dictionary
-            #self.viralSeqs = bamtools.BAM2FastaDict(BAM)
-
-            # Collect all identities that have hits in viralBam
-            fastaIdentities = list(set(list(itertools.chain(*self.viralSeqs.values()))))
-
-            # Write a fasta file containing only those sequences that are in identities:
-            # self.confDict['viralDb'] -> Papillomaviridae|LC270039.1 02-AUG-2017
-            # fastaIdentities = self.viralSeqs.values() -> Papillomaviridae|LC270039.1
-            self.identDbPath = self.outDir + '/identDb.fasta'
-            identDb = open(self.identDbPath, 'w')
-            viralDb = open(self.confDict['viralDb'], 'r')
-
-            for record in SeqIO.parse(viralDb,'fasta'):
-                for fastaIdentity in fastaIdentities:
-                    if fastaIdentity in record.id:
-                        identDb.write(">" + record.id + "\n")
-                        identDb.write(str(record.seq) + "\n")
-                        break
-
-            viralDb.close()
-            identDb.close()
             
         ### 1. Define genomic bins to search for SV ##
         bins = bamtools.binning(self.confDict['targetBins'], self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
@@ -550,7 +512,6 @@ class SV_caller_short(SV_caller):
         Wrapper to call function for collecting read name and sequence of discordant low quality reads from all NORMAL bam refs
         '''
         bamtools.collectDiscodantsLowMAPQSeq(ref, binBeg, binEnd, self.normalBam, self.confDict['discordantMatesMaxMAPQ'], self.confDict['discordantMatesCheckUnmapped'], self.confDict['discordantMatesSupplementary'], self.confDict['discordantMatesMaxBasePerc'], self.confDict['discordantMatesMinLcc'], self.outDir)
-
 
     def make_clusters_bin(self, ref, beg, end):
         '''

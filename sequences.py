@@ -355,9 +355,8 @@ def komplexityFilter(komplexityThreshold, inFasta, outFasta, outDir):
     '''
 
     # Set input an output files
-    collectVirusDir = outDir + '/COLLECT_VIRUS'
-    allFastas_all = collectVirusDir + '/' + inFasta
-    allFastas = collectVirusDir + '/' + outFasta
+    allFastas_all = outDir + '/' + inFasta
+    allFastas = outDir + '/' + outFasta
 
     logDir = outDir + '/Logs'
     unix.mkdir(logDir)
