@@ -61,6 +61,10 @@ if __name__ == '__main__':
 	parser.add_argument('--INSdist', default=250, dest='maxInsDist', type=int, help='Maximum distance bewteen two adjacent INS to be clustered together (Between 0-999). Default: 250')
 	parser.add_argument('--BKPdist', default=50, dest='maxBkpDist', type=int, help='Maximum distance bewteen two adjacent breakpoints for CLIPPING clustering (Between 0-999). Default: 250')
 	parser.add_argument('--minPercOverlap', default=70, dest='minPercRcplOverlap', type=int, help='Minimum percentage of reciprocal overlap for DEL clustering. Default: 70')
+	parser.add_argument('--equalOrientBuffer', default=200, dest='equalOrientBuffer', type=int, help='Distance between reads that are equally oriented. Default: 200')
+	parser.add_argument('--oppositeOrientBuffer', default=600, dest='oppositeOrientBuffer', type=int, help='Distance between reads that are opposite oriented. Default: 600')
+	parser.add_argument('--libraryReadLength', default=151, dest='libraryReadLength', type=int, help='Illumina library read length. Default: 151')
+
 
 	## Databases
 	parser.add_argument('--viralDb', default=None, dest='viralDb', type=str, help='Viral database in fasta format or minimap index.')
@@ -138,6 +142,9 @@ if __name__ == '__main__':
 	maxInsDist = args.maxInsDist
 	maxBkpDist = args.maxBkpDist
 	minPercRcplOverlap = args.minPercRcplOverlap
+	equalOrientBuffer = args.equalOrientBuffer
+	oppositeOrientBuffer = args.oppositeOrientBuffer
+	libraryReadLength = args.libraryReadLength
 
 	# Databases
 	viralDb = args.viralDb
@@ -244,7 +251,10 @@ if __name__ == '__main__':
 	print('** Clustering **')
 	print('maxInsDist: ', maxInsDist)
 	print('maxBkpDist: ', maxBkpDist)
-	print('minPercOverlap: ', minPercRcplOverlap, "\n")
+	print('minPercOverlap: ', minPercRcplOverlap)
+	print('equalOrientBuffer: ', equalOrientBuffer)
+	print('oppositeOrientBuffer: ', oppositeOrientBuffer)
+	print('libraryReadLength: ', libraryReadLength, "\n")
 
 	print('** Databases **')
 	print('viralDb: ', viralDb, "\n")
@@ -319,6 +329,9 @@ if __name__ == '__main__':
 	confDict['maxInsDist'] = maxInsDist
 	confDict['maxBkpDist'] = maxBkpDist
 	confDict['minPercRcplOverlap'] = minPercRcplOverlap
+	confDict['equalOrientBuffer'] = equalOrientBuffer
+	confDict['oppositeOrientBuffer'] = oppositeOrientBuffer
+	confDict['libraryReadLength'] = libraryReadLength
 
 	## Databases
 	confDict['viralDb'] = viralDb

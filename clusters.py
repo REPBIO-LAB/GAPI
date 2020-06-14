@@ -116,7 +116,7 @@ def merge_clusters(clusters, clusterType):
     return mergedCluster
 
 
-def create_discordantClusters(discordantBinDb, minClusterSize, buffer):
+def create_discordantClusters(discordantBinDb, minClusterSize, equalOrientBuffer, oppositeOrientBuffer, libraryReadLength):
     '''
     Group discordant read pairs according to cluster type and reciprocal overlap into clusters 
 
@@ -140,7 +140,7 @@ def create_discordantClusters(discordantBinDb, minClusterSize, buffer):
         # Do clustering based on reciprocal overlap
         #discordantClustersDict[clusterType] = clustering.reciprocal_overlap_clustering(discordantBinDb[clusterType], 1, minClusterSize, [clusterType], buffer, clusterType)
         #discordantClusters.extend(clustering.reciprocal_overlap_clustering(discordantBinDb[clusterType], 1, minClusterSize, [clusterType], buffer, clusterType))
-        discordantClusters.extend(clustering.distance_clustering_SR(discordantBinDb[clusterType], 1, minClusterSize, [clusterType], buffer, clusterType))
+        discordantClusters.extend(clustering.distance_clustering_SR(discordantBinDb[clusterType], 1, minClusterSize, [clusterType], clusterType, equalOrientBuffer, oppositeOrientBuffer, libraryReadLength))
         #discordantClusters = clustering.reciprocal_overlap_clustering(discordantBinDb, 1, minClusterSize, [clusterType], buffer, clusterType)
 
     end = time.time()

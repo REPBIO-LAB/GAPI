@@ -772,7 +772,7 @@ def reciprocal(binDb, minPercOverlap, minClusterSize, buffer):
 
     return finalDict
 
-def distance_clustering_SR(events, minPercOverlap, minClusterSize, eventTypes, buffer, clusterType):
+def distance_clustering_SR(events, minPercOverlap, minClusterSize, eventTypes, clusterType, equalOrientBuffer, oppositeOrientBuffer, libraryReadLength):
     '''
     Sequentially group sorted events based on distance clustering into metaclusters
 
@@ -781,13 +781,19 @@ def distance_clustering_SR(events, minPercOverlap, minClusterSize, eventTypes, b
         2. minPercOverlap: minimum percentage of reciprocal overlap to cluster two events together
         3. minClusterSize: minimum number of events clustering together for creating a cluster
         4. eventTypes: list with target event types to be clustered together
-        5. buffer: number of nucleotides used to extend cluster begin and end coordinates prior evaluating reciprocal overlap 
-        6. clusterType: type of clusters to be created (If "META", metaclustering will be performed)
+        5. clusterType: type of clusters to be created (If "META", metaclustering will be performed)
+        6. equalOrientBuffer: Distance between reads that are equally oriented.
+        7. oppositeOrientBuffer: Distance between reads that are opposite oriented.
+        8. libraryReadLength: Illumina library read length.
 
     Output:
         1. metaclustersList: list of created clusters/metaclusters
     '''    
+
+    # Inicialize variables and set thresholds
     metaclustersList = []
+    equalOrientThreshold = equalOrientBuffer + libraryReadLength
+    oppOrientThreshold = oppositeOrientBuffer + libraryReadLength
 
     # Make numpy array with events beginnings
     eventsStarts=np.array([event.beg for event in events])
@@ -800,7 +806,7 @@ def distance_clustering_SR(events, minPercOverlap, minClusterSize, eventTypes, b
     #print ('differences ' + str(differences))
 
     # Choose these differences which are greater than clustering threshold and their indexes.
-    indices = [(i,differences[i]) for i,v in enumerate(differences >= 351) if v]
+    indices = [(i,differences[i]) for i,v in enumerate(differences >= equalOrientThreshold) if v]
     #print ('indices ' + str(indices))
 
     # If there are greater differences:
@@ -810,7 +816,7 @@ def distance_clustering_SR(events, minPercOverlap, minClusterSize, eventTypes, b
         for index, diff in indices:
             #print ('1 ' + str(index) + ' '+ str(diff) + ' '+ str(start))
             # If difference lower than second threhold and events are opposite or is greather than second clustering threshold
-            if (diff <= 751 and events[index].orientation == events[index+1].orientation) or (diff > 751):
+            if (diff <= oppOrientThreshold and events[index].orientation == events[index+1].orientation) or (diff > oppOrientThreshold):
                     #print ('2 ' + str(index) + ' '+ str(diff) + ' '+ str(start) +' '+ str(events[index].orientation) +' '+ str(events[index+1].orientation) +' '+ str(events[index].readName) +' '+ str(events[index+1].readName))
                     # And the list has more than one element, cluster events
                     if index-start > 0:
