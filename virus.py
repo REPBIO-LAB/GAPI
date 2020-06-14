@@ -37,7 +37,9 @@ def is_virusSR(events, viralSeqs):
             featureType = 'None'
 
         ## Add discordant read pair to the dictionary
-        identity = discordant.orientation + '-DISCORDANT-' + featureType
+        #identity = discordant.orientation + '-DISCORDANT-' + featureType
+        identity = 'DISCORDANT-' + featureType
+
 
         if featureType != 'None':
             discordant.element = 'VIRUS'

@@ -13,7 +13,7 @@ import bamtools
 ## FUNCTIONS ##
 ###############
 
-def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
+def filter_metaclusters(metaclusters, filters2Apply, confDict, bam):
     '''
     Function to apply filters all metaclusters. 
 
@@ -27,50 +27,42 @@ def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
         2. metaclustersFailDict: Dictionary with same structure as the input one, containig those metaclusters that failed one or more filters.
     '''
 
-    metaclustersPassDict = {}
-    metaclustersFailDict = {}
+    metaclustersPass = []
+    metaclustersFail = []
 
     ## For each type of SV
-    for SV_type, metaclusters in metaclustersDict.items():
-        ## 1. Make list with the indexes of the metaclusters do not passing some filter
-        filteredIndexes = []
+    #for metacluster in metaclusters:
+    ## 1. Make list with the indexes of the metaclusters do not passing some filter
+    filteredIndexes = []
 
-        ## For each metacluster
-        for index, metacluster in enumerate(metaclusters):
+    ## For each metacluster
+    for index, metacluster in enumerate(metaclusters):
 
-            # Set meacluster element:
-            element = metacluster.setElement() if metacluster.setElement() else 'GENERIC'
-            ## Apply filters
-            metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply[element], confDict)
+        # Set meacluster element:
+        element = metacluster.setElement() if metacluster.setElement() else 'GENERIC'
+        ## Apply filters
+        metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply[element], confDict, bam)
 
-            # Metacluster fails some filter
-            if metacluster.failedFilters:
-                filteredIndexes.append(index)
+        # Metacluster fails some filter
+        if metacluster.failedFilters:
+            filteredIndexes.append(index)
 
-        ## 2. Divide metaclusters in those passing and failing filtering
-        for index, metacluster in enumerate(metaclusters):
-            
-            ## a) Failing some filter
-            if index in filteredIndexes:
+    ## 2. Divide metaclusters in those passing and failing filtering
+    for index, metacluster in enumerate(metaclusters):
+        
+        ## a) Failing some filter
+        if index in filteredIndexes:
 
-                ## Initialize list
-                if SV_type not in metaclustersFailDict:
-                    metaclustersFailDict[SV_type] = []
-                
-                metaclustersFailDict[SV_type].append(metacluster)
+            metaclustersFail.append(metacluster)
 
-            ## b) Passing all the filters
-            else:
+        ## b) Passing all the filters
+        else:
 
-                ## Initialize list
-                if SV_type not in metaclustersPassDict:
-                    metaclustersPassDict[SV_type] = []
+            metaclustersPass.append(metacluster)
 
-                metaclustersPassDict[SV_type].append(metacluster)
+    return metaclustersPass, metaclustersFail
 
-    return metaclustersPassDict, metaclustersFailDict
-
-def filter_metacluster(metacluster, filters2Apply, confDict):
+def filter_metacluster(metacluster, filters2Apply, confDict, bam):
     '''
     Apply selected filters to one metacluster.
 
@@ -109,6 +101,21 @@ def filter_metacluster(metacluster, filters2Apply, confDict):
 
         if not percResolvedFilter(metacluster, confDict['minPercResolved']):
             failedFilters.append('PERC-RESOLVED')
+
+    ## 3. FILTER 3: Area mapping quality
+    if "AREAMAPQ" in filters2Apply:
+        if not area(metacluster,confDict,bam)[0]:
+            failedFilters.append('AREAMAPQ')
+
+    ## 4. FILTER 4: Area clipping SMS
+    if "AREASMS" in filters2Apply:
+        if not area(metacluster,confDict,bam)[1]:
+            failedFilters.append('AREASMS')
+
+    ## 5. FILTER 5: Whether a metacluster has a SV_type assigned or not
+    if 'IDENTITY' in filters2Apply: 
+        if not identityFilter(metacluster):
+            failedFilters.append('IDENTITY')
 
     return failedFilters
 

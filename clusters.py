@@ -13,6 +13,7 @@ import itertools
 import os
 from operator import itemgetter
 from collections import Counter
+import time
 
 # Internal
 import log
@@ -129,15 +130,21 @@ def create_discordantClusters(discordantBinDb, minClusterSize, buffer):
     
     NOTE: this function should be removed and integrated into the more generic one: 'create_clusters'
     '''
-    discordantClustersDict = {}
+    start = time.time()
+    discordantClusters = []
 
     # For each discordant read pair cluster type
-    for clusterType in discordantBinDb.eventTypes:
+    #for clusterType in discordantBinDb.eventTypes:
+    for clusterType in discordantBinDb.keys():
         
         # Do clustering based on reciprocal overlap
-        discordantClustersDict[clusterType] = clustering.reciprocal_overlap_clustering(discordantBinDb, 1, minClusterSize, [clusterType], buffer, clusterType)
+        #discordantClustersDict[clusterType] = clustering.reciprocal_overlap_clustering(discordantBinDb[clusterType], 1, minClusterSize, [clusterType], buffer, clusterType)
+        discordantClusters.extend(clustering.reciprocal_overlap_clustering(discordantBinDb[clusterType], 1, minClusterSize, [clusterType], buffer, clusterType))
+        #discordantClusters = clustering.reciprocal_overlap_clustering(discordantBinDb, 1, minClusterSize, [clusterType], buffer, clusterType)
 
-    return discordantClustersDict
+    end = time.time()
+    print ('TIME ' + str(end-start))
+    return discordantClusters
 
 
 def extra_clustering_by_matePos(discordantClusters, refLengths, minClusterSize):
@@ -1859,6 +1866,13 @@ class DISCORDANT_cluster(cluster):
         self.identity = self.events[0].identity
         self.orientation = self.events[0].orientation
         self.element = self.events[0].element
+
+        if all (event.orientation == 'PLUS' for event in events):
+            self.orientation = 'PLUS'
+        elif all (event.orientation == 'MINUS' for event in events):
+            self.orientation = 'MINUS'
+        else:
+            self.orientation = 'RECIPROCAL'
 
         # TODO SR:
         # Set specific identity doing something like the most common specific identity that events share.
