@@ -91,7 +91,7 @@ if __name__ == '__main__':
 	parser.add_argument('--discordantMatesMinLcc', default=1.49, dest='discordantMatesMinLcc', type=float, help='Minimum local complexity of discordant read mates sequences. Default: 1.49')
 	parser.add_argument('--MEDB', default=None, dest='MEDB', type=str, help='Path to ME database used for analysing metacluster bkp.')
 	parser.add_argument('--filtersBfClip', default="MAX-NBREADS,AREAMAPQ,AREASMS,IDENTITY", dest='filtersBfClip', type=str, help='Comma separated list of filters to apply before adding clippings to metaclusters. Default: MAX-NBREADS,AREAMAPQ,AREASMS,IDENTITY')
-	parser.add_argument('--filtersAfClip', default="MIN-NBREADS, MAX-NBREADS", dest='filtersAfClip', type=str, help='Comma separated list of filters to apply after adding clippings to metaclusters. Default: MIN-NBREADS, MAX-NBREADS')
+	parser.add_argument('--filtersAfClip', default="MIN-NBREADS,MAX-NBREADS", dest='filtersAfClip', type=str, help='Comma separated list of filters to apply after adding clippings to metaclusters. Default: MIN-NBREADS, MAX-NBREADS')
 	parser.add_argument('--analyseFiltered', action="store_true", default=False, dest='analyseFiltered', help='If selected, add clippings and analyse breakpoint of those metaclusters that do not PASS selected filters.')
 
 	# Filtering viral bam
