@@ -774,10 +774,10 @@ def reciprocal(binDb, minPercOverlap, minClusterSize, buffer):
 
 def distance_clustering_SR(events, minPercOverlap, minClusterSize, eventTypes, buffer, clusterType):
     '''
-    Group events/clusters based on reciprocal overlap into clusters/metaclusters
+    Sequentially group sorted events based on distance clustering into metaclusters
 
     Input:
-        1. binDb: data structure containing a set of events/clusters organized in genomic bins  
+        1. events: list of sorted events. They must be sorted in the way they are going to be clustered.
         2. minPercOverlap: minimum percentage of reciprocal overlap to cluster two events together
         3. minClusterSize: minimum number of events clustering together for creating a cluster
         4. eventTypes: list with target event types to be clustered together
@@ -785,73 +785,64 @@ def distance_clustering_SR(events, minPercOverlap, minClusterSize, eventTypes, b
         6. clusterType: type of clusters to be created (If "META", metaclustering will be performed)
 
     Output:
-        1. clustersList: list of created clusters/metaclusters
+        1. metaclustersList: list of created clusters/metaclusters
     '''    
-    finalMetaclusters = []
+    metaclustersList = []
 
-    #events = binDb.collect(eventTypes)
-    #if len(events) > 1:
-    #Una forma de hacerlo
-    #differences = [x.beg - events[i - 1].beg for i, x in enumerate(events)][1:]
-    #events.sort(key=lambda x: x.beg)
-
-    '''
-    counter = 0
-    for even1 in events:
-        print ('Names ' + str(counter) +' '+ str(even1.readName))
-        counter += 1
-    '''
-
-    # events list is already sorted by beg (because is the way that pysam reads the bam file)
+    # Make numpy array with events beginnings
     eventsStarts=np.array([event.beg for event in events])
-    print ('eventsStarts ' + str(eventsStarts))
-    # BORRAR
-    print ([event.readName for event in events])
+    #print ('eventsStarts ' + str(eventsStarts))
 
-    #arr = np.array(eventsStarts)
+    #print ([event.readName for event in events])
 
+    # Calculate differences between event begginings
     differences = np.diff(eventsStarts)
-    print ('differences ' + str(differences))
+    #print ('differences ' + str(differences))
 
-    # mirar que indices son mayores que el menor therhold
-
+    # Choose these differences which are greater than clustering threshold and their indexes.
     indices = [(i,differences[i]) for i,v in enumerate(differences >= 351) if v]
-    print ('indices ' + str(indices))
+    #print ('indices ' + str(indices))
 
-    # si indices esta vacio es que las diferencias son menores, todos los events al mismo cluster
+    # If there are greater differences:
     if indices:
         start = 0
+        # Go through differences
         for index, diff in indices:
-            print ('1 ' + str(index) + ' '+ str(diff) + ' '+ str(start))
+            #print ('1 ' + str(index) + ' '+ str(diff) + ' '+ str(start))
+            # If difference lower than second threhold and events are opposite or is greather than second clustering threshold
             if (diff <= 751 and events[index].orientation == events[index+1].orientation) or (diff > 751):
-                    print ('2 ' + str(index) + ' '+ str(diff) + ' '+ str(start) +' '+ str(events[index].orientation) +' '+ str(events[index+1].orientation) +' '+ str(events[index].readName) +' '+ str(events[index+1].readName))
+                    #print ('2 ' + str(index) + ' '+ str(diff) + ' '+ str(start) +' '+ str(events[index].orientation) +' '+ str(events[index+1].orientation) +' '+ str(events[index].readName) +' '+ str(events[index+1].readName))
+                    # And the list has more than one element, cluster events
                     if index-start > 0:
-                        print ('3 ' + str(index) + ' '+ str(diff) + ' '+ str(start) +' '+ str(events[index].orientation) +' '+ str(events[index+1].orientation) +' '+ str(events[index].readName) +' '+ str(events[index+1].readName))
+                        #print ('3 ' + str(index) + ' '+ str(diff) + ' '+ str(start) +' '+ str(events[index].orientation) +' '+ str(events[index+1].orientation) +' '+ str(events[index].readName) +' '+ str(events[index+1].readName))
                         events2cluster = events[start:index+1] # mirar bien este rango
                         cluster = clusters.create_cluster(events2cluster, clusterType)
-                        finalMetaclusters.append(clusters.create_cluster([cluster], 'META'))
+                        metaclustersList.append(clusters.create_cluster([cluster], 'META'))
+                    # Re-new start index
                     start = index + 1
-                    print ('4 ' + str(index) + ' '+ str(diff) + ' '+ str(start) +' '+ str(events[index].orientation) +' '+ str(events[index+1].orientation) +' '+ str(events[index].readName) +' '+ str(events[index+1].readName))
+                    #print ('4 ' + str(index) + ' '+ str(diff) + ' '+ str(start) +' '+ str(events[index].orientation) +' '+ str(events[index+1].orientation) +' '+ str(events[index].readName) +' '+ str(events[index+1].readName))
 
-        print ('index ' + str(index))
-        print ('len(events) ' + str(len(eventsStarts)))
+        #print ('index ' + str(index))
+        #print ('len(events) ' + str(len(eventsStarts)))
+        # Cluster events from last difference to last event element:
         finalDiff = len(events) - start
-        print ('finalDiff ' + str(finalDiff))
+        #print ('finalDiff ' + str(finalDiff))
         if finalDiff > 1: # si la lista es larga
             #make cluster
-            print ('5 ' + str(index+1) + ' '+ str(len(events)))
+            #print ('5 ' + str(index+1) + ' '+ str(len(events)))
             events2cluster = events[start:len(events)] # mirar bien este rango
             cluster = clusters.create_cluster(events2cluster, clusterType)
-            finalMetaclusters.append(clusters.create_cluster([cluster], 'META'))
+            metaclustersList.append(clusters.create_cluster([cluster], 'META'))
             '''
             for even in cluster.events:
                 print ('even.beg ' + str(even.beg) +' '+ str(even.orientation) +' '+ str(even.readName))
             '''
             #print ('2.clusterDiff ' + str(cluster.end - cluster.beg) +' '+ str(cluster.ref) +' '+ str(cluster.beg) +' '+ str(cluster.end))
     
+    # If there are no greater differences and the input events list has more elements than 1, cluster them:
     elif len(events) > 1:
-        for even in events:
-            print ('No indice ' + str(even.readName))
+        #for even in events:
+            #print ('No indice ' + str(even.readName))
         cluster = clusters.create_cluster(events, clusterType)
         '''
         for even in cluster.events:
@@ -859,15 +850,15 @@ def distance_clustering_SR(events, minPercOverlap, minClusterSize, eventTypes, b
         '''
         #print ('3.clusterDiff ' + str(cluster.end - cluster.beg) +' '+ str(cluster.ref) +' '+ str(cluster.beg) +' '+ str(cluster.end))
 
-        finalMetaclusters.append(clusters.create_cluster([cluster], 'META'))
+        metaclustersList.append(clusters.create_cluster([cluster], 'META'))
         # Add cluster to the dict
         #clustersDict[cluster.id] = cluster    
     
     #clustersList = list(clustersDict.values())
 
-    for meta in finalMetaclusters:
-        print ('META events ' + str(meta.ref) + ' ' + str(meta.beg) + ' ' + str(len(meta.events)) +' '+ str(meta.events[0].beg) + ' ' + str(meta.events[-1].beg) +' '+ str(meta.events[-1].beg - meta.events[0].beg))
-    return finalMetaclusters
+    #for meta in metaclustersList:
+        #print ('META events ' + str(meta.ref) + ' ' + str(meta.beg) + ' ' + str(len(meta.events)) +' '+ str(meta.events[0].beg) + ' ' + str(meta.events[-1].beg) +' '+ str(meta.events[-1].beg - meta.events[0].beg))
+    return metaclustersList
 
 def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTypes, buffer, clusterType):
     '''

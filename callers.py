@@ -631,6 +631,7 @@ class SV_caller_short(SV_caller):
         ## 4. Group discordant read pairs into clusters based on their mate identity ##
         buffer = 100
         # NEW
+        # discordantsIdentity list is already sorted by beg (because is the way that pysam reads the bam file)
         metaclusters = clusters.create_discordantClusters(discordantsIdentity, self.confDict['minClusterSize'], buffer)
 
         # AHORA AQUI TENGO YA LA LISTA DE METACLUSTERS
