@@ -90,6 +90,10 @@ if __name__ == '__main__':
 	parser.add_argument('--discordantMatesMaxBasePerc', default=85, dest='discordantMatesMaxBasePerc', type=int, help='Maximum base percentage of discordant read mates sequences. Default: 85')
 	parser.add_argument('--discordantMatesMinLcc', default=1.49, dest='discordantMatesMinLcc', type=float, help='Minimum local complexity of discordant read mates sequences. Default: 1.49')
 	parser.add_argument('--MEDB', default=None, dest='MEDB', type=str, help='Path to ME database used for analysing metacluster bkp.')
+	parser.add_argument('--filtersBfClip', default="MAX-NBREADS,AREAMAPQ,AREASMS,IDENTITY", dest='filtersBfClip', type=str, help='Comma separated list of filters to apply before adding clippings to metaclusters. Default: MAX-NBREADS,AREAMAPQ,AREASMS,IDENTITY')
+	parser.add_argument('--filtersAfClip', default="MIN-NBREADS, MAX-NBREADS", dest='filtersAfClip', type=str, help='Comma separated list of filters to apply after adding clippings to metaclusters. Default: MIN-NBREADS, MAX-NBREADS')
+	parser.add_argument('--analyseFiltered', action="store_true", default=False, dest='analyseFiltered', help='If selected, add clippings and analyse breakpoint of those metaclusters that do not PASS selected filters.')
+
 	# Filtering viral bam
 	parser.add_argument('--minTotalMatchVirus', default=40, dest='minTotalMatchVirus', type=int, help='Minimum total matches of a read against viral DB. Default: 40.')
 	parser.add_argument('--minParcialMatchVirus', default=15, dest='minParcialMatchVirus', type=int, help='Minimum length of a match against viral DB. Default: 15.')
@@ -170,6 +174,10 @@ if __name__ == '__main__':
 	discordantMatesMaxBasePerc = args.discordantMatesMaxBasePerc
 	discordantMatesMinLcc = args.discordantMatesMinLcc
 	MEDB = args.MEDB
+	filtersBfClip = args.filtersBfClip
+	filtersAfClip = args.filtersAfClip
+	analyseFiltered = args.analyseFiltered
+
 	minTotalMatchVirus = args.minTotalMatchVirus
 	minParcialMatchVirus = args.minParcialMatchVirus
 	maxMatchCheckMAPQVirus = args.maxMatchCheckMAPQVirus
@@ -193,6 +201,8 @@ if __name__ == '__main__':
 	targetRefs = refs.split(',')
 	targetINT2Search = INT2Search.split(',')
 	targetVCFInfoFields = VCFInfoFields.split(',')
+	filtersBfClipList = filtersBfClip.split(',')
+	filtersAfClipList = filtersAfClip.split(',')
 
 	## Determine running mode:
 	mode = 'SINGLE' if normalBam == None else 'PAIRED'
@@ -281,7 +291,10 @@ if __name__ == '__main__':
 	print('maxMatchCheckMAPQVirus', maxMatchCheckMAPQVirus)
 	print('minMAPQVirus', minMAPQVirus)
 	print('maxBasePercVirus', maxBasePercVirus)
-	print('minLccVirus', minLccVirus, "\n")
+	print('minLccVirus', minLccVirus)
+	print('filtersBfClip', filtersBfClip)
+	print('filtersAfClip', filtersAfClip)
+	print('analyseFiltered', analyseFiltered, "\n")
 
 	print('** Output format**')
 	print ('VCFInfoFields: ', VCFInfoFields)
@@ -358,6 +371,9 @@ if __name__ == '__main__':
 	confDict['discordantMatesMaxBasePerc'] = discordantMatesMaxBasePerc
 	confDict['discordantMatesMinLcc'] = discordantMatesMinLcc
 	confDict['MEDB'] = MEDB
+	confDict['filtersBfClip'] = filtersBfClipList
+	confDict['filtersAfClip'] = filtersAfClipList
+	confDict['analyseFiltered'] = analyseFiltered
 	confDict['minTotalMatchVirus'] = minTotalMatchVirus
 	confDict['minParcialMatchVirus'] = minParcialMatchVirus
 	confDict['maxMatchCheckMAPQVirus'] = maxMatchCheckMAPQVirus

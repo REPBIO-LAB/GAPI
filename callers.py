@@ -637,21 +637,16 @@ class SV_caller_short(SV_caller):
 
         #del discordantsBinDb
 
-        step = 'DISCORDANT-CLUSTERING'
-        # PONER DE NUEVO
-        #SV_types = sorted(discordantClusters.keys())
-        #counts = [str(len(discordantClustersDict[SV_type])) for SV_type in SV_types]
-        #msg = 'Number of created discordant clusters in bin ' + binId + '(' + ','.join(SV_types) + '): ' + ','.join(counts) + '. PID: ' + str(os.getpid())
+        step = 'META-CLUSTERING'
+        counts = len(metaclusters)
+        msg = 'Number of created metaclusters clusters in bin ' + binId + ': ' + str(counts) + ' . PID: ' + str(os.getpid())
         log.step(step, msg)
 
         # Return if no DISCODANT clusters found.
-        # PONER DE NUEVO
-        '''
         if counts == []:
             unix.rm([binDir])
             metaclustersSVType, metaclustersSVTypeFailed = {}, {}
             return metaclustersSVType, metaclustersSVTypeFailed
-        '''
 
         # TODO SR: ANNOTATE-REPEATS step: Desilence and put in the right place (now it is repeated in two different places) in case we want to analyse RT. If not, decide if it is neccessary or not.
         '''
@@ -763,15 +758,14 @@ class SV_caller_short(SV_caller):
         # If we are analysing VIRUS and MEs at the same time, merge their DBs:
         #metaclusters = list(itertools.chain(*discordantClustersDict.values()))
         # TODO SR: put as option
-        analyzeFiltered = False
 
         filters2Apply = {}
         # Filters to apply to non-identified clusters
-        filters2Apply['GENERIC'] = ['MAX-NBREADS', 'AREAMAPQ', 'AREASMS', 'IDENTITY']
+        filters2Apply['GENERIC'] = self.confDict['filtersBfClip']
         # Filters to apply to VIRUS clusters
-        filters2Apply['VIRUS'] = ['MAX-NBREADS', 'AREAMAPQ', 'AREASMS', 'IDENTITY']
+        filters2Apply['VIRUS'] = self.confDict['filtersBfClip']
         # TODO SR: Add here proper filters for MEs clusters
-        filters2Apply['ME']  = ['MAX-NBREADS', 'AREAMAPQ', 'AREASMS', 'IDENTITY']
+        filters2Apply['ME']  = self.confDict['filtersBfClip']
         metaclustersPass1, metaclustersFailed1 = filters.filter_metaclusters(metaclusters, filters2Apply, self.confDict, self.bam)
         
         if 'VIRUS' in self.confDict['targetINT2Search'] and 'ME' in self.confDict['targetINT2Search']:
@@ -787,19 +781,19 @@ class SV_caller_short(SV_caller):
             outfile.close()
 
             bkp.analyzeMetaclusters(metaclustersPass1, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, mergedDbPath)
-            if analyzeFiltered:
+            if self.confDict['analyseFiltered']:
                 bkp.analyzeMetaclusters(metaclustersFailed1, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, mergedDbPath)
 
         # If only VIRUS are being analysed, pick viral identities db which is created internally.
         elif 'VIRUS' in self.confDict['targetINT2Search'] and not 'ME' in self.confDict['targetINT2Search']:
             bkp.analyzeMetaclusters(metaclustersPass1, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, self.identDbPath)
-            if analyzeFiltered:
+            if self.confDict['analyseFiltered']:
                 bkp.analyzeMetaclusters(metaclustersFailed1, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, self.identDbPath)
 
         # If only ME are analysed, pick a ME db that is given to the pipeline as an argument
         elif not 'VIRUS' in self.confDict['targetINT2Search'] and 'ME' in self.confDict['targetINT2Search']:
             bkp.analyzeMetaclusters(metaclustersPass1, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, self.confDict['MEDB'])
-            if analyzeFiltered:
+            if self.confDict['analyseFiltered']:
                 bkp.analyzeMetaclusters(metaclustersFailed1, self.confDict, self.bam, self.normalBam, self.mode, binDir, binId, self.confDict['MEDB'])
 
         step = 'BKP-ANALYSIS'
@@ -812,11 +806,11 @@ class SV_caller_short(SV_caller):
 
         filters2Apply = {}
         # Filters to apply to non-identified clusters
-        filters2Apply['GENERIC'] = ['MIN-NBREADS', 'MAX-NBREADS']
+        filters2Apply['GENERIC'] = self.confDict['filtersAfClip']
         # Filters to apply to VIRUS clusters
-        filters2Apply['VIRUS'] = ['MIN-NBREADS', 'MAX-NBREADS']
+        filters2Apply['VIRUS'] = self.confDict['filtersAfClip']
         # TODO SR: Add here proper filters for MEs clusters
-        filters2Apply['ME']  = ['MIN-NBREADS', 'MAX-NBREADS']
+        filters2Apply['ME']  = self.confDict['filtersAfClip']
 
         metaclustersList, metaclustersFailed2 = filters.filter_metaclusters(metaclustersPass1, filters2Apply, self.confDict, self.bam)
         metaclustersFailedList = metaclustersFailed1 + metaclustersFailed2
