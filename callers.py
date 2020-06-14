@@ -635,7 +635,7 @@ class SV_caller_short(SV_caller):
 
         # AHORA AQUI TENGO YA LA LISTA DE METACLUSTERS
 
-        #del discordantsBinDb
+        del discordantsIdentity
 
         step = 'META-CLUSTERING'
         counts = len(metaclusters)

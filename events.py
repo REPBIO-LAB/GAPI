@@ -179,10 +179,8 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
         . viralSeqs
 
     Output:
-        1. discordantsIdentity: dictionary containing lists of discordant read pairs organized taking into account their orientation and if the mate aligns in an annotated retrotransposon 
-                                This info is encoded in the dictionary keys as follows. Keys composed by 3 elements separated by '_':
-                                
-                                    - Orientation: read orientation (PLUS or MINUS)
+        1. discordantsIdentity: dictionary containing lists of discordant read pairs organized taking into account their identity
+                                This info is encoded in the dictionary keys as follows. Keys composed by 2 elements separated by '-':
                                     - Event type: DISCORDANT   
                                     - Type: identity type. It can be retrotransposon family (L1, Alu, ...), source element (22q, 5p, ...), viral strain (HPV, ...)
     '''

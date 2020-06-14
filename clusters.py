@@ -116,36 +116,41 @@ def merge_clusters(clusters, clusterType):
     return mergedCluster
 
 
-def create_discordantClusters(discordantBinDb, minClusterSize, equalOrientBuffer, oppositeOrientBuffer, libraryReadLength):
+def create_discordantClusters(discordantsIdentity, minClusterSize, equalOrientBuffer, oppositeOrientBuffer, libraryReadLength):
     '''
     Group discordant read pairs according to cluster type and reciprocal overlap into clusters 
 
     Input:
-        1. discordantBinDb: data structure containing a set of discordant read pairs organized in genomic bins  
+        1. discordantsIdentity: dictionary containing lists of discordant read pairs organized taking into account their identity
+                        This info is encoded in the dictionary keys as follows. Keys composed by 2 elements separated by '-':
+                            - Event type: DISCORDANT   
+                            - Type: identity type. It can be retrotransposon family (L1, Alu, ...), source element (22q, 5p, ...), viral strain (HPV, ...)
         2. minClusterSize: minimum cluster size
-        3. buffer: number of base pairs to extend begin and end coordinates for each discordant prior clustering
-
+        3. equalOrientBuffer: Distance between reads that are equally oriented.
+        4. oppositeOrientBuffer: Distance between reads that are opposite oriented.
+        5. libraryReadLength: Illumina library read length.
+    
     Output:
-        1. discordantClustersDict: dictionary containing for each possible discordant cluster type (keys) a list of clusters (values)
+        1. discordantMetaclusters: list containing discordant metaclusters
     
     NOTE: this function should be removed and integrated into the more generic one: 'create_clusters'
     '''
     start = time.time()
-    discordantClusters = []
+    discordantMetaclusters = []
 
     # For each discordant read pair cluster type
     #for clusterType in discordantBinDb.eventTypes:
-    for clusterType in discordantBinDb.keys():
+    for clusterType in discordantsIdentity.keys():
         
         # Do clustering based on reciprocal overlap
         #discordantClustersDict[clusterType] = clustering.reciprocal_overlap_clustering(discordantBinDb[clusterType], 1, minClusterSize, [clusterType], buffer, clusterType)
         #discordantClusters.extend(clustering.reciprocal_overlap_clustering(discordantBinDb[clusterType], 1, minClusterSize, [clusterType], buffer, clusterType))
-        discordantClusters.extend(clustering.distance_clustering_SR(discordantBinDb[clusterType], 1, minClusterSize, [clusterType], clusterType, equalOrientBuffer, oppositeOrientBuffer, libraryReadLength))
+        discordantMetaclusters.extend(clustering.distance_clustering_SR(discordantsIdentity[clusterType], 1, minClusterSize, [clusterType], clusterType, equalOrientBuffer, oppositeOrientBuffer, libraryReadLength))
         #discordantClusters = clustering.reciprocal_overlap_clustering(discordantBinDb, 1, minClusterSize, [clusterType], buffer, clusterType)
 
     end = time.time()
     print ('TIME ' + str(end-start))
-    return discordantClusters
+    return discordantMetaclusters
 
 
 def extra_clustering_by_matePos(discordantClusters, refLengths, minClusterSize):
