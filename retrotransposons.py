@@ -275,7 +275,7 @@ def infer_strand_polyA(sequence, chain):
 
             # Create PAF line containing poly(A) info
             fields = [firstAlignment.qName, firstAlignment.qLen, monomer.beg, monomer.end, None, 'poly(A/T)', 0, 0, 0, 0, 0, 0]            
-            alignment = formats.PAF_line(fields)
+            alignment = formats.PAF_alignment(fields)
 
             # Add to the end of the chain
             chain.alignments.append(alignment) 
@@ -288,7 +288,7 @@ def infer_strand_polyA(sequence, chain):
 
             # Create PAF line containing poly(T) info
             fields = [firstAlignment.qName, firstAlignment.qLen, monomer.beg, monomer.end, None, 'poly(A/T)', 0, 0, 0, 0, 0, 0]
-            alignment = formats.PAF_line(fields)
+            alignment = formats.PAF_alignment(fields)
 
             # Add to the begin of the chain
             chain.alignments.insert(0, alignment) 
