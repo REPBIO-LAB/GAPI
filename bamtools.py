@@ -9,7 +9,9 @@ import subprocess
 import sys
 from cigar import Cigar
 import numpy as np
-
+import os
+import Bio.SeqUtils
+from Bio.SeqUtils import lcc
 
 # Internal
 import log
@@ -417,10 +419,10 @@ def collectSV_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict):
             * DISCORDANT -> list of DISCORDANT objects  
     '''
     ## Search for SV events in the tumour
-    eventsDict_T = collectSV(ref, binBeg, binEnd, tumourBam, confDict, 'TUMOUR')
+    eventsDict_T = collectSV(ref, binBeg, binEnd, tumourBam, confDict, 'TUMOUR', True)
 
     ## Search for SV events in the normal
-    eventsDict_N = collectSV(ref, binBeg, binEnd, normalBam, confDict, 'NORMAL')
+    eventsDict_N = collectSV(ref, binBeg, binEnd, normalBam, confDict, 'NORMAL', True)
 
     ## Join tumour and normal lists
     eventsDict = {}
@@ -431,7 +433,7 @@ def collectSV_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict):
     return eventsDict
 
 
-def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
+def collectSV(ref, binBeg, binEnd, bam, confDict, sample, supplementary = True):
     '''
     Collect structural variant (SV) events in a genomic bin from a bam file
 
@@ -474,8 +476,10 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
         eventsDict['LEFT-CLIPPING'] = []
         eventsDict['RIGHT-CLIPPING'] = []
     
+    '''
     if 'DISCORDANT' in confDict['targetEvents']:
         eventsDict['DISCORDANT'] = []
+    '''
 
     ## Open BAM file for reading
     bamFile = pysam.AlignmentFile(bam, "rb")
@@ -504,7 +508,11 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
         ## Duplicates filtering enabled and duplicate alignment
         if (confDict['filterDuplicates'] == True) and (alignmentObj.is_duplicate == True):
             continue
-        
+
+        # Filter supplementary alignments if FALSE. (Neccesary to avoid pick supplementary clipping reads while adding to discordant clusters in short reads mode)
+        if supplementary == False and alignmentObj.is_supplementary == True:
+            continue
+    
         ## 2. Collect CLIPPINGS
         if 'CLIPPING' in confDict['targetEvents']:
 
@@ -527,7 +535,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             # Add events to the pre-existing lists                
             for INDEL_type, events in INDEL_events.items():
                 eventsDict[INDEL_type] = eventsDict[INDEL_type] + events
-
+        '''
         ## 4. Collect DISCORDANT
         if 'DISCORDANT' in confDict['targetEvents']:
 
@@ -536,6 +544,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample):
             # Add discordant events
             for discordant in DISCORDANTS:
                 eventsDict['DISCORDANT'].append(discordant)
+        '''
         
     ## Close 
     bamFile.close()
@@ -691,182 +700,160 @@ def collectINDELS(alignmentObj, targetEvents, minINDELlen, targetInterval, overh
 
     return INDEL_events
 
-
-def collectDISCORDANT(alignmentObj, sample):
+def collectDISCORDANT_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict, supplementary):
     '''
-    For a read alignment check if the read is discordant (not proper in pair) and return the corresponding discordant objects
+    For the two bam files given (test and normal), for each read alignment check if the read is discordant (not proper in pair) and return the corresponding discordant objects
 
     Input:
-        1. alignmentObj: pysam read alignment object
-        2. sample: type of sample (TUMOUR, NORMAL or None).
+        1. ref: target referenge
+        2. binBeg: bin begin
+        3. binEnd: bin end
+        4. tumourBam: indexed test BAM file
+        5. normalBam: indexed normal BAM file
+        6. confDict:
+            * minMAPQ -> minimum mapping quality
+            * filterDuplicates -> If True filter out reads labeled as duplicates in bam file.
+        7. supplementary: Filter out supplementary alignments if False. (Neccesary to avoid pick supplementary clipping reads while adding to discordant clusters in short reads mode)
 
     Output:
-        1. DISCORDANTS: list of discordant read pair events
-
+        1. DISCORDANTS: list containing input discordant read pair events
     '''
-    # Initialize discordant events list
-    DISCORDANTS = []
+    ## Search for SV events in the tumour
+    DISCORDANTS_SAMPLE = collectDISCORDANT(ref, binBeg, binEnd, tumourBam, confDict, 'TUMOUR', supplementary)
 
-    # If not proper pair (== discordant)
-    if not alignmentObj.is_proper_pair:
+    ## Search for SV events in the normal
+    DISCORDANTS_NORMAL = collectDISCORDANT(ref, binBeg, binEnd, normalBam, confDict, 'NORMAL', supplementary)
 
-        ## 1. Determine discordant orientation
-        # a) Minus
-        if alignmentObj.is_reverse:
-            orientation = 'MINUS'
-
-        # b) Plus
-        else:
-            orientation = 'PLUS'
-
-        ## 2. Determine if discordant is mate 1 or 2
-        if alignmentObj.is_read1:
-            pair = '1'
-
-        else:
-            pair = '2'
-
-        ## 3. Determine number of alignment blocks
-        operations = [t[0] for t in alignmentObj.cigartuples]
-        nbBlocks = operations.count(3) + 1 
-
-        ## 4. Create discordant event
-        # A) Read aligning in a single block (WG or RNA-seq read no spanning a splice junction)
-        if nbBlocks == 1:
-            DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, orientation, pair, alignmentObj.query_name, alignmentObj, sample)
-            DISCORDANTS.append(DISCORDANT)
-
-        # B) Read alignning in multiple blocks (RNA-seq read spanning one or multiple splice junctions) -> Create one discordant event per block
-        else:
-
-            blockBeg = alignmentObj.reference_start
-            blockEnd = blockBeg
-
-            # For each operation
-            for cigarTuple in alignmentObj.cigartuples:
-
-                operation = int(cigarTuple[0])
-                length = int(cigarTuple[1])
-
-                # a) End of the block -> End current block by creating a discordant event and Initiate a new block
-                if operation == 3:
-
-                    # Create discordant event for the block
-                    DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, blockBeg, blockEnd, orientation, pair, alignmentObj.query_name, alignmentObj, sample)
-                    DISCORDANTS.append(DISCORDANT)
-
-                    # Initialize new block
-                    blockBeg = blockEnd + length
-                    blockEnd = blockEnd + length
-
-                # b) Extend current block
-                else:
-                    blockEnd = blockEnd + length   
-
-            ## End last block by creating a discordant
-            DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, blockBeg, blockEnd, orientation, pair, alignmentObj.query_name, alignmentObj, sample)
-            DISCORDANTS.append(DISCORDANT)
+    ## Join tumour and normal lists
+    DISCORDANTS = DISCORDANTS_SAMPLE + DISCORDANTS_NORMAL
 
     return DISCORDANTS
 
-
-def collectMatesSeq(events, tumourBam, normalBam, checkUnmapped, maxMAPQ):
+def collectDISCORDANT(ref, binBeg, binEnd, bam, confDict, sample, supplementary):
     '''
-    From a list of events, get the mate sequence for each event.
-    
+    In a given indexed bam file for each  a read alignment check if the read is discordant (not proper in pair) and return the corresponding discordant objects
+
     Input:
-        1. events: list of events
-        2. tumourBam
-        3. normalBam
-        4. checkUnmapped: boolean. True -> collect only the sequence of those mates that are unmapped, False -> dont take into account if they are unmapped or not.
-        5. maxMAPQ: collect only the sequence of those mates witn MAPQ < maxMAPQ
+        1. ref: target referenge
+        2. binBeg: bin begin
+        3. binEnd: bin end
+        4. bam: indexed BAM file
+        5. confDict:
+            * minMAPQ -> minimum mapping quality
+            * filterDuplicates -> If True filter out reads labeled as duplicates in bam file.
+        6. sample: type of sample (TUMOUR, NORMAL or None)
+        7. supplementary: Filter out supplementary alignments if False. (Neccesary to avoid pick supplementary clipping reads while adding to discordant clusters in short reads mode)
+
     Output:
-        1. It doesnt return anything, just add the mate sequence to event.mateSeq attribute.
+        1. DISCORDANTS: list containing input discordant read pair events
     '''
 
-    counter = 0
+    # Define target interval
+    targetInterval = (binBeg, binEnd)
 
-    ## 2. Open BAM file for reading
-    bamFile = pysam.AlignmentFile(tumourBam, "rb")
+    # Initialize discordant events list
+    DISCORDANTS = []
 
-    # TODO: First and second conditions can be together, since they have same outcome.
-    msg = 'LEN EVENTTTS: ' + str(len(events))
-    log.subHeader(msg)
-    for event in events:
-        counter += 1
-        if event.sample == None:
-            collectMateSeq(event, bamFile, checkUnmapped, maxMAPQ)
-        elif event.sample == 'TUMOUR':
-            collectMateSeq(event, tumourBam, checkUnmapped, maxMAPQ)
-        elif event.sample == 'NORMAL':
-            collectMateSeq(event, normalBam, checkUnmapped, maxMAPQ)
+    ## Open BAM file for reading
+    bamFile = pysam.AlignmentFile(bam, "rb")
 
-    msg = '[COUNTER OF collectMatesSeq LOOP] '+ str(counter)
-    log.subHeader(msg)
-
-
-def collectMateSeq(event, bamFile, checkUnmapped, maxMAPQ):
-    '''
-    Get mate sequence for an event.
+    ## Extract alignments
+    iterator = bamFile.fetch(ref, binBeg, binEnd)
     
-    Input:
-        1. event: DISCORDANT event
-        2. bam file
-        3. checkUnmapped: boolean. True -> Pick only those sequences that are unmmapped or with mapping quality < maxMAPQ. False -> Pick only those sequences with mapping quality < maxMAPQ
-        4. maxMAPQ: int. Pick only those reads with MAPQ < maxMAPQ.
-    Output:
-        1. It doesnt return anything, just add the mate sequence to event.mateSeq attribute.
-    '''
-    msg = '[Start collectMateSeq]'
-    log.subHeader(msg)
-    
-    ## 1. Define bin coordinates based on mate position
-    mateRef = event.mateRef
-    mateStart = event.mateStart
+    # For each read alignment
+    for alignmentObj in iterator:
 
-    binBegMate = mateStart
-    binEndMate = mateStart + 1
+        ### 1. Filter out alignments based on different criteria:
+        MAPQ = int(alignmentObj.mapping_quality) # Mapping quality
 
-    readName = event.readName.split('/')[0]
+        ## Unmapped reads   
+        if alignmentObj.is_unmapped == True:
+            continue
 
-    ## 2. Open BAM file for reading
-    # Extract alignments   
-    iteratorMate = bamFile.fetch(mateRef, binBegMate, binEndMate)
-    
-    # 3. For each read alignment
-    for alignmentObjMate in iteratorMate:
-        
-        # Check if the aligment has same query_name but different orientation (to ensure that its the mate and not the read itself)
-        if readName == alignmentObjMate.query_name:
-            
-            msg = '[collectMateSeq: if readName == alignmentObjMate.query_name]' + str(binBegMate)
-            log.subHeader(msg)
-            
-            matePair = '1' if alignmentObjMate.is_read1 else '2'
-            
-            if matePair != event.pair:
-                msg = 'if matePair != event.pair' + str(binBegMate)
-                log.subHeader(msg)
+        ## No query sequence available
+        if alignmentObj.query_sequence == None:
+            continue
 
-                MAPQ = int(alignmentObjMate.mapping_quality)
-                
-                # Pick only those sequences that are unmmapped or with mapping quality < maxMAPQ
-                if checkUnmapped == True:
-                    if (alignmentObjMate.is_unmapped == True) or (MAPQ < maxMAPQ):
-                        msg = 'if (alignmentObjMate.is_unmapped == True) or (MAPQ < maxMAPQ)' + str(binBegMate)
-                        log.subHeader(msg)
+        ## Aligments with MAPQ < threshold
+        if (MAPQ < confDict['minMAPQ']):
+            continue
 
-                        #if len(alignmentObjMate.query_sequence) > 100:
-                        event.mateSeq = alignmentObjMate.query_sequence
-                        break
-                    
-                # Pick only those sequences with mapping quality < maxMAPQ
-                else:
-                    if MAPQ < maxMAPQ:
-                        msg = 'if MAPQ < maxMAPQ' + str(binBegMate)
-                        log.subHeader(msg)
-                        event.mateSeq = alignmentObjMate.query_sequence
-                        break
+        ## Duplicates filtering enabled and duplicate alignment
+        if (confDict['filterDuplicates'] == True) and (alignmentObj.is_duplicate == True):
+            continue
+
+        # Filter out supplementary alignments if False. (Neccesary to avoid pick supplementary clipping reads while adding to discordant clusters in short reads mode)
+        if supplementary == False and alignmentObj.is_supplementary == True:
+            continue
+
+        # Filter SMS reads (reads with CIGAR #S#M#S)
+        firstOperation, firstOperationLen = alignmentObj.cigartuples[0]
+        lastOperation, lastOperationLen = alignmentObj.cigartuples[-1]
+        if ((firstOperation == 4) or (firstOperation == 5)) and ((lastOperation == 4) or (lastOperation == 5)):
+            continue
+
+        # If not proper pair (== discordant)
+        if not alignmentObj.is_proper_pair:
+
+            ## 1. Determine discordant orientation
+            # a) Minus
+            if alignmentObj.is_reverse:
+                orientation = 'MINUS'
+
+            # b) Plus
+            else:
+                orientation = 'PLUS'
+
+            ## 2. Determine if discordant is mate 1 or 2
+            if alignmentObj.is_read1:
+                pair = '1'
+
+            else:
+                pair = '2'
+
+            ## 3. Determine number of alignment blocks
+            operations = [t[0] for t in alignmentObj.cigartuples]
+            nbBlocks = operations.count(3) + 1 
+
+            ## 4. Create discordant event
+            # A) Read aligning in a single block (WG or RNA-seq read no spanning a splice junction)
+            # TODO SR: collectDISCORDANT: Think and check if is neccessary to take into account the number of blocks
+            if nbBlocks == 1:
+                DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, orientation, pair, alignmentObj.query_name, alignmentObj, sample, alignmentObj.is_duplicate)
+                DISCORDANTS.append(DISCORDANT)
+
+            # B) Read alignning in multiple blocks (RNA-seq read spanning one or multiple splice junctions) -> Create one discordant event per block
+            else:
+
+                blockBeg = alignmentObj.reference_start
+                blockEnd = blockBeg
+
+                # For each operation
+                for cigarTuple in alignmentObj.cigartuples:
+
+                    operation = int(cigarTuple[0])
+                    length = int(cigarTuple[1])
+
+                    # a) End of the block -> End current block by creating a discordant event and Initiate a new block
+                    if operation == 3:
+
+                        # Create discordant event for the block
+                        DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, blockBeg, blockEnd, orientation, pair, alignmentObj.query_name, alignmentObj, sample, alignmentObj.is_duplicate)
+                        DISCORDANTS.append(DISCORDANT)
+
+                        # Initialize new block
+                        blockBeg = blockEnd + length
+                        blockEnd = blockEnd + length
+
+                    # b) Extend current block
+                    else:
+                        blockEnd = blockEnd + length   
+
+                ## End last block by creating a discordant
+                DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, blockBeg, blockEnd, orientation, pair, alignmentObj.query_name, alignmentObj, sample, alignmentObj.is_duplicate)
+                DISCORDANTS.append(DISCORDANT)
+
+    return DISCORDANTS
 
 def average_MAPQ_reads_interval(ref, beg, end, readIds, bam):
     '''
@@ -898,3 +885,227 @@ def average_MAPQ_reads_interval(ref, beg, end, readIds, bam):
     avMAPQ = np.mean(qualities)
     
     return avMAPQ
+
+def collectDiscodantsLowMAPQSeq(ref, binBeg, binEnd, bam, discordantMatesMaxMAPQ, discordantMatesCheckUnmapped, discordantMatesSupplementary, discordantMatesMaxBasePerc, discordantMatesMinLcc, outDir):
+    '''
+    Collecting read name and sequence of discordant low quality reads from all bam refs
+
+    Input:
+        1. ref: target referenge
+        2. binBeg: bin begin
+        3. binEnd: bin end
+        4. bam: indexed BAM file
+        5. discordantMatesMaxMAPQ: Maximum mapping quality used for collecting dicordant read mates.
+        6. discordantMatesCheckUnmapped: Boolean. If True, when a dicordant read mate is unmapped, collect it no matter its MAPQ
+        7. discordantMatesSupplementary: Boolean. When False, avoid collecting dicordant read mates that are supplementary alignments.
+        8. discordantMatesMaxBasePerc: Maximum base percentage of discordant read mates sequences.
+        9. discordantMatesMinLcc: Minimum local complexity of discordant read mates sequences.
+        10. outDir: Output directory
+    
+    Output:
+        1. Doesn't return anything. It creates a fasta file with discordant low quality reads from all bam refs.
+    '''
+    # TODO SR: Think if filterDuplicates step is neccesary in collectSeq method and implement it if so.
+    #filterDuplicates = True
+
+    ## Initialize dictionary to store SV events
+    eventsSeqDict = {}
+
+    ## Open BAM file for reading
+    bamFile = pysam.AlignmentFile(bam, "rb")
+
+    ## Extract alignments
+    iterator = bamFile.fetch(ref, binBeg, binEnd)
+    
+    # For each read alignment
+    for alignmentObj in iterator:
+
+        ### Filter out alignments based on different criteria:
+        MAPQ = int(alignmentObj.mapping_quality) # Mapping quality
+
+        ## No query sequence available
+        if alignmentObj.query_sequence == None:
+            continue
+
+        ## Aligments with MAPQ < threshold
+        if (MAPQ > discordantMatesMaxMAPQ):
+            continue
+
+        # TODO SR: Think if filterDuplicates step is neccesary in collectSeq method and implement it if so.
+        ## Duplicates filtering enabled and duplicate alignment
+        #if (confDict['filterDuplicates'] == True) and (alignmentObj.is_duplicate == True):
+            #continue
+
+        # Filter supplementary alignments if TRUE. (Neccesary to avoid pick supplementary clipping reads while adding to discordant clusters in short reads mode)
+        if discordantMatesSupplementary == False and alignmentObj.is_supplementary == True:
+            continue
+        
+        ## Collect DISCORDANT low quality reads in dictionary -> eventsSeqDict[readName] = readSequence
+
+        if not alignmentObj.is_proper_pair:
+
+            # Pick sequences that are unmmapped or with mapping quality < discordantMatesMaxMAPQ
+            if discordantMatesCheckUnmapped == True:
+                if (alignmentObj.is_unmapped == True) or (MAPQ < discordantMatesMaxMAPQ):
+                    # Calculate base percentage
+                    basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
+                    # Delete total value of base percentage result
+                    del basePercs['total']
+                    # Only those sequences with base percentage lower than 85 are collected:
+                    if all(perc < discordantMatesMaxBasePerc for perc in basePercs.values()):
+                        # Check local complexity of sequences:
+                        complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
+                        # Only those sequences with local complexity lower than 1.49 are collected:
+                        if complexity > discordantMatesMinLcc:
+                            eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
+
+            # Pick sequences with mapping quality < discordantMatesMaxMAPQ
+            else:
+                if MAPQ < discordantMatesMaxMAPQ:
+                    # Calculate base percentage
+                    basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
+                    # Delete total value of base percentage result
+                    del basePercs['total']
+                    # Only those sequences with base percentage lower than 85 are collected:
+                    if all(perc < discordantMatesMaxBasePerc for perc in basePercs.values()):
+                        # Check local complexity of sequences:
+                        complexity = Bio.SeqUtils.lcc.lcc_simp(alignmentObj.query_sequence)
+                        # Only those sequences with local complexity lower than 1.49 are collected:
+                        if complexity > discordantMatesMinLcc:
+                            eventsSeqDict[alignmentObj.query_name]=alignmentObj.query_sequence
+        
+    ## Close 
+    bamFile.close()
+    collectVirusDir = outDir + '/COLLECT_VIRUS'
+    # Set output FASTA file name
+    allFastas_all = collectVirusDir + "/allFastas_all.fasta"
+    # Create FASTA object
+    seqsFastaObj= formats.FASTA()
+    # Create FASTA dictionary
+    seqsFastaObj.seqDict = eventsSeqDict
+    # Write output FASTA
+    seqsFastaObj.write(allFastas_all, 'append', True)
+
+    # Delete useless variables
+    del eventsSeqDict
+    del seqsFastaObj
+
+    return
+
+def samtools_index_bam(BAM, outDir):
+    '''
+    Index bam file using samtools
+
+    Input:
+        1. BAM: Input bam file complete path.
+    
+    Output:
+        1. Doesn't return anything. Creates bam index files.
+    '''
+    logDir = outDir + '/Logs'
+    unix.mkdir(logDir)
+
+    command = 'samtools index ' + BAM
+    err = open(logDir + '/samtools_index_bam.err', 'w') 
+    status = subprocess.call(command, stderr=err, shell=True)
+
+    return
+
+def BAM2FastaDict(BAM):
+    '''
+    Pick reads names and sequences from bam file and write tham in FASTA format.
+
+    Input:
+        1. BAM: Input bam file complete path.
+
+    Output:
+        1. fastaDict: fastaDict[readName] = readSequence
+    '''
+
+    # Read bam and store in a dictionary
+    bamFile = pysam.AlignmentFile(BAM, 'rb')
+
+    iterator = bamFile.fetch()
+    
+    fastaDict= {}
+    # For each read alignment
+    for alignmentObj in iterator:
+
+        if alignmentObj.query_name in fastaDict.keys():
+            fastaDict[alignmentObj.query_name].append(alignmentObj.reference_name)
+        else:
+            fastaDict[alignmentObj.query_name] = []
+            fastaDict[alignmentObj.query_name].append(alignmentObj.reference_name)
+
+
+
+    return fastaDict
+
+def filterBAM2FastaDict(BAM, minTotalMatchVirus, minParcialMatchVirus, maxMatchCheckMAPQVirus, minMAPQVirus, maxBasePercVirus, minLccVirus):
+    '''
+    '''
+
+    # Read bam and store in a dictionary
+    bamFile = pysam.AlignmentFile(BAM, 'rb')
+
+    iterator = bamFile.fetch()
+    
+    fastaDict= {}
+
+    # For each read alignment
+    for alignmentObj in iterator:
+        alignmentPass = False
+        #numMatches = 0
+        queryCoord = 0
+
+        if not alignmentObj.is_unmapped:
+            ctuples = alignmentObj.cigartuples
+            allMatches = [t[1] for t in ctuples if t[0] == 0]
+            totalMatch = sum (allMatches)
+            if totalMatch >= minTotalMatchVirus:
+                c = Cigar(alignmentObj.cigarstring)
+                for citem  in list(c.items()):
+                    # If cigar is query consuming, update query coordinates:
+                    if citem[1] != 'M' and citem[1] != 'D' and citem[1] != '=':
+                        queryCoord = queryCoord + int(citem[0])
+                    elif citem[1] == 'M' or citem[1] == '=':
+                        if citem[0] >= minParcialMatchVirus:
+                            if (citem[0] <= maxMatchCheckMAPQVirus and alignmentObj.mapping_quality > minMAPQVirus) or citem[0] > maxMatchCheckMAPQVirus:
+                                sequence = alignmentObj.query_sequence[queryCoord:(queryCoord + int(citem[0]))]
+                                # Calculate base percentage
+                                basePercs = sequences.baseComposition(sequence)[1]
+                                # Delete total value of base percentage result
+                                del basePercs['total']
+                                # Only those sequences with base percentage lower than 85 are collected:
+                                if all(perc < maxBasePercVirus for perc in basePercs.values()):
+                                    # Calculate complexity
+                                    complexity = Bio.SeqUtils.lcc.lcc_simp(sequence)
+                                    if complexity > minLccVirus:
+                                        alignmentPass = True
+                                        break
+                                    else:
+                                        queryCoord = queryCoord + int(citem[0])
+                                else:
+                                    queryCoord = queryCoord + int(citem[0])
+                        else:
+                            queryCoord = queryCoord + int(citem[0])
+        '''
+        print (numMatches)
+        if numMatches > 90: # TODO SR: put this as an option
+            alignmentPass = True
+        elif alignmentObj.mapping_quality >= viralBamMAPQ and numMatches >= int(selectedPartialMatches):
+            alignmentPass = True
+        # New condition:
+        # TODO SR: Put as options!!!
+        elif alignmentObj.mapping_quality >= 40 and numMatches >= 60:
+            alignmentPass = True
+        '''
+        if alignmentPass == True:
+            # Add to fasta dict
+            if alignmentObj.query_name in fastaDict.keys():
+                fastaDict[alignmentObj.query_name].append(alignmentObj.reference_name)
+            else:
+                fastaDict[alignmentObj.query_name] = []
+                fastaDict[alignmentObj.query_name].append(alignmentObj.reference_name)
+
+    return fastaDict
