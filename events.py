@@ -13,7 +13,7 @@ import bamtools
 import formats
 from cigar import Cigar
 import gRanges
-
+import alignment
 
 ###############
 ## FUNCTIONS ##
@@ -167,8 +167,70 @@ def determine_clippingType(alignmentObj, clippedSide):
 
     return clippingType
 
+def search4supplementary(clippings, reference, outName, outDir):
+    '''
+    Realign clipped sequences for clipping events to search for supplementary alignments. Skip 
+    if clipping event already has reported supplementary alignments
 
-def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, bam, normalBam, binDir, targetINT2Search, viralSeqs):
+    Input:
+        1. clippings: List of clipping events
+        2. reference: Path to the reference genome in fasta format (bwa mem index must be located in the same folder)
+        2. outName: Output file name
+        3. outDir: Output directory
+
+    Output: Update supplementary alignment information for clipping events
+    '''
+    ## 1. Generate fasta containing soft clipped sequences
+    clippedFasta = collect_soft_clipped_seqs(clippings)
+
+    ## 2. Select only those clippings without supplementary alignments
+    targetClippings = [clipping.fullReadName() for clipping in clippings if (clipping.clippingType == 'soft' and clipping.supplAlignment is None)]
+    clippedFasta.seqDict = clippedFasta.retrieve_seqs(targetClippings)
+
+    ## 3. Write clipped sequences into fasta
+    filePath = outDir + '/' + outName + '.fa'
+    clippedFasta.write(filePath)
+
+    ## 4. Align clipped sequences with BWA-mem into the reference genome
+    pslPath = alignment.alignment_blat(filePath, reference, outName, outDir)
+    PSL = formats.PSL()
+    PSL.read(pslPath)
+
+    ## 5. Filter alignments
+    ## 5.1 Filter partially aligned sequences
+    PSL.alignments = PSL.filter_align_perc(95)
+
+    ## 5.2 Filter ambiguously mapped sequences
+    PSL.alignments = PSL.filter_nb_hits(5)
+
+    ## 6. Convert alignments in psl format into SA string
+    clippingsDict = {clipping.fullReadName(): clipping for clipping in clippings}
+    PSL.hits2clipping(clippingsDict)
+
+
+def collect_soft_clipped_seqs(clippings):
+    '''
+    Collect soft clipped sequences for a list of input clipping events. 
+
+    Input:
+        1. clippings: list of clipping events
+
+    Output:
+        1. clippedFasta: fasta file containing clipped sequences
+    '''
+    ## 1. Initialize fasta file object
+    clippedFasta = formats.FASTA()
+
+    ## 2. Extract clipped sequences per soft-clipping event and add to the dictionary
+    for clipping in clippings:
+
+        if clipping.clippingType == 'soft':
+
+            clippedFasta.seqDict[clipping.fullReadName()] = clipping.clipped_seq()
+
+    return clippedFasta
+
+def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb):
     '''
     Determine discortant read pair identity based on the mapping position of anchor´s mate
 
@@ -176,88 +238,68 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
         1. discordants: list containing input discordant read pair events
         2. repeatsBinDb: dictionary containing annotated retrotransposons organized per chromosome (keys) into genomic bins (values)
         3. transducedBinDb: dictionary containing source element transduced regions (keys) into genomic bins (values)
-        . viralSeqs
 
     Output:
-        1. discordantsIdentity: dictionary containing lists of discordant read pairs organized taking into account their identity
-                                This info is encoded in the dictionary keys as follows. Keys composed by 2 elements separated by '-':
+        1. discordantsIdentity: dictionary containing lists of discordant read pairs organized taking into account their orientation and if the mate aligns in an annotated retrotransposon 
+                                This info is encoded in the dictionary keys as follows. Keys composed by 3 elements separated by '_':
+                                
+                                    - Orientation: read orientation (PLUS or MINUS)
                                     - Event type: DISCORDANT   
                                     - Type: identity type. It can be retrotransposon family (L1, Alu, ...), source element (22q, 5p, ...), viral strain (HPV, ...)
     '''
-    # If both, RT and virus, are analysed check if it is a virus only if it is not a RT.
-    discordantsIdentityMEs = {}
-    discordantsNone = {}
-
-    if 'ME' in targetINT2Search:
-        ## 1. Assess if discordant read pairs support transduction insertion if transduction database provided
-        if transducedBinDb is not None:
-            discordantsTd = annotation.intersect_mate_annotation(discordants, transducedBinDb, 'cytobandId')
-
-            ## Separate discordants matching from those not matching source elements
-            discordants = []
-
-            if 'PLUS-DISCORDANT-None' in discordantsTd:
-                discordants = discordants + discordantsTd['PLUS-DISCORDANT-None']
-                discordantsTd.pop('PLUS-DISCORDANT-None', None)
-
-            if 'MINUS-DISCORDANT-None' in discordantsTd:
-                discordants = discordants + discordantsTd['MINUS-DISCORDANT-None']
-                discordantsTd.pop('MINUS-DISCORDANT-None', None)
-        else:
-
-            discordantsTd = {}
-
-        ## 2. Assess if discordant read pairs support retrotransposons insertion if repeats database provided
-        discordantsNone = {}
-        discordantsNone['PLUS-DISCORDANT-None'] = []
-        discordantsNone['MINUS-DISCORDANT-None'] = []
-        if repeatsBinDb is not None:
-            discordantsRt = annotation.intersect_mate_annotation(discordants, repeatsBinDb, 'family')
-
-            if 'PLUS-DISCORDANT-None' in discordantsRt:
-                discordantsNone['PLUS-DISCORDANT-None'].extend(discordantsRt['PLUS-DISCORDANT-None'])
-                discordantsRt.pop('PLUS-DISCORDANT-None', None)
-
-            if 'MINUS-DISCORDANT-None' in discordantsRt:
-                discordantsNone['MINUS-DISCORDANT-None'].extend(discordantsRt['MINUS-DISCORDANT-None'])
-                discordantsRt.pop('MINUS-DISCORDANT-None', None)
-
-        else:
-            discordantsRt = {}
-        ## 3. Merge discordant read pairs supporting RT and transduction insertions if transduction database provided    
-        #discordantsIdentityMEs = structures.merge_dictionaries([discordantsTd, discordantsRt, discordantsNone])
-        discordantsIdentityMEs = structures.merge_dictionaries([discordantsTd, discordantsRt])
-
-        # Remaining discordants for viruses:
-        # NOTE SR: If viruses and MEs are searched at once, those discordants identified as MEs are NOT checked for viral identities.
-        discordants = discordantsNone['PLUS-DISCORDANT-None'] + discordantsNone['MINUS-DISCORDANT-None']
     
+    ## 1. Assess if discordant read pairs support transduction insertion if transduction database provided
+    if transducedBinDb is not None:
+        discordantsTd = annotation.intersect_mate_annotation(discordants, transducedBinDb, 'cytobandId')
 
+        ## Separate discordants matching from those not matching source elements
+        discordants = []
 
+        if 'PLUS_DISCORDANT_None' in discordantsTd:
+            discordants = discordants + discordantsTd['PLUS_DISCORDANT_None']
+            discordantsTd.pop('PLUS_DISCORDANT_None', None)
+
+        if 'MINUS_DISCORDANT_None' in discordantsTd:
+            discordants = discordants + discordantsTd['MINUS_DISCORDANT_None']
+            discordantsTd.pop('MINUS_DISCORDANT_None', None)
+    else:
+
+        discordantsTd = {}
+
+    ## 2. Assess if discordant read pairs support retrotransposons insertion if repeats database provided
+    if repeatsBinDb is not None:
+        discordantsRt = annotation.intersect_mate_annotation(discordants, repeatsBinDb, 'family')
+
+        if 'PLUS_DISCORDANT_None' in discordantsRt:
+            discordantsRt.pop('PLUS_DISCORDANT_None', None)
+
+        if 'MINUS_DISCORDANT_None' in discordantsRt:
+            discordantsRt.pop('MINUS_DISCORDANT_None', None)
+
+    else:
+        discordantsRt = {}
+
+    ## 3. Merge discordant read pairs supporting RT and transduction insertions if transduction database provided    
+    discordantsIdentity = structures.merge_dictionaries([discordantsTd, discordantsRt])
+
+    '''
     ## 2. Assess if discordant read pairs support viral insertion
 
     # Create a list containing all discordant events:
-    #discordantEvents = []
-    #for eventType in discordantDict.keys():
-    #discordantEvents.extend(discordantDict[eventType])
+    discordantEvents = []
+    for eventType in discordantDict.keys():
+    discordantEvents.extend(discordantDict[eventType])
 
-    # TODO SR: Make viruses optional in determine_discordant_identity
-    # TODO SR: Add RT analysis in determine_discordant_identity
-    discordantEventsIdent = {}
+    # a) Single sample mode
+    if self.mode == "SINGLE":
+        discordantEventsIdent = virus.is_virusSR(discordantEvents, self.bam, None, binDir, self.viralDbIndex)
 
-    # Remove discordants events that were clasified as MEs (MAYBE CHANGE THIS WHEN ADDED NEW PARAMETER)
-
-        
-    if 'VIRUS' in targetINT2Search and viralSeqs:
-        discordantEventsIdent = virus.is_virusSR(discordants, viralSeqs)
-    # If VIRUS is not selected, add events with identity == None. (If VIRUS is selected they are already in discordantEventsIdent)
+    # b) Paired sample mode (tumour & matched normal)
     else:
-        discordantsIdentityMEs.update(discordantsNone)
-    #discordantsIdentity = structures.merge_dictionaries([discordantEventsIdent, discordantsIdentityMEs])
-    discordantEventsIdent.update(discordantsIdentityMEs)
+        discordantEventsIdent = virus.is_virusSR(discordantEvents, self.bam, self.normalBam, binDir, self.viralDbIndex)
+    '''
 
-    #return discordantsIdentity
-    return discordantEventsIdent
+    return discordantsIdentity
 
 def discordants2mates(discordants):
     '''
@@ -329,6 +371,34 @@ def events2nestedDict(events, eventType):
         eventsDict[event.ref][eventType].append(event)
 
     return eventsDict
+
+def mergeNestedDict(dictA, dictB):
+    '''
+    Merge two nested dictionaries into a single one
+    '''
+    ## 1. Generate not redundant list of keus
+    keysA = list(dictA.keys()) 
+    keysB = list(dictB.keys()) 
+    keys = list(set(keysA + keysB))
+
+    ## 2. Initialize output dict
+    outDict = {}
+
+    for key in keys:
+        outDict[key] = {}
+
+    ## 3. Add content in dict A
+    for keyA in dictA.keys():
+        for keyB in dictA[keyA].keys():
+            outDict[keyA][keyB] = dictA[keyA][keyB]
+    
+    ## 4. Add content in dict B
+    for keyA in dictB.keys():
+        for keyB in dictB[keyA].keys():
+            outDict[keyA][keyB] = dictB[keyA][keyB]
+    
+    return outDict
+
 
 def merge_INS(INS_list):
     '''
@@ -466,7 +536,7 @@ class CLIPPING():
     '''
     number = 0 # Number of instances
 
-    def __init__(self, ref, beg, end, length, clippedSide, readName, readSeq, readBkp, pair, alignmentObj, sample):
+    def __init__(self, ref, beg, end, length, clippedSide, pair, readName, readSeq, readBkp, alignmentObj, sample):
         '''
         '''
         CLIPPING.number += 1 # Update instances counter
@@ -478,14 +548,12 @@ class CLIPPING():
         self.length = length
         self.clippedSide = clippedSide
         self.clippingType = determine_clippingType(alignmentObj, self.clippedSide)
+        self.pair = str(pair)
         self.readName = readName
         self.readSeq = readSeq
         self.readBkp = readBkp        
         self.sample = sample
         self.clusterId = None
-        self.pair = str(pair)
-        self.blatIdentity = False
-        self.cigarTuples = alignmentObj.cigartuples
 
         # Supporting read alignment properties:
         if alignmentObj is None:
@@ -495,7 +563,8 @@ class CLIPPING():
             self.supplementary = None
             self.mapQual = None
             self.supplAlignment = None
-
+            self.isDup = None
+            
         else:
             self.CIGAR = alignmentObj.cigarstring
             self.reverse = alignmentObj.is_reverse
@@ -504,7 +573,7 @@ class CLIPPING():
             self.mapQual = alignmentObj.mapping_quality
             self.supplAlignment = alignmentObj.get_tag('SA') if alignmentObj.has_tag('SA') else None
             self.refLen = alignmentObj.reference_length
-            self.is_duplicate = alignmentObj.is_duplicate
+            self.isDup = alignmentObj.is_duplicate
 
     def fullReadName(self):
         '''
@@ -513,36 +582,7 @@ class CLIPPING():
         fullReadName = self.readName + '/' + self.pair
 
         return fullReadName
-
-    def ref_seq(self):
-        '''
-        Retrieve clipped piece of read sequence
-        '''
-        # a) Right clipping
-        if self.clippedSide == 'right':
-            refSeq = self.readSeq[:self.readBkp]
-
-        # b) Left clipping
-        else:
-            refSeq = self.readSeq[self.readBkp:]
-        
-        return refSeq
-
-
-    def clipped_seq(self):
-        '''
-        Retrieve clipped piece of read sequence
-        '''
-        # a) Right clipping
-        if self.clippedSide == 'right':
-            clippedSeq = self.readSeq[self.readBkp:]
-
-        # b) Left clipping
-        else:
-            clippedSeq = self.readSeq[:self.readBkp]
-        
-        return clippedSeq
-
+    
     def readCoordinates(self):
         '''
         Compute read level alignment coordinates
@@ -558,7 +598,7 @@ class CLIPPING():
 
     def clipped_interval_coordinates(self):
         '''
-        Compute read level coordinates for the clipped piece of the read sequence
+        Compute original read level coordinates for the clipped piece of the read sequence
 
                                    bkp
                     ######READ######|********CLIPPED********
@@ -598,6 +638,19 @@ class CLIPPING():
 
         return clippedBeg, clippedEnd
 
+    def clipped_seq(self):
+        '''
+        Retrieve clipped piece of read sequence
+        '''
+        # a) Right clipping
+        if self.clippedSide == 'right':
+            clippedSeq = self.readSeq[self.readBkp:]
+
+        # b) Left clipping
+        else:
+            clippedSeq = self.readSeq[:self.readBkp]
+        
+        return clippedSeq
 
     def parse_supplAlignments_field(self):
         '''
@@ -621,7 +674,7 @@ class CLIPPING():
         
         # For each supplementary alignment
         for supplAlignment in self.supplAlignment.split(';')[:-1]:
-
+            
             # Extract info
             ref, beg, strand, CIGAR, mapQ, NM = supplAlignment.split(',')
             
@@ -630,7 +683,7 @@ class CLIPPING():
             end = int(beg) + alignmentLen
 
             # Create suppl. alignment object
-            supplObject = SUPPLEMENTARY(ref, beg, end, strand, CIGAR, mapQ, NM, self.readName)
+            supplObject = SUPPLEMENTARY(ref, beg, end, strand, CIGAR, mapQ, NM, self.readName, self.id, self.sample)
 
             # Initialize ref if necessary
             if supplObject.ref not in supplAlignmentsDict:
@@ -708,7 +761,7 @@ class CLIPPING():
         clippingBeg, clippingEnd = self.readCoordinates()
         strand = '-' if self.reverse else '+'
         fields = ['clipping', 0, clippingBeg, clippingEnd, strand, self.ref, 0, self.beg, self.end, 0, 0, self.mapQual]
-        line = formats.PAF_line(fields)
+        line = formats.PAF_alignment(fields)
 
         # Add alignment
         PAF.alignments.append(line)
@@ -723,7 +776,7 @@ class CLIPPING():
             seqName = 'supplementary_' + str(index)
             supplBeg, supplEnd = supplAlignment.readCoordinates()
             fields = [seqName, 0, supplBeg, supplEnd, supplAlignment.orientation, supplAlignment.ref, 0, supplAlignment.beg, supplAlignment.end, 0, 0, supplAlignment.mapQ]
-            line = formats.PAF_line(fields)
+            line = formats.PAF_alignment(fields)
 
             # Add PAF alignment to the PAF
             PAF.alignments.append(line)
@@ -809,17 +862,20 @@ class SUPPLEMENTARY():
     '''
     number = 0 # Number of instances
     
-    def __init__(self, ref, beg, end, orientation, CIGAR, mapQ, NM, readName):
+    def __init__(self, ref, beg, end, orientation, CIGAR, mapQ, NM, readName, clippingId, sample):
         SUPPLEMENTARY.number += 1 # Update instances counter
         self.id = 'SUPPLEMENTARY_' + str(SUPPLEMENTARY.number)
+        self.type = 'SUPPLEMENTARY'
         self.ref = str(ref)
         self.beg = int(beg)
         self.end = int(end)
         self.orientation = orientation
         self.CIGAR = CIGAR
-        self.mapQ = mapQ
+        self.mapQ = int(mapQ)
         self.NM = NM
         self.readName = readName
+        self.clippingId = clippingId
+        self.sample = sample
         self.readIndex = None
         self.anchorSide = None
         self.insertSize = None
@@ -842,7 +898,7 @@ class DISCORDANT():
     '''
     number = 0 # Number of instances
     
-    def __init__(self, ref, beg, end, orientation, pair, readName, alignmentObj, sample, duplicate):
+    def __init__(self, ref, beg, end, orientation, pair, readName, alignmentObj, sample):
         DISCORDANT.number += 1 # Update instances counter
         self.id = 'DISCORDANT_' + str(DISCORDANT.number)
         self.type = 'DISCORDANT'
@@ -853,23 +909,23 @@ class DISCORDANT():
         self.pair = str(pair)
         self.readName = readName 
         self.sample = sample
-        self.is_duplicate = duplicate
         self.clusterId = None
-        self.mapQual = alignmentObj.mapq
-        self.cigarTuples = alignmentObj.cigartuples
-        self.element = None
         self.identity = None
-        self.specificIdentity = None
-       
+        
         ## Mate info
         self.mateSeq = None
 
         if alignmentObj is None:
+            self.isDup = None
             self.mateRef = None
-            self.mateStart = None           
+            self.mateStart = None
+            self.CIGAR = None
+             
         else:
+            self.isDup = alignmentObj.is_duplicate
             self.mateRef = alignmentObj.next_reference_name
             self.mateStart = alignmentObj.next_reference_start
+            self.CIGAR = alignmentObj.cigarstring            
 
     def fullReadName(self):
         '''
@@ -887,73 +943,16 @@ class DISCORDANT():
         matePair = '2' if self.pair == '1' else '1'
         fullReadName = self.readName + '/' + matePair
 
-        return fullReadName    
+        return fullReadName
+    
+    def readCoordinates(self):
+        '''
+        Compute read level alignment coordinates
 
-    def setIdentity(self, identity):
-        if identity == None:
-            self.identity = None
-            self.specificIdentity = None
-        else:
-            # As viral identity is a list, that can have more than one element, check number of elements of identity
-            if len(identity) == 1:
-                identity = ''.join(identity)
-                self.identity = identity.split("|")[0]
-                try:
-                    self.specificIdentity = identity.split("|")[1]
-                except IndexError:
-                    self.specificIdentity = None
+        Output:
+            1. begQuery: query start alignment position
+            2. endQuery: query end alignment position
+        '''
+        begQuery, endQuery = bamtools.alignment_interval_query(self.CIGAR, self.orientation)
+        return begQuery, endQuery
 
-            # If length of identity is higher than 1, make lists of identity and specific identity.
-            elif len(identity) > 1:
-                genIdent = []
-                specificIdent = []
-                for ident in identity:
-                    genIdent.append(ident.split('|')[0])
-                    try:
-                        specificIdent.append(ident.split('|')[1])
-                    except IndexError:
-                        pass
-
-                # Uniq lists and sort them.
-                identity = list(set(genIdent))
-                identity.sort()
-                if len(identity) == 1:
-                    identity = ''.join(identity)
-                else:
-                    identity = '_'.join(identity)
-                
-                if specificIdent != []:
-                    specificIdentity = list(set(specificIdent))
-                    specificIdentity.sort()
-                    if len(specificIdentity) == 1:
-                        specificIdentity = ''.join(specificIdentity)
-                    else:
-                        specificIdentity = '_'.join(specificIdentity)
-                else:
-                    specificIdentity = None
-                
-                self.identity = identity
-                self.specificIdentity = specificIdentity
-
-
-def collect_clipped_seqs(clippings):
-    '''
-    Collect soft clipped sequences for a list of input clipping events. 
-
-    Input:
-        1. clippings: list of clipping events
-
-    Output:
-        1. clippedFasta: fasta file containing clipped sequences
-    '''
-    ## 1. Initialize fasta file object
-    clippedFasta = formats.FASTA()
-
-    ## 2. Extract clipped sequences per soft-clipping event and add to the dictionary
-    for clipping in clippings:
-
-        #if clipping.clippingType == 'soft':
-
-        clippedFasta.seqDict[clipping.readName] = clipping.clipped_seq()
-
-    return clippedFasta
