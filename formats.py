@@ -6,9 +6,8 @@ Module 'formats' - Contains classes for dealing with file formats such as fasta,
 # External
 import itertools
 import sys
-import formats
 import time
-import callers
+import re
 
 # Internal
 import log
@@ -77,7 +76,7 @@ def bed2binDb(bedPath, refLengths, threads):
         1. wgBinDb: dictionary containing references as keys and the corresponding 'bin_database' as value
     '''
     ## Read bed
-    bed = formats.BED()
+    bed = BED()
     targetRefs = list(refLengths.keys())
     bed.read(bedPath, 'nestedDict', targetRefs)
 
@@ -85,6 +84,66 @@ def bed2binDb(bedPath, refLengths, threads):
     wgBinDb = structures.create_bin_database_parallel(refLengths, bed.lines, threads)
 
     return wgBinDb
+
+
+def INS2binDb(VCFs, refLengths, threads):
+    '''
+    Organize INS events from a set of input VCFs into a bin database
+    
+    Input:
+        1. VCFs: list of VCF of objects containing INS events
+        2. refLengths: Dictionary containing reference ids as keys and as values the length for each reference
+        3. threads: number of threads used to parallelize the bin database creation
+
+    Output:
+        1. wgBinDb: dictionary containing references as keys and the corresponding 'bin_database' as value
+    '''
+    ## For each insertion event compute beg and end coordinates:
+    for VCF in VCFs:
+
+        for variant in VCF.variants:
+
+            variant.beg, variant.end = variant.pos_interval()
+
+    ## Organize INS events into a dict
+    insDict = INS2Dict(VCFs)
+
+    ## Create bin database
+    wgBinDb = structures.create_bin_database_parallel(refLengths, insDict, threads)
+
+    return wgBinDb
+
+def INS2Dict(VCFs):
+    '''
+    Organize INS events from a set of input VCFs into a dictionary 
+
+    Input:
+        1. VCFs: List of VCF objects
+
+    Output:
+        1. VCFs_dict: Nested dictionary with first level keys as chromosomes, second level as insertion type and list of INS variants as values 
+    '''
+    outDict = {}
+
+    for VCF in VCFs:
+
+        for variant in VCF.variants:
+            ref = variant.chrom
+            iType = variant.info['ITYPE'] + '-' + variant.info['FAM'] if 'FAM' in variant.info else variant.info['ITYPE'] 
+
+            if ref not in outDict:
+                outDict[ref] = {}
+                outDict[ref][iType] = [variant]
+                continue
+            
+            if iType not in outDict[ref]:
+                outDict[ref][iType] = [variant]
+                continue
+
+            outDict[ref][iType].append(variant)
+
+    return outDict
+
 
 ## CLASSES ##
 class FASTA():
@@ -121,17 +180,11 @@ class FASTA():
             seq = ''.join(s.strip() for s in next(faiter))
             self.seqDict[header] = seq
 
-    def write(self, filePath, mode = 'write', safetyLock = False):
+    def write(self, filePath):
         '''
         FASTA file writer. Write data stored in the dictionary into a FASTA file
-        Mode: write -> write new file. append -> append to existing file or create if tit doesnt exist.
         '''
-        openMode = 'a' if mode == 'append' else 'w'
-        
-        if safetyLock:
-            callers.lock.acquire()
-
-        fastaFile = open(filePath, openMode)
+        fastaFile = open(filePath, 'w')
 
         for header, seq in self.seqDict.items():
             header = '>' + header
@@ -141,29 +194,20 @@ class FASTA():
 
         # Close output fasta file
         fastaFile.close()
-        
-        if safetyLock:
-            callers.lock.release()
 
-    # TODO SR: UNUSED FUNCTION
-    def writeMulti(self, filePath, mode):
+    def retrieve_seqs(self, targetNames):
         '''
-        FASTA file writer. Write data stored in the dictionary into a FASTA file
-        Mode: write -> write new file. append -> append to existing file or create if tit doesnt exist.
-        '''
+        Retrieve set of sequences from fasta file
+
+        Input:
+            1. targetNames: list of read ids to be retrieved
         
-        openMode = 'a' if mode == 'append' else 'w'
-        callers.lock.acquire()
-        fastaFile = open(filePath, openMode)
-
-        for header, seq in self.seqDict.items():
-            header = '>' + header
-
-            fastaFile.write("%s\n" % header)
-            fastaFile.write("%s\n" % seq)
-        # Close output fasta file
-        fastaFile.close()
-        callers.lock.release()
+        Output:
+            2. outDict: dictionary containing sequences
+        '''
+        outDict = {readName: self.seqDict[readName] for readName in targetNames if readName in self.seqDict}
+        
+        return outDict
 
 class FASTQ():
     '''
@@ -284,9 +328,18 @@ class BED():
 
         # c) Entries organized into a nested dict (TO IMPLEMENT LATER)
         #elif (self.structure == 'nestedDict'):
-
-        ## Write entries into output bed file
         with open(outPath, 'w') as outFile:
+
+            ## Write header
+            fields = ['#ref', 'beg', 'end']
+
+            if hasattr(outEntries[0], 'name'):
+                fields.append('name')
+
+            row = "\t".join(fields)
+            outFile.write(row + '\n')
+
+            ## Write entries 
             for entry in outEntries:
 
                 fields = [entry.ref, str(entry.beg), str(entry.end)]
@@ -364,7 +417,7 @@ class BED():
 
             # B) Data line
             else:
-                line = BED_line(fields, header)
+                line = BED_entry(fields, header)
 
                 if (targetRefs is None) or (line.ref in targetRefs):
                     lines.append(line)
@@ -383,7 +436,6 @@ class BED():
         Output:
             1) lines: dictionary containing bed entries
         '''
-
         bedFile = open(filePath)
         lines = {}
         header = []
@@ -404,7 +456,7 @@ class BED():
 
             # B) Data line
             else:
-                line = BED_line(fields, header)
+                line = BED_entry(fields, header)
 
                 if (targetRefs is None) or (line.ref in targetRefs):
 
@@ -453,7 +505,7 @@ class BED():
 
             # B) Data line
             else:
-                line = BED_line(fields, header)
+                line = BED_entry(fields, header)
                 
                 if (targetRefs is None) or (line.ref in targetRefs):
 
@@ -497,7 +549,7 @@ class BED():
         
         return groupedEntries
 
-class BED_line():
+class BED_entry():
     '''
     BED line class 
     '''
@@ -511,8 +563,8 @@ class BED_line():
             1. fields: list containing a bed feature (== data line)
             2. header: list containing bed header (required for parsing optional fields)
         '''
-        BED_line.number += 1 # Update instances counter
-        self.id = 'BED_line_' + str(BED_line.number)
+        BED_entry.number += 1 # Update instances counter
+        self.id = 'BED_entry_' + str(BED_entry.number)
 
         ## Mandatory fields
         self.ref = str(fields[0])
@@ -525,7 +577,6 @@ class BED_line():
 
         for i in range(3, len(header), 1):
             self.optional[header[i]] = fields[i]
-        
 
 class PAF():
     '''
@@ -552,7 +603,7 @@ class PAF():
                 continue
 
             fields = line.split() 
-            line = PAF_line(fields)
+            line = PAF_alignment(fields)
             self.alignments.append(line)
 
     def sortByLen(self):
@@ -635,9 +686,9 @@ class PAF():
 
         return chain
 
-class PAF_line():
+class PAF_alignment():
     '''
-    PAF line class 
+    PAF entry class 
     '''
     number = 0 # Number of instances
 
@@ -645,8 +696,8 @@ class PAF_line():
         '''
         Initialize paf line
         '''
-        PAF_line.number += 1 # Update instances counter
-        self.id = 'PAF_line_' + str(PAF_line.number)
+        PAF_alignment.number += 1 # Update instances counter
+        self.id = 'PAF_alignment_' + str(PAF_alignment.number)
         self.qName = str(fields[0])
         self.qLen = int(fields[1])
         self.qBeg = int(fields[2])
@@ -677,7 +728,7 @@ class PAF_chain():
         Initialize chain instance. 
         
         Input:
-            1. alignments. List of PAF_line instances
+            1. alignments. List of PAF_alignment instances
         '''
         self.alignments = alignments
 
@@ -710,6 +761,7 @@ class PAF_chain():
 
         return percCovered
 
+
 class VCF():
     '''
     VCF class
@@ -720,6 +772,141 @@ class VCF():
         '''
         self.header = None
         self.variants = []  # List of variants
+
+    def read(self, filePath):
+        '''
+        Read VCF file
+        '''
+        vcfFile = open(filePath)
+
+        ## 1. Read VCF and differenciate between header and variant entries
+        header = []
+        variants = []
+
+        # For line in the file
+        for line in vcfFile:
+            
+            # Skip blank lines
+            if not line:
+                continue    
+
+            # Remove trailing spaces and new line
+            line = line.rstrip()
+
+            # a) Header
+            if line.startswith('##'):
+                header.append(line)
+
+            # b) Variant
+            elif not line.startswith('#'):
+                variants.append(line)
+        
+        ## 2. Read header entries
+        self.read_header(header)
+
+        ## 3. Read variant entries
+        self.read_variants(variants)
+
+    def read_header(self, header):
+        '''
+        Read VCF file header
+
+        Input:
+            1. header: list of header lines
+        '''
+        species = ''
+        refLengths = {} 
+        info = {}
+        self.info_order = []
+
+
+        source = None
+        build = None
+
+        ## Read header line by line
+        for line in header:
+
+            ## A) Source
+            if line.startswith('##source'):
+                source = line.split('=')[1]
+            
+            ## B) Reference
+            elif line.startswith('##reference'):
+                build = line.split('=')[1]
+
+            ## C) Contig
+            elif line.startswith('##contig'):
+                substring = re.search('<(.*)>', line)
+
+                for field in substring.group(1).split(','):
+                    key, value = field.split('=')
+
+                    if key == 'ID':
+                        cId = value
+
+                    if key == 'length':
+                        cLen = value
+
+                    if key == 'species':
+                        species = value
+
+                refLengths[cId] = cLen
+            
+            ## D) Info
+            elif line.startswith('##INFO'):
+                substring = re.search('<(.*)>', line)
+                values = []
+
+                for field in substring.group(1).split(','):
+                    fields = field.split('=')
+                    
+                    if len(fields) == 2:
+                        values.append(fields[1])
+
+                info[values[0]] = values[1:]
+                self.info_order.append(values[0])
+
+        ## Create VCF header object
+        self.create_header(source, build, species, refLengths, info)
+
+    def read_variants(self, entries):
+        '''
+        Read variant entries from VCF file
+
+        Input:
+            1. entries: list VCF variant entries
+        '''
+        # For each entry
+        for entry in entries:
+
+            fields = entry.split("\t")
+
+            ## Parse info field
+            infoFields = fields[7].split(';')
+            INFO = {}
+
+            # For each feature at info
+            for feature in infoFields:
+                feature = feature.split('=')
+
+                # a) Flag 
+                if len(feature) == 1:
+                    key = str(feature[0])
+                    value = True
+                    INFO[key] = value
+
+                # b) Key and value pair
+                else:
+                    key = feature[0]
+                    value = feature[1]
+                    INFO[key] = value
+
+            ## Create VCF variant object
+            fields = fields[0:7] + [INFO]
+            variant = VCF_variant(fields)
+
+            ## Add variant to the VCF
+            self.add(variant)
 
     def add(self, variant):
         '''
@@ -762,7 +949,6 @@ class VCF():
 
         Output: Write VCF file 
         '''     
-
         ## 1. Open output filehandle    
         outFile = outDir + '/' + outName + '.vcf'
         outFile = open(outFile, 'w')
@@ -775,11 +961,42 @@ class VCF():
         for variant in self.variants:
 
             INFO = variant.build_info(IDS)
-            row = str(variant.chrom) + "\t" + str(variant.pos) + "\t" + str(variant.id) + "\t" + str(variant.ref) + "\t" + str(variant.alt) + "\t" + str(variant.qual) + "\t" + str(variant.filter) + "\t" + str(INFO) + "\n"
+            row = variant.chrom + "\t" + str(variant.pos) + "\t" + str(variant.ID) + "\t" + variant.ref + "\t" + variant.alt + "\t" + variant.qual + "\t" + variant.filter + "\t" + INFO + "\n"
             outFile.write(row)
 
         ## Close output file
         outFile.close()
+
+    def ins2fasta(self, itype, fam, outDir):
+        '''
+        Write inserted sequence into a fasta
+
+        Input:
+            1. itype: Target insertion type
+            2. fam: Target family
+            3. outDir: Output directory
+
+        Output: 
+            1. fasta: path to fasta file containing inserted sequences
+        '''     
+        ## 1. Initialize fasta object
+        fasta = FASTA() 
+
+        ## 2. Collect inserted sequences
+        for variant in self.variants:
+
+            if (variant.info['ITYPE'] == itype) and ('FAM' in variant.info) and (variant.info['FAM'] == fam):
+                
+                seqId = variant.chrom + '_' + str(variant.pos) + '_' + variant.info['FAM'] 
+                seq = variant.info['INSEQ'] 
+
+                fasta.seqDict[seqId] = seq
+
+        ## 3. Write inserted sequences into fasta file
+        outFile = outDir + '/' + itype + '_' + fam + '.fa'
+        fasta.write(outFile)
+
+        return outFile
 
 
 class VCF_header():
@@ -898,14 +1115,18 @@ class VCF_variant():
         Initialize VCF variant class
         '''
         VCF_variant.number += 1 # Update instances counter
+        self.id = 'variant_' + str(VCF_variant.number)
+
         self.chrom = fields[0]
         self.pos = int(fields[1])
-        self.id = fields[2]
+        self.ID = fields[2]
         self.ref = fields[3]
         self.alt = fields[4]
         self.qual = fields[5]
         self.filter = fields[6]
         self.info = fields[7]
+
+        self.clusterId = None
 
     def build_info(self, IDS):
         '''
@@ -922,7 +1143,7 @@ class VCF_variant():
         for index, ID in enumerate(IDS):
             
             ## Include field
-            if (ID in self.info) and self.info[ID] is not None:
+            if (ID in self.info) and (self.info[ID] is not None) and (self.info[ID] is not False):
 
                 # a) Boolean
                 if isinstance(self.info[ID], bool):
@@ -941,6 +1162,54 @@ class VCF_variant():
                     INFO = INFO + entry + ';'
 
         return INFO
+
+    def pos_interval(self):
+        '''
+        Compute position interval
+        '''        
+
+        if 'CIPOS' in self.info:
+            ciBeg, ciEnd = self.info['CIPOS'].split(',')
+            beg = self.pos + int(ciBeg)
+            end = self.pos + int(ciEnd)
+
+        return beg, end
+
+class INS_cluster():
+    '''
+    '''
+    number = 0 # Number of instances
+
+    def __init__(self, variants):
+        '''
+        Initialize class instance
+        '''
+        ## Set cluster id
+        INS_cluster.number += 1 # Update instances counter
+        self.id = 'CLUSTER_' + str(INS_cluster.number)
+
+        # Define list of events composing the cluster 
+        self.variants = variants
+
+        # Update event's clusterId attribute
+        for event in self.variants:
+            event.clusterId = self.id   
+
+    def consensus(self):
+        '''
+        Select representative INS variant for the cluster
+
+        Note: right now I will pick an arbitrary variant. Improve in the future. Ideas
+            - Improve consensus sequence quality by making a consensus of consensus sequences
+        '''
+        ## Select arbitrary event as consensus (improve later)
+        consensus = self.variants[0]
+
+        ## Add list of samples where the event is identified
+        sampleIds = ','.join(set([event.sampleId for event in self.variants]))
+        consensus.info['SAMPLES'] = sampleIds
+
+        return consensus
 
 class PSL():
     '''
@@ -1061,7 +1330,6 @@ class PSL():
 
         return filteredAlignments
 
-
 class PSL_alignment():
     '''
     PSL alignment class
@@ -1118,25 +1386,3 @@ class PSL_alignment():
 
         self.qBeg = updatedBeg
         self.qEnd = updatedEnd
-
-def pslQueryRefDict(pslPath):
-    '''
-    Read BLAT results and store qName and tName in a dictionary
-
-    Input:
-        1. pslPath: path to blat result file (psl format)
-    Output:
-        1. pslDict: dictionary -> pslDict[qName] = tName 
-    '''
-    # Read PSL
-    pslClipping = formats.PSL()
-    pslClipping.read(pslPath)
-    ## TODO SR: mirar filtros
-    pslDict = {}
-    for pslAlign in pslClipping.alignments:
-        if pslAlign.qName in pslDict.keys():
-            pslDict[pslAlign.qName].append(pslAlign.tName)
-        else:
-            pslDict[pslAlign.qName] = []
-            pslDict[pslAlign.qName].append(pslAlign.tName)
-    return pslDict
