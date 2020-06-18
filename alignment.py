@@ -5,7 +5,6 @@ Module 'alignment' - Contains funtions align sequences
 ## DEPENDENCIES ##
 # External
 import subprocess
-import os
 
 # Internal
 import log
@@ -168,6 +167,31 @@ def alignment_bwa(FASTA, reference, fileName, processes, outDir):
 
     return SAM    
 
+def alignment_blat(FASTA, reference, fileName, outDir):
+    '''
+    Align a set of sequence into a reference with blat
+
+    Input:
+        1. FASTA: Path to FASTA file with sequences to align
+        2. reference: Path to the reference genome in fasta format 
+        3. fileName: output file will be named accordingly
+        4. outDir: Output directory
+
+    Output:
+        1. SAM: Path to SAM file containing input sequences alignments or 'None' if alignment failed 
+    '''
+    ## Align the sequences into the reference
+    PSL = outDir + '/' + fileName + '.psl'
+    err = open(outDir + '/align.err', 'w') 
+    command = 'blat -stepSize=5 -repMatch=2253 -minScore=20 -minIdentity=0 -noHead -out=psl ' + reference + ' ' + FASTA + ' ' + PSL
+    status = subprocess.call(command, stderr=err, shell=True)
+
+    if status != 0:
+        step = 'ALIGN'
+        msg = 'Alignment failed' 
+        log.step(step, msg)
+
+    return PSL    
 
 def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir):
     '''
@@ -295,72 +319,3 @@ def organize_hits_paf(PAF_path):
         hits[alignment.qName].alignments.append(alignment)
 
     return hits     
-
-# UNUSED SINCE 02/05/2020
-def alignment_bwa_filtered(database, viralBamMAPQ, viralBamParcialMatch, processes, inFasta, outFile, outDir):
-    '''
-    Align fasta against DB and filter result with awk based on MAPQ and CIGAR matches.
-    Input:
-        1. database: bwa indexed database.
-        2. viralBamParcialMatch: Threshold partial matches against db. Example: 4 stands for >40 matches per read.
-        3. processes: Number of processes.
-        4. inFasta: Input FASTA.
-        5. outFile: Name of output bam file wo extension.
-        6. outDir: Output directory.
-    Output:
-        1. BAM: Complete path of BAM file resulting from the alignment.
-    '''
-    collectVirusDir = outDir + '/COLLECT_VIRUS'
-    logDir = outDir + '/Logs'
-    unix.mkdir(logDir)
-
-    BAM = collectVirusDir + '/' + outFile + '.bam'
-
-    bwaProcesses = 5 if processes > 5 else processes
-    #command = 'bwa mem -Y -t '+ str(bwaProcesses) + ' ' +  database + ' ' + inFasta + ' | samtools view -F 4 -b | samtools view -h  | awk \'(($5=="60" && $6~/[' + str(viralBamParcialMatch) + '-9][0-9]M/) || ($6~/[0-9][0-9][0-9]M/) || ($1 ~ /@/)){print}\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
-    command = 'bwa mem -Y -t '+ str(bwaProcesses) + ' ' +  database + ' ' + inFasta + ' | samtools view -F 4 -b | samtools view -h  | awk \'(($5>=' + str(viralBamMAPQ) + ' && $6~/[' + str(viralBamParcialMatch) + '-9][0-9]M/) || ($6~/9[0-9]M/) || ($6~/[0-9][0-9][0-9]M/) || ($1 ~ /@/)){print}\' | samtools view -bS - | samtools sort -O BAM   > ' + BAM
-    err = open(logDir + '/align.err', 'w') 
-    status = subprocess.call(command, stderr=err, shell=True)
-
-    if status != 0:
-        step = 'ALIGN'
-        msg = 'Alignment failed. PID: ' + str(os.getpid())
-        log.step(step, msg)
-    
-    return BAM
-
-
-def alignment_blat(FASTA, reference, args, fileName, outDir):
-    '''
-    Align a set of sequence into a reference with blat
-
-    Input:
-        1. FASTA: Path to FASTA file with sequences to align
-        2. reference: Path to the reference genome in fasta format (bwa mem index must be located in the same folder)
-        3. fileName: output file will be named accordingly
-        4. outDir: Output directory
-
-    Output:
-        1. SAM: Path to SAM file containing input sequences alignments or 'None' if alignment failed 
-    '''
-    ## Align the sequences into the reference
-    PSL = outDir + '/' + fileName + '.psl'
-    err = open(outDir + '/align.err', 'w') 
-
-    # Set blat arguments
-    blatArgs = []
-
-    if 'stepSize' in args.keys():
-        blatArgs.append('-stepSize='+str(args['stepSize']))
-    if 'tileSize' in args.keys():
-        blatArgs.append('-tileSize='+str(args['tileSize']))
-
-    command = 'blat ' + ' '.join(blatArgs) + ' -repMatch=2253 -minScore=20 -minIdentity=0 -noHead -out=psl ' + reference + ' ' + FASTA + ' ' + PSL
-    status = subprocess.call(command, stderr=err, shell=True)
-
-    if status != 0:
-        step = 'ALIGN'
-        msg = 'Alignment failed' 
-        log.step(step, msg)
-
-    return PSL 
