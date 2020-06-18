@@ -15,7 +15,7 @@ import databases
 import log
 import gRanges
 
-def load_annotations(annotations2load, refLengths, annotationsDir, threads, outDir):
+def load_annotations(annotations2load, refLengths, annotationsDir, germlineMEI, threads, outDir):
     '''
     Load a set of annotation files in bed formats into a bin database
 
@@ -23,8 +23,9 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
         1. annotations2load: list of annotations to load. Annotations available: REPEATS, TRANSDUCTIONS and EXONS
         2. refLengths: Dictionary containing reference ids as keys and as values the length for each reference  
         3. annotationsDir: Directory containing annotation files
-        4. threads: number of threads used to parallelize the bin database creation
-        5. outDir: Output directory
+        4. germlineMEI: Bed file containing set of known germline MEI. None if not available
+        5. threads: number of threads used to parallelize the bin database creation
+        6. outDir: Output directory
     
     Output:
         1. annotations: dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
@@ -34,6 +35,7 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
     annotations['REPEATS'] = None
     annotations['TRANSDUCTIONS'] = None
     annotations['EXONS'] = None
+    annotations['GERMLINE-MEI'] = None
 
     ## Create output directory
     unix.mkdir(outDir)
@@ -43,7 +45,6 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
 
         repeatsBed = annotationsDir + '/repeats.bed'
         #repeatsBed = annotationsDir + '/repeats.L1.bed'
-        #repeatsBed = annotationsDir + '/repeats.chr22.bed'
         annotations['REPEATS'] = formats.bed2binDb(repeatsBed, refLengths, threads)
 
     ## 2. Create transduced regions database
@@ -60,23 +61,24 @@ def load_annotations(annotations2load, refLengths, annotationsDir, threads, outD
     if 'EXONS' in annotations2load:
 
         exonsBed = annotationsDir + '/exons.bed'
-        #exonsBed = annotationsDir + '/exons.test.bed'
         annotations['EXONS'] = formats.bed2binDb(exonsBed, refLengths, threads)
+
+    ## 4. Create germline MEI database
+    if 'GERMLINE-MEI' in annotations2load:
+        annotations['GERMLINE-MEI'] = formats.bed2binDb(germlineMEI, refLengths, threads)
 
     return annotations
 
-def annotate(events, steps, refLengths, refDir, annovarDir, processes, outDir):
+def annotate(events, steps, annotations, annovarDir, outDir):
     '''
     Annotate each input event interval based on different annotation resources.
 
     Input: 
-        1. events: list containing input events to be annotated. Events should be objects containing ref, beg and end attributes.
-        2. steps: list containing annotation steps to be performed. Possible values: REPEAT and GENE.
-        3. refLengths: Dictionary containing reference ids as keys and as values the length for each reference. 'None' if repeat annotation no enabled 
-        4. refDir: Directory containing reference databases. 'None' if repeat annotation no enabled
-        5. annovarDir: Directory containing annovar reference databases. 'None' if gene annotation no enabled 
-        6. processes: Number of processes
-        7. outDir: Output directory
+        1. events: List containing input events to be annotated. Events should be objects containing ref, beg and end attributes.
+        2. steps: List containing annotation steps to be performed. Possible values: REPEAT and GENE.
+        3. annotations: Dictionary containing bin databases for annotations.  
+        4. annovarDir: Directory containing annovar reference databases. 'None' if gene annotation no enabled 
+        5. outDir: Output directory
 
     Output:
         1. New 'repeatAnnot' attribute set for each input event. 
@@ -86,29 +88,32 @@ def annotate(events, steps, refLengths, refDir, annovarDir, processes, outDir):
         'geneAnnot' is a tuple(region,gene) 
     '''
     ## 1. Perform repeat based annotation if enabled
-    msg = '1. Perform repeat based annotation if enabled'
+    msg = '1. Repeat based annotation if enabled'
     log.subHeader(msg)   
 
     if 'REPEAT' in steps:
 
-        ## 1.1 Load repeats database ##
-        msg = '1.1 Load repeats database'
-        log.info(msg)   
-        annotations = load_annotations(['REPEATS'], refLengths, refDir, processes, outDir)
-
-        ## 1.2 Perform repeats annotation ##
-        msg = '1.2 Perform repeats annotation'
+        msg = 'Perform repeats annotation'
         log.info(msg)   
         repeats_annotation(events, annotations['REPEATS'], 200)
 
     ## 2. Perform gene-based annotation if enabled
-    msg = '2. Perform gene-based annotation if enabled'
+    msg = '2. Gene-based annotation if enabled'
     log.subHeader(msg)
 
     if 'GENE' in steps:
         msg = 'Perform gene-based annotation'
         log.info(msg)  
         gene_annotation(events, annovarDir, outDir)
+
+    ## 3. Perform known germline MEI annotation if enabled
+    msg = '3. Perform known germline MEI annotation if enabled'
+    log.subHeader(msg)
+
+    if 'GERMLINE-MEI' in steps:
+        msg = 'Perform known germline MEI annotation if enabled'
+        log.info(msg)  
+        germline_MEI_annotation(events, annotations['GERMLINE-MEI'], 150)
 
 
 def annotate_interval(ref, beg, end, annotDb):
@@ -147,13 +152,12 @@ def annotate_interval(ref, beg, end, annotDb):
 
     return sortedOverlaps
         
-def repeats_annotation(metaclustersList, repeatsDb, buffer):
+def repeats_annotation(events, repeatsDb, buffer):
     '''
     For each input event assess if overlaps with an annotated repeat in the reference genome
 
     Input: 
         1. events: list containing input events to be annotated. Events should be objects containing ref, beg and end attributes.
-        1. metaclustersList
         2. repeatsDb: dictionary containing annotated repeats organized per chromosome (keys) into genomic bins (values)
         3. buffer: number of base pairs to extend begin and end coordinates for each event prior assessing overlap
 
@@ -163,25 +167,16 @@ def repeats_annotation(metaclustersList, repeatsDb, buffer):
     '''
 
     ## Assess for each input event if it overlaps with an annotated repeat
-    for metaclusterFields in metaclustersList:
-
-        # Check if its a ME
-        # NOTE SR: Perform repeats_annotation for both, MEIs and VIRUSES.
-        #if metaclusterFields[-1]['INTERNAL_ELEMENT'] == 'ME':
-
-        ref = metaclusterFields[0]
-        beg = metaclusterFields[1]
-        ## metaclusterFields[-1] == VCF INFO dictionary
-        end = metaclusterFields[-1]['END']
+    for event in events:
 
         # A) Annotated repeat in the same ref where the event is located
-        if ref in repeatsDb:
+        if event.ref in repeatsDb:
             
             ### Select repeats bin database for the corresponding reference 
-            repeatsBinDb = repeatsDb[ref]        
+            repeatsBinDb = repeatsDb[event.ref]        
 
             ### Retrieve all the annotated repeats overlapping with the event interval
-            overlaps = repeatsBinDb.collect_interval(beg - buffer, end + buffer, 'ALL')    
+            overlaps = repeatsBinDb.collect_interval(event.beg - buffer, event.end + buffer, 'ALL')    
 
             ### Compute distance between the annotated repeat and the raw interval
             annotatedRepeats = []
@@ -194,7 +189,7 @@ def repeats_annotation(metaclustersList, repeatsDb, buffer):
                 repeat['subfamily'] = overlap[0].optional['subfamily']
 
                 overlapLen = overlap[1] 
-                boolean = gRanges.overlap(beg, end, overlap[0].beg, overlap[0].end)[0]
+                boolean = gRanges.overlap(event.beg, event.end, overlap[0].beg, overlap[0].end)[0]
 
                 # a) Overlapping raw intervals, distance == 0 
                 if boolean:
@@ -212,21 +207,14 @@ def repeats_annotation(metaclustersList, repeatsDb, buffer):
             annotatedRepeats = []
         
         ## Add repeat annotation as attribute 
-        #event.repeatAnnot = annotatedRepeats
-        repeatAnnot = annotatedRepeats
+        event.repeatAnnot = annotatedRepeats
 
-        ## Add fields to INFO VCF field:
-        ## metaclusterFields[-1] == VCF INFO dictionary
-        metaclusterFields[-1]['REP'] = ','.join([repeat['family'] for repeat in repeatAnnot]) if repeatAnnot else None 
-        metaclusterFields[-1]['REPSUB'] = ','.join([repeat['subfamily'] for repeat in repeatAnnot]) if repeatAnnot else None   
-        metaclusterFields[-1]['DIST'] = ','.join([str(repeat['distance']) for repeat in repeatAnnot]) if repeatAnnot else None
 
-def gene_annotation(metaclustersList, annovarDir, outDir):
+def gene_annotation(events, annovarDir, outDir):
     '''
     Perform gene-based annotation for a list of input events
  
     Input: 
-        1. metaclustersList
         1. events: List containing input events to be annotated. Events should be objects containing ref, beg and end attributes.
         2. annovarDir: Directory containing the two files used by ANNOVAR to perform gene based-annotation:
                 a) build_annot.txt     - Text file containing annotated transcript coordinates
@@ -243,24 +231,23 @@ def gene_annotation(metaclustersList, annovarDir, outDir):
     unix.mkdir(outDir)
 
     ## 2. Create input file containing events intervals for ANNOVAR 
-    create_annovar_input(metaclustersList, 'events.annovar', outDir)
+    create_annovar_input(events, 'events.annovar', outDir)
     annovarInput = outDir + '/events.annovar'
 
     ## 3. Annotate events intervals with ANNOVAR 
     out1, out2 = run_annovar(annovarInput, annovarDir, outDir)
 
     ## 4. Add gene annotation info to the events
-    addGnAnnot2events(metaclustersList, out1)
+    addGnAnnot2events(events, out1)
     
     ## Do cleanup
     unix.rm([annovarInput, out1, out2])
 
-def addGnAnnot2events(metaclustersList, out1):
+def addGnAnnot2events(events, out1):
     '''
     Read annovar output file and incorporate gene annotation information to the corresponding event objects
 
     Input: 
-        1. metaclustersList
         1. events: List containing input events to be annotated. Events should be objects containing ref, beg and end attributes.
         2. out1: Annovar output file 1 (region annotation for all the variants) 
 
@@ -271,19 +258,10 @@ def addGnAnnot2events(metaclustersList, out1):
     ## 1. Organize events into a dict
     eventsDict = {}
 
-    for metaclusterFields in metaclustersList:
+    for event in events:
 
-        # Check if its a ME
-        # NOTE SR: Perform repeats_annotation for both, MEIs and VIRUSES.
-        #if metaclusterFields[-1]['INTERNAL_ELEMENT'] == 'ME':
-
-        ref = metaclusterFields[0]
-        beg = metaclusterFields[1]
-        ## metaclusterFields[-1] == VCF INFO dictionary
-        end = metaclusterFields[-1]['END']
-
-        name = ref + ':' + str(beg) + '-' + str(end)
-        eventsDict[name] = metaclusterFields
+        name = event.ref + ':' + str(event.beg) + '-' + str(event.end)
+        eventsDict[name] = event
 
     ## 2. Add to each event gene annotation info    
     out1File = open(out1, "r")
@@ -295,18 +273,48 @@ def addGnAnnot2events(metaclustersList, out1):
         region = fields[0]
         gene = fields[1]
         name = fields[8]             
-        #eventsDict[name].geneAnnot = (region, gene)
-        geneAnnot = (region, gene)
-        ## eventsDict[name][-1] == VCF INFO dictionary
-        # TODO SR: ensure if they are None they are missing
-        eventsDict[name][-1]['REGION'], eventsDict[name][-1]['GENE'] = geneAnnot
+        eventsDict[name].geneAnnot = (region, gene)
 
-def create_annovar_input(metaclustersList, fileName, outDir):
+def germline_MEI_annotation(events, MEIDb, buffer):
+    '''
+    For each input event assess if overlaps with an already known germline MEI polymorphism
+
+    Input: 
+        1. events: list containing input events to be annotated. Events should be objects containing ref, beg and end attributes.
+        2. MEIDb: dictionary containing known germline MEI organized per chromosome (keys) into genomic bin databases (values)
+        3. buffer: number of base pairs to extend begin and end coordinates for each event prior assessing overlap
+
+    Output:
+        New 'germlineDb' attribute set for each input event. Attribute is a string
+        with the germline MEI databases where the MEI has already been reported
+    '''
+    ## Assess for each input event if it overlaps with an germline MEI repeat
+    for event in events:
+
+        # Skip event if family not available or no MEI on the same reference
+        if ('FAMILY' not in event.SV_features) or (event.ref not in MEIDb):
+            event.germlineDb = None            
+            continue
+
+        ### Select bin database for the corresponding reference 
+        binDb = MEIDb[event.ref]        
+
+        ### Retrieve overlapping known germline MEI if any
+        overlaps = binDb.collect_interval(event.beg - buffer, event.end + buffer, event.SV_features['FAMILY']) 
+
+        ### a) Known germline MEI overlapping the event
+        if overlaps:
+            event.germlineDb = overlaps[0][0].optional['database']                     
+
+        ### b) No overlap found                    
+        else:
+            event.germlineDb = None
+
+def create_annovar_input(events, fileName, outDir):
     '''
     Write events intervals into a format compatible with annovar 
 
     Input:
-        1. 
         1. events: List containing input events. Events should be objects containing ref, beg and end attributes.
         2. fileName: Output file name 
         3. outDir: Output directory
@@ -317,19 +325,10 @@ def create_annovar_input(metaclustersList, fileName, outDir):
 
     ## 2. Write events
     # For each event
-    for metaclusterFields in metaclustersList:
+    for event in events:
 
-        # Check if its a ME
-        # NOTE SR: Perform repeats_annotation for both, MEIs and VIRUSES.
-        #if metaclusterFields[-1]['INTERNAL_ELEMENT'] == 'ME':
-
-        ref = metaclusterFields[0]
-        beg = metaclusterFields[1]
-        ## eventsDict[name][-1] == VCF INFO dictionary
-        end = metaclusterFields[-1]['END']
-
-        name = ref + ':' + str(beg) + '-' + str(end)
-        fields = [ref, str(beg), str(end), '0', '0', 'comments: ' + name]
+        name = event.ref + ':' + str(event.beg) + '-' + str(event.end)
+        fields = [event.ref, str(event.beg), str(event.end), '0', '0', 'comments: ' + name]
         row = "\t".join(fields)
         
         # Add entry to BED
@@ -419,6 +418,7 @@ def intersect_mate_annotation(discordants, annotation, targetField):
     ##  For each input discordant intersect mate alignment coordinates with the provided annotation 
     for discordant in discordants:
         
+        ## Note: Apply filter to discard unmapped mates 
         # A) Annotated feature in the same ref where the mate aligns
         if discordant.mateRef in annotation:
 
@@ -447,13 +447,10 @@ def intersect_mate_annotation(discordants, annotation, targetField):
             featureType = 'None'
 
         ## Set discordant identity
-        #discordant.setIdentity(featureType)
-        if featureType != 'None':
-            discordant.element = 'ME'
-            discordant.identity = featureType
+        discordant.identity = featureType
 
         ## Add discordant read pair to the dictionary
-        identity = discordant.orientation + '-DISCORDANT-' + featureType
+        identity = discordant.orientation + '_DISCORDANT_' + featureType
 
         # a) There are already discordant read pairs with this identity
         if identity in matesIdentity:
