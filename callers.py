@@ -625,7 +625,7 @@ class SV_caller_short(SV_caller):
         filters2Apply['VIRUS'] = self.confDict['filtersBfClip']
         # TODO SR: Add here proper filters for MEs clusters
         filters2Apply['ME']  = self.confDict['filtersBfClip']
-        metaclustersPass1, metaclustersFailed1 = filters.filter_metaclusters(metaclusters, filters2Apply, self.confDict, self.bam)
+        metaclustersPass1, metaclustersFailed1 = filters.filter_metaclusters_SR(metaclusters, filters2Apply, self.confDict, self.bam)
 
         # Remove those metaclusters that didnt pass the filteres if the option for not printting them is selected
         if not self.confDict['printFiltered']:
@@ -684,7 +684,7 @@ class SV_caller_short(SV_caller):
         # TODO SR: Add here proper filters for MEs clusters
         filters2Apply['ME']  = self.confDict['filtersAfClip']
 
-        metaclustersList, metaclustersFailed2 = filters.filter_metaclusters(metaclustersPass1, filters2Apply, self.confDict, self.bam)
+        metaclustersList, metaclustersFailed2 = filters.filter_metaclusters_SR(metaclustersPass1, filters2Apply, self.confDict, self.bam)
 
         # Remove those metaclusters that didnt pass the filteres if the option for not printting them is selected
         if not self.confDict['printFiltered']:
