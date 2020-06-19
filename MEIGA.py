@@ -285,8 +285,8 @@ if __name__ == '__main__':
 	print('readFilters: ', readFilters)
 	print('overhang: ', overhang)
 	print('minINDELlength: ', minINDELlen)
-	print('minCLIPPINGlength: ', minCLIPPINGlen, "\n")
-	print('targetINT2Search ', INT2Search)
+	print('minCLIPPINGlength: ', minCLIPPINGlen)
+	print('targetINT2Search ', INT2Search, "\n")
 
 	print('** Clustering **')
 	print('maxInsDist: ', maxInsDist)
