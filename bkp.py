@@ -15,6 +15,7 @@ import alignment
 import events
 import itertools
 import bamtools
+import formats
 
 
 def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, binId, identDbPath):
