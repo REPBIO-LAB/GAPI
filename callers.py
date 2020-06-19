@@ -411,7 +411,7 @@ class SV_caller_short(SV_caller):
 
             ## Annotate
             buffer = 100
-            annotation.repeats_annotation(metaclustersList, self.annotations['REPEATS'], buffer)
+            annotation.repeats_annotation_lighter(metaclustersList, self.annotations['REPEATS'], buffer)
             
             ## 6. Perform gene-based annotation with ANNOVAR of discordant read pair clusters ##
             # Do gene-based annotation step if enabled
@@ -425,7 +425,7 @@ class SV_caller_short(SV_caller):
             log.step(step, msg)
 
             ## Annotate
-            annotation.gene_annotation(metaclustersList, self.confDict['annovarDir'], annotDir)
+            annotation.gene_annotation_lighter(metaclustersList, self.confDict['annovarDir'], annotDir)
 
             # Remove annotation directory
             unix.rm([annotDir])
