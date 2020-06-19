@@ -535,7 +535,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample, supplementary = True):
             # Add events to the pre-existing lists                
             for INDEL_type, events in INDEL_events.items():
                 eventsDict[INDEL_type] = eventsDict[INDEL_type] + events
-        '''
+        
         ## 4. Collect DISCORDANT
         if 'DISCORDANT' in confDict['targetEvents']:
 
@@ -544,7 +544,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample, supplementary = True):
             # Add discordant events
             for discordant in DISCORDANTS:
                 eventsDict['DISCORDANT'].append(discordant)
-        '''
+        
         
     ## Close 
     bamFile.close()
@@ -700,7 +700,84 @@ def collectINDELS(alignmentObj, targetEvents, minINDELlen, targetInterval, overh
 
     return INDEL_events
 
-def collectDISCORDANT_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict, supplementary):
+def collectDISCORDANT(alignmentObj, sample):
+    '''
+    For a read alignment check if the read is discordant (not proper in pair) and return the corresponding discordant objects
+
+    Input:
+        1. alignmentObj: pysam read alignment object
+        2. sample: type of sample (TUMOUR, NORMAL or None).
+
+    Output:
+        1. DISCORDANTS: list of discordant read pair events
+
+    '''
+    # Initialize discordant events list
+    DISCORDANTS = []
+
+    # If not proper pair (== discordant)
+    if not alignmentObj.is_proper_pair:
+
+        ## 1. Determine discordant orientation
+        # a) Minus
+        if alignmentObj.is_reverse:
+            orientation = 'MINUS'
+
+        # b) Plus
+        else:
+            orientation = 'PLUS'
+
+        ## 2. Determine if discordant is mate 1 or 2
+        if alignmentObj.is_read1:
+            pair = '1'
+
+        else:
+            pair = '2'
+
+        ## 3. Determine number of alignment blocks
+        operations = [t[0] for t in alignmentObj.cigartuples]
+        nbBlocks = operations.count(3) + 1 
+
+        ## 4. Create discordant event
+        # A) Read aligning in a single block (WG or RNA-seq read no spanning a splice junction)
+        if nbBlocks == 1:
+            DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, orientation, pair, alignmentObj.query_name, alignmentObj, sample)
+            DISCORDANTS.append(DISCORDANT)
+
+        # B) Read alignning in multiple blocks (RNA-seq read spanning one or multiple splice junctions) -> Create one discordant event per block
+        else:
+
+            blockBeg = alignmentObj.reference_start
+            blockEnd = blockBeg
+
+            # For each operation
+            for cigarTuple in alignmentObj.cigartuples:
+
+                operation = int(cigarTuple[0])
+                length = int(cigarTuple[1])
+
+                # a) End of the block -> End current block by creating a discordant event and Initiate a new block
+                if operation == 3:
+
+                    # Create discordant event for the block
+                    DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, blockBeg, blockEnd, orientation, pair, alignmentObj.query_name, alignmentObj, sample)
+                    DISCORDANTS.append(DISCORDANT)
+
+                    # Initialize new block
+                    blockBeg = blockEnd + length
+                    blockEnd = blockEnd + length
+
+                # b) Extend current block
+                else:
+                    blockEnd = blockEnd + length   
+
+            ## End last block by creating a discordant
+            DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, blockBeg, blockEnd, orientation, pair, alignmentObj.query_name, alignmentObj, sample)
+            DISCORDANTS.append(DISCORDANT)
+
+    return DISCORDANTS
+
+def collectOnlyDISCORDANT_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict, supplementary):
     '''
     For the two bam files given (test and normal), for each read alignment check if the read is discordant (not proper in pair) and return the corresponding discordant objects
 
@@ -719,17 +796,17 @@ def collectDISCORDANT_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict
         1. DISCORDANTS: list containing input discordant read pair events
     '''
     ## Search for SV events in the tumour
-    DISCORDANTS_SAMPLE = collectDISCORDANT(ref, binBeg, binEnd, tumourBam, confDict, 'TUMOUR', supplementary)
+    DISCORDANTS_SAMPLE = collectOnlyDISCORDANT(ref, binBeg, binEnd, tumourBam, confDict, 'TUMOUR', supplementary)
 
     ## Search for SV events in the normal
-    DISCORDANTS_NORMAL = collectDISCORDANT(ref, binBeg, binEnd, normalBam, confDict, 'NORMAL', supplementary)
+    DISCORDANTS_NORMAL = collectOnlyDISCORDANT(ref, binBeg, binEnd, normalBam, confDict, 'NORMAL', supplementary)
 
     ## Join tumour and normal lists
     DISCORDANTS = DISCORDANTS_SAMPLE + DISCORDANTS_NORMAL
 
     return DISCORDANTS
 
-def collectDISCORDANT(ref, binBeg, binEnd, bam, confDict, sample, supplementary):
+def collectOnlyDISCORDANT(ref, binBeg, binEnd, bam, confDict, sample, supplementary):
     '''
     In a given indexed bam file for each  a read alignment check if the read is discordant (not proper in pair) and return the corresponding discordant objects
 
