@@ -335,7 +335,7 @@ def discordants2mates(discordants):
 
     for discordant in discordants:
         pair = '2' if discordant.pair == '1' else '1'
-        mate = DISCORDANT(discordant.mateRef, discordant.mateStart, discordant.mateStart, None, pair, discordant.readName, None, discordant.sample)
+        mate = DISCORDANT(discordant.mateRef, discordant.mateStart, discordant.mateStart, None, pair, discordant.readName, None, discordant.sample, None)
 
         mates.append(mate)
 
