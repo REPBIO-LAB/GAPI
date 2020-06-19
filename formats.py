@@ -1407,7 +1407,7 @@ def pslQueryRefDict(pslPath):
         1. pslDict: dictionary -> pslDict[qName] = tName 
     '''
     # Read PSL
-    pslClipping = formats.PSL()
+    pslClipping = PSL()
     pslClipping.read(pslPath)
     ## TODO SR: mirar filtros
     pslDict = {}
