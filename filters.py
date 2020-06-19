@@ -928,14 +928,20 @@ def area(cluster,confDict,bam):
     percSMSReads = stats.fraction(SMSReads, nbReads)
 
     ## If the percentage of low MQ reads is lower than the threshold pass the filter.
-    if percMAPQ < float(maxRegionlowMQ):
-        percMAPQFilter = True
+    if percMAPQ:
+        if percMAPQ < float(maxRegionlowMQ):
+            percMAPQFilter = True
+        else:
+            percMAPQFilter = False
     else:
         percMAPQFilter = False
 
     ## If the percentage of SMS reads is lower than the threshold pass the filter.
-    if percSMSReads < float(maxRegionSMS):
-        percSMSReadsFilter = True
+    if percSMSReads:
+        if percSMSReads < float(maxRegionSMS):
+            percSMSReadsFilter = True
+        else:
+            percSMSReadsFilter = False
     else:
         percSMSReadsFilter = False
     
