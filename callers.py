@@ -59,26 +59,26 @@ class SV_caller():
 
         return index
     
-    # NOTE MERGE SR2020: For SV_caller_short this load is managed inside the caller
-    if self.confDict['technology'] != 'ILLUMINA':
-        def load_annotations(self):
-            '''
-            Load set of annotations into bin databases. Set 'annotation' attribute with one key per annotation type
-            and bin databases as values
-            '''
+    def load_annotations(self):
+        '''
+        Load set of annotations into bin databases. Set 'annotation' attribute with one key per annotation type
+        and bin databases as values
+        '''
+        # NOTE MERGE SR2020: For SV_caller_short this load is managed inside the caller
+        if self.confDict['technology'] != 'ILLUMINA':
             annotDir = self.outDir + '/LOAD_ANNOT/'
             unix.mkdir(annotDir)
             annotations2load = ['REPEATS']
-
+    
             if self.confDict['transductionSearch']:    
                 annotations2load.append('TRANSDUCTIONS')
-
+    
             if True: # at one point include flag for pseudogene search
                 annotations2load.append('EXONS')
-
+    
             if self.confDict['germlineMEI'] is not None:
                 annotations2load.append('GERMLINE-MEI')
-
+    
             self.annotations = annotation.load_annotations(annotations2load, self.refLengths, self.refDir, self.confDict['germlineMEI'], self.confDict['processes'], annotDir)        
             unix.rm([annotDir])
 
@@ -347,6 +347,10 @@ class SV_caller_long(SV_caller):
 
         return metaclustersSVType
 
+# Multiprocessing lock as global variable. Useful for safely writting from different processes to the same output file.
+def init(l):
+    global lock
+    lock = l
 
 class SV_caller_short(SV_caller):
     '''
@@ -359,7 +363,7 @@ class SV_caller_short(SV_caller):
         self.repeatsBinDb = None
         self.viralSeqs = {}
         
-     def call(self):
+    def call(self):
         '''
         Search for integrations genome wide or in a set of target genomic regions
         '''
