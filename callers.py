@@ -545,11 +545,11 @@ class SV_caller_short(SV_caller):
         ## 1. Search for integration candidate events in the bam file/s ##
         # a) Single sample mode
         if self.mode == "SINGLE":
-            discordants = bamtools.collectDISCORDANT(ref, beg, end, self.bam, self.confDict, None, False)
+            discordants = bamtools.collectOnlyDISCORDANT(ref, beg, end, self.bam, self.confDict, None, False)
 
         # b) Paired sample mode (tumour & matched normal)
         else:
-            discordants = bamtools.collectDISCORDANT_paired(ref, beg, end, self.bam, self.normalBam, self.confDict, False)
+            discordants = bamtools.collectOnlyDISCORDANT_paired(ref, beg, end, self.bam, self.normalBam, self.confDict, False)
 
         counts = str(len(discordants))
         step = 'COLLECT'
