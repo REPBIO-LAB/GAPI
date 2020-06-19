@@ -741,7 +741,7 @@ def collectDISCORDANT(alignmentObj, sample):
         ## 4. Create discordant event
         # A) Read aligning in a single block (WG or RNA-seq read no spanning a splice junction)
         if nbBlocks == 1:
-            DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, orientation, pair, alignmentObj.query_name, alignmentObj, sample)
+            DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, orientation, pair, alignmentObj.query_name, alignmentObj, sample, None)
             DISCORDANTS.append(DISCORDANT)
 
         # B) Read alignning in multiple blocks (RNA-seq read spanning one or multiple splice junctions) -> Create one discordant event per block
@@ -760,7 +760,7 @@ def collectDISCORDANT(alignmentObj, sample):
                 if operation == 3:
 
                     # Create discordant event for the block
-                    DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, blockBeg, blockEnd, orientation, pair, alignmentObj.query_name, alignmentObj, sample)
+                    DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, blockBeg, blockEnd, orientation, pair, alignmentObj.query_name, alignmentObj, sample, None)
                     DISCORDANTS.append(DISCORDANT)
 
                     # Initialize new block
@@ -772,7 +772,7 @@ def collectDISCORDANT(alignmentObj, sample):
                     blockEnd = blockEnd + length   
 
             ## End last block by creating a discordant
-            DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, blockBeg, blockEnd, orientation, pair, alignmentObj.query_name, alignmentObj, sample)
+            DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, blockBeg, blockEnd, orientation, pair, alignmentObj.query_name, alignmentObj, sample, None)
             DISCORDANTS.append(DISCORDANT)
 
     return DISCORDANTS
