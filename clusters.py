@@ -2356,24 +2356,24 @@ class META_cluster():
             ## Tumour and matched normal counts
             # a) Event identified in the TUMOUR sample
             if event.sample == "TUMOUR":
-                if event.is_duplicate == True:
+                if event.isDup == True:
                     if event.type == 'DISCORDANT':
                         nbDiscordantDuplicatesTumour += 1
                     elif event.type == 'CLIPPING':
                         nbClippingDuplicatesTumour  += 1
-                elif event.is_duplicate == False:
+                elif event.isDup == False:
                     if event.type == 'DISCORDANT':
                         nbDiscordantTumour += 1
                     elif event.type == 'CLIPPING':
                         nbClippingTumour  += 1
 
             elif event.sample == "NORMAL":
-                if event.is_duplicate == True:
+                if event.isDup == True:
                     if event.type == 'DISCORDANT':
                         nbDiscordantDuplicatesNormal += 1
                     elif event.type == 'CLIPPING':
                         nbClippingDuplicatesNormal  += 1
-                elif event.is_duplicate == False:
+                elif event.isDup == False:
                     if event.type == 'DISCORDANT':
                         nbDiscordantNormal += 1
                     elif event.type == 'CLIPPING':
@@ -2381,12 +2381,12 @@ class META_cluster():
             
             # c) SINGLE sample mode
             elif event.sample == None:
-                if event.is_duplicate == True:
+                if event.isDup == True:
                     if event.type == 'DISCORDANT':
                         nbDiscordantDuplicatesTotal += 1
                     elif event.type == 'CLIPPING':
                         nbClippingDuplicatesTotal += 1
-                elif event.is_duplicate == False:
+                elif event.isDup == False:
                     if event.type == 'DISCORDANT':
                         nbDiscordantTotal += 1
                     elif event.type == 'CLIPPING':
