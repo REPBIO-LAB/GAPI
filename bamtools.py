@@ -419,10 +419,10 @@ def collectSV_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict):
             * DISCORDANT -> list of DISCORDANT objects  
     '''
     ## Search for SV events in the tumour
-    eventsDict_T = collectSV(ref, binBeg, binEnd, tumourBam, confDict, 'TUMOUR', True)
+    eventsDict_T = collectSV(ref, binBeg, binEnd, tumourBam, confDict, 'TUMOUR')
 
     ## Search for SV events in the normal
-    eventsDict_N = collectSV(ref, binBeg, binEnd, normalBam, confDict, 'NORMAL', True)
+    eventsDict_N = collectSV(ref, binBeg, binEnd, normalBam, confDict, 'NORMAL')
 
     ## Join tumour and normal lists
     eventsDict = {}
