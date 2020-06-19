@@ -3413,6 +3413,15 @@ class META_cluster():
             self.SV_features['PERC_RESOLVED'] = percResolved        
 
         return PSEUDOGENE, outHits
+
+    def setElement(self):
+        self.element = None
+        for event in self.events:
+            if hasattr(event, 'element'):
+                self.element = event.element
+                break
+        return self.element
+   
     
 class BRIDGE():
     '''
