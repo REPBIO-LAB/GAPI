@@ -58,11 +58,18 @@ if __name__ == '__main__':
 	parser.add_argument('--readFilters', default="SMS", dest='readFilters', type=str, help='Comma separated list of read filters to apply (SMS)')
 	parser.add_argument('--readOverhang', default=5000, dest='overhang', type=int, help='Number of flanking base pairs around the SV event to be collected from the supporting read sequence. Default: 5000')
 	parser.add_argument('--minINDELlen', default=50, dest='minINDELlen', type=int, help='Minimum indel length. Default: 50')
+	parser.add_argument('--minCLIPPINGlen', default=500, dest='minCLIPPINGlen', type=int, help='Minimum clipped sequence length for each read. Default: 500')
 
 	## Clustering
 	parser.add_argument('--INSdist', default=250, dest='maxInsDist', type=int, help='Maximum distance bewteen two adjacent INS to be clustered together (Between 0-999). Default: 250')
 	parser.add_argument('--BKPdist', default=50, dest='maxBkpDist', type=int, help='Maximum distance bewteen two adjacent breakpoints for CLIPPING clustering (Between 0-999). Default: 250')
 	parser.add_argument('--minPercOverlap', default=70, dest='minPercRcplOverlap', type=int, help='Minimum percentage of reciprocal overlap for DEL clustering. Default: 70')
+	parser.add_argument('--equalOrientBuffer', default=200, dest='equalOrientBuffer', type=int, help='Distance between reads that are equally oriented. Default: 200')
+	parser.add_argument('--oppositeOrientBuffer', default=600, dest='oppositeOrientBuffer', type=int, help='Distance between reads that are opposite oriented. Default: 600')
+	parser.add_argument('--libraryReadLength', default=151, dest='libraryReadLength', type=int, help='Illumina library read length. Default: 151')
+
+	## Databases
+	parser.add_argument('--viralDb', default=None, dest='viralDb', type=str, help='Viral database in fasta format or minimap index.')
 
 	## Filtering
 	parser.add_argument('--minClusterSize', default=4, dest='minClusterSize', type=int, help='Minimum number of reads composing a cluster. Default: 4')
@@ -78,6 +85,34 @@ if __name__ == '__main__':
 	parser.add_argument('--minReadsRegionMQ', default=10, dest='minReadsRegionMQ', type=int, help='Surrounding reads above this MQ are considered low MQ reads. Default: 10')
 	parser.add_argument('--maxRegionlowMQ', default=0.3, dest='maxRegionlowMQ', type=int, help='Maximum percentage of lowMAPQ/nbReads in cluster´s region. Default: 0.3')
 	parser.add_argument('--maxRegionSMS', default=0.15, dest='maxRegionSMS', type=int, help='Maximum percentage of SMS clipping reads in cluster´s region. Default: 0.15')
+	parser.add_argument('--INT2Search', default="ME,VIRUS", dest='INT2Search', type=str, help='Comma separated list of insertion types to collect (Mobile Elements (ME),VIRUS). Default: ME,VIRUS')
+	parser.add_argument('--komplexityThreshold', default=0.4, dest='komplexityThreshold', type=float, help='Threshold for filtering mates sequence with komplexity tool. Default: 0.4')
+	parser.add_argument('--discordantMatesMaxMAPQ', default=20, dest='discordantMatesMaxMAPQ', type=int, help='Maximum mapping quality used for collecting dicordant read mates. Default: 20')
+	parser.add_argument('--no-discordantMatesCheckUnmapped', action="store_false", default=True, dest='discordantMatesCheckUnmapped', help='If not selected, when a dicordant read mate is unmapped, collect it no matter its MAPQ. If selected, mapping state is not checked.')
+	parser.add_argument('--no-discordantMatesSupplementary', action="store_false", default=True, dest='discordantMatesSupplementary', help='When selected, avoid collecting dicordant read mates that are supplementary alignments.')
+	parser.add_argument('--discordantMatesMaxBasePerc', default=85, dest='discordantMatesMaxBasePerc', type=int, help='Maximum base percentage of discordant read mates sequences. Default: 85')
+	parser.add_argument('--discordantMatesMinLcc', default=1.49, dest='discordantMatesMinLcc', type=float, help='Minimum local complexity of discordant read mates sequences. Default: 1.49')
+	parser.add_argument('--MEDB', default=None, dest='MEDB', type=str, help='Path to ME database used for analysing metacluster bkp.')
+	parser.add_argument('--filtersBfClip', default="MAX-NBREADS,AREAMAPQ,AREASMS,IDENTITY", dest='filtersBfClip', type=str, help='Comma separated list of filters to apply before adding clippings to metaclusters. Default: MAX-NBREADS,AREAMAPQ,AREASMS,IDENTITY')
+	parser.add_argument('--filtersAfClip', default="MIN-NBREADS,MAX-NBREADS", dest='filtersAfClip', type=str, help='Comma separated list of filters to apply after adding clippings to metaclusters. Default: MIN-NBREADS, MAX-NBREADS')
+	parser.add_argument('--analyseFiltered', action="store_true", default=False, dest='analyseFiltered', help='If selected, add clippings and analyse breakpoint of those metaclusters that do not PASS selected filters.')
+
+	# Filtering viral bam
+	parser.add_argument('--minTotalMatchVirus', default=40, dest='minTotalMatchVirus', type=int, help='Minimum total matches of a read against viral DB. Default: 40.')
+	parser.add_argument('--minParcialMatchVirus', default=15, dest='minParcialMatchVirus', type=int, help='Minimum length of a match against viral DB. Default: 15.')
+	parser.add_argument('--maxMatchCheckMAPQVirus', default=60, dest='maxMatchCheckMAPQVirus', type=int, help='MAPQ of viral DB matches above this threshold is not interrogated. Default: 60.')
+	parser.add_argument('--minMAPQVirus', default=0, dest='minMAPQVirus', type=int, help='MAPQ of viral DB matches has to be above this threshold. Default: 0.')
+	parser.add_argument('--maxBasePercVirus', default=85, dest='maxBasePercVirus', type=int, help='Maximum base percentage of a match against viralDB. Default: 85.')
+	parser.add_argument('--minLccVirus', default=1.49, dest='minLccVirus', type=float, help='Minimum local complexity (lcc) of a match against viralDB. Default: 1.49.')
+
+	# Output
+	parser.add_argument('--VCFInfoFields', default="VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,NBDISC,NBCLIP,IDENT,ORIENT,BKP2,DISCMAPQ,CLIPMAPQ,SPECIDENT,DISCDUP,CLIPDUP,REP,REPSUB,DIST,REGION,GENE,INTBKP,INTBKP2,CLIPTYPE,REFSeq,BKPCSEQ,BKP2CSEQ,BKPRSEQ,BKP2RSEQ,CLIPTYPE2,DISC,CLIP", dest='VCFInfoFields', type=str, help='Comma separated list of INFO fields to display in output VCF (VTYPE,NBTOTAL,NBTUMOR,NBNORMAL,LEN,NBDISC,NBCLIP,IDENT,ORIENT,BKP2,DISCMAPQ,CLIPMAPQ,SPECIDENT,DISCDUP,CLIPDUP,REP,REPSUB,DIST,REGION,GENE,INTBKP,INTBKP2,CLIPTYPE,REFSeq,BKPCSEQ,BKP2CSEQ,BKPRSEQ,BKP2RSEQ,CLIPTYPE2,DISC,CLIP) *NOTE that REFSeq is incompatible with --no-VCFREF. Default: All are included')
+	parser.add_argument('--no-annotRepeats', action="store_false", default=True, dest='annotRepeats', help='If selected, not show annotated repeats on the reference genome at insertion interval. Only works with VIRUS mode. If ME are analysed, annotation repeats step is always performed.')
+	parser.add_argument('--no-VCFREF', action="store_false", default=True, dest='VCFREF', help='If selected, not show REF field in VCF output file (it consumes ~5Gb).')
+	parser.add_argument('--no-consensusBkpSeq', action="store_false", default=True, dest='consBkpSeq', help='If selected, a representative read is selected for breakpoint sequence. Otherwise, make consensus of breakpoint sequence. Time and space saver.')
+	parser.add_argument('--keepIdentDb', action="store_true", default=False, dest='keepIdentDb', help='If selected, do not delete the fasta file that is created with detected identities in input sample.')
+	parser.add_argument('--no-FAILED-VCF', action="store_false", default=True, dest='printFiltered', help='If selected, not print VCF with those results than do not PASS the filters.')
+
 
 	## 2. Parse user´s input and initialize variables ##
 	args = parser.parse_args()
@@ -111,11 +146,19 @@ if __name__ == '__main__':
 	readFilters = args.readFilters
 	overhang = args.overhang
 	minINDELlen = args.minINDELlen
+	minCLIPPINGlen = args.minCLIPPINGlen
+
 
 	## Clustering
 	maxInsDist = args.maxInsDist
 	maxBkpDist = args.maxBkpDist
 	minPercRcplOverlap = args.minPercRcplOverlap
+	equalOrientBuffer = args.equalOrientBuffer
+	oppositeOrientBuffer = args.oppositeOrientBuffer
+	libraryReadLength = args.libraryReadLength
+
+	# Databases
+	viralDb = args.viralDb
 
 	## Filtering thresholds
 	# Long
@@ -130,6 +173,32 @@ if __name__ == '__main__':
 	minReadsRegionMQ = args.minReadsRegionMQ
 	maxRegionlowMQ = args.maxRegionlowMQ
 	maxRegionSMS = args.maxRegionSMS
+	INT2Search = args.INT2Search
+	komplexityThreshold = args.komplexityThreshold
+	discordantMatesMaxMAPQ = args.discordantMatesMaxMAPQ
+	discordantMatesCheckUnmapped = args.discordantMatesCheckUnmapped
+	discordantMatesSupplementary = args.discordantMatesSupplementary
+	discordantMatesMaxBasePerc = args.discordantMatesMaxBasePerc
+	discordantMatesMinLcc = args.discordantMatesMinLcc
+	MEDB = args.MEDB
+	filtersBfClip = args.filtersBfClip
+	filtersAfClip = args.filtersAfClip
+	analyseFiltered = args.analyseFiltered
+
+	minTotalMatchVirus = args.minTotalMatchVirus
+	minParcialMatchVirus = args.minParcialMatchVirus
+	maxMatchCheckMAPQVirus = args.maxMatchCheckMAPQVirus
+	minMAPQVirus = args.minMAPQVirus
+	maxBasePercVirus = args.maxBasePercVirus
+	minLccVirus = args.minLccVirus
+
+	# Ouput
+	VCFInfoFields = args.VCFInfoFields
+	annotRepeats = args.annotRepeats
+	VCFREF = args.VCFREF
+	consBkpSeq = args.consBkpSeq
+	keepIdentDb = args.keepIdentDb
+	printFiltered = args.printFiltered
 
     ## Check file dependencies (list with the paths) ##
 	missing_dependencies = missing_dependencies or  cd.missing_needed_files((bam,reference,refDir,normalBam,annovarDir,outDir))
@@ -153,6 +222,10 @@ if __name__ == '__main__':
 	# Convert comma-separated string inputs into lists:
 	targetSV = targetSV.split(',')
 	targetRefs = refs.split(',')
+	targetINT2Search = INT2Search.split(',')
+	targetVCFInfoFields = VCFInfoFields.split(',')
+	filtersBfClipList = filtersBfClip.split(',')
+	filtersAfClipList = filtersAfClip.split(',')
 
 	## Determine running mode:
 	mode = 'SINGLE' if normalBam == None else 'PAIRED'
@@ -211,12 +284,20 @@ if __name__ == '__main__':
 	print('minMAPQ: ', minMAPQ)
 	print('readFilters: ', readFilters)
 	print('overhang: ', overhang)
-	print('minINDELlength: ', minINDELlen, "\n")
+	print('minINDELlength: ', minINDELlen)
+	print('minCLIPPINGlength: ', minCLIPPINGlen, "\n")
+	print('targetINT2Search ', INT2Search)
 
 	print('** Clustering **')
 	print('maxInsDist: ', maxInsDist)
 	print('maxBkpDist: ', maxBkpDist)
-	print('minPercOverlap: ', minPercRcplOverlap, "\n")
+	print('minPercOverlap: ', minPercRcplOverlap)
+	print('equalOrientBuffer: ', equalOrientBuffer)
+	print('oppositeOrientBuffer: ', oppositeOrientBuffer)
+	print('libraryReadLength: ', libraryReadLength, "\n")
+
+	print('** Databases **')
+	print('viralDb: ', viralDb, "\n")
 
 	print('** Filtering **')
 	print('minClusterSize: ', minClusterSize)
@@ -227,7 +308,32 @@ if __name__ == '__main__':
 	print('targetStatus: ', targetStatus)
 	print('minReadsRegionMQ: ', minReadsRegionMQ)
 	print('maxRegionlowMQ: ', maxRegionlowMQ)
-	print('maxRegionSMS: ', maxRegionSMS, "\n")
+	print('maxRegionSMS: ', maxRegionSMS)
+	print('komplexityThreshold: ', komplexityThreshold)
+	print('discordantMatesMaxMAPQ: ', discordantMatesMaxMAPQ)
+	print('discordantMatesCheckUnmapped: ', discordantMatesCheckUnmapped)
+	print('discordantMatesSupplementary: ', discordantMatesSupplementary)
+	print('discordantMatesMaxBasePerc: ', discordantMatesMaxBasePerc)
+	print('discordantMatesMinLcc: ', discordantMatesMinLcc)
+	print('MEDB: ', MEDB)
+	print('minTotalMatchVirus', minTotalMatchVirus)
+	print('minParcialMatchVirus', minParcialMatchVirus)
+	print('maxMatchCheckMAPQVirus', maxMatchCheckMAPQVirus)
+	print('minMAPQVirus', minMAPQVirus)
+	print('maxBasePercVirus', maxBasePercVirus)
+	print('minLccVirus', minLccVirus)
+	print('filtersBfClip', filtersBfClip)
+	print('filtersAfClip', filtersAfClip)
+	print('analyseFiltered', analyseFiltered, "\n")
+
+	print('** Output format**')
+	print ('VCFInfoFields: ', VCFInfoFields)
+	print ('annotRepeats: ', annotRepeats)
+	print ('VCFREF: ', VCFREF)
+	print ('consBkpSeq: ', consBkpSeq)
+	print ('keepIdentDb: ', keepIdentDb)
+	print ('printFiltered: ', printFiltered, "\n")
+
 	print('***** Executing ', scriptName, '.... *****', "\n")
 
 	##########
@@ -261,6 +367,7 @@ if __name__ == '__main__':
 	confDict['overhang'] = overhang
 	confDict['minMAPQ'] = minMAPQ
 	confDict['minINDELlen'] = minINDELlen
+	confDict['minCLIPPINGlen'] = minCLIPPINGlen
 	
 	## Target SV events to search for
 	confDict['targetSV'] = targetSV
@@ -292,7 +399,13 @@ if __name__ == '__main__':
 	confDict['maxInsDist'] = maxInsDist
 	confDict['maxBkpDist'] = maxBkpDist
 	confDict['minPercRcplOverlap'] = minPercRcplOverlap
+	confDict['equalOrientBuffer'] = equalOrientBuffer
+	confDict['oppositeOrientBuffer'] = oppositeOrientBuffer
+	confDict['libraryReadLength'] = libraryReadLength
 
+	## Databases
+	confDict['viralDb'] = viralDb
+	
 	## Filtering thresholds
 	# Long
 	confDict['minClusterSize'] = minClusterSize
@@ -307,6 +420,31 @@ if __name__ == '__main__':
 	confDict['minReadsRegionMQ'] = minReadsRegionMQ
 	confDict['maxRegionlowMQ'] = maxRegionlowMQ
 	confDict['maxRegionSMS'] = maxRegionSMS
+	confDict['targetINT2Search'] = targetINT2Search
+	confDict['komplexityThreshold'] = komplexityThreshold
+	confDict['discordantMatesMaxMAPQ'] = discordantMatesMaxMAPQ
+	confDict['discordantMatesCheckUnmapped'] = discordantMatesCheckUnmapped
+	confDict['discordantMatesSupplementary'] = discordantMatesSupplementary
+	confDict['discordantMatesMaxBasePerc'] = discordantMatesMaxBasePerc
+	confDict['discordantMatesMinLcc'] = discordantMatesMinLcc
+	confDict['MEDB'] = MEDB
+	confDict['filtersBfClip'] = filtersBfClipList
+	confDict['filtersAfClip'] = filtersAfClipList
+	confDict['analyseFiltered'] = analyseFiltered
+	confDict['minTotalMatchVirus'] = minTotalMatchVirus
+	confDict['minParcialMatchVirus'] = minParcialMatchVirus
+	confDict['maxMatchCheckMAPQVirus'] = maxMatchCheckMAPQVirus
+	confDict['minMAPQVirus'] = minMAPQVirus
+	confDict['maxBasePercVirus'] = maxBasePercVirus
+	confDict['minLccVirus'] = minLccVirus
+
+	# Output
+	confDict['VCFInfoFields'] = targetVCFInfoFields
+	confDict['annotRepeats'] = annotRepeats
+	confDict['VCFREF'] = VCFREF
+	confDict['consBkpSeq'] = consBkpSeq
+	confDict['keepIdentDb'] = keepIdentDb
+	confDict['printFiltered'] = printFiltered
 	
 	## 2. Execute structural variation caller
 	###########################################
