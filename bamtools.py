@@ -476,10 +476,8 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample, supplementary = True):
         eventsDict['LEFT-CLIPPING'] = []
         eventsDict['RIGHT-CLIPPING'] = []
     
-    '''
     if 'DISCORDANT' in confDict['targetEvents']:
         eventsDict['DISCORDANT'] = []
-    '''
 
     ## Open BAM file for reading
     bamFile = pysam.AlignmentFile(bam, "rb")
