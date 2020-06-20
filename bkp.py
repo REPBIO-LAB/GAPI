@@ -202,7 +202,7 @@ def supportingCLIPPING(metacluster, buffer, confDict, bam, normalBam, mode, side
 
     # New dictionary for performing collecting collecting clippings
     clippingConfDict = dict(confDict)
-    clippingConfDict['targetSV'] = ['CLIPPING']
+    clippingConfDict['targetEvents'] = ['CLIPPING']
     clippingConfDict['minMAPQ'] = 10
     # NOTE SR: Think and check if this is neccessary. I think it is not
     #confDict['minCLIPPINGlen'] = 2
