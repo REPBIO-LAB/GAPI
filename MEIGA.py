@@ -376,7 +376,7 @@ if __name__ == '__main__':
 	# a) WGS illumina data (WGS)
 	if (confDict['technology'] == 'ILLUMINA'):
 		confDict['targetEvents'] = ['DISCORDANT']
-		confDict['minCLIPPINGlen'] = 20
+		#confDict['minCLIPPINGlen'] = 20
 
 	# b) Sureselect illumina data
 	elif (confDict['technology'] == 'SURESELECT'):
