@@ -966,9 +966,10 @@ class VCF():
                     INFO[key] = value
 
             ## Parse sample genotypes if multisample VCF
+            FORMAT = {}
+
             if len(fields) > 8:
                 
-                FORMAT = {}
                 samplesGt = [fields[i] for i in range(9, len(fields))]   
 
                 ## For each sample Genotype filed
