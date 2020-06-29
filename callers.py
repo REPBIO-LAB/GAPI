@@ -65,6 +65,7 @@ class SV_caller():
         and bin databases as values
         '''
         # NOTE MERGE SR2020: For SV_caller_short this load is managed inside the caller
+        # SONIA: why??
         if self.confDict['technology'] != 'ILLUMINA':
             annotDir = self.outDir + '/LOAD_ANNOT/'
             unix.mkdir(annotDir)
@@ -370,7 +371,21 @@ class SV_caller_short(SV_caller):
         # NOTE SR: if 'ME' in self.confDict['targetINT2Search'] annotRepeats is not and option
         if 'ME' in self.confDict['targetINT2Search']:
             annotDir = self.outDir + '/ANNOT/'
-            self.annotations = annotation.load_annotations(['REPEATS', 'TRANSDUCTIONS'], self.refLengths, self.refDir, self.confDict['processes'], annotDir)
+            unix.mkdir(annotDir)
+            annotations2load = ['REPEATS']
+    
+            if self.confDict['transductionSearch']:    
+                annotations2load.append('TRANSDUCTIONS')
+    
+            # if True: # at one point include flag for pseudogene search
+            #     annotations2load.append('EXONS')
+    
+            if self.confDict['germlineMEI'] is not None:
+                annotations2load.append('GERMLINE-MEI')
+    
+            self.annotations = annotation.load_annotations(annotations2load, self.refLengths, self.refDir, self.confDict['germlineMEI'], self.confDict['processes'], annotDir)        
+
+            
         else:
             self.annotations = {}
             self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'] = None, None
@@ -399,7 +414,7 @@ class SV_caller_short(SV_caller):
         # DESILENCE
         if 'ME' not in self.confDict['targetINT2Search'] and self.confDict['annotRepeats']:
             annotDir = self.outDir + '/ANNOT/'
-            self.annotations = annotation.load_annotations(['REPEATS', 'TRANSDUCTIONS'], self.refLengths, self.refDir, self.confDict['processes'], annotDir)
+            self.annotations = annotation.load_annotations(['REPEATS', 'TRANSDUCTIONS'], self.refLengths, self.refDir, self.confDict['germlineMEI'], self.confDict['processes'], annotDir)
 
         # NOTE SR: if 'ME' in self.confDict['targetINT2Search'] annotRepeats is not and option
         if 'ME' in self.confDict['targetINT2Search'] or self.confDict['annotRepeats']:
@@ -492,10 +507,13 @@ class SV_caller_short(SV_caller):
         pool.close()
         pool.join()
 
-        if not self.confDict['keepIdentDb']:
-            unix.rm([self.identDbPath])
-
-        del self.viralSeqs
+        ### 3. Clean up
+        if 'VIRUS' in self.confDict['targetINT2Search']:
+            del self.viralSeqs
+            
+            if not self.confDict['keepIdentDb']:
+                unix.rm([self.identDbPath])
+            
         # Remove output directory
         unix.rm([self.outDir + '/CLUSTER/'])
 
