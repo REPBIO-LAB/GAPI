@@ -13,7 +13,6 @@ import re
 import log
 import gRanges
 import structures
-import callers
 
 
 ## FUNCTIONS ##
@@ -86,7 +85,6 @@ def bed2binDb(bedPath, refLengths, threads):
 
     return wgBinDb
 
-
 def INS2binDb(VCFs, refLengths, threads):
     '''
     Organize INS events from a set of input VCFs into a bin database
@@ -145,7 +143,6 @@ def INS2Dict(VCFs):
 
     return outDict
 
-
 ## CLASSES ##
 class FASTA():
     '''
@@ -181,17 +178,11 @@ class FASTA():
             seq = ''.join(s.strip() for s in next(faiter))
             self.seqDict[header] = seq
 
-    def write(self, filePath, mode = 'write', safetyLock = False):
+    def write(self, filePath):
         '''
         FASTA file writer. Write data stored in the dictionary into a FASTA file
-        Mode: write -> write new file. append -> append to existing file or create if tit doesnt exist.
         '''
-        openMode = 'a' if mode == 'append' else 'w'
-        
-        if safetyLock:
-            callers.lock.acquire()
-
-        fastaFile = open(filePath, openMode)
+        fastaFile = open(filePath, 'w')
 
         for header, seq in self.seqDict.items():
             header = '>' + header
@@ -201,9 +192,6 @@ class FASTA():
 
         # Close output fasta file
         fastaFile.close()
-        
-        if safetyLock:
-            callers.lock.release()
 
     def retrieve_seqs(self, targetNames):
         '''
@@ -217,7 +205,7 @@ class FASTA():
         '''
         outDict = {readName: self.seqDict[readName] for readName in targetNames if readName in self.seqDict}
         
-        return outDict
+        return outDict        
 
 class FASTQ():
     '''
@@ -338,6 +326,8 @@ class BED():
 
         # c) Entries organized into a nested dict (TO IMPLEMENT LATER)
         #elif (self.structure == 'nestedDict'):
+
+        ## Write entries into output bed file
         with open(outPath, 'w') as outFile:
 
             ## Write header
@@ -446,6 +436,7 @@ class BED():
         Output:
             1) lines: dictionary containing bed entries
         '''
+
         bedFile = open(filePath)
         lines = {}
         header = []
@@ -587,6 +578,7 @@ class BED_entry():
 
         for i in range(3, len(header), 1):
             self.optional[header[i]] = fields[i]
+        
 
 class PAF():
     '''
@@ -770,7 +762,6 @@ class PAF_chain():
             percCovered = float(alignmentLen)/self.alignments[0].qLen*100
 
         return percCovered
-
 
 class VCF():
     '''
@@ -971,7 +962,7 @@ class VCF():
         for variant in self.variants:
 
             INFO = variant.build_info(IDS)
-            row = str(variant.chrom) + "\t" + str(variant.pos) + "\t" + str(variant.ID) + "\t" + str(variant.ref) + "\t" + str(variant.alt) + "\t" + str(variant.qual) + "\t" + str(variant.filter) + "\t" + str(INFO) + "\n"
+            row = variant.chrom + "\t" + str(variant.pos) + "\t" + str(variant.ID) + "\t" + variant.ref + "\t" + variant.alt + "\t" + variant.qual + "\t" + variant.filter + "\t" + INFO + "\n"
             outFile.write(row)
 
         ## Close output file
@@ -1396,25 +1387,3 @@ class PSL_alignment():
 
         self.qBeg = updatedBeg
         self.qEnd = updatedEnd
-
-def pslQueryRefDict(pslPath):
-    '''
-    Read BLAT results and store qName and tName in a dictionary
-
-    Input:
-        1. pslPath: path to blat result file (psl format)
-    Output:
-        1. pslDict: dictionary -> pslDict[qName] = tName 
-    '''
-    # Read PSL
-    pslClipping = PSL()
-    pslClipping.read(pslPath)
-    ## TODO SR: mirar filtros
-    pslDict = {}
-    for pslAlign in pslClipping.alignments:
-        if pslAlign.qName in pslDict.keys():
-            pslDict[pslAlign.qName].append(pslAlign.tName)
-        else:
-            pslDict[pslAlign.qName] = []
-            pslDict[pslAlign.qName].append(pslAlign.tName)
-    return pslDict
