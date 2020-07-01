@@ -112,12 +112,13 @@ def merge_clusters(clusters, clusterType):
         subclusters = []
          
         for metacluster in clusters:
+            # NOTE MERGE SR2020: To avoid key META error in clustering.reciprocal_overlap_clustering
             #subclusters = subclusters + list(metacluster.subclusters.values())
             subclusters = subclusters + list(metacluster.rawSubclusters)
 
         mergedCluster = create_cluster(subclusters, clusterType)
 
-
+        # NOTE MERGE SR2020: To avoid key META error in clustering.reciprocal_overlap_clustering
         for metacluster in clusters:
             for clusterNew in metacluster.rawSubclusters:
                 clusterNew.clusterId = mergedCluster.id
@@ -134,65 +135,143 @@ def merge_clusters(clusters, clusterType):
     return mergedCluster
 
 
-def create_discordantClusters(discordantBinDb, minClusterSize, buffer):
+def create_discordantClusters(discordantsIdentity, minClusterSize, equalOrientBuffer, oppositeOrientBuffer, libraryReadLength):
     '''
     Group discordant read pairs according to cluster type and reciprocal overlap into clusters 
 
     Input:
-        1. discordantBinDb: data structure containing a set of discordant read pairs organized in genomic bins  
+        1. discordantsIdentity: dictionary containing lists of discordant read pairs organized taking into account their identity
+                        This info is encoded in the dictionary keys as follows. Keys composed by 2 elements separated by '-':
+                            - Event type: DISCORDANT   
+                            - Type: identity type. It can be retrotransposon family (L1, Alu, ...), source element (22q, 5p, ...), viral strain (HPV, ...)
         2. minClusterSize: minimum cluster size
-        3. buffer: number of base pairs to extend begin and end coordinates for each discordant prior clustering
-
+        3. equalOrientBuffer: Distance between reads that are equally oriented.
+        4. oppositeOrientBuffer: Distance between reads that are opposite oriented.
+        5. libraryReadLength: Illumina library read length.
+    
     Output:
-        1. discordantClustersDict: dictionary containing for each possible discordant cluster type (keys) a list of clusters (values)
+        1. discordantMetaclusters: list containing discordant metaclusters
     
     NOTE: this function should be removed and integrated into the more generic one: 'create_clusters'
     '''
-    discordantClustersDict = {}
+    start = time.time()
+    discordantMetaclusters = []
 
     # For each discordant read pair cluster type
-    for clusterType in discordantBinDb.eventTypes:
-                
+    #for clusterType in discordantBinDb.eventTypes:
+    for clusterType in discordantsIdentity.keys():
+        
         # Do clustering based on reciprocal overlap
-        discordantClustersDict[clusterType] = clustering.reciprocal_overlap_clustering(discordantBinDb, 1, minClusterSize, [clusterType], buffer, clusterType)
+        #discordantClustersDict[clusterType] = clustering.reciprocal_overlap_clustering(discordantBinDb[clusterType], 1, minClusterSize, [clusterType], buffer, clusterType)
+        #discordantClusters.extend(clustering.reciprocal_overlap_clustering(discordantBinDb[clusterType], 1, minClusterSize, [clusterType], buffer, clusterType))
+        discordantMetaclusters.extend(clustering.distance_clustering_SR(discordantsIdentity[clusterType], 1, minClusterSize, [clusterType], clusterType, equalOrientBuffer, oppositeOrientBuffer, libraryReadLength))
+        #discordantClusters = clustering.reciprocal_overlap_clustering(discordantBinDb, 1, minClusterSize, [clusterType], buffer, clusterType)
 
-    return discordantClustersDict
+    end = time.time()
+    print ('TIME ' + str(end-start))
+    return discordantMetaclusters
 
-
-def extra_clustering_by_matePos(discordantClusters, refLengths, minClusterSize):
+def cluster_by_matePos(discordants, refLengths, minClusterSize):
     '''
     Apply an extra clustering step to discordant read pair clusters based on mate position
 
     Input:
-        1. discordantClusters: dictionary containing for each possible discordant cluster type (keys) a list of clusters (values)
+        1. discordants: list of discordant clusters
         2. refLengths: dictionary containing references as keys and their lengths as values
         3. minClusterSize: minimum cluster size
 
     Output:
-        1. outDiscordantClusters: dictionary containing for each possible discordant cluster type (keys) the list of newly created clusters (values)
-    '''
-    outDiscordantClusters = {}
+        1. outDiscordants: list of discordant clusters after applying mate position based clustering
+    '''     
+    outDiscordants = []
 
-    ## For each discordant cluster type
-    for clusterType, clusters in discordantClusters.items():
-        
-        outDiscordantClusters[clusterType] = []
+    ## For each cluster
+    for cluster in discordants:
 
-        ## For each cluster
-        for cluster in clusters:
-
-            ## Cluster by mate position
-            newClusters = cluster_discordants_by_matePos(cluster.events, refLengths, minClusterSize)
+        ## Cluster by mate position
+        newClusters = cluster_events_by_matePos(cluster.events, refLengths, minClusterSize)
             
-            ## Add newly created clusters to the list
-            outDiscordantClusters[clusterType] = outDiscordantClusters[clusterType] + newClusters
+        ## Add newly created clusters to the list
+        outDiscordants = outDiscordants + newClusters
 
-    return outDiscordantClusters
+    return outDiscordants
 
-
-def cluster_discordants_by_matePos(discordants, refLengths, minClusterSize):
+def cluster_by_supplPos(clippings, refLengths, minClusterSize, clippingSide):
     '''
-    Cluster discordant read pairs based on their mate alignment position
+    Apply an extra clustering step to clipping clusters based on suppl. alignment position
+
+    Input:
+        1. clippings: list of clipping clusters
+        2. refLengths: dictionary containing references as keys and their lengths as values
+        3. minClusterSize: minimum cluster size
+        4. clippingSide: 'LEFT-CLIPPING' or 'RIGHT-CLIPPING'
+
+    Output:
+        1. outClippings: list of clipping clusters after applying supplementary alignment position based clustering
+    '''     
+    outClippings = []
+
+    ## For each cluster
+    for cluster in clippings:
+
+        ## Perform extra clustering based on suppl. alignment positions
+        newClusters = cluster_events_by_supplPos(cluster, refLengths, minClusterSize, clippingSide)
+            
+        ## Add newly created clusters to the list
+        outClippings = outClippings + newClusters
+
+    return outClippings
+
+def cluster_events_by_supplPos(clippingCluster, refLengths, minClusterSize, clippingSide):
+    '''
+    Cluster events in an input clipping cluster according to the position of their supplementary alignments
+    
+    Input:
+        1. clippingCluster: clipping cluster
+        2. refLengths: dictionary containing references as keys and their lengths as values
+        3. minClusterSize: minimum cluster size
+        4. clippingSide: 'LEFT-CLIPPING' or 'RIGHT-CLIPPING'
+
+    Output:
+        1. clippingClusters: list of clipping clusters
+    '''   
+    ## 1. Organize clippings at the cluster into a dictionary 
+    clippingsDict = {}
+
+    for clipping in clippingCluster.events:
+        clippingsDict[clipping.id] = clipping
+    
+    ## 2. Retrieve complementary suppl. alignments for each clipping event 
+    complementaryAlignments = clippingCluster.search4complAlignments()
+
+    ## 3. Cluster supplementary alignment positions
+    supplClusters = clippingCluster.cluster_suppl_positions(complementaryAlignments)
+    
+    ## 4. Create new clipping clusters of discordants based on mate clusters
+    clippingClusters = []
+
+    supplClusters = structures.dict2list(supplClusters)
+ 
+    # For each mate cluster in the reference
+    for supplCluster in supplClusters:
+        
+        # Retrieve original discordants for mates
+        clippings = [clippingsDict[supplAlign.clippingId] for supplAlign in supplCluster.events]
+
+        # Create cluster
+        clippingCluster = create_cluster(clippings, clippingSide)
+
+        # Add supplementary alignments cluster to the clipping cluster
+        clippingCluster.supplCluster = supplCluster
+
+        # Add clipping cluster to the list
+        clippingClusters.append(clippingCluster)
+
+    return clippingClusters
+
+def cluster_events_by_matePos(discordants, refLengths, minClusterSize):
+    '''
+    Cluster discordant read pair events based on their mate alignment position
 
     Input:
         1. discordants: list of discordant events
@@ -201,15 +280,11 @@ def cluster_discordants_by_matePos(discordants, refLengths, minClusterSize):
 
     Output:
         1. discordantClusters: list of discordant clusters
-
     '''   
     ## 1. Organize discordant into a dictionary according to supporting read id
     discordantsDict = {}
 
     for discordant in discordants:
-
-        ## Note: create method to return readName + mateId (\1 and \2). Use this id as dictionary key. 
-        # Othewise 
         discordantsDict[discordant.fullReadName()] = discordant
     
     ## 2. Produce discordant objects for mates:
@@ -248,7 +323,6 @@ def cluster_discordants_by_matePos(discordants, refLengths, minClusterSize):
         discordantClusters.append(discordantCluster)
 
     return discordantClusters
-    
 
 def create_clusters(eventsBinDb, confDict):
     '''
@@ -292,7 +366,7 @@ def create_clusters(eventsBinDb, confDict):
         ## D) Perform clustering based on reciprocal overlap for DISCORDANT
         elif SV_type == 'DISCORDANT':
 
-            clustersDict[SV_type] = clustering.reciprocal_overlap_clustering(eventsBinDb, 1, confDict['minClusterSize'], [SV_type], 100, SV_type)    
+            clustersDict[SV_type] = clustering.reciprocal_overlap_clustering(eventsBinDb, 1, confDict['minClusterSize'], [SV_type], 200, SV_type)    
 
     ## 2. Organize clusters into bins ##    
     binSizes = [100, 1000, 10000, 100000, 1000000]
@@ -625,52 +699,30 @@ def find_insertion_at_clipping_bkp(primary, supplementary):
     return insert
 
 
-def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transductionSearch, processes, viralDb, rootOutDir):
+def INS_type_metaclusters(metaclusters, reference, annotations, processes, viralDb, rootOutDir):
     '''
     For each metacluster provided as input determine the type of insertion
 
     Input:
         1. metaclusters: list of metaclusters supporting insertion events
         2. reference: Path to the reference genome in fasta format (bwa mem and minimap2 indexes must be located in the same folder)
-        3. refLengths: Dictionary containing reference ids as keys and as values the length for each reference. 
-        4. refDir: Directory containing reference databases. 
-        5. transductionSearch: boolean specifying if transduction search is enabled (True) or not (False)
-        6. processes: number of processes
-        7. viralDb: path to viral database in fasta format
-        8. rootOutDir: Root output directory
-    '''      
-    ### 1. Load repeats, transduced regions and exons database 
-    msg = '1. Load repeats, transduced regions and exons database'
-    log.subHeader(msg)        
-    annotDir = rootOutDir + '/ANNOT/'
-    unix.mkdir(annotDir)
-    annotations2load = ['REPEATS']
-
-    '''
-    if transductionSearch:    
-        annotations2load.append('TRANSDUCTIONS')
-
-    if True: # at one point include flag for pseudogene search
-        annotations2load.append('EXONS')
+        3. annotations: Dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values 
+        4. processes: Number of processes
+        5. viralDb: path to viral database in fasta format
+        6. rootOutDir: Root output directory
     '''
 
-    ## TODO: DESILENCE
-    #annotations = annotation.load_annotations(annotations2load, refLengths, refDir, processes, annotDir)
-
-    ## Cleanup
-    unix.rm([annotDir])
-
-    ## 2. Create fasta containing all consensus inserted sequences 
-    msg = '2. Create fasta containing all consensus inserted sequences'
+    ## 1. Create fasta containing all consensus inserted sequences 
+    msg = '1. Create fasta containing all consensus inserted sequences'
     log.info(msg)   
     fastaPath = insertedSeq2fasta(metaclusters, rootOutDir)
 
-    ## 3. Align consensus inserted sequences
-    msg = '3. Align consensus inserted sequences'
+    ## 2. Align consensus inserted sequences
+    msg = '2. Align consensus inserted sequences'
     log.info(msg) 
 
-    ## 3.1 Align consensus inserted sequences into the reference genome
-    msg = '3.1 Align consensus inserted sequences into the reference genome'
+    ## 2.1 Align consensus inserted sequences into the reference genome
+    msg = '2.1 Align consensus inserted sequences into the reference genome'
     log.info(msg)    
     SAM_genome = alignment.alignment_bwa(fastaPath, reference, 'alignments_genome', processes, rootOutDir)
 
@@ -680,8 +732,8 @@ def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transduct
     ## Organize hits according to their corresponding metacluster
     allHits_genome = alignment.organize_hits_paf(PAF_genome) 
 
-    ## 3.2 Align consensus inserted sequences into the reference genome (splicing-aware)
-    msg = '3.2 Align consensus inserted sequences into the reference genome (splicing-aware)'
+    ## 2.2 Align consensus inserted sequences into the reference genome (splicing-aware)
+    msg = '2.2 Align consensus inserted sequences into the reference genome (splicing-aware)'
     log.info(msg)    
 
     ## Minimap index for the reference
@@ -699,8 +751,8 @@ def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transduct
     allHits_splicing.read(BED_path, 'List', None)
     groupedEntries = allHits_splicing.group_entries_by_name()
 
-    ## 3.3 Align consensus inserted sequences into the viral database
-    msg = '3.3 Align consensus inserted sequences into the viral database'
+    ## 2.3 Align consensus inserted sequences into the viral database
+    msg = '2.3 Align consensus inserted sequences into the viral database'
     log.info(msg)  
 
     #start_time = time.time()
@@ -713,14 +765,14 @@ def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transduct
     ## Organize hits according to their corresponding metacluster
     allHits_viral = alignment.organize_hits_paf(PAF_viral)
 
-    ## 4. For each metacluster determine the insertion type
-    msg = '4. For each metacluster determine the insertion type'
+    ## 3. For each metacluster determine the insertion type
+    msg = '3. For each metacluster determine the insertion type'
     log.info(msg)   
     
     # For each metacluster
     for metacluster in metaclusters:
 
-        ## 4.1 Collect consensus inserted sequence hits
+        ## 3.1 Collect consensus inserted sequence hits
         metaId = str(metacluster.ref) + ':' + str(metacluster.beg) + '-' + str(metacluster.end)
 
         ## Hits in the reference genome
@@ -744,15 +796,11 @@ def INS_type_metaclusters(metaclusters, reference, refLengths, refDir, transduct
         else:
             hits_viral = formats.PAF()
 
-        ## 4.2 Insertion type inference
-        ## TODO: DESILENCE (y poner el de abajo)
-        hits_genome = formats.PAF()
-        hits_splicing = []
-        metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, None, None, None)
-        #metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'])
+        ## 3.2 Insertion type inference
+        metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'])
 
-# NOTE 2020: Copiada de INS_type_metaclusters
-# TODO 2020: Luego hacer merge
+# NOTE 2020: Copied from INS_type_metaclusters
+# TODO 2020: Do merge
 
 def soloBND_type_metaclusters(metaclusters, confDict, reference, refLengths, refDir, transductionSearch, processes, viralDb, rootOutDir):
     '''
@@ -1010,14 +1058,11 @@ def insertedSeq2fasta(metaclusters, outDir):
     ## Write fasta         
     fastaPath = outDir + '/inserted_sequences.fa'
     FASTA.write(fastaPath)    
-    '''
-    # NOTE 2020: TEEEEEMP BORRAAAAR
-    fastaPath = outDir + '/inserted_sequences_kz023.fa'
-    '''
+
     return fastaPath
 
 # NOTE 2020: new 2020
-# TODO 2020: parecida a insertedSeq2fasta MEZCLARLAS!!
+# TODO 2020: Similar to insertedSeq2fasta (consider merging them!!)
 def soloBNDSeq2fasta(metaclusters, outDir):
     '''
     Collect all the consensus inserted sequences from a list of metaclusters supporting INS and 
@@ -1058,10 +1103,7 @@ def soloBNDSeq2fasta(metaclusters, outDir):
     ## Write fasta         
     fastaPath = outDir + '/inserted_sequences.fa'
     FASTA.write(fastaPath)    
-    '''
-    # NOTE 2020: TEEEEEMP BORRAAAAR
-    fastaPath = outDir + '/inserted_sequences_kz023.fa'
-    '''
+
     return fastaPath
 
 def assignAligments2metaclusters_paf(metaclusters, PAF_path):
@@ -1132,7 +1174,7 @@ def assignAligments2metaclusters_sam(metaclusters, SAM_path):
 
     return metaclustersHits
 
-def search4bridges_metaclusters_parallel(metaclusters, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, refLengths, refDir, viralDb, processes, rootDir):
+def search4bridges_metaclusters_parallel(metaclusters, maxBridgeLen, minMatchPerc, minReads, minPercReads, annotations, refDir, viralDb, processes, rootDir):
     '''
     Search for transduction or repeat bridges at BND junctions for a list of metacluster objects
 
@@ -1140,22 +1182,17 @@ def search4bridges_metaclusters_parallel(metaclusters, maxBridgeLen, minMatchPer
         1. metaclusters: list of input metacluster objects supporting BND
         2. maxBridgeLen: maximum supplementary cluster length to search for a bridge
         3. minMatchPerc: minimum percentage of the supplementary cluster interval to match in a transduction or repeats database to make a bridge call
-        4. minSupportingReads: minimum number of reads supporting the bridge
+        4. minReads: minimum number of reads supporting the bridge
         5. minPercReads: minimum percentage of clipping cluster supporting reads composing the bridge
-        6. refLengths: dictionary containing reference ids as keys and as values the length for each reference. 
+        6. annotations: Dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values 
         7. refDir: directory containing reference databases. 
         8. processes: number of processes
         9. rootDir: root output directory
 
     For each metacluster update 'bridgeClusters' and 'bridgeType' attributes
     '''    
-    ## 1. Load repeats annnotation and transduced regions beds
-    annot2load = ['REPEATS', 'TRANSDUCTIONS']
-    ## TODO: DESILENCE AND DELETE FOLLOWING LINE
-    #annotations = annotation.load_annotations(annot2load, refLengths, refDir, processes, rootDir)
-    annotations = {}
 
-    ## 2. Generate index containing consensus retrotranposon sequences + source elements downstream regions
+    ## 1. Generate index containing consensus retrotranposon sequences + source elements downstream regions
     ## Consensus retrotransposon sequences
     consensusPath = refDir + '/consensusDb.fa'
     consensus = formats.FASTA()
@@ -1178,16 +1215,16 @@ def search4bridges_metaclusters_parallel(metaclusters, maxBridgeLen, minMatchPer
     fileName = 'reference_sequences'  
     index = alignment.index_minimap2(fastaPath, fileName, rootDir)
 
-    ## 3. Create tuple list for multiprocessing
+    ## 2. Create tuple list for multiprocessing
     tupleList = []
 
     for metacluster in metaclusters:
         
         ## Add to the list
-        fields = (metacluster, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, viralDb, rootDir)
+        fields = (metacluster, maxBridgeLen, minMatchPerc, minReads, minPercReads, annotations, index, viralDb, rootDir)
         tupleList.append(fields)
 
-    ## 4. Search for bridges
+    ## 3. Search for bridges
     pool = mp.Pool(processes=processes)
     metaclusters = pool.starmap(search4bridges_metacluster, tupleList)
     pool.close()
@@ -1195,7 +1232,7 @@ def search4bridges_metaclusters_parallel(metaclusters, maxBridgeLen, minMatchPer
 
     return metaclusters
 
-def search4bridges_metacluster(metacluster, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, viralDb, rootDir):
+def search4bridges_metacluster(metacluster, maxBridgeLen, minMatchPerc, minReads, minPercReads, annotations, index, viralDb, rootDir):
     '''
     Search for transduction or repeat bridges at BND junctions for a metacluster object
 
@@ -1203,7 +1240,7 @@ def search4bridges_metacluster(metacluster, maxBridgeLen, minMatchPerc, minSuppo
         1. metacluster: metacluster object
         2. maxBridgeLen: maximum supplementary cluster length to search for a bridge
         3. minMatchPerc: minimum percentage of the supplementary cluster interval to match in a transduction or repeats database to make a bridge call
-        4. minSupportingReads: minimum number of reads supporting the bridge
+        4. minReads: minimum number of reads supporting the bridge
         5. minPercReads: minimum percentage of clipping cluster supporting reads composing the bridge
         6. annotations: dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
         7. index: minimap2 index for consensus retrotransposon sequences + transduced regions database
@@ -1218,15 +1255,15 @@ def search4bridges_metacluster(metacluster, maxBridgeLen, minMatchPerc, minSuppo
     unix.mkdir(outDir)
 
     ## 2. Search for bridge
-    metacluster.search4bridge(maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, viralDb, outDir)
+    metacluster.search4bridge(maxBridgeLen, minMatchPerc, minReads, minPercReads, annotations, index, viralDb, outDir)
 
     ## 3. Remove output directory        
-    #unix.rm([outDir])
+    unix.rm([outDir])
 
     return metacluster
 
 
-def search4junctions_metaclusters(metaclusters, refLengths, processes, minSupportingReads, minPercReads, reference, refDir, viralDb, outDir):
+def search4junctions_metaclusters(metaclusters, refLengths, processes, minReads, minPercReads, reference, refDir, viralDb, outDir):
     '''
     Search for BND junctions for a list of input metacluster objects of the type BND.
 
@@ -1238,7 +1275,7 @@ def search4junctions_metaclusters(metaclusters, refLengths, processes, minSuppor
         1. metaclusters: list of input metacluster objects supporting BND
         2. refLengths: dictionary containing reference ids as keys and as values the length for each reference. 
         3. processes: number of processes
-        4. minSupportingReads: minimum number of reads supporting the BND junction 
+        4. minReads: minimum number of reads supporting the BND junction 
         5. minPercReads: minimum percentage of metacluster and partner metacluster reads supporting the BND junction
         6. refDir
         7. outDir: output directory
@@ -1260,7 +1297,7 @@ def search4junctions_metaclusters(metaclusters, refLengths, processes, minSuppor
     for metacluster in metaclusters:
     
         # Search for junctions
-        junctions = metacluster.search4junctions(metaclustersBinDb, minSupportingReads, minPercReads)
+        junctions = metacluster.search4junctions(metaclustersBinDb, minReads, minPercReads)
         
         # Add junctions to the final list avoiding redundancies
         for junction in junctions:
@@ -1439,6 +1476,7 @@ class cluster():
 
         # Cluster filtering
         self.filters = None
+        self.failedFilters = None
         self.nbOutliers = 0
 
         # Update event's clusterId attribute
@@ -1969,14 +2007,14 @@ class SUPPLEMENTARY_cluster(cluster):
         ## Note: return an ambiguous flag if several possible maximum
         return index
 
-    def support_bridge(self, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, viralDb, outDir):
+    def support_bridge(self, maxBridgeLen, minMatchPerc, minReads, minPercReads, annotations, index, viralDb, outDir):
         '''
         Assess if supplementary cluster supports bridge or not. 
 
         Input:
             1. maxBridgeLen: maximum supplementary cluster length to search for a bridge
             2. minMatchPerc: minimum percentage of the supplementary cluster interval to match in a transduction or repeats database to make a bridge call
-            3. minSupportingReads: minimum number of reads supporting the bridge
+            3. minReads: minimum number of reads supporting the bridge
             4. minPercReads: minimum percentage of clipping cluster supporting reads composing the bridge
             5. annotations: dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
             6. index: minimap2 index for consensus retrotransposon sequences + source element downstream regions
@@ -1990,7 +2028,7 @@ class SUPPLEMENTARY_cluster(cluster):
 
         ## 2. If bridge not found search for supplementary alignment supporting a bridge (algorithm 2)
         if self.bridge is False:
-            self.bridge, supportType, bridgeType, bridgeSeq, bridgeLen, family, srcId = self.supports_aligned_bridge(maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations)
+            self.bridge, supportType, bridgeType, bridgeSeq, bridgeLen, family, srcId = self.supports_aligned_bridge(maxBridgeLen, minMatchPerc, minReads, minPercReads, annotations)
 
         self.bridgeInfo['supportType'] = supportType
         self.bridgeInfo['bridgeType'] = bridgeType
@@ -2078,16 +2116,7 @@ class SUPPLEMENTARY_cluster(cluster):
 
             # b) Unresolved structure
             else:
-                # alig against virus
-                #rootOutDir='/mnt/lustre/scratch/home/usc/mg/eal/results/ARCHITECT/pruebasPuentes20191203_20200123/'
-                #SAM_viral = alignment.alignment_bwa(insertPath, '/mnt/lustre/scratch//home/usc/mg/eal/data/databases/RVDBv16.0/U-RVDBv16/U-RVDBv16_groupByFamily_SORT/U-RVDBv16_groupByFamily_DB/U-RVDBv16_groupByFamily_woEmpties_woRep.fa', 'alignments_viral', 1, rootOutDir)
-                #PAF_viral = alignment.sam2paf(SAM_viral, 'alignments_viral', rootOutDir)
-                #hits_viral = formats.PAF()
-                #hits_viral.read(PAF_viral)
-
-                # TODO: put correct db path
                 structure = virus.virus_structure(insertPath, viralDb, outDir)
-                print ('structure ' + str(structure))
 
                 if ('INS_TYPE' in structure) and (structure['INS_TYPE'] is not 'unknown') and ('PERC_RESOLVED' in structure) and (structure['PERC_RESOLVED'] >= 60):
                     bridge = True
@@ -2102,7 +2131,7 @@ class SUPPLEMENTARY_cluster(cluster):
                 else: 
                     bridge = True
                     supportType = 'unaligned'
-                    bridgeType = 'unknown2'
+                    bridgeType = 'unknown'
                     bridgeSeq = self.representative.insertSeq
                     bridgeLen = self.representative.insertSize
                     family = None
@@ -2110,7 +2139,7 @@ class SUPPLEMENTARY_cluster(cluster):
 
         return bridge, supportType, bridgeType, bridgeSeq, bridgeLen, family, srcId    
 
-    def supports_aligned_bridge(self, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations):
+    def supports_aligned_bridge(self, maxBridgeLen, minMatchPerc, minReads, minPercReads, annotations):
         '''
         Assess of supplementary cluster supports a bridge sequence aligning 
         over an annotated L1 or transduced region on the reference genome
@@ -2118,7 +2147,7 @@ class SUPPLEMENTARY_cluster(cluster):
         Input:
             1. maxBridgeLen: maximum supplementary cluster length to search for a bridge
             2. minMatchPerc: minimum percentage of the supplementary cluster interval to match in a transduction or repeats database to make a bridge call
-            3. minSupportingReads: minimum number of reads supporting the bridge
+            3. minReads: minimum number of reads supporting the bridge
             4. minPercReads: minimum percentage of clipping cluster supporting reads composing the bridge
             5. annotations: dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
 
@@ -2248,7 +2277,18 @@ class DISCORDANT_cluster(cluster):
     def __init__(self, events):
 
         cluster.__init__(self, events, 'DISCORDANT')
+
         self.matesCluster = None
+        self.identity = self.events[0].identity
+        self.orientation = self.events[0].orientation
+        self.element = self.events[0].element
+
+        if all (event.orientation == 'PLUS' for event in events):
+            self.orientation = 'PLUS'
+        elif all (event.orientation == 'MINUS' for event in events):
+            self.orientation = 'MINUS'
+        else:
+            self.orientation = 'RECIPROCAL'
 
     def mates_start_interval(self):
         '''
@@ -2265,6 +2305,18 @@ class DISCORDANT_cluster(cluster):
         beg = min(starts)
         end = max(starts)
         return beg, end
+        
+    def create_matesCluster(self):
+        '''
+        Create discordant read pair cluster for mates
+        '''
+        ## 1. Produce discordant objects for mates:
+        mates = events.discordants2mates(self.events)
+
+        ## 2. Create discordant cluster for mates
+        matesCluster = DISCORDANT_cluster(mates)
+
+        return matesCluster
 
 class META_cluster():
     '''
@@ -2282,10 +2334,13 @@ class META_cluster():
         self.events = list(itertools.chain(*[cluster.events for cluster in clusters]))
 
         # Set cluster's reference, begin and end position
-        self.ref, self.beg, self.end = self.coordinates() 
+        self.ref, self.beg, self.end = self.coordinates()
+        self.refLeftBkp = None
+        self.refRightBkp = None
 
         # Organize events into subclusters
         self.subclusters = self.create_subclusters()
+        # NOTE MERGE SR2020: To avoid key META error in clustering.reciprocal_overlap_clustering
         self.rawSubclusters = clusters
 
         # Set some metacluster properties as None
@@ -2297,6 +2352,23 @@ class META_cluster():
         self.nbTotal, self.nbTumour, self.nbNormal, self.nbINS, self.nbDEL, self.nbCLIPPING = [None, None, None, None, None, None] 
         self.nbReadsTotal, self.nbReadsTumour, self.nbReadsNormal, self.reads, self.readsTumour, self.readsNormal = [None, None, None, None, None, None] 
         self.cv = None
+        self.repreLeftSeq = None
+        self.repreRightSeq = None
+        self.consLeftSeq = None
+        self.consRightSeq = None
+        self.intLeftBkp = None
+        self.intRightBkp = None
+        self.rightClipType = None
+        self.leftClipType = None
+
+        # Shotr reads:
+        self.identity = self.events[0].identity
+        if all (cluster.orientation == 'PLUS' for cluster in clusters):
+            self.orientation = 'PLUS'
+        elif all (cluster.orientation == 'MINUS' for cluster in clusters):
+            self.orientation = 'MINUS'
+        else:
+            self.orientation = 'RECIPROCAL'
 
         # Update input cluster's clusterId attribute
         for cluster in clusters:
@@ -2424,9 +2496,41 @@ class META_cluster():
         # Update input cluster's clusterId attribute
         for cluster in clusters2add:
             cluster.clusterId = self.id
-
+        # NOTE MERGE SR2020: To avoid key META error in clustering.reciprocal_overlap_clustering
         # Also add clusters to rawSubclusters:
         self.rawSubclusters.extend(clusters2add)
+
+    def addEvents(self, eventsList):
+        '''
+
+        Input:
+            1. events: List of events to be added to the metacluster
+        '''
+        ## 1. Add events to the cluster ##
+        previous = self.events
+        self.events = self.events + eventsList
+
+        ## 2. Resort and redefine cluster begin and end coordinates ##
+        self.ref, self.beg, self.end = self.coordinates()
+
+        ## 3. Separate events according to their type into multiple lists ##
+        eventTypes = events.separate(eventsList)
+
+        ## 4. Add events to the subclusters ##
+        for eventType, eventList in eventTypes.items():
+            
+            # a) Create subcluster if not pre-existing one
+            if eventType not in self.subclusters:
+         
+                ## Create subcluster
+                subcluster = create_cluster(eventList, eventType) 
+            
+                ## Add subcluster to the dict
+                self.subclusters[eventType] = subcluster 
+
+            # b) Add events to pre-existing subcluster
+            else:
+                self.subclusters[eventType].add(eventList)
 
     def remove(self, events2remove):
         '''
@@ -2577,7 +2681,113 @@ class META_cluster():
         nbTotal = len(self.events)
 
         return nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING
-        
+
+    def percDuplicates(self):
+        '''
+        Return the number of events that compose the metacluster and are labbeled as duplicate in the input bam file. 
+        '''
+        ## Initialize counters
+        nbDiscordantDuplicatesTumour = 0
+        nbDiscordantDuplicatesNormal = 0
+        nbDiscordantDuplicatesTotal = 0
+        nbClippingDuplicatesTumour = 0
+        nbClippingDuplicatesNormal = 0
+        nbClippingDuplicatesTotal = 0
+
+        nbDiscordantTumour = 0
+        nbClippingTumour = 0
+        nbDiscordantNormal = 0
+        nbClippingNormal = 0
+        nbDiscordantTotal = 0
+        nbClippingTotal = 0
+
+        # For each event composing the metacluster
+        for event in self.events:
+
+            ## Tumour and matched normal counts
+            # a) Event identified in the TUMOUR sample
+            if event.sample == "TUMOUR":
+                if event.isDup == True:
+                    if event.type == 'DISCORDANT':
+                        nbDiscordantDuplicatesTumour += 1
+                    elif event.type == 'CLIPPING':
+                        nbClippingDuplicatesTumour  += 1
+                elif event.isDup == False:
+                    if event.type == 'DISCORDANT':
+                        nbDiscordantTumour += 1
+                    elif event.type == 'CLIPPING':
+                        nbClippingTumour  += 1
+
+            elif event.sample == "NORMAL":
+                if event.isDup == True:
+                    if event.type == 'DISCORDANT':
+                        nbDiscordantDuplicatesNormal += 1
+                    elif event.type == 'CLIPPING':
+                        nbClippingDuplicatesNormal  += 1
+                elif event.isDup == False:
+                    if event.type == 'DISCORDANT':
+                        nbDiscordantNormal += 1
+                    elif event.type == 'CLIPPING':
+                        nbClippingNormal  += 1
+            
+            # c) SINGLE sample mode
+            elif event.sample == None:
+                if event.isDup == True:
+                    if event.type == 'DISCORDANT':
+                        nbDiscordantDuplicatesTotal += 1
+                    elif event.type == 'CLIPPING':
+                        nbClippingDuplicatesTotal += 1
+                elif event.isDup == False:
+                    if event.type == 'DISCORDANT':
+                        nbDiscordantTotal += 1
+                    elif event.type == 'CLIPPING':
+                        nbClippingTotal  += 1
+                            
+        if nbDiscordantDuplicatesTotal == 0:
+            nbDiscordantDuplicatesTotal = nbDiscordantDuplicatesTumour + nbDiscordantDuplicatesNormal
+            nbClippingDuplicatesTotal = nbClippingDuplicatesTumour + nbClippingDuplicatesNormal
+            nbDiscordantTotal = nbDiscordantTumour + nbDiscordantNormal
+            nbClippingTotal = nbClippingTumour + nbClippingNormal
+
+        if nbDiscordantDuplicatesTotal > 0:
+            percDiscordantDuplicates = (nbDiscordantDuplicatesTotal / (nbDiscordantDuplicatesTotal + nbDiscordantTotal)) * 100
+        else:
+            percDiscordantDuplicates = 0
+        if nbClippingDuplicatesTotal > 0:
+            percClippingDuplicates = (nbClippingDuplicatesTotal / (nbClippingDuplicatesTotal + nbClippingTotal)) * 100
+        else:
+            percClippingDuplicates = 0
+
+
+        return percDiscordantDuplicates, percClippingDuplicates
+
+    def nbDISCORDANT(self):
+        '''
+        Return the number of discordant events composing the metacluster. 
+        '''        
+        nbDISCORDANT = 0   
+
+        # For each event composing the metacluster
+        for event in self.events:
+
+            if event.type == 'DISCORDANT':
+                nbDISCORDANT += 1
+
+        return nbDISCORDANT
+
+    def nbSUPPLEMENTARY(self):
+        '''
+        Return the number of discordant events composing the metacluster. 
+        '''        
+        nbSUPPL = 0   
+
+        # For each event composing the metacluster
+        for event in self.events:
+
+            if event.type == 'SUPPLEMENTARY':
+                nbSUPPL += 1
+
+        return nbSUPPL
 
     def supportingCLIPPING(self, buffer, confDict, bam, normalBam, mode):
         # Note: This function works but you have to allow duplicates in the clipping 
@@ -2629,20 +2839,18 @@ class META_cluster():
         binSizes = [100, 1000]
         clippingBinDb = structures.create_bin_database_interval(ref, binBeg, binEnd, clippingEventsDict, binSizes)
         binSize = clippingBinDb.binSizes[0]
-        CLIPPING_clusters = clustering.distance_clustering(clippingBinDb, binSize, eventTypes, 'CLIPPING', confDict['maxEventDist'], confDict['minClusterSize']) 
+        CLIPPING_clusters = clustering.distance_clustering(clippingBinDb, binSize, eventTypes, 'CLIPPING', confDict['maxBkpDist'], confDict['minClusterSize']) 
 
         # If there is a clipping cluster
-        if len (CLIPPING_clusters) > 0:
+        for CLIPPING_cluster in CLIPPING_clusters:
             
             ## Choose the clipping cluster with the highest number of events:
             # Coger el cluster de la lista de clusters si si length es igual a la maxima length de todos los clusters de la lista. (como devuelve una lista de un solo elemento, cojo el primer elemento de la lista.)
-            # TODO: si hay dos con el mismo numero de eventos.
-            CLIPPING_cluster = [cluster for cluster in CLIPPING_clusters if len(cluster.events) == max([len(cluster.events) for cluster in CLIPPING_clusters])][0]
 
             ## Add cluster's reads to the discordant metacluster:
-            self.add(CLIPPING_cluster.events)
+            self.addEvents(CLIPPING_cluster.events)
 
-            return CLIPPING_cluster
+        return CLIPPING_clusters
 
             ## Remove events from discordant cluster that are higher (more to the right) than the clippingEnd
             # discordantCluster.removeDiscordant(clippingEnd, 'right')
@@ -2888,14 +3096,14 @@ class META_cluster():
             self.consensusEvent = None                
             self.consensusFasta = None
 
-    def search4bridge(self, maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, viralDb, outDir):
+    def search4bridge(self, maxBridgeLen, minMatchPerc, minReads, minPercReads, annotations, index, viralDb, outDir):
         '''    
         Search for a transduction or solo repeat bridge at metacluster BND junction
 
         Input:
             1. maxBridgeLen: maximum supplementary cluster length to search for a bridge
             2. minMatchPerc: minimum percentage of the supplementary cluster interval to match in a transduction or repeats database to make a bridge call
-            3. minSupportingReads: minimum number of reads supporting the bridge
+            3. minReads: minimum number of reads supporting the bridge
             4. minPercReads: minimum percentage of clipping cluster supporting reads composing the bridge
             5. annotations: dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
             6. index: minimap2 index for consensus retrotransposon sequences + source element downstream regions
@@ -2915,7 +3123,7 @@ class META_cluster():
         ## For each cluster
         for cluster in supplClusters:
 
-            cluster.support_bridge(maxBridgeLen, minMatchPerc, minSupportingReads, minPercReads, annotations, index, viralDb, outDir)
+            cluster.support_bridge(maxBridgeLen, minMatchPerc, minReads, minPercReads, annotations, index, viralDb, outDir)
 
             ## Add cluster supporting bridge to the dictionary
             # a) Aligned bridge
@@ -3041,11 +3249,11 @@ class META_cluster():
             ## Filter out bridge if:
             #    1) Bridge supported by < X reads OR
             #    2) Bridge supported by < X% of the total number of metacluster supporting reads 
-            if (self.bridge.nbReads() < minSupportingReads) or (percReads < minPercReads):
+            if (self.bridge.nbReads() < minReads) or (percReads < minPercReads):
                 self.bridge = None
 
 
-    def search4junctions(self, metaclustersBinDb, minSupportingReads, minPercReads):
+    def search4junctions(self, metaclustersBinDb, minReads, minPercReads):
         '''
         Use supplementary alignments to identify connections between the metacluster and any other BND metacluster. 
 
@@ -3053,7 +3261,7 @@ class META_cluster():
 
         Input:
             1. metaclustersBinDb: bin database containing all the BND metaclusters identified in the sample
-            2. minSupportingReads: minimum number of reads supporting the BND junction 
+            2. minReads: minimum number of reads supporting the BND junction 
             3. minPercReads: minimum percentage of metacluster and partner metacluster reads supporting the BND junction
 
         Output:
@@ -3110,10 +3318,7 @@ class META_cluster():
                 binDbRef = metaclustersBinDb[partner.ref]
 
                 ## Search for BND metaclusters at supplementary cluster breakpoint 
-                # TODO: ensure this value
-                buffer = 1000
-                # NOTE 2020: In master they have:
-                #buffer = 100
+                buffer = 100
                 partnerMetaclusters = binDbRef.collect_interval(partner.bkpPos() - buffer, partner.bkpPos() + buffer, ['BND'])
 
                 ## Create BND junction candidate tuple for each metacluster - partner metacluster pair 
@@ -3136,9 +3341,9 @@ class META_cluster():
             percReadsPartner = nbReads / metaPartner.nbReadsTotal * 100 # Note: here % can be >100% (fix issue later by selecting suppl.cluster from the partner)
 
             ## Create BND junction if connection fulfills ALL these contitions: 
-            #      1) Supported by >= minSupportingReads
+            #      1) Supported by >= minReads
             #      2) Percentage of reads supporting supplementary cluster >= minPercReads for both metacluster and partner
-            if (nbReads >= minSupportingReads) and (percReadsMeta >= minPercReads) and (percReadsPartner >= minPercReads):
+            if (nbReads >= minReads) and (percReadsMeta >= minPercReads) and (percReadsPartner >= minPercReads):
                                 
                 ## Create BND junction 
                 junction = BND_junction(meta, metaPartner)
@@ -3186,8 +3391,7 @@ class META_cluster():
         if is_DUP:
             return
 
-        # NOTE 2020: TEMP!! DESILENCE
-        '''
+
         ## 3. Assess if input sequence corresponds to solo interspersed insertion or transduction
         # Note: return boolean as well specifying if interspersed or not
         is_INTERSPERSED, INS_features, self.insertHits = retrotransposons.is_interspersed_ins(self.consensusEvent.pick_insert(), hits_genome, repeatsDb, transducedDb)
@@ -3205,7 +3409,7 @@ class META_cluster():
         # Stop if insertion is a processed pseudogene
         if is_PSEUDOGENE:
             return    
-        '''
+
         ## 5. Assess if input sequence corresponds to a viral insertion
         is_VIRUS, INS_features = self.is_VIRUS(hits_viral)
 
@@ -3604,6 +3808,14 @@ class META_cluster():
             self.SV_features['PERC_RESOLVED'] = percResolved        
 
         return PSEUDOGENE, outHits
+
+    def setElement(self):
+        self.element = None
+        for event in self.events:
+            if hasattr(event, 'element'):
+                self.element = event.element
+                break
+        return self.element
     
 class BRIDGE():
     '''
@@ -3696,10 +3908,6 @@ class BND_junction():
     '''
     def __init__(self, metaclusterA, metaclusterB):
 
-        print ('metaclusterA ' + str(metaclusterA))
-        print ('metaclusterB ' + str(metaclusterB))
-
-
         self.metaclusterA = metaclusterA
         self.metaclusterB = metaclusterB
 
@@ -3758,12 +3966,8 @@ class BND_junction():
         nbTotal = len(set(self.metaclusterA.reads + self.metaclusterB.reads))
 
         ## Number of reads in the tumour
-        print ('self.metaclusterA ' + str(self.metaclusterA))
-        print ('self.metaclusterB ' + str(self.metaclusterB))
-        print ('self.metaclusterA.readsTumour '+ str(self.metaclusterA.readsTumour))
-        print ('self.metaclusterB.readsTumour '+ str(self.metaclusterB.readsTumour))
 
-        # NOTE 2020: change 2020 comprobrar!!!
+        # NOTE 2020: change 2020 check it!!!
         if self.metaclusterA.readsTumour != None:
 
 
@@ -4082,4 +4286,53 @@ class BND_junction():
                 else:
                     print ('Consensus aligment support junction structure')
                     self.bkpsConsSupport = True
+
+def metacluster_mate_suppl(discordants, leftClippings, rightClippings, minReads, refLengths):
+    '''
+    Group discordant and clipping clusters into metaclusters
+
+    Input:
+        1. discordants: list of discordant cluster objects
+        2. leftClippings: list of left clipping cluster objects
+        3. rightClippings: list of right clipping cluster objects
+        4. minReads: minimum number of reads
+        5. refLengths: dictionary containing references as keys and their lengths as values
+
+    Output:
+        1. filteredMeta: list of metaclusters
+    '''
+    ## 1. Create list of discordant mate clusters
+    mateClusters = [discordant.create_matesCluster() for discordant in discordants]
+
+    ## 2. Create list of supplementary clusters
+    supplClustersLeft = [clipping.supplCluster for clipping in leftClippings]
+    supplClustersRight = [clipping.supplCluster for clipping in rightClippings]
+    supplClusters = supplClustersLeft + supplClustersRight
+    
+    ## 3. Organize discordant mate and suppl. clusters into a dictionary
+    mateDict = events.events2nestedDict(mateClusters, 'DISCORDANT')    
+    supplDict = events.events2nestedDict(supplClusters, 'SUPPLEMENTARY')
+    clustersDict = events.mergeNestedDict(mateDict, supplDict)
+
+    ## 4. Organize discordant mate and suppl. clusters into a bin database
+    wgBinDb = structures.create_bin_database(refLengths, clustersDict)
+
+    ## 5. Perform metaclustering
+    allMeta = []
+
+    for binDb in wgBinDb.values():
+        
+        meta = clustering.reciprocal_overlap_clustering(binDb, 1, 1, binDb.eventTypes, 100, 'META')
+        allMeta = allMeta + meta
+
+    ## 6. Filter metaclusters based on read support
+    filteredMeta = []
+
+    for meta in allMeta:
+
+        if meta.supportingReads()[0] >= minReads:
+            filteredMeta.append(meta)
+
+    return filteredMeta
+
 
