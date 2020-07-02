@@ -122,7 +122,7 @@ def INS2VCF(metaclusters, index, refLengths, source, build, species, outName, ou
         INFO['INSEQ'] = metacluster.consensusEvent.pick_insert() if metacluster.consensusEvent is not None else None
 
         ## Create VCF variant object
-        fields = [CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO]
+        fields = [CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO, {}]
 
         ## Add variant to the VCF
         INS = formats.VCF_variant(fields)
