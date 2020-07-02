@@ -138,7 +138,7 @@ def INS2VCF(metaclusters, index, refLengths, source, build, species, outName, ou
            'TRUN5LEN', 'TRUN3LEN', 'FULL', 'TDLEN', 'INVLEN', 'PERCR', \
            'QHITS', 'THITS', 'RTCOORD', 'POLYA', 'INSEQ']
 
-    outVCF.write(infoIds, [], outName, outDir)
+    VCF.write(infoIds, [], outName, outDir)
 
 def write_INS(INS_metaclusters, outFileName, outDir):
     '''
