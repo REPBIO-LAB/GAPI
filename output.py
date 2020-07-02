@@ -67,7 +67,7 @@ def INS2VCF(metaclusters, index, refLengths, source, build, species, outName, ou
             }
             
     ## Create header
-    VCF.create_header(source, build, species, refLengths, info)
+    VCF.create_header(source, build, species, refLengths, info, {}, None)
 
     ## 3. Add insertion calls to the VCF
     ## 3.1 Load reference index
