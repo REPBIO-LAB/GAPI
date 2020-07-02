@@ -1310,7 +1310,9 @@ def search4junctions_metaclusters(metaclusters, refLengths, processes, minReads,
             allJunctions.append(junction)
             includedJunctions.append(junction.junctionCoord())
     
-    analyse_BNDjunction_structure(allJunctions, reference, viralDb, outDir)
+    # NOTE 2020: Analyse solo-BNDs for viruses:
+    if viralDb:
+        analyse_BNDjunction_structure(allJunctions, reference, viralDb, outDir)
     
     return allJunctions
 
