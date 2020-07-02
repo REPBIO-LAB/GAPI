@@ -1045,13 +1045,15 @@ def insertedSeq2fasta(metaclusters, outDir):
         insert = metacluster.consensusEvent.pick_insert()
 
         # NOTE 2020: New 2020
-        
+        # NOTE 2020: Add for viruses!!!
+        '''
         complexity = Bio.SeqUtils.lcc.lcc_simp(insert)
         print ('complexity ' + str(insert) + ' '+ str(complexity))
 
         # NOTE 2020: If works, put as option
         if complexity > 1.9:
             FASTA.seqDict[metaclusterId] = insert
+        '''
 
         #FASTA.seqDict[metaclusterId] = insert
         
