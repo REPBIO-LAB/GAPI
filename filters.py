@@ -357,7 +357,7 @@ def filter_metacluster(metacluster, filters2Apply, confDict, bam):
     ## 5. FILTER 5: Minimum percentage of inserted sequence resolved
     if ('PERC-RESOLVED' in filters2Apply) and ('PERC_RESOLVED' in metacluster.SV_features): 
 
-        if not percResolvedFilter(metacluster, confDict['minPercResolved']):
+        if not filter_perc_resolved(metacluster, confDict['minPercResolved']):
             failedFilters.append('PERC-RESOLVED')
 
     ## 3. FILTER 3: Area mapping quality
