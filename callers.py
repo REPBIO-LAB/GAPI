@@ -179,6 +179,7 @@ class SV_caller_long(SV_caller):
             allJunctions = clusters.search4junctions_metaclusters(allMetaclusters['BND'], self.refLengths, self.confDict['processes'], self.confDict['minReads'], 25, self.reference, self.refDir, self.confDict['viralDb'], outDir)
 
             # NOTE 2020: New June 2020. For keeping those BNDs without pair
+            '''
             for metaclusterBND in allMetaclusters['BND']:
                 if metaclusterBND not in allJunctions:
                     if 'solo-BND' not in allMetaclusters:
@@ -187,6 +188,7 @@ class SV_caller_long(SV_caller):
             
             if allMetaclusters['solo-BND']:
                 clusters.soloBND_type_metaclusters(allMetaclusters['solo-BND'], self.confDict, self.reference, self.refLengths, self.refDir, self.confDict['transductionSearch'], 1, self.confDict['viralDb'], outDir)
+            '''
 
 
             # Remove output directory
