@@ -218,7 +218,7 @@ class SV_caller_long(SV_caller):
             output.INS2VCF(metaclustersPass['INS'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
 
         if 'INS' in metaclustersFailed:
-            outFileName = 'INS_MEIGA.FAILED.2'
+            outFileName = 'INS_MEIGA.FAILED'
             output.INS2VCF(metaclustersFailed['INS'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
 
         ## 8.2 Report BND junctions
@@ -253,26 +253,15 @@ class SV_caller_long(SV_caller):
 
         # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
-        metaclustersPassList, metaclustersFailedList = zip(*pool.starmap(self.make_clusters_bin, bins))
-        # NOTE 2020: New 2020
-        #metaclustersPass = pool.starmap(self.make_clusters_bin, bins)
+        metaclustersPass = pool.starmap(self.make_clusters_bin, bins)
         pool.close()
         pool.join()
 
         # Remove output directory
         unix.rm([self.outDir + '/CLUSTER/'])
 
-        ### 3. Collapse metaclusters in a single dict and report metaclusters that failed filtering
-        # NOTE 2020: In 2020:
-        #metaclustersPass = structures.merge_dictionaries(metaclustersPass)
-
-        metaclustersPass = structures.merge_dictionaries(metaclustersPassList)
-        metaclustersFailed = structures.merge_dictionaries(metaclustersFailedList)
-        
-        if 'INS' in metaclustersFailed:
-            outFileName = 'INS_MEIGA.FAILED.1.tsv'
-            output.write_INS(metaclustersFailed['INS'], outFileName, self.outDir)
-        
+        ### 3. Collapse metaclusters in a single dict
+        metaclustersPass = structures.merge_dictionaries(metaclustersPass)       
                 
         return metaclustersPass
 
@@ -357,9 +346,7 @@ class SV_caller_long(SV_caller):
         msg = 'Filter out metaclusters' 
         log.step(step, msg)
         filters2Apply = ['MIN-NBREADS', 'MAX-NBREADS', 'CV', 'SV-TYPE']
-        # NOTE 2020: New 2020
-        metaclustersSVType, metaclustersSVTypeFailed = filters.filter_metaclusters(metaclustersSVType, filters2Apply, self.confDict)
-        #metaclustersSVType = filters.filter_metaclusters(metaclustersSVType, filters2Apply, self.confDict)[0]
+        metaclustersSVType = filters.filter_metaclusters(metaclustersSVType, filters2Apply, self.confDict)[0]
 
         ## 8. Generate consensus event for SV metaclusters ##
         step = 'CONSENSUS'
@@ -373,9 +360,6 @@ class SV_caller_long(SV_caller):
         ## 9. Lighten up metaclusters  ##
         ## Metaclusters passing all the filters
         clusters.lighten_up_metaclusters(metaclustersSVType)
-
-        ## Filtered metaclusters
-        clusters.lighten_up_metaclusters(metaclustersSVTypeFailed)
         
         # Do cleanup
         unix.rm([outDir, binDir])
@@ -386,8 +370,7 @@ class SV_caller_long(SV_caller):
         msg = 'SV calling in bin: ' + binId + ' finished in ' + str(time_taken)
         log.info(msg)
 
-        return metaclustersSVType, metaclustersSVTypeFailed
-        #return metaclustersSVType
+        return metaclustersSVType
 
 # Multiprocessing lock as global variable. Useful for safely writting from different processes to the same output file.
 def init(l):
