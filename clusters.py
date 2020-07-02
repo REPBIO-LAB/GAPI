@@ -2013,13 +2013,15 @@ class META_cluster():
         self.leftClipType = None
 
         # Shotr reads:
-        self.identity = self.events[0].identity
-        if all (cluster.orientation == 'PLUS' for cluster in clusters):
-            self.orientation = 'PLUS'
-        elif all (cluster.orientation == 'MINUS' for cluster in clusters):
-            self.orientation = 'MINUS'
-        else:
-            self.orientation = 'RECIPROCAL'
+        if hasattr(self.events[0], 'identity'):
+            self.identity = self.events[0].identity
+        if hasattr(clusters[0], 'orientation'):
+            if all (cluster.orientation == 'PLUS' for cluster in clusters):
+                self.orientation = 'PLUS'
+            elif all (cluster.orientation == 'MINUS' for cluster in clusters):
+                self.orientation = 'MINUS'
+            else:
+                self.orientation = 'RECIPROCAL'
 
         # Update input cluster's clusterId attribute
         for cluster in clusters:
