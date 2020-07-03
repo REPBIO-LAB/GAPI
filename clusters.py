@@ -751,19 +751,23 @@ def INS_type_metaclusters(metaclusters, reference, annotations, processes, viral
     allHits_splicing.read(BED_path, 'List', None)
     groupedEntries = allHits_splicing.group_entries_by_name()
 
-    ## 2.3 Align consensus inserted sequences into the viral database
-    msg = '2.3 Align consensus inserted sequences into the viral database'
-    log.info(msg)  
+    if viralDb:
+        ## 2.3 Align consensus inserted sequences into the viral database
+        msg = '2.3 Align consensus inserted sequences into the viral database'
+        log.info(msg)  
 
-    #start_time = time.time()
-    SAM_viral = alignment.alignment_bwa(fastaPath, viralDb, 'alignments_viral', processes, rootOutDir)
-    #print("--- %s seconds SAM_viral ---" % (time.time() - start_time))
-      
-    ## Convert SAM to PAF
-    PAF_viral = alignment.sam2paf(SAM_viral, 'alignments_viral', rootOutDir)
+        #start_time = time.time()
+        SAM_viral = alignment.alignment_bwa(fastaPath, viralDb, 'alignments_viral', processes, rootOutDir)
+        #print("--- %s seconds SAM_viral ---" % (time.time() - start_time))
+        
+        ## Convert SAM to PAF
+        PAF_viral = alignment.sam2paf(SAM_viral, 'alignments_viral', rootOutDir)
 
-    ## Organize hits according to their corresponding metacluster
-    allHits_viral = alignment.organize_hits_paf(PAF_viral)
+        ## Organize hits according to their corresponding metacluster
+        allHits_viral = alignment.organize_hits_paf(PAF_viral)
+    
+    else:
+        allHits_viral = None
 
     ## 3. For each metacluster determine the insertion type
     msg = '3. For each metacluster determine the insertion type'
