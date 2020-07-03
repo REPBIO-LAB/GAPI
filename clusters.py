@@ -767,7 +767,7 @@ def INS_type_metaclusters(metaclusters, reference, annotations, processes, viral
         allHits_viral = alignment.organize_hits_paf(PAF_viral)
     
     else:
-        allHits_viral = None
+        allHits_viral = {}
 
     ## 3. For each metacluster determine the insertion type
     msg = '3. For each metacluster determine the insertion type'
