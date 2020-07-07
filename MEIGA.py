@@ -147,10 +147,6 @@ if __name__ == '__main__':
 	overhang = args.overhang
 	minINDELlen = args.minINDELlen
 	minCLIPPINGlen = args.minCLIPPINGlen
-<<<<<<< HEAD
-
-=======
->>>>>>> 9888e42f2e017b77eb7b979bab8a945fa48ec37b
 
 	## Clustering
 	maxInsDist = args.maxInsDist
