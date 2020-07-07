@@ -192,7 +192,9 @@ def search4supplementary(clippings, reference, outName, outDir):
     clippedFasta.write(filePath)
 
     ## 4. Align clipped sequences with BWA-mem into the reference genome
-    pslPath = alignment.alignment_blat(filePath, reference, outName, outDir)
+    args = {}
+    args['stepSize'] = 5
+    pslPath = alignment.alignment_blat(filePath, reference, args, outName, outDir)
     PSL = formats.PSL()
     PSL.read(pslPath)
 
