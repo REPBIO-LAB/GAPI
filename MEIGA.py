@@ -146,8 +146,7 @@ if __name__ == '__main__':
 	readFilters = args.readFilters
 	overhang = args.overhang
 	minINDELlen = args.minINDELlen
-    minCLIPPINGlen = args.minCLIPPINGlen
-
+	minCLIPPINGlen = args.minCLIPPINGlen
 
 	## Clustering
 	maxInsDist = args.maxInsDist
