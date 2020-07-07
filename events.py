@@ -230,6 +230,28 @@ def collect_soft_clipped_seqs(clippings):
 
     return clippedFasta
 
+def collect_soft_clipped_seqs(clippings):
+    '''
+    Collect soft clipped sequences for a list of input clipping events. 
+
+    Input:
+        1. clippings: list of clipping events
+
+    Output:
+        1. clippedFasta: fasta file containing clipped sequences
+    '''
+    ## 1. Initialize fasta file object
+    clippedFasta = formats.FASTA()
+
+    ## 2. Extract clipped sequences per soft-clipping event and add to the dictionary
+    for clipping in clippings:
+
+        if clipping.clippingType == 'soft':
+
+            clippedFasta.seqDict[clipping.fullReadName()] = clipping.clipped_seq()
+
+    return clippedFasta
+
 def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, bam, normalBam, binDir, targetINT2Search, viralSeqs):
     '''
     Determine discortant read pair identity based on the mapping position of anchor´s mate
@@ -605,6 +627,8 @@ class CLIPPING():
 
         return fullReadName
 
+        return fullReadName
+    
     def readCoordinates(self):
         '''
         Compute read level alignment coordinates

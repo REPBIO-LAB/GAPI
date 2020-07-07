@@ -502,6 +502,7 @@ class SV_caller_short(SV_caller):
         unix.mkdir(self.outDir + '/CLUSTER/')
 
         # Genomic bins will be distributed into X processes
+        # TODO: mirar que pasa cuando tienes 2 dictionarios
         pool = mp.Pool(processes=self.confDict['processes'])
         metaclustersPassListofLists, metaclustersFailedListofLists = zip(*pool.starmap(self.make_clusters_bin, bins))
         pool.close()
@@ -554,7 +555,6 @@ class SV_caller_short(SV_caller):
         '''
         Search for structural variant (SV) clusters in a genomic bin/window
         '''
-
         ## 0. Set bin id and create bin directory ##
         binId = '_'.join([str(ref), str(beg), str(end)])
         msg = 'INSERTION calling in bin: ' + binId + ' PID: ' + str(os.getpid())
@@ -623,7 +623,7 @@ class SV_caller_short(SV_caller):
 
         ## Annotate
         buffer = 100
-        annotation.repeats_annotation(allDiscordantClusters, self.annotations['REPEATS'], buffer)
+        annotation.repeats_annotation(allDiscordantClusters, self.repeatsBinDb, buffer)
         
         ## 6. Perform gene-based annotation with ANNOVAR of discordant read pair clusters ##
         # Do gene-based annotation step if enabled

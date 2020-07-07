@@ -201,6 +201,18 @@ class FASTA():
 
         # Close output fasta file
         fastaFile.close()
+
+    def retrieve_seqs(self, targetNames):
+        '''
+        Retrieve set of sequences from fasta file
+
+        Input:
+            1. targetNames: list of read ids to be retrieved
+        
+        Output:
+            2. outDict: dictionary containing sequences
+        '''
+        outDict = {readName: self.seqDict[readName] for readName in targetNames if readName in self.seqDict}
         
         if safetyLock:
             callers.lock.release()
@@ -696,6 +708,25 @@ class PAF():
 
         return chain
 
+    def hits2dict(self):
+        '''
+        Reorganize hits into a dictionary
+        '''
+
+        hitsDict = {}
+
+        # For each hit
+        for hit in self.alignments:
+
+            # Initialize list
+            if hit.qName not in hitsDict:
+                hitsDict[hit.qName] = []
+            
+            # Add hit to list
+            hitsDict[hit.qName].append(hit)
+    
+        return hitsDict
+
 class PAF_alignment():
     '''
     PAF entry class 
@@ -728,6 +759,14 @@ class PAF_alignment():
 
         return self.qEnd - self.qBeg
 
+    def alignmentPerc(self):
+        '''
+        Compute the query alignment length percentage
+        '''
+        percLen = float(self.alignmentLen()) / self.qLen * 100
+
+        return percLen
+
 class PAF_chain():
     '''    
     Chain of complementary PAF alignments  
@@ -750,7 +789,16 @@ class PAF_chain():
         lastAlignment = self.alignments[-1]
         
         return firstAlignment.qBeg, lastAlignment.qEnd
-    
+
+    def interval_template(self):
+        '''
+        Return query interval covered by the chain
+        '''
+        firstAlignment = self.alignments[0]
+        lastAlignment = self.alignments[-1]
+        
+        return firstAlignment.tBeg, lastAlignment.tEnd
+
     def perc_query_covered(self):
         '''
         Compute the percentage of the query sequence covered by the chain of alignments
@@ -782,6 +830,8 @@ class VCF():
         '''
         self.header = None
         self.variants = []  # List of variants
+        self.info_order = []
+        self.format_order = []
 
     def read(self, filePath):
         '''
@@ -804,7 +854,7 @@ class VCF():
             line = line.rstrip()
 
             # a) Header
-            if line.startswith('##'):
+            if line.startswith('#'):
                 header.append(line)
 
             # b) Variant
@@ -827,8 +877,7 @@ class VCF():
         species = ''
         refLengths = {} 
         info = {}
-        self.info_order = []
-
+        gtFormat = {}
 
         source = None
         build = None
@@ -876,8 +925,35 @@ class VCF():
                 info[values[0]] = values[1:]
                 self.info_order.append(values[0])
 
+            ## E) Genotype format
+            elif line.startswith('##FORMAT'):
+                substring = re.search('<(.*)>', line)
+                values = []
+
+                for field in substring.group(1).split(','):
+                    fields = field.split('=')
+                    
+                    if len(fields) == 2:
+                        values.append(fields[1])
+
+                gtFormat[values[0]] = values[1:]
+                self.format_order.append(values[0])
+
+            ## F) Colnames line
+            elif line.startswith('#CHROM'):
+
+                fields = line.split("\t")
+
+                ## a) Not Multisample VCF file
+                if len(fields) <= 8:
+                    sampleIds = None
+
+                ## b) Multisample VCF file
+                else:
+                    sampleIds = [fields[i] for i in range(9, len(fields))]
+                
         ## Create VCF header object
-        self.create_header(source, build, species, refLengths, info)
+        self.create_header(source, build, species, refLengths, info, gtFormat, sampleIds)
 
     def read_variants(self, entries):
         '''
@@ -892,8 +968,8 @@ class VCF():
             fields = entry.split("\t")
 
             ## Parse info field
-            infoFields = fields[7].split(';')
             INFO = {}
+            infoFields = fields[7].split(';')
 
             # For each feature at info
             for feature in infoFields:
@@ -911,8 +987,23 @@ class VCF():
                     value = feature[1]
                     INFO[key] = value
 
+            ## Parse sample genotypes if multisample VCF
+            FORMAT = {}
+
+            if len(fields) > 8:
+                
+                samplesGt = [fields[i] for i in range(9, len(fields))]   
+
+                ## For each sample Genotype filed
+                for sampleGt, sampleId in zip(samplesGt, self.header.sampleIds):
+                    FORMAT[sampleId] = {}
+                    gtFields = sampleGt.split(':')
+                    
+                    for key, value in zip(self.format_order, gtFields):
+                        FORMAT[sampleId][key] = value
+
             ## Create VCF variant object
-            fields = fields[0:7] + [INFO]
+            fields = fields[0:7] + [INFO] + [FORMAT]
             variant = VCF_variant(fields)
 
             ## Add variant to the VCF
@@ -924,7 +1015,7 @@ class VCF():
         '''
         self.variants.append(variant)
 
-    def create_header(self, source, build, species, refLengths, info):
+    def create_header(self, source, build, species, refLengths, info, gtFormat, sampleIds):
         '''
         Create VCF header
 
@@ -936,11 +1027,15 @@ class VCF():
             5. info: Dictionary containing data to include at INFO. Dictionary keys will correspond
                      to INFO entry identifiers while values will be 3 element lists corresponding to Number, Type and 
                      Description fields for an INFO entry.
+            6. gtFormat: Dictionary containing data to include at FORMAT field. Dictionary keys will correspond 
+                     to FORMAT entry identifiers while values will be 3 element lists corresponding to Number, Type and 
+                     Description fields for an FORMAT entry.
+            7. sampleIds: list of sample identifiers. None if not multisample VCF file
 
         Output:
             Create and include header object at VCF class
         '''
-        self.header = VCF_header(source, build, species, refLengths, info)
+        self.header = VCF_header(source, build, species, refLengths, info, gtFormat, sampleIds)
 
     def sort(self):
         '''
@@ -948,12 +1043,13 @@ class VCF():
         '''
         self.variants = sorted(self.variants, key=lambda variant: (variant.chrom, variant.pos))
 
-    def write(self, IDS, outName, outDir):
+    def write(self, infoIds, formatIds, outName, outDir):
         '''
         Write VCF into output file
 
         Input:
-            1. IDS: Array of info fields to be listed (same order as the list)
+            1. infoIds: Array of info fields to be listed (same order as the list)
+            2. formatIds: Array of format fields to be listed (same order as the list)
             2. outName: Output file name
             3. outDir: Output directory
 
@@ -964,14 +1060,23 @@ class VCF():
         outFile = open(outFile, 'w')
 
         ## 2. Write header
-        header = self.header.build_header(IDS)
+        header = self.header.build_header(infoIds, formatIds)
         outFile.write(header)
 
         ## 3. Write variants
         for variant in self.variants:
 
-            INFO = variant.build_info(IDS)
-            row = str(variant.chrom) + "\t" + str(variant.pos) + "\t" + str(variant.ID) + "\t" + str(variant.ref) + "\t" + str(variant.alt) + "\t" + str(variant.qual) + "\t" + str(variant.filter) + "\t" + str(INFO) + "\n"
+            INFO = variant.build_info(infoIds)
+
+            # a) Regular VCF
+            if not formatIds:
+                row = "\t".join([variant.chrom, str(variant.pos), str(variant.ID), variant.ref, variant.alt, variant.qual, variant.filter, INFO, "\n"])
+
+            # b) Multi-sample VCF
+            else:
+                genotypes = variant.build_genotypes(formatIds, self.header.sampleIds)
+                row = "\t".join([variant.chrom, str(variant.pos), str(variant.ID), variant.ref, variant.alt, variant.qual, variant.filter, INFO, ':'.join(formatIds)] + genotypes + ["\n"])
+            
             outFile.write(row)
 
         ## Close output file
@@ -1014,7 +1119,7 @@ class VCF_header():
     VCF header class
     '''
     
-    def __init__(self, source, build, species, refLengths, info):
+    def __init__(self, source, build, species, refLengths, info, gtFormat, sampleIds):
         '''
         Initialize VCF header
         '''
@@ -1023,13 +1128,16 @@ class VCF_header():
         self.species = species
         self.refLengths = refLengths
         self.info = info
+        self.format = gtFormat
+        self.sampleIds = sampleIds
 
-    def build_header(self, IDS):
+    def build_header(self, infoIds, formatIds):
         '''
         Build VCF header string
         
         Input:
-            1. IDS: Array of info fields to be listed (same order as the list)
+            1. infoIds: Array of info fields to be listed (same order as the list)
+            2. formatIds: Array of format fields to be listed (same order as the list)
 
         Output:
             1. header: Header string
@@ -1050,13 +1158,23 @@ class VCF_header():
         contigs = self.build_contigs()
 
         ## 3. Build info
-        info = self.build_info(IDS)
+        info = self.build_info(infoIds)
+        
+        ## 3. Build format
+        formatGt = self.build_format(formatIds)
 
-        ## 4. Column data names
-        colnames = '\t'.join(['#CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', "\n"])
+        ## 5. Column data names
+        # a) Regular VCF
+        if not self.sampleIds:
+            colnames = '\t'.join(['#CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', "\n"])
 
-        ## 5. Join all the info
-        header = ''.join([general, contigs, info, colnames])
+        # b) Multi-sample VCF
+        else:
+            colnames = '\t'.join(['#CHROM', 'POS', 'ID', 'REF', 'ALT', 'QUAL', 'FILTER', 'INFO', 'FORMAT'] + self.sampleIds + ["\n"])
+
+
+        ## 6. Join all the info
+        header = ''.join([general, contigs, info, formatGt, colnames])
         return header
 
     def build_contigs(self):
@@ -1114,6 +1232,35 @@ class VCF_header():
 
         return INFO
 
+    def build_format(self, IDS):
+        '''
+        Build header FORMAT string 
+
+        Input:
+            1. IDS: Array of FORMAT fields to be listed (same order as the list)
+
+        Output:
+            1. FORMAT: Header FORMAT string
+        '''
+        entries = []
+
+        for ID in IDS:
+
+            data = {
+                'ID': ID,
+                'Number': self.format[ID][0],
+                'Type': self.format[ID][1],
+                'Description': self.format[ID][2],
+            }
+            
+            template = """##FORMAT=<ID={ID},Number={Number},Type={Type},Description={Description}>\n"""
+            entry = template.format(**data)
+            entries.append(entry)
+
+        FORMAT = ''.join(entries)
+
+        return FORMAT
+
 class VCF_variant():
     '''
     VCF variant class
@@ -1135,7 +1282,7 @@ class VCF_variant():
         self.qual = fields[5]
         self.filter = fields[6]
         self.info = fields[7]
-
+        self.format = fields[8]
         self.clusterId = None
 
     def build_info(self, IDS):
@@ -1172,6 +1319,25 @@ class VCF_variant():
                     INFO = INFO + entry + ';'
 
         return INFO
+
+    def build_genotypes(self, IDS, sampleIds):
+        '''
+        Create format field string
+        
+        Input:
+            1. IDS: Array of format fields to be listed (same order as the list)
+
+        Output:
+            1. genotypes: list
+        '''       
+        genotypes = []
+
+        for sampleId in sampleIds:
+                    
+            genotype = ':'.join([self.format[sampleId][ID] for ID in IDS])
+            genotypes.append(genotype)
+
+        return genotypes
 
     def pos_interval(self):
         '''
