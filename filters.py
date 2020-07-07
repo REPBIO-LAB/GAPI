@@ -206,6 +206,56 @@ def filter_discordant(discordant, filters2Apply, bam, normalBam, confDict):
     
     return failedFilters
 
+def filter_metaclusters_SR(metaclusters, filters2Apply, confDict, bam):
+    '''
+    Function to apply filters all metaclusters. 
+
+    Input:
+        1. metaclustersDict: dictionary with the following structure: keys -> SV_type, value -> list of metaclusters corresponding to this SV_type.
+        2. filters2Apply: dictionary containing lists as values list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
+        3. confDict
+        4. bam
+
+    Output:
+        1. metaclustersPassDict: Dictionary with same structure as the input one, containing those metaclusters that passed all the filters.
+        2. metaclustersFailDict: Dictionary with same structure as the input one, containig those metaclusters that failed one or more filters.
+    '''
+
+    metaclustersPass = []
+    metaclustersFail = []
+
+    ## For each type of SV
+    #for metacluster in metaclusters:
+    ## 1. Make list with the indexes of the metaclusters do not passing some filter
+    filteredIndexes = []
+
+    ## For each metacluster
+    for index, metacluster in enumerate(metaclusters):
+
+        # Set meacluster element:
+        element = metacluster.setElement() if metacluster.setElement() else 'GENERIC'
+        ## Apply filters
+        metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply[element], confDict, bam)
+
+        # Metacluster fails some filter
+        if metacluster.failedFilters:
+            filteredIndexes.append(index)
+
+    ## 2. Divide metaclusters in those passing and failing filtering
+    for index, metacluster in enumerate(metaclusters):
+        
+        ## a) Failing some filter
+        if index in filteredIndexes:
+
+            metaclustersFail.append(metacluster)
+
+        ## b) Passing all the filters
+        else:
+
+            metaclustersPass.append(metacluster)
+
+    return metaclustersPass, metaclustersFail
+
 
 def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
     '''
@@ -234,7 +284,7 @@ def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
         for index, metacluster in enumerate(metaclusters):
 
             ## Apply filters
-            metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply, confDict)
+            metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply, confDict, None)
 
             # Metacluster fails some filter
             if metacluster.failedFilters:
@@ -263,7 +313,7 @@ def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
 
     return metaclustersPassDict, metaclustersFailDict
 
-def filter_metacluster(metacluster, filters2Apply, confDict):
+def filter_metacluster(metacluster, filters2Apply, confDict, bam):
     '''
     Apply selected filters to one metacluster.
 
@@ -302,6 +352,21 @@ def filter_metacluster(metacluster, filters2Apply, confDict):
 
         if not filter_perc_resolved(metacluster, confDict['minPercResolved']):
             failedFilters.append('PERC-RESOLVED')
+    
+    ## 3. FILTER 3: Area mapping quality
+    if "AREAMAPQ" in filters2Apply:
+        if not area(metacluster,confDict,bam)[0]:
+            failedFilters.append('AREAMAPQ')
+
+    ## 4. FILTER 4: Area clipping SMS
+    if "AREASMS" in filters2Apply:
+        if not area(metacluster,confDict,bam)[1]:
+            failedFilters.append('AREASMS')
+
+    ## 5. FILTER 5: Whether a metacluster has a SV_type assigned or not
+    if 'IDENTITY' in filters2Apply: 
+        if not identityFilter(metacluster):
+            failedFilters.append('IDENTITY')
 
     return failedFilters
 
@@ -426,6 +491,26 @@ def filter_SV_type(metacluster, targetSV):
     '''
 
     if metacluster.SV_type in targetSV:
+        PASS = True 
+        
+    else:
+        PASS = False
+
+    return PASS
+
+def identityFilter(cluster):
+    '''
+    Filter metacluster by checking its SV type
+
+    Input:
+        1. metacluster: metacluster object
+        2. targetSV: list containing list of target SV types
+    Output:
+        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
+    '''
+
+    ## 2. Compare the percentage of outliers against the maximum required
+    if cluster.identity != None:
         PASS = True 
         
     else:
@@ -845,19 +930,23 @@ def area(cluster,confDict,bam):
     percSMSReads = stats.fraction(SMSReads, nbReads)
 
     ## If the percentage of low MQ reads is lower than the threshold pass the filter.
-    if percMAPQ < float(maxRegionlowMQ):
-        percMAPQFilter = True
+    if percMAPQ != None:
+        if percMAPQ < float(maxRegionlowMQ):
+            percMAPQFilter = True
+        else:
+            percMAPQFilter = False
     else:
         percMAPQFilter = False
 
     ## If the percentage of SMS reads is lower than the threshold pass the filter.
-    if percSMSReads < float(maxRegionSMS):
-        percSMSReadsFilter = True
+    if percSMSReads != None:
+        if percSMSReads < float(maxRegionSMS):
+            percSMSReadsFilter = True
+        else:
+            percSMSReadsFilter = False
     else:
         percSMSReadsFilter = False
     
-    #print (str(cluster.ref) + ' ' + str(cluster.beg) + ' ' + str (cluster.end) + ' ' + str(percMAPQFilter) + ' ' + str(percSMSReadsFilter))
-
     return percMAPQFilter, percSMSReadsFilter
 
 # [SR CHANGE]
@@ -903,8 +992,8 @@ def areaSMS(alignmentObj):
     if ((firstOperation == 4) or (firstOperation == 5)) and ((lastOperation == 4) or (lastOperation == 5)):
         SMSRead = True
         
-    if ((lastOperation == 4) or (lastOperation == 5)) and ((firstOperation != 4) and (firstOperation != 5)):
-        SMSRead = True
+    #if ((lastOperation == 4) or (lastOperation == 5)) and ((firstOperation != 4) and (firstOperation != 5)):
+        #SMSRead = True
 
     return SMSRead
 

@@ -14,6 +14,7 @@ import os
 from operator import itemgetter
 from collections import Counter
 import scipy
+import time
 
 # Internal
 import log
@@ -105,9 +106,17 @@ def merge_clusters(clusters, clusterType):
         subclusters = []
          
         for metacluster in clusters:
-            subclusters = subclusters + list(metacluster.subclusters.values())
+            # NOTE MERGE SR2020: To avoid key META error in clustering.reciprocal_overlap_clustering
+            #subclusters = subclusters + list(metacluster.subclusters.values())
+            subclusters = subclusters + list(metacluster.rawSubclusters)
+
 
         mergedCluster = create_cluster(subclusters, clusterType)
+
+        # NOTE MERGE SR2020: To avoid key META error in clustering.reciprocal_overlap_clustering
+        for metacluster in clusters:
+            for clusterNew in metacluster.rawSubclusters:
+                clusterNew.clusterId = mergedCluster.id
 
     # B) Merge standard clusters
     else:
@@ -121,33 +130,41 @@ def merge_clusters(clusters, clusterType):
     return mergedCluster
 
 
-def create_discordantClusters(discordantBinDb, minClusterSize, buffer):
+def create_discordantClusters(discordantsIdentity, minClusterSize, equalOrientBuffer, oppositeOrientBuffer, libraryReadLength):
     '''
     Group discordant read pairs according to cluster type and reciprocal overlap into clusters 
 
     Input:
-        1. discordantBinDb: data structure containing a set of discordant read pairs organized in genomic bins  
+        1. discordantsIdentity: dictionary containing lists of discordant read pairs organized taking into account their identity
+                        This info is encoded in the dictionary keys as follows. Keys composed by 2 elements separated by '-':
+                            - Event type: DISCORDANT   
+                            - Type: identity type. It can be retrotransposon family (L1, Alu, ...), source element (22q, 5p, ...), viral strain (HPV, ...)
         2. minClusterSize: minimum cluster size
-        3. buffer: number of base pairs to extend begin and end coordinates for each discordant prior clustering
-
+        3. equalOrientBuffer: Distance between reads that are equally oriented.
+        4. oppositeOrientBuffer: Distance between reads that are opposite oriented.
+        5. libraryReadLength: Illumina library read length.
+    
     Output:
-        1. discordantClustersDict: dictionary containing for each possible discordant cluster type (keys) a list of clusters (values)
+        1. discordantMetaclusters: list containing discordant metaclusters
     
     NOTE: this function should be removed and integrated into the more generic one: 'create_clusters'
     '''
-    discordantClustersDict = {}
+    start = time.time()
+    discordantMetaclusters = []
 
     # For each discordant read pair cluster type
-    for clusterType in ['DISCORDANT', 'DISCORDANT-PLUS', 'DISCORDANT-MINUS']:
-                
-        if clusterType not in discordantBinDb.eventTypes:
-            continue
+    #for clusterType in discordantBinDb.eventTypes:
+    for clusterType in discordantsIdentity.keys():
         
         # Do clustering based on reciprocal overlap
-        discordantClustersDict[clusterType] = clustering.reciprocal_overlap_clustering(discordantBinDb, 1, minClusterSize, [clusterType], buffer, clusterType)
+        #discordantClustersDict[clusterType] = clustering.reciprocal_overlap_clustering(discordantBinDb[clusterType], 1, minClusterSize, [clusterType], buffer, clusterType)
+        #discordantClusters.extend(clustering.reciprocal_overlap_clustering(discordantBinDb[clusterType], 1, minClusterSize, [clusterType], buffer, clusterType))
+        discordantMetaclusters.extend(clustering.distance_clustering_SR(discordantsIdentity[clusterType], 1, minClusterSize, [clusterType], clusterType, equalOrientBuffer, oppositeOrientBuffer, libraryReadLength))
+        #discordantClusters = clustering.reciprocal_overlap_clustering(discordantBinDb, 1, minClusterSize, [clusterType], buffer, clusterType)
 
-    return discordantClustersDict
-
+    end = time.time()
+    print ('TIME ' + str(end-start))
+    return discordantMetaclusters
 
 def cluster_by_matePos(discordants, refLengths, minClusterSize):
     '''
@@ -1124,6 +1141,7 @@ class cluster():
 
         # Cluster filtering
         self.filters = None
+        self.failedFilters = None
         self.nbOutliers = 0
 
         # Update event's clusterId attribute
@@ -1911,6 +1929,18 @@ class DISCORDANT_cluster(cluster):
 
         cluster.__init__(self, events, 'DISCORDANT')
 
+        self.matesCluster = None
+        self.identity = self.events[0].identity
+        self.orientation = self.events[0].orientation
+        self.element = self.events[0].element
+
+        if all (event.orientation == 'PLUS' for event in events):
+            self.orientation = 'PLUS'
+        elif all (event.orientation == 'MINUS' for event in events):
+            self.orientation = 'MINUS'
+        else:
+            self.orientation = 'RECIPROCAL'
+
     def mates_start_interval(self):
         '''
         Compute mates start alignment position interval. 
@@ -1956,9 +1986,13 @@ class META_cluster():
 
         # Set cluster's reference, begin and end position
         self.ref, self.beg, self.end = self.coordinates() 
+        self.refLeftBkp = None
+        self.refRightBkp = None
 
         # Organize events into subclusters
         self.subclusters = self.create_subclusters()
+        # NOTE MERGE SR2020: To avoid key META error in clustering.reciprocal_overlap_clustering
+        self.rawSubclusters = clusters
 
         # Set some metacluster properties as None
         self.bkpPos = None
@@ -1969,6 +2003,25 @@ class META_cluster():
         self.nbTotal, self.nbTumour, self.nbNormal, self.nbINS, self.nbDEL, self.nbCLIPPING = [None, None, None, None, None, None] 
         self.nbReadsTotal, self.nbReadsTumour, self.nbReadsNormal, self.reads, self.readsTumour, self.readsNormal = [None, None, None, None, None, None] 
         self.cv = None
+        self.repreLeftSeq = None
+        self.repreRightSeq = None
+        self.consLeftSeq = None
+        self.consRightSeq = None
+        self.intLeftBkp = None
+        self.intRightBkp = None
+        self.rightClipType = None
+        self.leftClipType = None
+
+        # Shotr reads:
+        if hasattr(self.events[0], 'identity'):
+            self.identity = self.events[0].identity
+        if hasattr(clusters[0], 'orientation'):
+            if all (cluster.orientation == 'PLUS' for cluster in clusters):
+                self.orientation = 'PLUS'
+            elif all (cluster.orientation == 'MINUS' for cluster in clusters):
+                self.orientation = 'MINUS'
+            else:
+                self.orientation = 'RECIPROCAL'
 
         # Update input cluster's clusterId attribute
         for cluster in clusters:
@@ -2096,6 +2149,40 @@ class META_cluster():
         # Update input cluster's clusterId attribute
         for cluster in clusters2add:
             cluster.clusterId = self.id
+        # NOTE MERGE SR2020: To avoid key META error in clustering.reciprocal_overlap_clustering
+        self.rawSubclusters.extend(clusters2add)
+
+    def addEvents(self, eventsList):
+        '''
+
+        Input:
+            1. events: List of events to be added to the metacluster
+        '''
+        ## 1. Add events to the cluster ##
+        previous = self.events
+        self.events = self.events + eventsList
+
+        ## 2. Resort and redefine cluster begin and end coordinates ##
+        self.ref, self.beg, self.end = self.coordinates()
+
+        ## 3. Separate events according to their type into multiple lists ##
+        eventTypes = events.separate(eventsList)
+
+        ## 4. Add events to the subclusters ##
+        for eventType, eventList in eventTypes.items():
+            
+            # a) Create subcluster if not pre-existing one
+            if eventType not in self.subclusters:
+         
+                ## Create subcluster
+                subcluster = create_cluster(eventList, eventType) 
+            
+                ## Add subcluster to the dict
+                self.subclusters[eventType] = subcluster 
+
+            # b) Add events to pre-existing subcluster
+            else:
+                self.subclusters[eventType].add(eventList)
 
     def remove(self, events2remove):
         '''
@@ -2247,6 +2334,85 @@ class META_cluster():
 
         return nbTotal, nbTumour, nbNormal, nbINS, nbDEL, nbCLIPPING
 
+    def percDuplicates(self):
+        '''
+        Return the number of events that compose the metacluster and are labbeled as duplicate in the input bam file. 
+        '''
+        ## Initialize counters
+        nbDiscordantDuplicatesTumour = 0
+        nbDiscordantDuplicatesNormal = 0
+        nbDiscordantDuplicatesTotal = 0
+        nbClippingDuplicatesTumour = 0
+        nbClippingDuplicatesNormal = 0
+        nbClippingDuplicatesTotal = 0
+
+        nbDiscordantTumour = 0
+        nbClippingTumour = 0
+        nbDiscordantNormal = 0
+        nbClippingNormal = 0
+        nbDiscordantTotal = 0
+        nbClippingTotal = 0
+
+        # For each event composing the metacluster
+        for event in self.events:
+
+            ## Tumour and matched normal counts
+            # a) Event identified in the TUMOUR sample
+            if event.sample == "TUMOUR":
+                if event.isDup == True:
+                    if event.type == 'DISCORDANT':
+                        nbDiscordantDuplicatesTumour += 1
+                    elif event.type == 'CLIPPING':
+                        nbClippingDuplicatesTumour  += 1
+                elif event.isDup == False:
+                    if event.type == 'DISCORDANT':
+                        nbDiscordantTumour += 1
+                    elif event.type == 'CLIPPING':
+                        nbClippingTumour  += 1
+
+            elif event.sample == "NORMAL":
+                if event.isDup == True:
+                    if event.type == 'DISCORDANT':
+                        nbDiscordantDuplicatesNormal += 1
+                    elif event.type == 'CLIPPING':
+                        nbClippingDuplicatesNormal  += 1
+                elif event.isDup == False:
+                    if event.type == 'DISCORDANT':
+                        nbDiscordantNormal += 1
+                    elif event.type == 'CLIPPING':
+                        nbClippingNormal  += 1
+            
+            # c) SINGLE sample mode
+            elif event.sample == None:
+                if event.isDup == True:
+                    if event.type == 'DISCORDANT':
+                        nbDiscordantDuplicatesTotal += 1
+                    elif event.type == 'CLIPPING':
+                        nbClippingDuplicatesTotal += 1
+                elif event.isDup == False:
+                    if event.type == 'DISCORDANT':
+                        nbDiscordantTotal += 1
+                    elif event.type == 'CLIPPING':
+                        nbClippingTotal  += 1
+                            
+        if nbDiscordantDuplicatesTotal == 0:
+            nbDiscordantDuplicatesTotal = nbDiscordantDuplicatesTumour + nbDiscordantDuplicatesNormal
+            nbClippingDuplicatesTotal = nbClippingDuplicatesTumour + nbClippingDuplicatesNormal
+            nbDiscordantTotal = nbDiscordantTumour + nbDiscordantNormal
+            nbClippingTotal = nbClippingTumour + nbClippingNormal
+
+        if nbDiscordantDuplicatesTotal > 0:
+            percDiscordantDuplicates = (nbDiscordantDuplicatesTotal / (nbDiscordantDuplicatesTotal + nbDiscordantTotal)) * 100
+        else:
+            percDiscordantDuplicates = 0
+        if nbClippingDuplicatesTotal > 0:
+            percClippingDuplicates = (nbClippingDuplicatesTotal / (nbClippingDuplicatesTotal + nbClippingTotal)) * 100
+        else:
+            percClippingDuplicates = 0
+
+
+        return percDiscordantDuplicates, percClippingDuplicates
+
     def nbDISCORDANT(self):
         '''
         Return the number of discordant events composing the metacluster. 
@@ -2325,20 +2491,19 @@ class META_cluster():
         binSizes = [100, 1000]
         clippingBinDb = structures.create_bin_database_interval(ref, binBeg, binEnd, clippingEventsDict, binSizes)
         binSize = clippingBinDb.binSizes[0]
-        CLIPPING_clusters = clustering.distance_clustering(clippingBinDb, binSize, eventTypes, 'CLIPPING', confDict['maxEventDist'], confDict['minClusterSize']) 
+        CLIPPING_clusters = clustering.distance_clustering(clippingBinDb, binSize, eventTypes, 'CLIPPING', confDict['maxBkpDist'], confDict['minClusterSize']) 
 
         # If there is a clipping cluster
-        if len (CLIPPING_clusters) > 0:
+        for CLIPPING_cluster in CLIPPING_clusters:
             
             ## Choose the clipping cluster with the highest number of events:
             # Coger el cluster de la lista de clusters si si length es igual a la maxima length de todos los clusters de la lista. (como devuelve una lista de un solo elemento, cojo el primer elemento de la lista.)
-            # TODO: si hay dos con el mismo numero de eventos.
-            CLIPPING_cluster = [cluster for cluster in CLIPPING_clusters if len(cluster.events) == max([len(cluster.events) for cluster in CLIPPING_clusters])][0]
+            #CLIPPING_cluster = [cluster for cluster in CLIPPING_clusters if len(cluster.events) == max([len(cluster.events) for cluster in CLIPPING_clusters])][0]
 
             ## Add cluster's reads to the discordant metacluster:
-            self.add(CLIPPING_cluster.events)
+            self.addEvents(CLIPPING_cluster.events)
 
-            return CLIPPING_cluster
+        return CLIPPING_clusters
 
             ## Remove events from discordant cluster that are higher (more to the right) than the clippingEnd
             # discordantCluster.removeDiscordant(clippingEnd, 'right')
@@ -3251,6 +3416,15 @@ class META_cluster():
             self.SV_features['PERC_RESOLVED'] = percResolved        
 
         return PSEUDOGENE, outHits
+
+    def setElement(self):
+        self.element = None
+        for event in self.events:
+            if hasattr(event, 'element'):
+                self.element = event.element
+                break
+        return self.element
+   
     
 class BRIDGE():
     '''

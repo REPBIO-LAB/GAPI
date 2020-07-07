@@ -5,6 +5,7 @@ Module 'alignment' - Contains funtions align sequences
 ## DEPENDENCIES ##
 # External
 import subprocess
+import os
 
 # Internal
 import log
@@ -167,7 +168,8 @@ def alignment_bwa(FASTA, reference, fileName, processes, outDir):
 
     return SAM    
 
-def alignment_blat(FASTA, reference, fileName, outDir):
+# NOTE MERGE SR2020: OLD IN MASTER
+def alignment_blat_oldMaster(FASTA, reference, fileName, outDir):
     '''
     Align a set of sequence into a reference with blat
 
@@ -191,7 +193,43 @@ def alignment_blat(FASTA, reference, fileName, outDir):
         msg = 'Alignment failed' 
         log.step(step, msg)
 
-    return PSL    
+    return PSL
+
+# NOTE MERGE SR2020: New in SR (master adapted to it)
+def alignment_blat(FASTA, reference, args, fileName, outDir):
+    '''
+    Align a set of sequence into a reference with blat
+
+    Input:
+        1. FASTA: Path to FASTA file with sequences to align
+        2. reference: Path to the reference genome in fasta format (bwa mem index must be located in the same folder)
+        3. fileName: output file will be named accordingly
+        4. outDir: Output directory
+
+    Output:
+        1. SAM: Path to SAM file containing input sequences alignments or 'None' if alignment failed 
+    '''
+    ## Align the sequences into the reference
+    PSL = outDir + '/' + fileName + '.psl'
+    err = open(outDir + '/align.err', 'w') 
+
+    # Set blat arguments
+    blatArgs = []
+
+    if 'stepSize' in args.keys():
+        blatArgs.append('-stepSize='+str(args['stepSize']))
+    if 'tileSize' in args.keys():
+        blatArgs.append('-tileSize='+str(args['tileSize']))
+
+    command = 'blat ' + ' '.join(blatArgs) + ' -repMatch=2253 -minScore=20 -minIdentity=0 -noHead -out=psl ' + reference + ' ' + FASTA + ' ' + PSL
+    status = subprocess.call(command, stderr=err, shell=True)
+
+    if status != 0:
+        step = 'ALIGN'
+        msg = 'Alignment failed' 
+        log.step(step, msg)
+
+    return PSL  
 
 def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir):
     '''
