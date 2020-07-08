@@ -216,7 +216,7 @@ def call_MEI(vcf, consensus, reference, sourceDb, outDir):
         outVCF.add(variant2add)
 
     ## 9. Do cleanup
-    #unix.rm([tmpDir])
+    unix.rm([tmpDir])
 
     return outVCF
 
@@ -720,7 +720,7 @@ def call_NUMT(vcf, mtGenome, outDir):
         outVCF.add(variant2add)
 
     ## 9. Do cleanup
-    #unix.rm([tmpDir])
+    unix.rm([tmpDir])
 
     return outVCF
 
@@ -789,7 +789,7 @@ outVCF = MEI_VCF
 outVCF.variants = MEI_VCF.variants + NUMT_VCF.variants
 
 ## 6. Write VCF containing MEI calls
-infoIds = ['VARTYPE', 'SVTYPE', 'SVLEN', 'CONTIG', 'CONTIG_COORD', 'CONTIG_STRAND', \
+infoIds = ['VARTYPE', 'SVTYPE', 'SVLEN', 'ID', 'LEAD_SAMPLE', 'TIG_REGION', 'TIG_STRAND', \
        'ITYPE', '3PRIME', '5PRIME', 'FAM', 'CYTOID', 'RETRO_LEN', 'TRUNCATION_5_LEN', 'TRUNCATION_3_LEN', 'INVERSION_LEN', 'RETRO_COORD', 'IS_FULL', 'ORF1', 'ORF2', 'COMPETENT', 'TDCOORD', 'TDLEN', 'STRAND', 'MT_COORD']
 formatIds = ['GT']
 
