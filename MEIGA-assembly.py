@@ -151,7 +151,7 @@ def call_MEI(vcf, consensus, reference, sourceDb, outDir):
 
     ## 4. Generate single PAF objects per inserted sequence:
     PAFs_consensus = group_alignments(PAF_consensus)
-    PAFs_genome = group_alignments(PAF_genome)
+    #PAFs_genome = group_alignments(PAF_genome)
 
     ## 5. Resolve structure for each insertion with matches on retrotransposon consensus sequences
     structures = {}
@@ -168,12 +168,12 @@ def call_MEI(vcf, consensus, reference, sourceDb, outDir):
 
     ## 7. Search for orphan transductions
     ## Remove resolved insertions
-    for insId in structures:
-        if structures[insId]['PASS']:
-            del PAFs_genome[insId]
+    #for insId in structures:
+    #    if structures[insId]['PASS']:
+    #        del PAFs_genome[insId]
 
     ## Do orphan transduction search
-    search4orphan(PAFs_genome, sourceDb, fasta) # TO FINISH LATER (Only two L1 orphan transductions so far..)
+    #search4orphan(PAFs_genome, sourceDb, fasta) # TO FINISH LATER (Only two L1 orphan transductions so far..)
 
     ## 8. Generate output VCF containing MEI calls
     ## Create header for output dictionary
