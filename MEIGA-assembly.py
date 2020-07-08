@@ -144,10 +144,10 @@ def call_MEI(vcf, consensus, reference, sourceDb, outDir):
     PAF_path = alignment.alignment_minimap2(fastaPath, index, 'hits2small_MEI', 1, tmpDir)
 
     ## Align inserted sequences against the reference genome
-    SAM_path = alignment.alignment_bwa(fastaPath, reference, 'hits2genome', 1, tmpDir)
-    PAF_path = alignment.sam2paf(SAM_path, 'hits2genome', tmpDir)
-    PAF_genome = formats.PAF()
-    PAF_genome.read(PAF_path)
+    #SAM_path = alignment.alignment_bwa(fastaPath, reference, 'hits2genome', 1, tmpDir)
+    #PAF_path = alignment.sam2paf(SAM_path, 'hits2genome', tmpDir)
+    #PAF_genome = formats.PAF()
+    #PAF_genome.read(PAF_path)
 
     ## 4. Generate single PAF objects per inserted sequence:
     PAFs_consensus = group_alignments(PAF_consensus)
