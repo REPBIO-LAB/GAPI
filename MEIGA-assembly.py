@@ -135,8 +135,7 @@ def call_MEI(vcf, consensus, reference, sourceDb, outDir):
     consensusIndex = alignment.index_minimap2(consensus, fileName, tmpDir)
 
     ## 3. Align inserted sequences against consensus:
-    #PAF_path = alignment.alignment_minimap2(fastaPath, consensusIndex, 'hits2consensus', 1, tmpDir)
-    PAF_path = '/Users/brodriguez/Research/Projects/MEIGA/MEIGA/test/0.20.0/assembly_caller/tmp/hits2consensus.paf'
+    PAF_path = alignment.alignment_minimap2(fastaPath, consensusIndex, 'hits2consensus', 1, tmpDir)
     PAF_consensus = formats.PAF()
     PAF_consensus.read(PAF_path)
 
@@ -145,8 +144,7 @@ def call_MEI(vcf, consensus, reference, sourceDb, outDir):
     PAF_path = alignment.alignment_minimap2(fastaPath, index, 'hits2small_MEI', 1, tmpDir)
 
     ## Align inserted sequences against the reference genome
-    #SAM_path = alignment.alignment_bwa(fastaPath, reference, 'hits2genome', 1, tmpDir)
-    SAM_path = '/Users/brodriguez/Research/Projects/MEIGA/MEIGA/test/0.20.0/assembly_caller/tmp/hits2genome.sam'
+    SAM_path = alignment.alignment_bwa(fastaPath, reference, 'hits2genome', 1, tmpDir)
     PAF_path = alignment.sam2paf(SAM_path, 'hits2genome', tmpDir)
     PAF_genome = formats.PAF()
     PAF_genome.read(PAF_path)
@@ -263,8 +261,7 @@ def search4partnered_5prime(structures, fasta, reference, outDir):
     seq2realign.write(fastaPath)
 
     ## 2. Realign sequences on the reference with BWA-mem
-    #SAM_path = alignment.alignment_bwa(fastaPath, reference, 'hits2genome.5prime', 1, outDir)
-    SAM_path = '/Users/brodriguez/Research/Projects/MEIGA/MEIGA/test/0.20.0/assembly_caller/tmp/hits2genome.5prime.sam'
+    SAM_path = alignment.alignment_bwa(fastaPath, reference, 'hits2genome.5prime', 1, outDir)
     PAF_path = alignment.sam2paf(SAM_path, 'hits2genome.5prime', outDir)
     
     PAF = formats.PAF()
@@ -332,8 +329,7 @@ def resolve_partnered_3prime(structures, fasta, reference, sourceDb, outDir):
     seq2realign.write(fastaPath)
 
     ## 2. Realign sequences on the reference with BWA-mem
-    #SAM_path = alignment.alignment_bwa(fastaPath, reference, 'hits2genome.3prime', 1, outDir)
-    SAM_path = '/Users/brodriguez/Research/Projects/MEIGA/MEIGA/test/0.20.0/assembly_caller/tmp/hits2genome.3prime.sam'
+    SAM_path = alignment.alignment_bwa(fastaPath, reference, 'hits2genome.3prime', 1, outDir)
     PAF_path = alignment.sam2paf(SAM_path, 'hits2genome.3prime', outDir)
     PAF = formats.PAF()
     PAF.read(PAF_path)
@@ -660,8 +656,7 @@ def call_NUMT(vcf, mtGenome, outDir):
     mtIndex = alignment.index_minimap2(mtGenome, fileName, tmpDir)
 
     ## 3. Align inserted sequences against the mitochondrial genome
-    #PAF_path = alignment.alignment_minimap2(fastaPath, mtIndex, 'hits2mt', 1, tmpDir)
-    PAF_path = '/Users/brodriguez/Research/Projects/MEIGA/MEIGA/test/0.20.0/assembly_caller/tmp/hits2mt.paf'
+    PAF_path = alignment.alignment_minimap2(fastaPath, mtIndex, 'hits2mt', 1, tmpDir)
     PAF_mt = formats.PAF()
     PAF_mt.read(PAF_path)
 
