@@ -1371,15 +1371,40 @@ class INS_cluster():
         for event in self.variants:
             event.clusterId = self.id   
 
+    def add(self, variants2add):
+        '''
+        Incorporate variants into the cluster 
+
+        Input:
+            1. variants2add: List of VCF variant objects to be added to the cluster
+        '''
+        # Add events to the cluster  
+        self.variants = self.variants + variants2add
+
     def consensus(self):
         '''
-        Select representative INS variant for the cluster
+        Select representative INS variant for the cluster. If there are hifi variants, 
+        choose one arbitraty HiFi as representative
 
         Note: right now I will pick an arbitrary variant. Improve in the future. Ideas
             - Improve consensus sequence quality by making a consensus of consensus sequences
         '''
+
         ## Select arbitrary event as consensus (improve later)
-        consensus = self.variants[0]
+        platforms = sorted(set([variant.platform for variant in self.variants]))
+
+        # a) Variant identified in HiFi 
+        if 'HIFI' in platforms:
+            consensus = [variant for variant in self.variants if variant.platform == 'HIFI'][0]
+                
+        # b) Variant not identified in HiFi 
+        else:
+            consensus = self.variants[0]
+
+        consensus.info['LEAD_SAMPLE'] = consensus.sampleId
+
+        ## Create platform info field
+        consensus.info['PLATFORMS'] = ','.join(platforms)
 
         ## Add list of samples where the event is identified
         sampleIds = ','.join(set([event.sampleId for event in self.variants]))
