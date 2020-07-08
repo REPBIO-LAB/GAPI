@@ -201,6 +201,9 @@ class FASTA():
 
         # Close output fasta file
         fastaFile.close()
+        
+        if safetyLock:
+            callers.lock.release()
 
     def retrieve_seqs(self, targetNames):
         '''

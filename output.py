@@ -1,4 +1,3 @@
-
 ## DEPENDENCIES ##
 # External
 import pybedtools
@@ -306,8 +305,8 @@ def INS2VCF_SR(metaclustersFields, index, refLengths, source, build, species, VC
             }
             
     ## Create header
-    VCF.create_header(source, build, species, refLengths, info)
-
+    VCF.create_header(source, build, species, refLengths, info, {}, [])
+    
     ## 3. Add insertion calls to the VCF
 
     ## 3.1 Load reference index
@@ -327,6 +326,8 @@ def INS2VCF_SR(metaclustersFields, index, refLengths, source, build, species, VC
 
         # Insert REF to fields list [CHROM, POS, ID, ALT, QUAL, FILTER, INFO] -> [CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO]
         fields.insert(3, REF)
+        # Add empty dictionary because it is not multiVCF
+        fields.append({})
 
         ## Add variant to the VCF
         INS = formats.VCF_variant(fields)
@@ -339,7 +340,7 @@ def INS2VCF_SR(metaclustersFields, index, refLengths, source, build, species, VC
     ## 5. Write VCF in disk
     IDS = VCFInfoFields
 
-    VCF.write(IDS, outName, outDir)
+    VCF.write(IDS, {}, outName, outDir)
 
 def INS2VCF(metaclusters, index, refLengths, source, build, species, outName, outDir):
     '''
