@@ -1057,7 +1057,7 @@ def insertedSeq2fasta(metaclusters, outDir):
             FASTA.seqDict[metaclusterId] = insert
         '''
 
-        #FASTA.seqDict[metaclusterId] = insert
+        FASTA.seqDict[metaclusterId] = insert
         
     ## Write fasta         
     fastaPath = outDir + '/inserted_sequences.fa'
