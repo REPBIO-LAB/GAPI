@@ -962,12 +962,17 @@ class DISCORDANT():
             self.isDup = None
             self.mateRef = None
             self.mateStart = None
-            self.CIGAR = None        
+            self.CIGAR = None    
+            self.mapQual = None
+            self.cigarTuples = None
+
         else:
             self.isDup = alignmentObj.is_duplicate
             self.mateRef = alignmentObj.next_reference_name
             self.mateStart = alignmentObj.next_reference_start
-            self.CIGAR = alignmentObj.cigarstring            
+            self.CIGAR = alignmentObj.cigarstring        
+            self.mapQual = alignmentObj.mapq
+            self.cigarTuples = alignmentObj.cigartuples
 
     def fullReadName(self):
         '''
