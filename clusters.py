@@ -3421,11 +3421,10 @@ class META_cluster():
         ## 5. Assess if input sequence corresponds to a viral insertion
         is_VIRUS, INS_features = self.is_VIRUS(hits_viral)
 
-        # Update metacluster with insertion features
-        self.SV_features.update(INS_features) 
-
         # Stop if insertion is a viral insertion
         if is_VIRUS:
+            # Update metacluster with insertion features
+            self.SV_features.update(INS_features) 
             return
 
     def is_VIRUS(self, PAF):
