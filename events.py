@@ -949,8 +949,6 @@ class DISCORDANT():
         self.sample = sample
         self.isDup = duplicate
         self.clusterId = None
-        self.mapQual = alignmentObj.mapq
-        self.cigarTuples = alignmentObj.cigartuples
         self.element = None
         self.identity = None
         self.specificIdentity = None
