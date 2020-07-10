@@ -937,11 +937,9 @@ def soloBND_type_metaclusters(metaclusters, confDict, reference, refLengths, ref
             hits_viral = formats.PAF()
 
         ## 4.2 Insertion type inference
-        ## TODO: DESILENCE (y poner el de abajo)
         hits_genome = formats.PAF()
         hits_splicing = []
-        metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, None, None, None)
-        #metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'])
+        metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'])
 
 
 def structure_inference_parallel(metaclusters, consensusPath, transducedPath, transductionSearch, processes, rootDir):
