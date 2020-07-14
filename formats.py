@@ -86,7 +86,6 @@ def bed2binDb(bedPath, refLengths, threads):
 
     return wgBinDb
 
-
 def INS2binDb(VCFs, refLengths, threads):
     '''
     Organize INS events from a set of input VCFs into a bin database
@@ -144,7 +143,6 @@ def INS2Dict(VCFs):
             outDict[ref][iType].append(variant)
 
     return outDict
-
 
 ## CLASSES ##
 class FASTA():
@@ -353,6 +351,8 @@ class BED():
 
         # c) Entries organized into a nested dict (TO IMPLEMENT LATER)
         #elif (self.structure == 'nestedDict'):
+
+        ## Write entries into output bed file
         with open(outPath, 'w') as outFile:
 
             ## Write header
@@ -461,6 +461,7 @@ class BED():
         Output:
             1) lines: dictionary containing bed entries
         '''
+
         bedFile = open(filePath)
         lines = {}
         header = []
@@ -602,6 +603,7 @@ class BED_entry():
 
         for i in range(3, len(header), 1):
             self.optional[header[i]] = fields[i]
+        
 
 class PAF():
     '''
@@ -821,7 +823,6 @@ class PAF_chain():
             percCovered = float(alignmentLen)/self.alignments[0].qLen*100
 
         return percCovered
-
 
 class VCF():
     '''

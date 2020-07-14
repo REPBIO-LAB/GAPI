@@ -58,7 +58,7 @@ class SV_caller():
         index = os.path.splitext(self.reference)[0] + '.mmi' 
 
         return index
-    
+
     def load_annotations(self):
         '''
         Load set of annotations into bin databases. Set 'annotation' attribute with one key per annotation type
@@ -108,7 +108,7 @@ class SV_caller_long(SV_caller):
 
         # Load annotations
         self.load_annotations()
-        
+
         # Create output directory
         annotDir = self.outDir + '/ANNOT/'
         unix.mkdir(annotDir)
@@ -139,7 +139,7 @@ class SV_caller_long(SV_caller):
         if 'INS' in allMetaclusters:
 
             ## Infer insertion type
-            clusters.INS_type_metaclusters(allMetaclusters['INS'], self.reference, self.annotations, 1, outDir)
+            clusters.INS_type_metaclusters(allMetaclusters['INS'], self.reference, self.annotations, 1, self.confDict['viralDb'], outDir)
 
         # Remove output directory
         unix.rm([outDir])
@@ -173,11 +173,24 @@ class SV_caller_long(SV_caller):
             # Create output directory
             outDir = self.outDir + '/BND_JUNCTIONS/'
             unix.mkdir(outDir)   
-            allMetaclusters['BND'] = clusters.search4bridges_metaclusters_parallel(allMetaclusters['BND'], 10000, 80, self.confDict['minReads'], 25, self.annotations, self.refDir, self.confDict['processes'], outDir)
+            allMetaclusters['BND'] = clusters.search4bridges_metaclusters_parallel(allMetaclusters['BND'], 10000, 80, self.confDict['minReads'], 25, self.annotations, self.refDir, self.confDict['viralDb'], self.confDict['processes'], outDir)
 
             ### Search for BND junctions
-            allJunctions = clusters.search4junctions_metaclusters(allMetaclusters['BND'], self.refLengths, self.confDict['processes'], self.confDict['minReads'], 25)
+            allJunctions = clusters.search4junctions_metaclusters(allMetaclusters['BND'], self.refLengths, self.confDict['processes'], self.confDict['minReads'], 25, self.reference, self.refDir, self.confDict['viralDb'], outDir)
+
+            # NOTE 2020: New June 2020. For keeping those BNDs without pair
+            '''
+            for metaclusterBND in allMetaclusters['BND']:
+                if metaclusterBND not in allJunctions:
+                    if 'solo-BND' not in allMetaclusters:
+                        allMetaclusters['solo-BND'] = []
+                    allMetaclusters['solo-BND'].append(metaclusterBND)
             
+            if allMetaclusters['solo-BND']:
+                clusters.soloBND_type_metaclusters(allMetaclusters['solo-BND'], self.confDict, self.reference, self.refLengths, self.refDir, self.confDict['transductionSearch'], 1, self.confDict['viralDb'], outDir)
+            '''
+
+
             # Remove output directory
             unix.rm([outDir])
 
@@ -213,6 +226,17 @@ class SV_caller_long(SV_caller):
             outFileName = 'BND_MEIGA.tsv'
             output.write_junctions(allJunctions, outFileName, self.outDir)
 
+        ## 8.2 Report solo-BND junctions
+        '''
+        if allMetaclusters['solo-BND']:
+            outFileName = 'soloBND_MEIGA.tsv'
+            output.INS2VCF_junction(allMetaclusters['solo-BND'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
+            # TODO 2020: Hacer un write especifico.
+            for metasolo in allMetaclusters['solo-BND']:
+                print ('solo-BND ' + str(metasolo.beg) + ' '+ str(metasolo.SV_features))
+        '''
+        
+        
     def make_clusters(self):
         '''
         Search for structural variant (SV) clusters 
@@ -230,16 +254,15 @@ class SV_caller_long(SV_caller):
         # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
         metaclustersPass = pool.starmap(self.make_clusters_bin, bins)
-        
         pool.close()
         pool.join()
 
         # Remove output directory
         unix.rm([self.outDir + '/CLUSTER/'])
 
-        ### 3. Collapse metaclusters in a single dict 
-        metaclustersPass = structures.merge_dictionaries(metaclustersPass)
-
+        ### 3. Collapse metaclusters in a single dict
+        metaclustersPass = structures.merge_dictionaries(metaclustersPass)       
+                
         return metaclustersPass
 
     def make_clusters_bin(self, ref, beg, end):
@@ -335,6 +358,7 @@ class SV_caller_long(SV_caller):
         clusters.create_consensus(metaclustersSVType, self.confDict, self.reference, targetSV, outDir)       
 
         ## 9. Lighten up metaclusters  ##
+        ## Metaclusters passing all the filters
         clusters.lighten_up_metaclusters(metaclustersSVType)
         
         # Do cleanup
@@ -948,4 +972,3 @@ class SV_caller_sureselect(SV_caller):
         metaclusters = clusters.metacluster_mate_suppl(filteredDiscordants, filteredLeftClippings, filteredRightClippings, self.confDict['minReads'], self.refLengths)
 
         return [srcId, metaclusters]
-        

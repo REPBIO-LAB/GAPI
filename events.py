@@ -443,7 +443,6 @@ def mergeNestedDict(dictA, dictB):
     
     return outDict
 
-
 def merge_INS(INS_list):
     '''
     Merge a set of adjacent INS events supported by the same read into a single one
@@ -736,7 +735,7 @@ class CLIPPING():
         
         # For each supplementary alignment
         for supplAlignment in self.supplAlignment.split(';')[:-1]:
-            
+
             # Extract info
             ref, beg, strand, CIGAR, mapQ, NM = supplAlignment.split(',')
             
@@ -745,6 +744,8 @@ class CLIPPING():
             end = int(beg) + alignmentLen
 
             # Create suppl. alignment object
+            #supplObject = SUPPLEMENTARY(ref, beg, end, strand, CIGAR, mapQ, NM, self.readName)
+            # NOTE 2020: New 2020:
             supplObject = SUPPLEMENTARY(ref, beg, end, strand, CIGAR, mapQ, NM, self.readName, self.id, self.sample)
 
             # Initialize ref if necessary
@@ -1012,8 +1013,8 @@ class DISCORDANT():
         matePair = '2' if self.pair == '1' else '1'
         fullReadName = self.readName + '/' + matePair
 
-        return fullReadName
-    
+        return fullReadName   
+
     def readCoordinates(self):
         '''
         Compute read level alignment coordinates

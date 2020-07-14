@@ -205,7 +205,7 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
 
                 ## Identify events overlapping A (skip A itself and event pairs already assessed)
                 for eventB in events[idx + 1:]:
-                    
+
                     ## Skip comparison if B belongs to a cluster already known to overlap A
                     if (eventB.clusterId in clustersOverlapA):
                         continue
@@ -262,9 +262,9 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
                     ## Add merged cluster to the clusters dictionary
                     clustersDict[mergedCluster.id] = mergedCluster
 
-                    ## Remove clusters that were merged from the clusters dictionary (Investigate later why if enabled the codes break)
+                    ## Remove clusters that were merged from the clusters dictionary 
                     #for cluster in clusters2merge:
-                    #    clustersDict.pop(cluster.id, None)
+                        #clustersDict.pop(cluster.id, None)
 
                 # C) No cluster overlaps A
                 else:
@@ -286,7 +286,7 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
                     # Cluster not composed by enough number of events
     
     clustersList = list(clustersDict.values())
-
+    
     return clustersList
 
 

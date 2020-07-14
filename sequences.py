@@ -6,13 +6,14 @@ Module 'sequences' - Contains functions for the manipulation and extracting info
 # External
 import os
 import subprocess
+import unix
 
 # Internal
 import formats
 
 ## [SR CHANGE]
 import log
-import unix
+
 
 ## FUNCTIONS ##
 def rev_complement(seq):
@@ -323,6 +324,45 @@ class monomer():
         '''
         return len(self.seq)
 
+def create_targeted_fasta(targetIntervalList, reference, outDir):
+    '''
+    Extract regions of interest from a fasta file.
+    
+    Input:
+        1. targetIntervalList: Reference genome list of intervals to be extracted. The intervals must be provided as chr:beg-end.
+        2. reference: Path to fasta file. An index of the reference generated with samtools faidx must be located in the same directory
+        3. outDir: Output directory
+
+    Output:
+        1. target: Path to fasta file with sequences extarcted from intervals.
+    '''
+    ## 0. Create logs directory
+    logDir = outDir + '/Logs'
+    unix.mkdir(logDir)
+
+    ## 1. Extract the reference target regions 
+    target = outDir + '/targetRegions.fa'
+    err = open(logDir + '/target.err', 'w')
+    targetRegionsPath = outDir + '/targetRegions.txt'
+    targetRegions = open(targetRegionsPath, 'w')
+    
+    for targetInterval in targetIntervalList:
+        targetRegions.write(targetInterval + '\n')
+    targetRegions.close()
+
+    command = 'samtools faidx ' + reference + ' -r ' + targetRegionsPath + ' -o ' + target
+    status = subprocess.call(command, stderr=err, shell=True)
+
+    if status != 0:
+        step = 'TARGET'
+        msg = 'Extraction of reference target region failed' 
+        log.step(step, msg)
+        return None
+
+    # TODO: remove targetRegionsPath file
+
+    return target
+
 ## [SR CHANGE]
 def getPAFAlign(FASTA_file, indexDb, outDir):
     # Alineo el fasta consenso
@@ -369,3 +409,4 @@ def komplexityFilter(komplexityThreshold, inFasta, outFasta, outDir):
         log.step(step, msg)
     
     return allFastas
+
