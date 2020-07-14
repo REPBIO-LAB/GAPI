@@ -63,7 +63,7 @@ if __name__ == '__main__':
 	parser.add_argument('--readOverhang', default=5000, dest='overhang', type=int, help='Number of flanking base pairs around the SV event to be collected from the supporting read sequence. Default: 5000')
 	parser.add_argument('--minINDELlen', default=50, dest='minINDELlen', type=int, help='Minimum indel length. Default: 50')
 	parser.add_argument('--minCLIPPINGlen', default=500, dest='minCLIPPINGlen', type=int, help='Minimum clipped sequence length for each read. Default: 500')
-
+	
 	## Clustering
 	parser.add_argument('--INSdist', default=250, dest='maxInsDist', type=int, help='Maximum distance bewteen two adjacent INS to be clustered together (Between 0-999). Default: 250')
 	parser.add_argument('--BKPdist', default=50, dest='maxBkpDist', type=int, help='Maximum distance bewteen two adjacent breakpoints for CLIPPING clustering (Between 0-999). Default: 250')
@@ -217,6 +217,21 @@ if __name__ == '__main__':
 	import log
 	import bamtools
 
+    ## Check file dependencies (list with the paths) ##
+	missing_dependencies = missing_dependencies or  cd.missing_needed_files((bam,reference,refDir,normalBam,annovarDir,outDir))
+
+	if missing_dependencies:
+		exit()
+
+	###################################################################
+	# lazy load of the modules to avoid problems with the dependences #
+	###################################################################
+	
+	# load Internal
+	import callers
+	import log
+	import bamtools
+
 	# If no reference is specified, get all that are present in the bam file.
 	if refs == 'ALL':
 		refs = bamtools.get_refs(bam)
@@ -255,7 +270,7 @@ if __name__ == '__main__':
 	##############################################
 	scriptName = os.path.basename(sys.argv[0])
 	scriptName = os.path.splitext(scriptName)[0]
-	version='0.19.0'
+	version='0.21.0'
 
 	print()
 	print('***** ', scriptName, version, 'configuration *****')

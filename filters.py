@@ -509,10 +509,11 @@ def filter_SV_type(metacluster, targetSV):
 
 def identityFilter(cluster):
     '''
-    Filter metacluster by checking if it has a SV type assigned.
+    Filter metacluster by checking its SV type
 
     Input:
         1. metacluster: metacluster object
+        2. targetSV: list containing list of target SV types
     Output:
         1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
     '''
@@ -520,6 +521,7 @@ def identityFilter(cluster):
     ## 2. Compare the percentage of outliers against the maximum required
     if cluster.identity != None:
         PASS = True 
+        
     else:
         PASS = False
 

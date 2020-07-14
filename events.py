@@ -192,7 +192,9 @@ def search4supplementary(clippings, reference, outName, outDir):
     clippedFasta.write(filePath)
 
     ## 4. Align clipped sequences with BWA-mem into the reference genome
-    pslPath = alignment.alignment_blat(filePath, reference, {}, outName, outDir)
+    args = {}
+    args['stepSize'] = 5
+    pslPath = alignment.alignment_blat(filePath, reference, args, outName, outDir)
     PSL = formats.PSL()
     PSL.read(pslPath)
 
@@ -230,6 +232,27 @@ def collect_soft_clipped_seqs(clippings):
 
     return clippedFasta
 
+def collect_soft_clipped_seqs(clippings):
+    '''
+    Collect soft clipped sequences for a list of input clipping events. 
+
+    Input:
+        1. clippings: list of clipping events
+
+    Output:
+        1. clippedFasta: fasta file containing clipped sequences
+    '''
+    ## 1. Initialize fasta file object
+    clippedFasta = formats.FASTA()
+
+    ## 2. Extract clipped sequences per soft-clipping event and add to the dictionary
+    for clipping in clippings:
+
+        if clipping.clippingType == 'soft':
+
+            clippedFasta.seqDict[clipping.fullReadName()] = clipping.clipped_seq()
+
+    return clippedFasta
 
 def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, bam, normalBam, binDir, targetINT2Search, viralSeqs):
     '''
@@ -605,6 +628,8 @@ class CLIPPING():
 
         return fullReadName
 
+        return fullReadName
+    
     def readCoordinates(self):
         '''
         Compute read level alignment coordinates
@@ -960,15 +985,15 @@ class DISCORDANT():
             self.isDup = None
             self.mateRef = None
             self.mateStart = None
-            self.CIGAR = None    
+            self.CIGAR = None
             self.mapQual = None
             self.cigarTuples = None
-
+             
         else:
             self.isDup = alignmentObj.is_duplicate
             self.mateRef = alignmentObj.next_reference_name
             self.mateStart = alignmentObj.next_reference_start
-            self.CIGAR = alignmentObj.cigarstring        
+            self.CIGAR = alignmentObj.cigarstring       
             self.mapQual = alignmentObj.mapq
             self.cigarTuples = alignmentObj.cigartuples
 

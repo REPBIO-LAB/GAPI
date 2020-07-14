@@ -195,16 +195,16 @@ def alignment_blat_oldMaster(FASTA, reference, fileName, outDir):
 
     return PSL
 
-# NOTE MERGE SR2020: New in SR (master adapted to it)
 def alignment_blat(FASTA, reference, args, fileName, outDir):
-    '''
+    '''    
     Align a set of sequence into a reference with blat
 
     Input:
         1. FASTA: Path to FASTA file with sequences to align
         2. reference: Path to the reference genome in fasta format (bwa mem index must be located in the same folder)
-        3. fileName: output file will be named accordingly
-        4. outDir: Output directory
+        3. args: dictionary containing blat arguments
+        4. fileName: output file will be named accordingly
+        5. outDir: Output directory
 
     Output:
         1. SAM: Path to SAM file containing input sequences alignments or 'None' if alignment failed 
@@ -218,6 +218,7 @@ def alignment_blat(FASTA, reference, args, fileName, outDir):
 
     if 'stepSize' in args.keys():
         blatArgs.append('-stepSize='+str(args['stepSize']))
+
     if 'tileSize' in args.keys():
         blatArgs.append('-tileSize='+str(args['tileSize']))
 

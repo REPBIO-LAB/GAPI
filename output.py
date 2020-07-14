@@ -1,4 +1,3 @@
-
 ## DEPENDENCIES ##
 # External
 import pybedtools
@@ -306,8 +305,8 @@ def INS2VCF_SR(metaclustersFields, index, refLengths, source, build, species, VC
             }
             
     ## Create header
-    VCF.create_header(source, build, species, refLengths, info)
-
+    VCF.create_header(source, build, species, refLengths, info, {}, [])
+    
     ## 3. Add insertion calls to the VCF
 
     ## 3.1 Load reference index
@@ -327,6 +326,8 @@ def INS2VCF_SR(metaclustersFields, index, refLengths, source, build, species, VC
 
         # Insert REF to fields list [CHROM, POS, ID, ALT, QUAL, FILTER, INFO] -> [CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO]
         fields.insert(3, REF)
+        # Add empty dictionary because it is not multiVCF
+        fields.append({})
 
         ## Add variant to the VCF
         INS = formats.VCF_variant(fields)
@@ -339,7 +340,7 @@ def INS2VCF_SR(metaclustersFields, index, refLengths, source, build, species, VC
     ## 5. Write VCF in disk
     IDS = VCFInfoFields
 
-    VCF.write(IDS, outName, outDir)
+    VCF.write(IDS, {}, outName, outDir)
 
 def INS2VCF_junction(metaclusters, index, refLengths, source, build, species, outName, outDir):
     '''
@@ -535,7 +536,7 @@ def INS2VCF(metaclusters, index, refLengths, source, build, species, outName, ou
             }
             
     ## Create header
-    VCF.create_header(source, build, species, refLengths, info)
+    VCF.create_header(source, build, species, refLengths, info, {}, None)
 
     ## 3. Add insertion calls to the VCF
     ## 3.1 Load reference index
@@ -590,7 +591,7 @@ def INS2VCF(metaclusters, index, refLengths, source, build, species, outName, ou
         INFO['INSEQ'] = metacluster.consensusEvent.pick_insert() if metacluster.consensusEvent is not None else None
 
         ## Create VCF variant object
-        fields = [CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO]
+        fields = [CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO, {}]
 
         ## Add variant to the VCF
         INS = formats.VCF_variant(fields)
@@ -600,13 +601,13 @@ def INS2VCF(metaclusters, index, refLengths, source, build, species, outName, ou
     VCF.sort()
 
     ## 5. Write VCF in disk
-    IDS = ['VTYPE', 'ITYPE', 'MECHANISM', 'FAM', 'SUBFAM', 'GERMDB', 'CIPOS', 'CYTOID', \
+    infoIds = ['VTYPE', 'ITYPE', 'MECHANISM', 'FAM', 'SUBFAM', 'GERMDB', 'CIPOS', 'CYTOID', \
            'NBEXONS', 'SRCGENE', 'STRAND', 'REGION', 'GENE', 'REP', 'REPSUB', 'DIST', \
            'NBTOTAL', 'NBTUMOR', 'NBNORMAL', 'NBSPAN', 'NBCLIP', 'LEN', 'CV', 'RTLEN', \
            'TRUN5LEN', 'TRUN3LEN', 'FULL', 'TDLEN', 'INVLEN', 'PERCR', \
            'QHITS', 'THITS', 'RTCOORD', 'POLYA', 'INSEQ']
 
-    VCF.write(IDS, outName, outDir)
+    VCF.write(infoIds, [], outName, outDir)
 
 
 def write_INS(INS_metaclusters, outFileName, outDir):

@@ -308,7 +308,7 @@ class monomer():
 
     def add(self, seq, index):
         '''
-        Extend monomer by adding a new piece of sequence at its end
+        Extend s by adding a new piece of sequence at its end
 
         Input:
             1. seq: piece of sequence to add at monomer end
