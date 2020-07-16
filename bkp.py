@@ -17,6 +17,37 @@ import itertools
 import bamtools
 import formats
 
+def bkp(metaclusters):
+    '''
+    Determine breakpoints
+    
+    Input: 
+    1. List of metaclusters
+    
+    Output:
+    There is no output, but refLeftBkp and refRightBkp attributes are filled
+    '''
+    for metacluster in metaclusters:
+        
+        leftBkps = []
+        rightBkps = []
+
+        # Choose bkp with highest number of clipping events
+        for event in metacluster.events:
+            if event.type == 'CLIPPING':
+                if event.clippedSide == 'left':
+                    leftBkps.append(event.beg)
+                elif event.clippedSide == 'right':
+                    rightBkps.append(event.beg)
+
+        if len(leftBkps) > 0:
+            leftBkp = max(set(leftBkps), key=leftBkps.count)
+            metacluster.refLeftBkp = leftBkp
+        if len(rightBkps) > 0:
+            rightBkp = max(set(rightBkps), key=rightBkps.count)
+            metacluster.refRightBkp = rightBkp
+            
+            
 
 def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, binId, identDbPath):
     '''
@@ -118,27 +149,10 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, bi
     # Add clippings when there are no discordant clippings, but they have BLAT matches and clippings without blat hits but same bkp as the ones that match
     addBlatClippings(metaclustersWODiscClip, identDbPath, binId, bkpDir)
 
+    # b. Determine bkp
+    bkp(metaclusters)
     
     for metacluster in metaclusters:
-        # b. Determine bkps.
-
-        leftBkps = []
-        rightBkps = []
-
-        # Choose bkp with highest number of clipping events
-        for event in metacluster.events:
-            if event.type == 'CLIPPING':
-                if event.clippedSide == 'left':
-                    leftBkps.append(event.beg)
-                elif event.clippedSide == 'right':
-                    rightBkps.append(event.beg)
-
-        if len(leftBkps) > 0:
-            leftBkp = max(set(leftBkps), key=leftBkps.count)
-            metacluster.refLeftBkp = leftBkp
-        if len(rightBkps) > 0:
-            rightBkp = max(set(rightBkps), key=rightBkps.count)
-            metacluster.refRightBkp = rightBkp
         
         # c. Reconstruct bkp sequence:
 

@@ -359,7 +359,7 @@ def discordants2mates(discordants):
 
     for discordant in discordants:
         pair = '2' if discordant.pair == '1' else '1'
-        mate = DISCORDANT(discordant.mateRef, discordant.mateStart, discordant.mateStart, None, pair, discordant.readName, None, discordant.sample, None)
+        mate = DISCORDANT(discordant.mateRef, discordant.mateStart, discordant.mateStart, discordant.mateOrientation, pair, discordant.readName, None, discordant.sample, None)
 
         mates.append(mate)
 
@@ -983,19 +983,27 @@ class DISCORDANT():
 
         if alignmentObj is None:
             self.isDup = None
-            self.mateRef = None
-            self.mateStart = None
             self.CIGAR = None
             self.mapQual = None
             self.cigarTuples = None
+            
+            self.mateRef = None
+            self.mateStart = None
+            self.mateOrientation = None
              
         else:
             self.isDup = alignmentObj.is_duplicate
-            self.mateRef = alignmentObj.next_reference_name
-            self.mateStart = alignmentObj.next_reference_start
             self.CIGAR = alignmentObj.cigarstring       
             self.mapQual = alignmentObj.mapq
             self.cigarTuples = alignmentObj.cigartuples
+            
+            self.mateRef = alignmentObj.next_reference_name
+            self.mateStart = alignmentObj.next_reference_start
+            ## Determine mate orientation
+            if alignmentObj.mate_is_reverse:
+                self.mateOrientation = 'MINUS'
+            else:
+                self.mateOrientation = 'PLUS'
 
     def fullReadName(self):
         '''

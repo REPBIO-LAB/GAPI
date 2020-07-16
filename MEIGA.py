@@ -62,7 +62,7 @@ if __name__ == '__main__':
 	parser.add_argument('--readFilters', default="SMS", dest='readFilters', type=str, help='Comma separated list of read filters to apply (SMS)')
 	parser.add_argument('--readOverhang', default=5000, dest='overhang', type=int, help='Number of flanking base pairs around the SV event to be collected from the supporting read sequence. Default: 5000')
 	parser.add_argument('--minINDELlen', default=50, dest='minINDELlen', type=int, help='Minimum indel length. Default: 50')
-	parser.add_argument('--minCLIPPINGlen', default=500, dest='minCLIPPINGlen', type=int, help='Minimum clipped sequence length for each read. Default: 500')
+	parser.add_argument('--minCLIPPINGlen', default=None, dest='minCLIPPINGlen', type=int, help='Minimum clipped sequence length for each read. Default: 500')
 	
 	## Clustering
 	parser.add_argument('--INSdist', default=250, dest='maxInsDist', type=int, help='Maximum distance bewteen two adjacent INS to be clustered together (Between 0-999). Default: 250')
@@ -395,25 +395,28 @@ if __name__ == '__main__':
 	# a) WGS illumina data (WGS)
 	if (confDict['technology'] == 'ILLUMINA'):
 		confDict['targetEvents'] = ['DISCORDANT']
-		#confDict['minCLIPPINGlen'] = 20
+		if confDict['minCLIPPINGlen'] == None:
+			confDict['minCLIPPINGlen'] = 20
 
 	# b) Sureselect illumina data
 	elif (confDict['technology'] == 'SURESELECT'):
 		confDict['targetEvents'] = ['DISCORDANT', 'CLIPPING']
-		confDict['minCLIPPINGlen'] = 20
-		confDict['minNbDISCORDANT'] = 2
 		confDict['minNbCLIPPING'] = 2
+		if confDict['minCLIPPINGlen'] == None:
+			confDict['minCLIPPINGlen'] = 20
 
 	# c) Long read sequencing data -> INS or INS + BND
 	elif ('INS' in confDict['targetSV']):
 		confDict['targetEvents'] = ['INS', 'CLIPPING']
-		confDict['minCLIPPINGlen'] = 500
+		if confDict['minCLIPPINGlen'] == None:
+			confDict['minCLIPPINGlen'] = 500
 
 	# d) BND alone
 	elif ('BND' in confDict['targetSV']):
 		confDict['targetEvents'] = ['CLIPPING']
-		confDict['minCLIPPINGlen'] = 500
-
+		if confDict['minCLIPPINGlen'] == None:
+			confDict['minCLIPPINGlen'] = 500
+	
 	## Clustering
 	confDict['maxInsDist'] = maxInsDist
 	confDict['maxBkpDist'] = maxBkpDist

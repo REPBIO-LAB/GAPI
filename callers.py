@@ -971,4 +971,8 @@ class SV_caller_sureselect(SV_caller):
         log.step(step, msg)
         metaclusters = clusters.metacluster_mate_suppl(filteredDiscordants, filteredLeftClippings, filteredRightClippings, self.confDict['minReads'], self.refLengths)
 
+        # analyze metaclusters
+        # bkp.analyzeMetaclusters(metaclusters, self.confDict, self.bam, self.normalBam, self.mode, self.outDir, binId, self.confDict['MEDB'])
+        bkp.bkp(metaclusters)
+        
         return [srcId, metaclusters]
