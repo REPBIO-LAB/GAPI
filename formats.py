@@ -1351,6 +1351,9 @@ class VCF_variant():
             ciBeg, ciEnd = self.info['CIPOS'].split(',')
             beg = self.pos + int(ciBeg)
             end = self.pos + int(ciEnd)
+        else:
+            beg = self.pos
+            end = self.pos
 
         return beg, end
 
