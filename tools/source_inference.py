@@ -73,16 +73,12 @@ if sourceHaplo is None:
     sourceDir = outDir + '/source/'
     sourceHaplo = haplotype.compute_haplotypes(source, ancestor, sourceDir)
 
-    # Save reference haplotype matrix into a file
-    outFile = outDir + '/haplo_ref.tsv'
-    sourceHaplo.to_csv(outFile, sep='\t')
-
 else:
     step = 'HAPLO'
     msg = 'Pre-computed haplotype matrix for source sequences provided as input'
     log.step(step, msg)
     sourceHaplo = pd.read_csv(sourceHaplo, header=0, index_col=0, sep='\t')
-    
+
 
 ## 2. Generate diagnostic score matrix 
 #######################################
@@ -99,8 +95,12 @@ if scores is None:
     scores = haplotype.diagnostic_scores(sourceHaplo)
 
     # Remove non-informative positions
+    sourceHaplo, scores = haplotype.remove_noninformative(sourceHaplo, scores)
 
-    # Save diagnostic score matrix into a file
+    # Save filtered score and haplotype matrix
+    outFile = outDir + '/haplo_ref.tsv'
+    sourceHaplo.to_csv(outFile, sep='\t')
+
     outFile = outDir + '/scores_ref.tsv'
     scores.to_csv(outFile, sep='\t')
 
@@ -119,6 +119,6 @@ log.header(msg)
 # For each input haplotype make list with more to less likely matching source haplotypes
 assignations = haplotype.assign_haplotypes(targetHaplo, sourceHaplo, scores)
 
-## Report source element assignations into a tsv file
+# Report source element assignations into a tsv file
 outFile = outDir + '/assignations.tsv'
 assignations.to_csv(outFile, sep='\t')
