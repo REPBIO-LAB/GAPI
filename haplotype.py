@@ -153,13 +153,15 @@ def compare_haplotypes(targetHaplo, refHaplo, haploScores):
 
     for pos, status in targetHaplo.items():
 
-        refStatus = refHaplo[pos]
-        posScore = haploScores[pos]
+        if pos in refHaplo:
+            refStatus = refHaplo[pos]
+            posScore = haploScores[pos]
 
-        if status == refStatus:
-            score += posScore
-        else:
-            score -= posScore
+            if status == refStatus:
+                score += posScore
+            
+            else:
+                score -= posScore
     
     ## Normalize score by the maximum possible
     normScore = score / maxScore
@@ -184,6 +186,7 @@ def assign_haplotypes(targetHaplos, refHaplos, refScores):
             ## Compare target and reference haplotypes
             assignations.loc[targetId, refId] = compare_haplotypes(targetHaplo, refHaplo, haploScores)
 
+    
     ## Select max scoring source (if several possible set as None)
     for targetId, scores in assignations.iterrows():
         maxScore = scores.max()
@@ -200,5 +203,15 @@ def assign_haplotypes(targetHaplos, refHaplos, refScores):
     assignations.insert(0, 'assignation', first)
 
     return assignations
-
     
+    
+def remove_noninformative(haplo, scores):
+    '''
+    '''
+    ## Drop non-informative positions at score matrix
+    filtered_scores = scores.loc[:, (scores != 0).any(axis=0)]
+
+    ## Filter haplotype matrix accordingly
+    filtered_haplo = haplo[filtered_scores.columns]
+
+    return filtered_haplo, filtered_scores
