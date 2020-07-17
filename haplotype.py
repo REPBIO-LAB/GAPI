@@ -2,6 +2,7 @@
 # External
 import os
 import pandas as pd 
+import math
 
 # Internal
 import unix
@@ -166,6 +167,9 @@ def compare_haplotypes(targetHaplo, refHaplo, haploScores):
     ## Normalize score by the maximum possible
     normScore = score / maxScore
 
+    ## Map score from -1 - 1 space to 0 - 1 space
+    normScore = (normScore + 1) / 2
+
     return normScore
 
 
@@ -173,6 +177,7 @@ def assign_haplotypes(targetHaplos, refHaplos, refScores):
     '''
     '''
     assignations = pd.DataFrame(index=targetHaplos.index, columns=refHaplos.index)
+    cols = list(refHaplos.index)
 
     ## For each target haplotype
     for targetId, targetHaplo in targetHaplos.iterrows():
@@ -186,21 +191,37 @@ def assign_haplotypes(targetHaplos, refHaplos, refScores):
             ## Compare target and reference haplotypes
             assignations.loc[targetId, refId] = compare_haplotypes(targetHaplo, refHaplo, haploScores)
 
-    
     ## Select max scoring source (if several possible set as None)
     for targetId, scores in assignations.iterrows():
         maxScore = scores.max()
         maxSources = scores[scores == maxScore]
 
         if maxSources.size == 1:
-            assignations.loc[targetId, 'assignation'] = list(maxSources.index)[0]
+            assignations.loc[targetId, 'first'] = list(maxSources.index)[0]
+            assignations.loc[targetId, 'lh1'] = maxScore
         
-        else:
-            assignations.loc[targetId, 'assignation'] = None
+            ## Select second scoring source
+            secondScore = scores[scores != maxScore].max()
+            assignations.loc[targetId, 'second'] = list(scores[scores == secondScore].index)[0]
+            assignations.loc[targetId, 'lh2'] = secondScore
 
-    ## Move assignation column to the first column on the dataframe
-    first = assignations.pop('assignation')
-    assignations.insert(0, 'assignation', first)
+            ## Compute the log2 ratio between max and second likely source
+            ratio = maxScore / secondScore
+            assignations.loc[targetId, 'ratio'] = math.log(ratio, 2)
+
+        else:
+            assignations.loc[targetId, 'first'] = None
+            assignations.loc[targetId, 'lh1'] = None
+            assignations.loc[targetId, 'second'] = None
+            assignations.loc[targetId, 'lh2'] = None            
+            assignations.loc[targetId, 'ratio'] = None            
+
+    ## Reorder column names
+    ordered = ['first', 'lh1', 'second', 'lh2', 'ratio'] + cols
+    assignations = assignations[ordered] 
+
+    ## Round to 2 decimals
+    assignations = assignations.round(2)
 
     return assignations
     
