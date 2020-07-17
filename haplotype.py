@@ -209,13 +209,13 @@ def assign_haplotypes(targetHaplos, refHaplos, refScores):
             ## Compute the log2 ratio between max and second likely source
             ratio = maxScore / secondScore 
             assignations.loc[targetId, 'ratio'] = round(math.log(ratio, 2), 2)
-            print('LOG_RATIO: ', round(math.log(ratio, 2), 2))
+
         else:
-            assignations.loc[targetId, 'first'] = None
-            assignations.loc[targetId, 'lh1'] = None
-            assignations.loc[targetId, 'second'] = None
-            assignations.loc[targetId, 'lh2'] = None            
-            assignations.loc[targetId, 'ratio'] = None            
+            assignations.loc[targetId, 'first'] = 'None'
+            assignations.loc[targetId, 'lh1'] = 'None'
+            assignations.loc[targetId, 'second'] = 'None'
+            assignations.loc[targetId, 'lh2'] = 'None'            
+            assignations.loc[targetId, 'ratio'] = 'None'            
 
     ## Reorder column names
     ordered = ['first', 'lh1', 'second', 'lh2', 'ratio'] + cols

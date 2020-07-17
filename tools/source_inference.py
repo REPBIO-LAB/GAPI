@@ -110,7 +110,6 @@ else:
     log.step(step, msg)
     scores = pd.read_csv(scores, header=0, index_col=0, sep='\t')
 
-
 ## 3. Source haplotypes assignation 
 #####################################
 msg = '3. Source haplotypes assignation'
