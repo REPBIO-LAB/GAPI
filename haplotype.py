@@ -2,7 +2,7 @@
 # External
 import os
 import pandas as pd 
-import math
+import math 
 
 # Internal
 import unix
@@ -169,6 +169,7 @@ def compare_haplotypes(targetHaplo, refHaplo, haploScores):
 
     ## Map score from -1 - 1 space to 0 - 1 space
     normScore = (normScore + 1) / 2
+    normScore = round(normScore, 2)
 
     return normScore
 
@@ -206,9 +207,9 @@ def assign_haplotypes(targetHaplos, refHaplos, refScores):
             assignations.loc[targetId, 'lh2'] = secondScore
 
             ## Compute the log2 ratio between max and second likely source
-            ratio = maxScore / secondScore
-            assignations.loc[targetId, 'ratio'] = math.log(ratio, 2)
-
+            ratio = maxScore / secondScore 
+            assignations.loc[targetId, 'ratio'] = round(math.log(ratio, 2), 2)
+            print('LOG_RATIO: ', round(math.log(ratio, 2), 2))
         else:
             assignations.loc[targetId, 'first'] = None
             assignations.loc[targetId, 'lh1'] = None
@@ -219,9 +220,6 @@ def assign_haplotypes(targetHaplos, refHaplos, refScores):
     ## Reorder column names
     ordered = ['first', 'lh1', 'second', 'lh2', 'ratio'] + cols
     assignations = assignations[ordered] 
-
-    ## Round to 2 decimals
-    assignations = assignations.round(2)
 
     return assignations
     
