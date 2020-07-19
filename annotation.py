@@ -284,7 +284,6 @@ def repeats_annotation_lighter(metaclustersList, repeatsDb, buffer):
         metaclusterFields[-1]['REPSUB'] = ','.join([repeat['subfamily'] for repeat in repeatAnnot]) if repeatAnnot else None   
         metaclusterFields[-1]['DIST'] = ','.join([str(repeat['distance']) for repeat in repeatAnnot]) if repeatAnnot else None
 
-
 def gene_annotation(events, annovarDir, outDir):
     '''
     Perform gene-based annotation for a list of input events
@@ -349,7 +348,7 @@ def addGnAnnot2events(events, out1):
         gene = fields[1]
         name = fields[8]             
         eventsDict[name].geneAnnot = (region, gene)
-
+        
 def germline_MEI_annotation(events, MEIDb, buffer):
     '''
     For each input event assess if overlaps with an already known germline MEI polymorphism
@@ -610,7 +609,7 @@ def intersect_mate_annotation(discordants, annotation, targetField):
     ##  For each input discordant intersect mate alignment coordinates with the provided annotation 
     for discordant in discordants:
         
-        ## Note: Apply filter to discard unmapped mates 
+        ## Note: Apply filter to discard unmapped mates  
         # A) Annotated feature in the same ref where the mate aligns
         if discordant.mateRef in annotation:
 

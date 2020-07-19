@@ -506,7 +506,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample, supplementary = True):
         ## Duplicates filtering enabled and duplicate alignment
         if (confDict['filterDuplicates'] == True) and (alignmentObj.is_duplicate == True):
             continue
-
+    
         # Filter supplementary alignments if FALSE. (Neccesary to avoid pick supplementary clipping reads while adding to discordant clusters in short reads mode)
         if supplementary == False and alignmentObj.is_supplementary == True:
             continue
@@ -533,7 +533,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample, supplementary = True):
             # Add events to the pre-existing lists                
             for INDEL_type, events in INDEL_events.items():
                 eventsDict[INDEL_type] = eventsDict[INDEL_type] + events
-        
+
         ## 4. Collect DISCORDANT
         if 'DISCORDANT' in confDict['targetEvents']:
 
@@ -542,7 +542,6 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample, supplementary = True):
             # Add discordant events
             for discordant in DISCORDANTS:
                 eventsDict['DISCORDANT'].append(discordant)
-        
         
     ## Close 
     bamFile.close()
@@ -697,6 +696,7 @@ def collectINDELS(alignmentObj, targetEvents, minINDELlen, targetInterval, overh
         # Do not do anything
 
     return INDEL_events
+
 
 def collectDISCORDANT(alignmentObj, sample):
     '''

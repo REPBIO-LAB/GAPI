@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 #coding: utf-8
 
+####################
+## Import modules ##
+####################
+
 # import basic internal module
 import check_dependencies as cd
 
@@ -20,7 +24,7 @@ if __name__ == '__main__':
 	import multiprocessing as mp
 
 	#internal modules import delayed until dependency check. ()
-
+	
 	mp.set_start_method('spawn')
     
 	######################
@@ -34,7 +38,7 @@ if __name__ == '__main__':
 	parser.add_argument('technology', help='Sequencing technology used to generate the data (NANOPORE, PACBIO, ILLUMINA or SURESELECT)')
 	parser.add_argument('reference', help='Reference genome in fasta format. An index of the reference generated with samtools faidx must be located in the same directory')
 	parser.add_argument('refDir', help='Directory containing reference databases (consensus sequences, source elements...)')
-	
+
 	### Optional arguments
 	## General
 	parser.add_argument('--species', default='Homo sapiens', dest='species', help='Target species. Default: Homo sapiens')
@@ -113,7 +117,6 @@ if __name__ == '__main__':
 	parser.add_argument('--keepIdentDb', action="store_true", default=False, dest='keepIdentDb', help='If selected, do not delete the fasta file that is created with detected identities in input sample.')
 	parser.add_argument('--no-FAILED-VCF', action="store_false", default=True, dest='printFiltered', help='If selected, not print VCF with those results than do not PASS the filters.')
 
-
 	## 2. Parse user´s input and initialize variables ##
 	args = parser.parse_args()
 
@@ -155,8 +158,8 @@ if __name__ == '__main__':
 	equalOrientBuffer = args.equalOrientBuffer
 	oppositeOrientBuffer = args.oppositeOrientBuffer
 	libraryReadLength = args.libraryReadLength
-
-	# Databases
+	
+	## Databases
 	viralDb = args.viralDb
 
 	## Filtering thresholds
@@ -198,7 +201,7 @@ if __name__ == '__main__':
 	consBkpSeq = args.consBkpSeq
 	keepIdentDb = args.keepIdentDb
 	printFiltered = args.printFiltered
-
+	
     ## Check file dependencies (list with the paths) ##
 	missing_dependencies = missing_dependencies or  cd.missing_needed_files((bam,reference,refDir,normalBam,annovarDir,outDir))
 
@@ -250,10 +253,12 @@ if __name__ == '__main__':
 		sys.exit(1)
 
 	## Abort if SV unknown SV type provided
+
 	for SV_type in targetSV:		
 		if SV_type not in ['INS', 'BND']:
 			log.info('[ERROR] Abort execution as ' + SV_type + ' SV type not supported')
 			sys.exit(1)
+			
 
 	## Abort if transduction search enabled and target families for source elements not provided
 	if (transductionSearch) and (srcFamilies is None):
@@ -265,7 +270,7 @@ if __name__ == '__main__':
 	##############################################
 	scriptName = os.path.basename(sys.argv[0])
 	scriptName = os.path.splitext(scriptName)[0]
-	version='0.21.0'
+	version='0.22.0'
 
 	print()
 	print('***** ', scriptName, version, 'configuration *****')
@@ -382,7 +387,7 @@ if __name__ == '__main__':
 	confDict['minMAPQ'] = minMAPQ
 	confDict['minINDELlen'] = minINDELlen
 	confDict['minCLIPPINGlen'] = minCLIPPINGlen
-	
+
 	## Target SV events to search for
 	confDict['targetSV'] = targetSV
 
@@ -416,10 +421,10 @@ if __name__ == '__main__':
 	confDict['equalOrientBuffer'] = equalOrientBuffer
 	confDict['oppositeOrientBuffer'] = oppositeOrientBuffer
 	confDict['libraryReadLength'] = libraryReadLength
-
+		
 	## Databases
 	confDict['viralDb'] = viralDb
-	
+
 	## Filtering thresholds
 	# Long
 	confDict['minClusterSize'] = minClusterSize
@@ -428,6 +433,7 @@ if __name__ == '__main__':
 	confDict['minReads'] = minReads
 	confDict['minNormalReads'] = minNormalReads
 	confDict['targetStatus'] = targetStatus.split(',')
+	# TODO: maybe add special for viruses
 	confDict['minPercResolved'] = 40
 
 	## Filtering thresholds short reads
