@@ -194,31 +194,40 @@ def assign_haplotypes(targetHaplos, refHaplos, refScores):
 
     ## Select max scoring source (if several possible set as None)
     for targetId, scores in assignations.iterrows():
+
+        ## Initialize as None
+        assignations.loc[targetId, 'first'] = 'None'
+        assignations.loc[targetId, 'lh1'] = 'None'
+        assignations.loc[targetId, 'second'] = 'None'
+        assignations.loc[targetId, 'lh2'] = 'None'            
+        assignations.loc[targetId, 'logRatio'] = 'None'  
+
+        ## Select maximum scoring source elements
         maxScore = scores.max()
         maxSources = scores[scores == maxScore]
 
+        ## Skip assignation if multiple maximum scoring source elements
         if maxSources.size == 1:
-            assignations.loc[targetId, 'first'] = list(maxSources.index)[0]
-            assignations.loc[targetId, 'lh1'] = maxScore
         
             ## Select second scoring source
             secondScore = scores[scores != maxScore].max()
-            assignations.loc[targetId, 'second'] = list(scores[scores == secondScore].index)[0]
-            assignations.loc[targetId, 'lh2'] = secondScore
 
             ## Compute the log2 ratio between max and second likely source
             ratio = maxScore / secondScore 
-            assignations.loc[targetId, 'ratio'] = round(math.log(ratio, 2), 2)
+            logRatio = round(math.log(ratio, 2), 2)
 
-        else:
-            assignations.loc[targetId, 'first'] = 'None'
-            assignations.loc[targetId, 'lh1'] = 'None'
-            assignations.loc[targetId, 'second'] = 'None'
-            assignations.loc[targetId, 'lh2'] = 'None'            
-            assignations.loc[targetId, 'ratio'] = 'None'            
+            ## Skip assignation if log ratio < 0.08
+            if logRatio >= 0.08:
+                assignations.loc[targetId, 'first'] = list(maxSources.index)[0]
+                assignations.loc[targetId, 'lh1'] = maxScore
+
+                assignations.loc[targetId, 'second'] = list(scores[scores == secondScore].index)[0]
+                assignations.loc[targetId, 'lh2'] = secondScore
+
+                assignations.loc[targetId, 'logRatio'] = logRatio
 
     ## Reorder column names
-    ordered = ['first', 'lh1', 'second', 'lh2', 'ratio'] + cols
+    ordered = ['first', 'lh1', 'second', 'lh2', 'logRatio'] + cols
     assignations = assignations[ordered] 
 
     return assignations
