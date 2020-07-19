@@ -34,9 +34,10 @@ outDir = args.outDir
 ## 3. Display configuration to standard output ##
 scriptName = os.path.basename(sys.argv[0])
 scriptName = os.path.splitext(scriptName)[0]
+version='0.1.0'
 
 print()
-print('***** ', scriptName, 'configuration *****')
+print('***** ', scriptName, version, 'configuration *****')
 print('source: ', source)
 print('ancestor: ', ancestor)
 print('target: ', target)
