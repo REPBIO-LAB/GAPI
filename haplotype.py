@@ -55,6 +55,11 @@ def snp2haplotype(vcf, lenght):
     
         ## Add SNP call to the vector
         key = variant.ref + '->' + variant.alt
+        
+        ## Skip if unknown nucleotyde substitution or multiallelic
+        if key not in codes
+            continue
+
         code = codes[key]
         index = variant.pos - 1 # Convert 1-based (vcf) to 0-based (vector)
         haplotype[index] = code
