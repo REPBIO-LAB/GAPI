@@ -57,7 +57,7 @@ def snp2haplotype(vcf, lenght):
         key = variant.ref + '->' + variant.alt
         
         ## Skip if unknown nucleotyde substitution or multiallelic
-        if key not in codes
+        if key not in codes:
             continue
 
         code = codes[key]
