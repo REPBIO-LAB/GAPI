@@ -822,10 +822,6 @@ class SV_caller_sureselect(SV_caller):
 
         ## 6.2 Transduction calls
         output.write_tdCalls_sureselect(clusterPerSrcDict, self.outDir)
-
-        ### Do cleanup
-        supplDir = self.outDir + '/SUPPLEMENTARY/'
-        # unix.rm([supplDir])    
     
     def infer_readSize(self):
         '''
