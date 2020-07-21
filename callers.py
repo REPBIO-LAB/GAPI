@@ -875,7 +875,7 @@ class SV_caller_sureselect(SV_caller):
         log.step(step, msg)
 
         ## If search for supplementary alignments selected:
-        if confDict['blatClip']:
+        if self.confDict['blatClip']:
             
             ## 2. Search for supplementary alignments by realigning the clipped sequences
             step = 'SEARCH4SUPPL'
@@ -970,4 +970,13 @@ class SV_caller_sureselect(SV_caller):
         log.step(step, msg)
         metaclusters = clusters.metacluster_mate_suppl(filteredDiscordants, filteredLeftClippings, filteredRightClippings, self.confDict['minReads'], self.refLengths)
         
+        # Fill refLeftBkp and refRightBkp attributes
+        bkp.bkp_retroTest(metaclusters, self.confDict['readSize'])
+        
+        for metacluster in metaclusters:
+            for event in metacluster.events:
+                print(event.readName)
+                print(event.type)
+                print(event.ref, event.beg, event.end, event.orientation, event.CIGAR)
+                      
         return [srcId, metaclusters]

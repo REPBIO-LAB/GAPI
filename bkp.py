@@ -8,6 +8,7 @@ import subprocess
 import log
 import unix
 import operator
+import re
 ## [SR CHANGE]
 import sequences
 import assembly
@@ -34,20 +35,68 @@ def bkp(metaclusters):
 
         # Choose bkp with highest number of clipping events
         for event in metacluster.events:
+            
             if event.type == 'CLIPPING':
+                
                 if event.clippedSide == 'left':
                     leftBkps.append(event.beg)
+                    
                 elif event.clippedSide == 'right':
                     rightBkps.append(event.beg)
 
+        # Fill refLeftBkp and refRightBkp attributes
         if len(leftBkps) > 0:
             leftBkp = max(set(leftBkps), key=leftBkps.count)
             metacluster.refLeftBkp = leftBkp
+            
         if len(rightBkps) > 0:
             rightBkp = max(set(rightBkps), key=rightBkps.count)
             metacluster.refRightBkp = rightBkp
             
+def bkp_retroTest(metaclusters, readSize):
+    '''
+    Determine breakpoint in sureselect data using supplementary events
+    
+    Input: 
+    1. List of metaclusters
+    2. Library read size
+    
+    Output:
+    There is no output, but refLeftBkp and refRightBkp attributes are filled
+    '''
+    for metacluster in metaclusters:
+        
+        if metacluster.orientation == "RECIPROCAL":
             
+            bkp = []
+
+            # Choose bkp with highest number of supplementary events
+            for event in metacluster.events:
+                        
+                if event.type == 'SUPPLEMENTARY':
+                    
+                    if "M" in re.findall(r'(\d+)([A-Z]{1})', event.CIGAR)[0]:
+                        bkp.append(event.end)
+                        
+                    elif "M" in re.findall(r'(\d+)([A-Z]{1})', event.CIGAR)[-1]:
+                        bkp.append(event.beg)
+
+            # Fill refLeftBkp and refRightBkp attributes
+            if len(bkp) > 0:
+                bkp = max(set(bkp), key=bkp.count)
+                metacluster.refLeftBkp = bkp
+                metacluster.refRightBkp = bkp
+        
+        if metacluster.orientation == "MINUS":
+            
+            metacluster.refLeftBkp, metacluster.refRightBkp = metacluster.beg, metacluster.beg
+        
+        if metacluster.orientation == "PLUS":
+            
+            # call coordinates will be returned as an interval [cluster.end, cluster.end + read size]
+            # bkp cannot be determined from PLUS-DISCORDANT clusters 
+            metacluster.refLeftBkp = metacluster.end
+            metacluster.refRightBkp = metacluster.end + readSize
 
 def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, binId, identDbPath):
     '''

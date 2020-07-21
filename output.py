@@ -861,7 +861,7 @@ def write_tdCalls_sureselect(clustersPerSrc, outDir):
         for cluster in clusters:
             
             readIds = ','.join(cluster.supportingReads()[3])
-            call = [cluster.ref, str(cluster.beg), str(cluster.end), str(cluster.orientation), srcId, str(cluster.supportingReads()[0]), str(cluster.nbDISCORDANT()), str(cluster.nbSUPPLEMENTARY()), readIds]
+            call = [cluster.ref, str(cluster.refLeftBkp), str(cluster.refRightBkp), str(cluster.orientation), srcId, str(cluster.supportingReads()[0]), str(cluster.nbDISCORDANT()), str(cluster.nbSUPPLEMENTARY()), readIds]
             calls.append(call)
 
     ## 3. Sort transduction calls first by chromosome and then by start position
