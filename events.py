@@ -185,30 +185,33 @@ def search4supplementary(clippings, reference, outName, outDir):
 
     ## 2. Select only those clippings without supplementary alignments
     targetClippings = [clipping.fullReadName() for clipping in clippings if (clipping.clippingType == 'soft' and clipping.supplAlignment is None)]
-    clippedFasta.seqDict = clippedFasta.retrieve_seqs(targetClippings)
+    
+    # if there is targetClippings
+    if targetClippings != []:
+        
+        ## 3. Write clipped sequences into fasta
+        clippedFasta.seqDict = clippedFasta.retrieve_seqs(targetClippings)
+        filePath = outDir + '/' + outName + '.fa'
+        clippedFasta.write(filePath)
 
-    ## 3. Write clipped sequences into fasta
-    filePath = outDir + '/' + outName + '.fa'
-    clippedFasta.write(filePath)
+        ## 4. Align clipped sequences with Blat into the reference genome
+        args = {}
+        args['stepSize'] = 5
+        pslPath = alignment.alignment_blat(filePath, reference, args, outName, outDir)
+        PSL = formats.PSL()
+        PSL.read(pslPath)
+        
+        ## 5. Filter alignments
+        ## 5.1 Filter partially aligned sequences
+        PSL.alignments = PSL.filter_align_perc(95)
 
-    ## 4. Align clipped sequences with BWA-mem into the reference genome
-    args = {}
-    args['stepSize'] = 5
-    pslPath = alignment.alignment_blat(filePath, reference, args, outName, outDir)
-    PSL = formats.PSL()
-    PSL.read(pslPath)
+        ## 5.2 Filter ambiguously mapped sequences
+        PSL.alignments = PSL.filter_nb_hits(5)
 
-    ## 5. Filter alignments
-    ## 5.1 Filter partially aligned sequences
-    PSL.alignments = PSL.filter_align_perc(95)
+        ## 6. Convert alignments in psl format into SA string
+        clippingsDict = {clipping.fullReadName(): clipping for clipping in clippings}
 
-    ## 5.2 Filter ambiguously mapped sequences
-    PSL.alignments = PSL.filter_nb_hits(5)
-
-    ## 6. Convert alignments in psl format into SA string
-    clippingsDict = {clipping.fullReadName(): clipping for clipping in clippings}
-    PSL.hits2clipping(clippingsDict)
-
+        PSL.hits2clipping(clippingsDict)    
 
 def collect_soft_clipped_seqs(clippings):
     '''

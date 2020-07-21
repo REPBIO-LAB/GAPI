@@ -100,7 +100,10 @@ if __name__ == '__main__':
 	parser.add_argument('--filtersBfClip', default="MAX-NBREADS,AREAMAPQ,AREASMS,IDENTITY", dest='filtersBfClip', type=str, help='Comma separated list of filters to apply before adding clippings to metaclusters. Default: MAX-NBREADS,AREAMAPQ,AREASMS,IDENTITY')
 	parser.add_argument('--filtersAfClip', default="MIN-NBREADS,MAX-NBREADS", dest='filtersAfClip', type=str, help='Comma separated list of filters to apply after adding clippings to metaclusters. Default: MIN-NBREADS, MAX-NBREADS')
 	parser.add_argument('--analyseFiltered', action="store_true", default=False, dest='analyseFiltered', help='If selected, add clippings and analyse breakpoint of those metaclusters that do not PASS selected filters.')
-
+	
+ 	# RetroTest
+	parser.add_argument('--blatClip', defaul=False, dest='blatClip', type=int, help='When selected, blat realignment will be performed with clippings. Higher sensitivity, but time-consuming. Default: False')
+	
 	# Filtering viral bam
 	parser.add_argument('--minTotalMatchVirus', default=40, dest='minTotalMatchVirus', type=int, help='Minimum total matches of a read against viral DB. Default: 40.')
 	parser.add_argument('--minParcialMatchVirus', default=15, dest='minParcialMatchVirus', type=int, help='Minimum length of a match against viral DB. Default: 15.')
@@ -194,6 +197,9 @@ if __name__ == '__main__':
 	maxBasePercVirus = args.maxBasePercVirus
 	minLccVirus = args.minLccVirus
 
+	# RetroTest
+	blatClip = args.blatClip
+	
 	# Ouput
 	VCFInfoFields = args.VCFInfoFields
 	annotRepeats = args.annotRepeats
@@ -400,8 +406,10 @@ if __name__ == '__main__':
 
 	# b) Sureselect illumina data
 	elif (confDict['technology'] == 'SURESELECT'):
+		confDict['blatClip'] = blatClip
 		confDict['targetEvents'] = ['DISCORDANT', 'CLIPPING']
-		confDict['minNbCLIPPING'] = 2
+		confDict['minNbDISCORDANT'] = minClusterSize
+		confDict['minNbCLIPPING'] = minClusterSize
 		if confDict['minCLIPPINGlen'] == None:
 			confDict['minCLIPPINGlen'] = 20
 

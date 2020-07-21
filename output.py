@@ -860,21 +860,25 @@ def write_tdCalls_sureselect(clustersPerSrc, outDir):
         # For each cluster
         for cluster in clusters:
             
-            # temporary
+            # # temporary
             subCluster_dict = cluster.create_subclusters()
             print(subCluster_dict)
+            
             for eventType, eventList in subCluster_dict.items():
-                
                 print(eventType)
                 print(eventList.ref, eventList.beg, eventList.end, eventList.orientation)
                 print(dir(eventList))
                 
                 for event in eventList.events:
-                    print(dir(event))
-                    print(event.readName, event.ref, event.beg, event.end, event.orientation)
+                    print(event.readName)
+                    print(event.ref, event.beg)
+                
+            #     for event in eventList.events:
+            #         print(dir(event))
+            #         print(event.readName, event.ref, event.beg, event.end, event.orientation)
             
-            print("cluster attributes:")
-            print(cluster.refRightBkp)
+            # print("cluster attributes:")
+            # print(cluster.refRightBkp)
             
             readIds = ','.join(cluster.supportingReads()[3])
             call = [cluster.ref, str(cluster.beg), str(cluster.end), str(cluster.orientation), srcId, str(cluster.supportingReads()[0]), str(cluster.nbDISCORDANT()), str(cluster.nbSUPPLEMENTARY()), readIds]
@@ -891,7 +895,6 @@ def write_tdCalls_sureselect(clustersPerSrc, outDir):
     outFile.close()
     
     ## 5. Collapse calls when pointing to the same MEI. It happens when source elements are too close.
-    
     if call is not None:
     
     	outFile = pybedtools.BedTool(outFilePath)

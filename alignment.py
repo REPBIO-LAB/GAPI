@@ -6,6 +6,7 @@ Module 'alignment' - Contains funtions align sequences
 # External
 import subprocess
 import os
+import pysam
 
 # Internal
 import log
@@ -166,7 +167,7 @@ def alignment_bwa(FASTA, reference, fileName, processes, outDir):
         msg = 'Alignment failed' 
         log.step(step, msg)
 
-    return SAM    
+    return SAM
 
 # NOTE MERGE SR2020: OLD IN MASTER
 def alignment_blat_oldMaster(FASTA, reference, fileName, outDir):
@@ -230,7 +231,7 @@ def alignment_blat(FASTA, reference, args, fileName, outDir):
         msg = 'Alignment failed' 
         log.step(step, msg)
 
-    return PSL  
+    return PSL
 
 def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir, outFormat):
 # NOTE 2020: In 2020:

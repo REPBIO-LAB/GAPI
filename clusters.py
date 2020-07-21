@@ -1968,6 +1968,7 @@ class SUPPLEMENTARY_cluster(cluster):
         self.annot = None
         self.bridge = False
         self.bridgeInfo = {}
+        self.orientation = None
 
     def bkpPos(self):
         '''
@@ -4339,7 +4340,7 @@ def metacluster_mate_suppl(discordants, leftClippings, rightClippings, minReads,
 
         if meta.supportingReads()[0] >= minReads:
             filteredMeta.append(meta)
-
+    
     return filteredMeta
 
 

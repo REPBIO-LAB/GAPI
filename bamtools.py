@@ -49,13 +49,13 @@ def get_ref_lengths(bam):
     '''
     ## Open BAM file for reading
     bamFile = pysam.AlignmentFile(bam, 'rb')
-
+    
     ## Make dictionary with the length for each reference (move this code into a function)
     refLengths = dict(list(zip(bamFile.references, bamFile.lengths)))
-
+    
     ## Close bam file
     bamFile.close()
-
+    
     return refLengths
 
 
@@ -1111,9 +1111,7 @@ def BAM2FastaDict(BAM):
         else:
             fastaDict[alignmentObj.query_name] = []
             fastaDict[alignmentObj.query_name].append(alignmentObj.reference_name)
-
-
-
+            
     return fastaDict
 
 def filterBAM2FastaDict(BAM, minTotalMatchVirus, minParcialMatchVirus, maxMatchCheckMAPQVirus, minMAPQVirus, maxBasePercVirus, minLccVirus):
