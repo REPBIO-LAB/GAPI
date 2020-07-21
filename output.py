@@ -847,7 +847,7 @@ def write_tdCalls_sureselect(clustersPerSrc, outDir):
     ## 1. Write header 
     outFilePath = outDir + '/transduction_calls.tsv'
     outFile = open(outFilePath, 'w')
-    row = "#ref \t beg \t end \t srcId \t nbReads \t nbDiscordant \t nbClipping \t readIds \n"
+    row = "#ref \t beg \t end \t orientation \t srcId \t nbReads \t nbDiscordant \t nbClipping \t readIds \n"
     outFile.write(row)
 
     ## 2. Generate list containing transduction calls
@@ -859,26 +859,6 @@ def write_tdCalls_sureselect(clustersPerSrc, outDir):
 
         # For each cluster
         for cluster in clusters:
-            
-            # # temporary
-            subCluster_dict = cluster.create_subclusters()
-            print(subCluster_dict)
-            
-            for eventType, eventList in subCluster_dict.items():
-                print(eventType)
-                print(eventList.ref, eventList.beg, eventList.end, eventList.orientation)
-                print(dir(eventList))
-                
-                for event in eventList.events:
-                    print(event.readName)
-                    print(event.ref, event.beg)
-                
-            #     for event in eventList.events:
-            #         print(dir(event))
-            #         print(event.readName, event.ref, event.beg, event.end, event.orientation)
-            
-            # print("cluster attributes:")
-            # print(cluster.refRightBkp)
             
             readIds = ','.join(cluster.supportingReads()[3])
             call = [cluster.ref, str(cluster.beg), str(cluster.end), str(cluster.orientation), srcId, str(cluster.supportingReads()[0]), str(cluster.nbDISCORDANT()), str(cluster.nbSUPPLEMENTARY()), readIds]
