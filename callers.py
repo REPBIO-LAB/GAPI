@@ -972,11 +972,5 @@ class SV_caller_sureselect(SV_caller):
         
         # Fill refLeftBkp and refRightBkp attributes
         bkp.bkp_retroTest(metaclusters, self.confDict['readSize'])
-        
-        for metacluster in metaclusters:
-            for event in metacluster.events:
-                print(event.readName)
-                print(event.type)
-                print(event.ref, event.beg, event.end, event.orientation, event.CIGAR)
-                      
+                              
         return [srcId, metaclusters]
