@@ -2773,14 +2773,8 @@ class META_cluster():
     def nbDISCORDANT(self):
         '''
         Return the number of discordant events composing the metacluster. 
-        '''        
-        nbDISCORDANT = 0   
-
-        # For each event composing the metacluster
-        for event in self.events:
-
-            if event.type == 'DISCORDANT':
-                nbDISCORDANT += 1
+        '''                       
+        nbDISCORDANT = set([event.readName for event in self.events if event.type == 'DISCORDANT'])
 
         return nbDISCORDANT
 
@@ -2788,14 +2782,8 @@ class META_cluster():
         '''
         Return the number of discordant events composing the metacluster. 
         '''        
-        nbSUPPL = 0   
-
-        # For each event composing the metacluster
-        for event in self.events:
-
-            if event.type == 'SUPPLEMENTARY':
-                nbSUPPL += 1
-
+        nbSUPPL = set([event.readName for event in self.events if event.type == 'SUPPLEMENTARY'])
+        
         return nbSUPPL
 
     def supportingCLIPPING(self, buffer, confDict, bam, normalBam, mode):
