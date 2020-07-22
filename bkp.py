@@ -9,6 +9,7 @@ import log
 import unix
 import operator
 import re
+import pysam
 ## [SR CHANGE]
 import sequences
 import assembly
@@ -17,6 +18,7 @@ import events
 import itertools
 import bamtools
 import formats
+import clusters
 
 def bkp(metaclusters):
     '''
@@ -53,13 +55,17 @@ def bkp(metaclusters):
             rightBkp = max(set(rightBkps), key=rightBkps.count)
             metacluster.refRightBkp = rightBkp
             
-def bkp_retroTest(metaclusters, readSize):
+def bkp_retroTest(metaclusters, readSize, bam):
     '''
-    Determine precise breakpoint in sureselect data when possible. If only PLUS DISCORDANT cluster, bkp coordinates will be returned as an interval. 
+    Determine precise breakpoint in sureselect data:
+    - if supplementary cluster in metacluster, use supplementary events clipping coordinates
+    - elif, use MINUS-DISC cluster beg coordinate
+    - elif, use PLUS-DISC cluster end coordinate. It must be calculated for mate clusters
     
     Input: 
-    1. List of metaclusters
-    2. Library read size
+    1. metaclusters: List of metaclusters
+    2. readSize: Library read size
+    3. bam: Bam file
     
     Output:
     There is no output, but refLeftBkp and refRightBkp attributes are filled
@@ -96,12 +102,12 @@ def bkp_retroTest(metaclusters, readSize):
         
         # elif there is a PLUS-DISCORDANT cluster:
         elif 'PLUS-DISCORDANT' in subclusters.keys():
+                               
+                readNames = set([event.readName for event in subclusters['PLUS-DISCORDANT'].events])
+                fullCLuster = clusters.discCluster_from_readNames(readNames, metacluster.ref, metacluster.end, metacluster.end + readSize, bam, 'TUMOUR')
                 
-                # call coordinates will be returned as an interval [cluster.end, cluster.end + read size]
-                # bkp cannot be determined from PLUS-DISCORDANT clusters created from mates
-                metacluster.refLeftBkp = metacluster.end
-                metacluster.refRightBkp = metacluster.end + readSize
-
+                metacluster.refLeftBkp, metacluster.refRightBkp = fullCLuster.end, fullCLuster.end
+                
 
 def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, binId, identDbPath):
     '''

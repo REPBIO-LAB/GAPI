@@ -971,6 +971,6 @@ class SV_caller_sureselect(SV_caller):
         metaclusters = clusters.metacluster_mate_suppl(filteredDiscordants, filteredLeftClippings, filteredRightClippings, self.confDict['minReads'], self.refLengths)
         
         # Fill refLeftBkp and refRightBkp attributes
-        bkp.bkp_retroTest(metaclusters, self.confDict['readSize'])
+        bkp.bkp_retroTest(metaclusters, self.confDict['readSize'], self.bam)
                               
         return [srcId, metaclusters]
