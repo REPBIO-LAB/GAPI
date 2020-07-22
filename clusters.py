@@ -1968,6 +1968,7 @@ class SUPPLEMENTARY_cluster(cluster):
         self.annot = None
         self.bridge = False
         self.bridgeInfo = {}
+        self.orientation = None
 
     def bkpPos(self):
         '''
@@ -2772,14 +2773,8 @@ class META_cluster():
     def nbDISCORDANT(self):
         '''
         Return the number of discordant events composing the metacluster. 
-        '''        
-        nbDISCORDANT = 0   
-
-        # For each event composing the metacluster
-        for event in self.events:
-
-            if event.type == 'DISCORDANT':
-                nbDISCORDANT += 1
+        '''                       
+        nbDISCORDANT = len(set([event.readName for event in self.events if event.type == 'DISCORDANT']))
 
         return nbDISCORDANT
 
@@ -2787,14 +2782,8 @@ class META_cluster():
         '''
         Return the number of discordant events composing the metacluster. 
         '''        
-        nbSUPPL = 0   
-
-        # For each event composing the metacluster
-        for event in self.events:
-
-            if event.type == 'SUPPLEMENTARY':
-                nbSUPPL += 1
-
+        nbSUPPL = len(set([event.readName for event in self.events if event.type == 'SUPPLEMENTARY']))
+        
         return nbSUPPL
 
     def supportingCLIPPING(self, buffer, confDict, bam, normalBam, mode):
@@ -4339,7 +4328,57 @@ def metacluster_mate_suppl(discordants, leftClippings, rightClippings, minReads,
 
         if meta.supportingReads()[0] >= minReads:
             filteredMeta.append(meta)
-
+    
     return filteredMeta
 
 
+def discCluster_from_readNames(readNames, ref, beg, end, bam, sample):
+    '''
+    Create discordant cluster from indicated reads in the region ref:beg-end. Useful to create cluster of mates having all the info.
+    
+    Input:
+    1. readNames: List of read names
+    2. ref
+    3. beg
+    4. end
+    5. bam: Bam file
+    6. sample: Sample type ['TUMOUR', 'NORMAL', None]
+    
+    Output: 
+    1. newCluster: Cluster of discordants 
+    '''
+    DISCORDANTS = []
+    
+    ## Open BAM file for reading
+    bamFile = pysam.AlignmentFile(bam, "rb")
+
+    ## Extract alignments
+    iterator = bamFile.fetch(ref, beg, end)
+    
+    # For each read alignment
+    for alignmentObj in iterator:
+        
+        if alignmentObj.query_name in readNames:
+            
+            ## 1. Determine discordant orientation
+            # a) Minus
+            if alignmentObj.is_reverse:
+                orientation = 'MINUS'
+
+            # b) Plus
+            else:
+                orientation = 'PLUS'
+            
+            ## 2. Determine if discordant is mate 1 or 2
+            if alignmentObj.is_read1:
+                pair = '1'
+
+            else:
+                pair = '2'
+           
+            DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, orientation, pair, alignmentObj.query_name, alignmentObj, sample, alignmentObj.is_duplicate)
+            DISCORDANTS.append(DISCORDANT)
+            
+    newCluster = create_cluster(DISCORDANTS, 'DISCORDANT')    
+    
+    return(newCluster)

@@ -62,7 +62,7 @@ if __name__ == '__main__':
 	parser.add_argument('--readFilters', default="SMS", dest='readFilters', type=str, help='Comma separated list of read filters to apply (SMS)')
 	parser.add_argument('--readOverhang', default=5000, dest='overhang', type=int, help='Number of flanking base pairs around the SV event to be collected from the supporting read sequence. Default: 5000')
 	parser.add_argument('--minINDELlen', default=50, dest='minINDELlen', type=int, help='Minimum indel length. Default: 50')
-	parser.add_argument('--minCLIPPINGlen', default=500, dest='minCLIPPINGlen', type=int, help='Minimum clipped sequence length for each read. Default: 500')
+	parser.add_argument('--minCLIPPINGlen', default=None, dest='minCLIPPINGlen', type=int, help='Minimum clipped sequence length for each read. Default [ILLUMINA, SURESELECT]: 20; [NANOPORE, PACBIO]: 500')
 	
 	## Clustering
 	parser.add_argument('--INSdist', default=250, dest='maxInsDist', type=int, help='Maximum distance bewteen two adjacent INS to be clustered together (Between 0-999). Default: 250')
@@ -100,7 +100,10 @@ if __name__ == '__main__':
 	parser.add_argument('--filtersBfClip', default="MAX-NBREADS,AREAMAPQ,AREASMS,IDENTITY", dest='filtersBfClip', type=str, help='Comma separated list of filters to apply before adding clippings to metaclusters. Default: MAX-NBREADS,AREAMAPQ,AREASMS,IDENTITY')
 	parser.add_argument('--filtersAfClip', default="MIN-NBREADS,MAX-NBREADS", dest='filtersAfClip', type=str, help='Comma separated list of filters to apply after adding clippings to metaclusters. Default: MIN-NBREADS, MAX-NBREADS')
 	parser.add_argument('--analyseFiltered', action="store_true", default=False, dest='analyseFiltered', help='If selected, add clippings and analyse breakpoint of those metaclusters that do not PASS selected filters.')
-
+	
+ 	# RetroTest
+	parser.add_argument('--blatClip', default=False, dest='blatClip', type=int, help='When selected, blat realignment will be performed with clippings. Higher sensitivity, but time-consuming. Default: False')
+	
 	# Filtering viral bam
 	parser.add_argument('--minTotalMatchVirus', default=40, dest='minTotalMatchVirus', type=int, help='Minimum total matches of a read against viral DB. Default: 40.')
 	parser.add_argument('--minParcialMatchVirus', default=15, dest='minParcialMatchVirus', type=int, help='Minimum length of a match against viral DB. Default: 15.')
@@ -194,6 +197,9 @@ if __name__ == '__main__':
 	maxBasePercVirus = args.maxBasePercVirus
 	minLccVirus = args.minLccVirus
 
+	# RetroTest
+	blatClip = args.blatClip
+	
 	# Ouput
 	VCFInfoFields = args.VCFInfoFields
 	annotRepeats = args.annotRepeats
@@ -395,25 +401,30 @@ if __name__ == '__main__':
 	# a) WGS illumina data (WGS)
 	if (confDict['technology'] == 'ILLUMINA'):
 		confDict['targetEvents'] = ['DISCORDANT']
-		#confDict['minCLIPPINGlen'] = 20
+		if confDict['minCLIPPINGlen'] == None:
+			confDict['minCLIPPINGlen'] = 20
 
 	# b) Sureselect illumina data
 	elif (confDict['technology'] == 'SURESELECT'):
+		confDict['blatClip'] = blatClip
 		confDict['targetEvents'] = ['DISCORDANT', 'CLIPPING']
-		confDict['minCLIPPINGlen'] = 20
-		confDict['minNbDISCORDANT'] = 2
-		confDict['minNbCLIPPING'] = 2
+		confDict['minNbDISCORDANT'] = minClusterSize
+		confDict['minNbCLIPPING'] = minClusterSize
+		if confDict['minCLIPPINGlen'] == None:
+			confDict['minCLIPPINGlen'] = 20
 
 	# c) Long read sequencing data -> INS or INS + BND
 	elif ('INS' in confDict['targetSV']):
 		confDict['targetEvents'] = ['INS', 'CLIPPING']
-		confDict['minCLIPPINGlen'] = 500
+		if confDict['minCLIPPINGlen'] == None:
+			confDict['minCLIPPINGlen'] = 500
 
 	# d) BND alone
 	elif ('BND' in confDict['targetSV']):
 		confDict['targetEvents'] = ['CLIPPING']
-		confDict['minCLIPPINGlen'] = 500
-
+		if confDict['minCLIPPINGlen'] == None:
+			confDict['minCLIPPINGlen'] = 500
+	
 	## Clustering
 	confDict['maxInsDist'] = maxInsDist
 	confDict['maxBkpDist'] = maxBkpDist

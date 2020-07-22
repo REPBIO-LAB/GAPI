@@ -185,30 +185,33 @@ def search4supplementary(clippings, reference, outName, outDir):
 
     ## 2. Select only those clippings without supplementary alignments
     targetClippings = [clipping.fullReadName() for clipping in clippings if (clipping.clippingType == 'soft' and clipping.supplAlignment is None)]
-    clippedFasta.seqDict = clippedFasta.retrieve_seqs(targetClippings)
+    
+    # if there is targetClippings
+    if targetClippings != []:
+        
+        ## 3. Write clipped sequences into fasta
+        clippedFasta.seqDict = clippedFasta.retrieve_seqs(targetClippings)
+        filePath = outDir + '/' + outName + '.fa'
+        clippedFasta.write(filePath)
 
-    ## 3. Write clipped sequences into fasta
-    filePath = outDir + '/' + outName + '.fa'
-    clippedFasta.write(filePath)
+        ## 4. Align clipped sequences with Blat into the reference genome
+        args = {}
+        args['stepSize'] = 5
+        pslPath = alignment.alignment_blat(filePath, reference, args, outName, outDir)
+        PSL = formats.PSL()
+        PSL.read(pslPath)
+        
+        ## 5. Filter alignments
+        ## 5.1 Filter partially aligned sequences
+        PSL.alignments = PSL.filter_align_perc(95)
 
-    ## 4. Align clipped sequences with BWA-mem into the reference genome
-    args = {}
-    args['stepSize'] = 5
-    pslPath = alignment.alignment_blat(filePath, reference, args, outName, outDir)
-    PSL = formats.PSL()
-    PSL.read(pslPath)
+        ## 5.2 Filter ambiguously mapped sequences
+        PSL.alignments = PSL.filter_nb_hits(5)
 
-    ## 5. Filter alignments
-    ## 5.1 Filter partially aligned sequences
-    PSL.alignments = PSL.filter_align_perc(95)
+        ## 6. Convert alignments in psl format into SA string
+        clippingsDict = {clipping.fullReadName(): clipping for clipping in clippings}
 
-    ## 5.2 Filter ambiguously mapped sequences
-    PSL.alignments = PSL.filter_nb_hits(5)
-
-    ## 6. Convert alignments in psl format into SA string
-    clippingsDict = {clipping.fullReadName(): clipping for clipping in clippings}
-    PSL.hits2clipping(clippingsDict)
-
+        PSL.hits2clipping(clippingsDict)    
 
 def collect_soft_clipped_seqs(clippings):
     '''
@@ -359,7 +362,7 @@ def discordants2mates(discordants):
 
     for discordant in discordants:
         pair = '2' if discordant.pair == '1' else '1'
-        mate = DISCORDANT(discordant.mateRef, discordant.mateStart, discordant.mateStart, None, pair, discordant.readName, None, discordant.sample, None)
+        mate = DISCORDANT(discordant.mateRef, discordant.mateStart, discordant.mateStart, discordant.mateOrientation, pair, discordant.readName, None, discordant.sample, None)
 
         mates.append(mate)
 
@@ -983,19 +986,27 @@ class DISCORDANT():
 
         if alignmentObj is None:
             self.isDup = None
-            self.mateRef = None
-            self.mateStart = None
             self.CIGAR = None
             self.mapQual = None
             self.cigarTuples = None
+            
+            self.mateRef = None
+            self.mateStart = None
+            self.mateOrientation = None
              
         else:
             self.isDup = alignmentObj.is_duplicate
-            self.mateRef = alignmentObj.next_reference_name
-            self.mateStart = alignmentObj.next_reference_start
             self.CIGAR = alignmentObj.cigarstring       
             self.mapQual = alignmentObj.mapq
             self.cigarTuples = alignmentObj.cigartuples
+            
+            self.mateRef = alignmentObj.next_reference_name
+            self.mateStart = alignmentObj.next_reference_start
+            ## Determine mate orientation
+            if alignmentObj.mate_is_reverse:
+                self.mateOrientation = 'MINUS'
+            else:
+                self.mateOrientation = 'PLUS'
 
     def fullReadName(self):
         '''

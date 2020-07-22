@@ -822,10 +822,6 @@ class SV_caller_sureselect(SV_caller):
 
         ## 6.2 Transduction calls
         output.write_tdCalls_sureselect(clusterPerSrcDict, self.outDir)
-
-        ### Do cleanup
-        supplDir = self.outDir + '/SUPPLEMENTARY/'
-        unix.rm([supplDir])    
     
     def infer_readSize(self):
         '''
@@ -878,23 +874,26 @@ class SV_caller_sureselect(SV_caller):
         msg = 'Number of SV events in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
         log.step(step, msg)
 
-        ## 2. Search for supplementary alignments by realigning the clipped sequences
-        step = 'SEARCH4SUPPL'
-        msg = 'Search for supplementary alignments by realigning the clipped sequences'
-        log.step(step, msg)
+        ## If search for supplementary alignments selected:
+        if self.confDict['blatClip']:
+            
+            ## 2. Search for supplementary alignments by realigning the clipped sequences
+            step = 'SEARCH4SUPPL'
+            msg = 'Search for supplementary alignments by realigning the clipped sequences'
+            log.step(step, msg)
 
-        ## Create output directory 
-        supplDir = self.outDir + '/SUPPLEMENTARY/' + srcId
-        unix.mkdir(supplDir)
+            ## Create output directory 
+            supplDir = self.outDir + '/SUPPLEMENTARY/' + srcId
+            unix.mkdir(supplDir)
+            
+            ## Left-clippings
+            events.search4supplementary(eventsDict['LEFT-CLIPPING'], self.reference, srcId, supplDir)
+                
+            ## Rigth-clippings
+            events.search4supplementary(eventsDict['RIGHT-CLIPPING'], self.reference, srcId, supplDir)
 
-        ## Left-clippings
-        events.search4supplementary(eventsDict['LEFT-CLIPPING'], self.reference, srcId, supplDir)
-        
-        ## Rigth-clippings
-        events.search4supplementary(eventsDict['RIGHT-CLIPPING'], self.reference, srcId, supplDir)
-
-        ## Remove output directory
-        unix.rm([supplDir])
+            ## Remove output directory
+            unix.rm([supplDir])
 
         ## 3. Discordant and clipping clustering ##
         ## 3.1 Organize discordant and clipping events into genomic bins prior clustering ##
@@ -964,11 +963,14 @@ class SV_caller_sureselect(SV_caller):
         filters2Apply = ['MIN-NBREADS', 'SUPPL-REF', 'SUPPL-SRC', 'SUPPL-MAPQ', 'GERMLINE', 'READ-DUP', 'CLUSTER-RANGE']
         filteredLeftClippings = filters.filter_clippings(leftClippingClusters, filters2Apply, self.confDict)
         filteredRightClippings = filters.filter_clippings(rightClippingClusters, filters2Apply, self.confDict)
-
+            
         ## 5. Create metaclusters ##
         step = 'META-CLUSTERING'
         msg = 'Group discordant mates and suplementary clusters into metaclusters'
         log.step(step, msg)
         metaclusters = clusters.metacluster_mate_suppl(filteredDiscordants, filteredLeftClippings, filteredRightClippings, self.confDict['minReads'], self.refLengths)
-
+        
+        # Fill refLeftBkp and refRightBkp attributes
+        bkp.bkp_retroTest(metaclusters, self.bam)
+                              
         return [srcId, metaclusters]

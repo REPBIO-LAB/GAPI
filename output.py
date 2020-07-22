@@ -847,7 +847,7 @@ def write_tdCalls_sureselect(clustersPerSrc, outDir):
     ## 1. Write header 
     outFilePath = outDir + '/transduction_calls.tsv'
     outFile = open(outFilePath, 'w')
-    row = "#ref \t beg \t end \t srcId \t nbReads \t nbDiscordant \t nbClipping \t readIds \n"
+    row = "#ref \t beg \t end \t orientation \t srcId \t nbReads \t nbDiscordant \t nbClipping \t readIds \n"
     outFile.write(row)
 
     ## 2. Generate list containing transduction calls
@@ -859,8 +859,14 @@ def write_tdCalls_sureselect(clustersPerSrc, outDir):
 
         # For each cluster
         for cluster in clusters:
+            
             readIds = ','.join(cluster.supportingReads()[3])
-            call = [cluster.ref, str(cluster.beg), str(cluster.end), srcId, str(cluster.supportingReads()[0]), str(cluster.nbDISCORDANT()), str(cluster.nbSUPPLEMENTARY()), readIds]
+            
+            # if bkp has being defined, use it as call coordinates
+            beg = cluster.refLeftBkp if cluster.refLeftBkp is not None else cluster.beg
+            end = cluster.refRightBkp if cluster.refRightBkp is not None else cluster.end
+            
+            call = [cluster.ref, str(beg), str(end), str(cluster.orientation), srcId, str(cluster.supportingReads()[0]), str(cluster.nbDISCORDANT()), str(cluster.nbSUPPLEMENTARY()), readIds]
             calls.append(call)
 
     ## 3. Sort transduction calls first by chromosome and then by start position
@@ -874,7 +880,6 @@ def write_tdCalls_sureselect(clustersPerSrc, outDir):
     outFile.close()
     
     ## 5. Collapse calls when pointing to the same MEI. It happens when source elements are too close.
-    
     if call is not None:
     
     	outFile = pybedtools.BedTool(outFilePath)
