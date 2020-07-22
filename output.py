@@ -861,7 +861,12 @@ def write_tdCalls_sureselect(clustersPerSrc, outDir):
         for cluster in clusters:
             
             readIds = ','.join(cluster.supportingReads()[3])
-            call = [cluster.ref, str(cluster.refLeftBkp), str(cluster.refRightBkp), str(cluster.orientation), srcId, str(cluster.supportingReads()[0]), str(cluster.nbDISCORDANT()), str(cluster.nbSUPPLEMENTARY()), readIds]
+            
+            # if bkp has being defined, use it as call coordinates
+            beg = cluster.refLeftBkp if cluster.refLeftBkp is not None else cluster.beg
+            end = cluster.refRightBkp if cluster.refRightBkp is not None else cluster.end
+            
+            call = [cluster.ref, str(beg), str(end), str(cluster.orientation), srcId, str(cluster.supportingReads()[0]), str(cluster.nbDISCORDANT()), str(cluster.nbSUPPLEMENTARY()), readIds]
             calls.append(call)
 
     ## 3. Sort transduction calls first by chromosome and then by start position

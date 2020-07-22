@@ -55,7 +55,7 @@ def bkp(metaclusters):
             
 def bkp_retroTest(metaclusters, readSize):
     '''
-    Determine breakpoint in sureselect data using supplementary events
+    Determine precise breakpoint in sureselect data when possible. If only PLUS DISCORDANT cluster, bkp coordinates will be returned as an interval. 
     
     Input: 
     1. List of metaclusters
@@ -64,39 +64,44 @@ def bkp_retroTest(metaclusters, readSize):
     Output:
     There is no output, but refLeftBkp and refRightBkp attributes are filled
     '''
+        
     for metacluster in metaclusters:
         
-        if metacluster.orientation == "RECIPROCAL":
+        # create subclusters
+        subclusters = metacluster.create_subclusters()
+        
+        # if there is a SUPPLEMENTARY cluster:
+        if 'SUPPLEMENTARY' in subclusters.keys():
             
             bkp = []
-
-            # Choose bkp with highest number of supplementary events
-            for event in metacluster.events:
+            
+            for event in subclusters['SUPPLEMENTARY'].events:
                         
-                if event.type == 'SUPPLEMENTARY':
+                if "M" in re.findall(r'(\d+)([A-Z]{1})', event.CIGAR)[0]:
+                    bkp.append(event.end)
+                            
+                elif "M" in re.findall(r'(\d+)([A-Z]{1})', event.CIGAR)[-1]:
+                    bkp.append(event.beg)
                     
-                    if "M" in re.findall(r'(\d+)([A-Z]{1})', event.CIGAR)[0]:
-                        bkp.append(event.end)
-                        
-                    elif "M" in re.findall(r'(\d+)([A-Z]{1})', event.CIGAR)[-1]:
-                        bkp.append(event.beg)
-
             # Fill refLeftBkp and refRightBkp attributes
             if len(bkp) > 0:
                 bkp = max(set(bkp), key=bkp.count)
                 metacluster.refLeftBkp = bkp
                 metacluster.refRightBkp = bkp
         
-        if metacluster.orientation == "MINUS":
+        # elif there is a MINUS-DISCORDANT cluster:
+        elif 'MINUS-DISCORDANT' in subclusters.keys():
             
-            metacluster.refLeftBkp, metacluster.refRightBkp = metacluster.beg, metacluster.beg
+            metacluster.refLeftBkp, metacluster.refRightBkp = subclusters['MINUS-DISCORDANT'].beg, subclusters['MINUS-DISCORDANT'].beg
         
-        if metacluster.orientation == "PLUS":
-            
-            # call coordinates will be returned as an interval [cluster.end, cluster.end + read size]
-            # bkp cannot be determined from PLUS-DISCORDANT clusters 
-            metacluster.refLeftBkp = metacluster.end
-            metacluster.refRightBkp = metacluster.end + readSize
+        # elif there is a PLUS-DISCORDANT cluster:
+        elif 'PLUS-DISCORDANT' in subclusters.keys():
+                
+                # call coordinates will be returned as an interval [cluster.end, cluster.end + read size]
+                # bkp cannot be determined from PLUS-DISCORDANT clusters created from mates
+                metacluster.refLeftBkp = metacluster.end
+                metacluster.refRightBkp = metacluster.end + readSize
+
 
 def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, binId, identDbPath):
     '''

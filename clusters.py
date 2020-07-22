@@ -2774,7 +2774,7 @@ class META_cluster():
         '''
         Return the number of discordant events composing the metacluster. 
         '''                       
-        nbDISCORDANT = set([event.readName for event in self.events if event.type == 'DISCORDANT'])
+        nbDISCORDANT = len(set([event.readName for event in self.events if event.type == 'DISCORDANT']))
 
         return nbDISCORDANT
 
@@ -2782,7 +2782,7 @@ class META_cluster():
         '''
         Return the number of discordant events composing the metacluster. 
         '''        
-        nbSUPPL = set([event.readName for event in self.events if event.type == 'SUPPLEMENTARY'])
+        nbSUPPL = len(set([event.readName for event in self.events if event.type == 'SUPPLEMENTARY']))
         
         return nbSUPPL
 
