@@ -55,7 +55,7 @@ def bkp(metaclusters):
             rightBkp = max(set(rightBkps), key=rightBkps.count)
             metacluster.refRightBkp = rightBkp
             
-def bkp_retroTest(metaclusters, bam):
+def bkp_retroTest(metaclusters, bam, readSize):
     '''
     Determine precise breakpoint in sureselect data:
     - if supplementary cluster in metacluster, use supplementary events clipping coordinates
@@ -65,6 +65,7 @@ def bkp_retroTest(metaclusters, bam):
     Input: 
     1. metaclusters: List of metaclusters
     2. bam: Bam file
+    3. readSize: Bam read size
     
     Output:
     There is no output, but refLeftBkp and refRightBkp attributes are filled

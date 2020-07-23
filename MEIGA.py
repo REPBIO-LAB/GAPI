@@ -102,7 +102,7 @@ if __name__ == '__main__':
 	parser.add_argument('--analyseFiltered', action="store_true", default=False, dest='analyseFiltered', help='If selected, add clippings and analyse breakpoint of those metaclusters that do not PASS selected filters.')
 	
  	# RetroTest
-	parser.add_argument('--blatClip', default=False, dest='blatClip', type=int, help='When selected, blat realignment will be performed with clippings. Higher sensitivity, but time-consuming. Default: False')
+	parser.add_argument('--blatClip', action="store_true", default=False, dest='blatClip', help='When selected, blat realignment will be performed with clippings. Higher sensitivity, but time-consuming. Default: False')
 	
 	# Filtering viral bam
 	parser.add_argument('--minTotalMatchVirus', default=40, dest='minTotalMatchVirus', type=int, help='Minimum total matches of a read against viral DB. Default: 40.')
