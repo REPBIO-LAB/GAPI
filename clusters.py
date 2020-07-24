@@ -39,7 +39,7 @@ import sequences
 import gRanges
 import stats
 import fileinput
-import virus
+from VIGA_LR import virusLR
 
 
 ###############
@@ -2123,7 +2123,7 @@ class SUPPLEMENTARY_cluster(cluster):
 
             # b) Unresolved structure
             else:
-                structure = virus.virus_structure(insertPath, viralDb, outDir)
+                structure = virusLR.virus_structure(insertPath, viralDb, outDir)
 
                 if ('INS_TYPE' in structure) and (structure['INS_TYPE'] is not 'unknown') and ('PERC_RESOLVED' in structure) and (structure['PERC_RESOLVED'] >= 60):
                     bridge = True
@@ -4215,7 +4215,7 @@ class BND_junction():
                 # Look for viral structure
                 # TODO: change db path
                 # NOTE (EVA): This function was run before (in supports_unaligned_bridge) and I think it's quite redundant
-                structure = virus.virus_structure(polishedFastaBridgePath, viralDb, outDir)
+                structure = virusLR.virus_structure(polishedFastaBridgePath, viralDb, outDir)
 
                 if ('INS_TYPE' in structure) and (structure['INS_TYPE'] is not 'unknown') and ('PERC_RESOLVED' in structure) and (structure['PERC_RESOLVED'] >= 60):
                     # b) Unresolved structure

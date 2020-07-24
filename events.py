@@ -7,13 +7,14 @@ Module 'events' - Contains classes for dealing with structural variation events 
 
 # Internal
 import annotation
-import virus
 import structures
 import bamtools
 import formats
 from cigar import Cigar
 import gRanges
 import alignment
+from VIGA_SR import virusSR
+
 
 ###############
 ## FUNCTIONS ##
@@ -338,7 +339,7 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
 
         
     if 'VIRUS' in targetINT2Search and viralSeqs:
-        discordantEventsIdent = virus.is_virusSR(discordants, viralSeqs)
+        discordantEventsIdent = virusSR.is_virusSR(discordants, viralSeqs)
     # If VIRUS is not selected, add events with identity == None. (If VIRUS is selected they are already in discordantEventsIdent)
     else:
         discordantsIdentityMEs.update(discordantsNone)

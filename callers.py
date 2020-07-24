@@ -28,7 +28,6 @@ import bkp
 import filters
 import alignment
 import gRanges
-import virus
 
 ## FUNCTIONS ##
 

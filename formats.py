@@ -13,7 +13,7 @@ import re
 import log
 import gRanges
 import structures
-import callers
+from VIGA_SR import call_VIGASR
 
 
 ## FUNCTIONS ##
@@ -187,7 +187,7 @@ class FASTA():
         openMode = 'a' if mode == 'append' else 'w'
         
         if safetyLock:
-            callers.lock.acquire()
+            call_VIGASR.lock.acquire()
 
         fastaFile = open(filePath, openMode)
 
@@ -201,7 +201,7 @@ class FASTA():
         fastaFile.close()
         
         if safetyLock:
-            callers.lock.release()
+            call_VIGASR.lock.release()
 
     def retrieve_seqs(self, targetNames):
         '''
