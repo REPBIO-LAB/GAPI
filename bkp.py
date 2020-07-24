@@ -770,8 +770,10 @@ def clippingSeq(clippingEvents, CLIPPING_clusterID, seqSide, outDir):
 
     fastaObj = formats.FASTA()
     fastaDict = {}
+                
     # Determine bkp
     for event in clippingEvents:
+        
         # Si queremos sacar la secuencia del lado de la integracion:
         if seqSide == 'INT':
             fastaDict[event.readName] = event.clipped_seq()
