@@ -693,6 +693,7 @@ class CLIPPING():
         '''
         Retrieve clipped piece of read sequence
         '''
+        ## SONIA: It is troublesome when self.clippingType == 'hard'!
         # a) Right clipping
         if self.clippedSide == 'right':
             clippedSeq = self.readSeq[self.readBkp:]
