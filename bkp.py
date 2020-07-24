@@ -581,7 +581,7 @@ def collectClipBkpMatch(matchClippings, clippingEventsToAdd):
 
         # Collect clipping events whose bkp is in desired region
         for clipping in clippingEventsToAdd:
-            if clipping.readBkp >= binBeg and clipping.readBkp <= binEnd:
+            if clipping.readBkp >= binBeg and clipping.readBkp <= binEnd and clipping in clippings:
                 if metacluster in clippings2Add.keys():
                     clippings2Add[metacluster].append(clipping)
                     
