@@ -712,53 +712,65 @@ def INS_type_metaclusters(metaclusters, reference, annotations, processes, viral
         6. rootOutDir: Root output directory
     '''
 
-    ## 1. Create fasta containing all consensus inserted sequences 
-    msg = '1. Create fasta containing all consensus inserted sequences'
-    log.info(msg) 
-    # If there is viral DB, check sequences local complexity 
-    if viralDb:  
-        fastaPath = insertedSeq2fasta(metaclusters, rootOutDir, lccFilter=True)
-    else:
+    # Initialize variables:
+    allHits_genome = {}
+    groupedEntries = {}
+    allHits_viral = {}
+
+    # Dont search for viruses if there is not viralDb
+    if not viralDb:
+        ## 1. Create fasta containing all consensus inserted sequences 
+        msg = '1. Create fasta containing all consensus inserted sequences'
+        log.info(msg) 
         fastaPath = insertedSeq2fasta(metaclusters, rootOutDir)
 
+        ## 2. Align consensus inserted sequences
+        msg = '2. Align consensus inserted sequences'
+        log.info(msg) 
 
-    ## 2. Align consensus inserted sequences
-    msg = '2. Align consensus inserted sequences'
-    log.info(msg) 
+        ## 2.1 Align consensus inserted sequences into the reference genome
+        msg = '2.1 Align consensus inserted sequences into the reference genome'
+        log.info(msg)    
+        SAM_genome = alignment.alignment_bwa(fastaPath, reference, 'alignments_genome', processes, rootOutDir)
 
-    ## 2.1 Align consensus inserted sequences into the reference genome
-    msg = '2.1 Align consensus inserted sequences into the reference genome'
-    log.info(msg)    
-    SAM_genome = alignment.alignment_bwa(fastaPath, reference, 'alignments_genome', processes, rootOutDir)
+        ## Convert SAM to PAF
+        PAF_genome = alignment.sam2paf(SAM_genome, 'alignments_genome', rootOutDir)
 
-    ## Convert SAM to PAF
-    PAF_genome = alignment.sam2paf(SAM_genome, 'alignments_genome', rootOutDir)
+        ## Organize hits according to their corresponding metacluster
+        allHits_genome = alignment.organize_hits_paf(PAF_genome) 
 
-    ## Organize hits according to their corresponding metacluster
-    allHits_genome = alignment.organize_hits_paf(PAF_genome) 
+        ## 2.2 Align consensus inserted sequences into the reference genome (splicing-aware)
+        msg = '2.2 Align consensus inserted sequences into the reference genome (splicing-aware)'
+        log.info(msg)    
 
-    ## 2.2 Align consensus inserted sequences into the reference genome (splicing-aware)
-    msg = '2.2 Align consensus inserted sequences into the reference genome (splicing-aware)'
-    log.info(msg)    
+        ## Minimap index for the reference
+        index = os.path.splitext(reference)[0] + '.mmi'
+        SAM_splicing = alignment.alignment_minimap2_spliced(fastaPath, index, 'alignments_spliced', processes, rootOutDir)
 
-    ## Minimap index for the reference
-    index = os.path.splitext(reference)[0] + '.mmi'
-    SAM_splicing = alignment.alignment_minimap2_spliced(fastaPath, index, 'alignments_spliced', processes, rootOutDir)
+        ## Convert SAM to BAM
+        BAM_splicing = bamtools.SAM2BAM(SAM_splicing, rootOutDir)
 
-    ## Convert SAM to BAM
-    BAM_splicing = bamtools.SAM2BAM(SAM_splicing, rootOutDir)
+        ## Convert BAM to BED
+        BED_path = bamtools.BAM2BED(BAM_splicing, rootOutDir)
 
-    ## Convert BAM to BED
-    BED_path = bamtools.BAM2BED(BAM_splicing, rootOutDir)
+        ## Organize hits according to their corresponding metacluster
+        allHits_splicing = formats.BED()
+        allHits_splicing.read(BED_path, 'List', None)
+        groupedEntries = allHits_splicing.group_entries_by_name()
 
-    ## Organize hits according to their corresponding metacluster
-    allHits_splicing = formats.BED()
-    allHits_splicing.read(BED_path, 'List', None)
-    groupedEntries = allHits_splicing.group_entries_by_name()
+    # Search only for viruses if there is viralDb
+    else:
+        ## 1. Create fasta containing all consensus inserted sequences and checking sequences local complexity
+        msg = '1. Create fasta containing all consensus inserted sequences'
+        log.info(msg) 
+        fastaPath = insertedSeq2fasta(metaclusters, rootOutDir, lccFilter=True)
 
-    if viralDb:
+        ## 2. Align consensus inserted sequences
+        msg = '2. Align consensus inserted sequences'
+        log.info(msg) 
+
         ## 2.3 Align consensus inserted sequences into the viral database
-        msg = '2.3 Align consensus inserted sequences into the viral database'
+        msg = '2.1 Align consensus inserted sequences into the viral database'
         log.info(msg)  
 
         #start_time = time.time()
@@ -771,9 +783,6 @@ def INS_type_metaclusters(metaclusters, reference, annotations, processes, viral
         ## Organize hits according to their corresponding metacluster
         allHits_viral = alignment.organize_hits_paf(PAF_viral)
     
-    else:
-        allHits_viral = {}
-
     ## 3. For each metacluster determine the insertion type
     msg = '3. For each metacluster determine the insertion type'
     log.info(msg)   
@@ -806,7 +815,11 @@ def INS_type_metaclusters(metaclusters, reference, annotations, processes, viral
             hits_viral = formats.PAF()
 
         ## 3.2 Insertion type inference
-        metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'])
+        if not viralDb:
+            metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'])
+        else:
+            metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'], types2Search=['VIRUS'])
+
 
 # NOTE 2020: Copied from INS_type_metaclusters
 # TODO 2020: Do merge
@@ -944,7 +957,8 @@ def soloBND_type_metaclusters(metaclusters, confDict, reference, refLengths, ref
         ## 4.2 Insertion type inference
         hits_genome = formats.PAF()
         hits_splicing = []
-        metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'])
+        #metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'])
+        metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'], types2Search=['VIRUS'])
 
 
 def structure_inference_parallel(metaclusters, consensusPath, transducedPath, transductionSearch, processes, rootDir):
@@ -3359,7 +3373,7 @@ class META_cluster():
         return junctions
         
 
-    def determine_INS_type(self, hits_genome, hits_splicing, hits_viral, repeatsDb, transducedDb, exonsDb):
+    def determine_INS_type(self, hits_genome, hits_splicing, hits_viral, repeatsDb, transducedDb, exonsDb, types2Search=['EXPANSION','DUP','INTERSPERSED','PSEUDOGENE']):
         '''
         Determine the type of insertion based on the alignments of the inserted sequence on the reference genome
 
@@ -3370,6 +3384,7 @@ class META_cluster():
             4. repeatsDb: bin database containing annotated repeats in the reference. None if not available
             5. transducedDb: bin database containing regions transduced by source elements. None if not available
             6. exonsDb: bin database containing annotated exons. None if not available. 
+            7. types2Search: Comma separated list containing insertion types to look for. Default: ['EXPANSION','DUP','INTERSPERSED','PSEUDOGENE']
 
         Output: Add INS type annotation to the attribute SV_features
         ''' 
@@ -3380,46 +3395,51 @@ class META_cluster():
             return 
 
         ## 1. Assess if input sequence corresponds to a repeat expansion
-        is_EXPANSION, self.insertHits = self.is_expansion(hits_genome, repeatsDb)
+        if 'EXPANSION' in types2Search:
+            is_EXPANSION, self.insertHits = self.is_expansion(hits_genome, repeatsDb)
 
-        # Stop if insertion is a expansion
-        if is_EXPANSION:
-            return
+            # Stop if insertion is a expansion
+            if is_EXPANSION:
+                return
 
         ## 2. Assess if input sequence corresponds to duplication 
-        is_DUP, self.insertHits = self.is_duplication(hits_genome, 100)
+        if 'DUP' in types2Search:
+            is_DUP, self.insertHits = self.is_duplication(hits_genome, 100)
 
-        # Stop if insertion is a duplication
-        if is_DUP:
-            return
+            # Stop if insertion is a duplication
+            if is_DUP:
+                return
 
 
         ## 3. Assess if input sequence corresponds to solo interspersed insertion or transduction
         # Note: return boolean as well specifying if interspersed or not
-        is_INTERSPERSED, INS_features, self.insertHits = retrotransposons.is_interspersed_ins(self.consensusEvent.pick_insert(), hits_genome, repeatsDb, transducedDb)
+        if 'INTERSPERSED' in types2Search:
+            is_INTERSPERSED, INS_features, self.insertHits = retrotransposons.is_interspersed_ins(self.consensusEvent.pick_insert(), hits_genome, repeatsDb, transducedDb)
 
-        # Update metacluster with insertion features
-        self.SV_features.update(INS_features) 
-
-        # Stop if insertion is a interspersed insertion
-        if is_INTERSPERSED:
-            return    
-
-        ## 4. Assess if input sequence corresponds to processed pseudogene insertion
-        is_PSEUDOGENE, outHits = self.is_processed_pseudogene(hits_splicing, exonsDb)
-
-        # Stop if insertion is a processed pseudogene
-        if is_PSEUDOGENE:
-            return    
-
-        ## 5. Assess if input sequence corresponds to a viral insertion
-        is_VIRUS, INS_features = self.is_VIRUS(hits_viral)
-
-        # Stop if insertion is a viral insertion
-        if is_VIRUS:
             # Update metacluster with insertion features
             self.SV_features.update(INS_features) 
-            return
+
+            # Stop if insertion is a interspersed insertion
+            if is_INTERSPERSED:
+                return    
+
+        ## 4. Assess if input sequence corresponds to processed pseudogene insertion
+        if 'PSEUDOGENE' in types2Search:
+            is_PSEUDOGENE, outHits = self.is_processed_pseudogene(hits_splicing, exonsDb)
+
+            # Stop if insertion is a processed pseudogene
+            if is_PSEUDOGENE:
+                return    
+
+        ## 5. Assess if input sequence corresponds to a viral insertion
+        if 'VIRUS' in types2Search:
+            is_VIRUS, INS_features = self.is_VIRUS(hits_viral)
+
+            # Stop if insertion is a viral insertion
+            if is_VIRUS:
+                # Update metacluster with insertion features
+                self.SV_features.update(INS_features) 
+                return
 
     def is_VIRUS(self, PAF):
         '''
