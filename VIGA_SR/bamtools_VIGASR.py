@@ -77,7 +77,7 @@ def collectDiscodantsLowMAPQSeq(ref, binBeg, binEnd, bam, discordantMatesMaxMAPQ
             # Pick sequences that are unmmapped or with mapping quality < discordantMatesMaxMAPQ
             if discordantMatesCheckUnmapped == True:
                 # TODO: Put decoy as an option
-                if (alignmentObj.is_unmapped == True) or (MAPQ < discordantMatesMaxMAPQ) or (alignmentObj.reference_name == 'NC_007605'):
+                if (alignmentObj.is_unmapped == True) or (MAPQ < discordantMatesMaxMAPQ) or (alignmentObj.reference_name == 'NC_007605') or (alignmentObj.reference_name == 'EBV'):
                     # Calculate base percentage
                     basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
                     # Delete total value of base percentage result
@@ -93,7 +93,7 @@ def collectDiscodantsLowMAPQSeq(ref, binBeg, binEnd, bam, discordantMatesMaxMAPQ
             # Pick sequences with mapping quality < discordantMatesMaxMAPQ
             else:
                 # TODO; Put decoy as an option
-                if (MAPQ < discordantMatesMaxMAPQ) or (alignmentObj.reference_name == 'NC_007605'):
+                if (MAPQ < discordantMatesMaxMAPQ) or (alignmentObj.reference_name == 'NC_007605') or (alignmentObj.reference_name == 'EBV'):
                     # Calculate base percentage
                     basePercs = sequences.baseComposition(alignmentObj.query_sequence)[1]
                     # Delete total value of base percentage result
