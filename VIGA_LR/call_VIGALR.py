@@ -140,7 +140,7 @@ class SV_caller_long(SV_caller):
                         allMetaclusters['solo-BND'] = []
                     allMetaclusters['solo-BND'].append(metaclusterBND)
             
-            if allMetaclusters['solo-BND']:
+            if 'solo-BND' in allMetaclusters.keys():
                 clusters.soloBND_type_metaclusters(allMetaclusters['solo-BND'], self.confDict, self.reference, self.refLengths, self.refDir, self.confDict['transductionSearch'], 1, self.confDict['viralDb'], outDir)
             
 
@@ -181,7 +181,7 @@ class SV_caller_long(SV_caller):
             output.write_junctions(allJunctions, outFileName, self.outDir)
 
         ## 8.2 Report solo-BND junctions
-        if allMetaclusters['solo-BND']:
+        if 'solo-BND' in allMetaclusters.keys():
             outFileName = 'soloBND_MEIGA.tsv'
             output.INS2VCF_junction(allMetaclusters['solo-BND'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
             # TODO 2020: Hacer un write especifico.
