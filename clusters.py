@@ -714,8 +714,13 @@ def INS_type_metaclusters(metaclusters, reference, annotations, processes, viral
 
     ## 1. Create fasta containing all consensus inserted sequences 
     msg = '1. Create fasta containing all consensus inserted sequences'
-    log.info(msg)   
-    fastaPath = insertedSeq2fasta(metaclusters, rootOutDir)
+    log.info(msg) 
+    # If there is viral DB, check sequences local complexity 
+    if viralDb:  
+        fastaPath = insertedSeq2fasta(metaclusters, rootOutDir, lccFilter=True)
+    else:
+        fastaPath = insertedSeq2fasta(metaclusters, rootOutDir)
+
 
     ## 2. Align consensus inserted sequences
     msg = '2. Align consensus inserted sequences'
@@ -1020,7 +1025,7 @@ def structure_inference(metacluster, consensusPath, transducedPath, transduction
 
     return metacluster
 
-def insertedSeq2fasta(metaclusters, outDir):
+def insertedSeq2fasta(metaclusters, outDir, lccFilter=False):
     '''
     Collect all the consensus inserted sequences from a list of metaclusters supporting INS and 
     generate fasta file containing them 
@@ -1028,6 +1033,7 @@ def insertedSeq2fasta(metaclusters, outDir):
     Input:
         1. metaclusters: list of metaclusters
         2. outDir: output directory
+        3. lccFilter: Boolean. Filter reads by local complexity. Default= False.
 
     Output:
         1. fastaPath: fasta file containing all the consensus inserted sequences
@@ -1047,15 +1053,14 @@ def insertedSeq2fasta(metaclusters, outDir):
         insert = metacluster.consensusEvent.pick_insert()
 
         # NOTE 2020: New 2020
-        # NOTE 2020: Add for viruses!!!
-        '''
-        complexity = Bio.SeqUtils.lcc.lcc_simp(insert)
-        print ('complexity ' + str(insert) + ' '+ str(complexity))
+        if lccFilter:
+            complexity = Bio.SeqUtils.lcc.lcc_simp(insert)
+            print ('complexity ' + str(insert) + ' '+ str(complexity))
 
-        # NOTE 2020: If works, put as option
-        if complexity > 1.9:
-            FASTA.seqDict[metaclusterId] = insert
-        '''
+            # NOTE 2020: If works, put as option
+            if complexity > 1.9:
+                FASTA.seqDict[metaclusterId] = insert
+        
 
         FASTA.seqDict[metaclusterId] = insert
         
