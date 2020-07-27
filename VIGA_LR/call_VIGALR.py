@@ -133,7 +133,7 @@ class SV_caller_long(SV_caller):
             allJunctions = clusters.search4junctions_metaclusters(allMetaclusters['BND'], self.refLengths, self.confDict['processes'], self.confDict['minReads'], 25, self.reference, self.refDir, self.confDict['viralDb'], outDir)
 
             # NOTE 2020: New June 2020. For keeping those BNDs without pair
-            '''
+            
             for metaclusterBND in allMetaclusters['BND']:
                 if metaclusterBND not in allJunctions:
                     if 'solo-BND' not in allMetaclusters:
@@ -142,7 +142,7 @@ class SV_caller_long(SV_caller):
             
             if allMetaclusters['solo-BND']:
                 clusters.soloBND_type_metaclusters(allMetaclusters['solo-BND'], self.confDict, self.reference, self.refLengths, self.refDir, self.confDict['transductionSearch'], 1, self.confDict['viralDb'], outDir)
-            '''
+            
 
 
             # Remove output directory
@@ -181,14 +181,12 @@ class SV_caller_long(SV_caller):
             output.write_junctions(allJunctions, outFileName, self.outDir)
 
         ## 8.2 Report solo-BND junctions
-        '''
         if allMetaclusters['solo-BND']:
             outFileName = 'soloBND_MEIGA.tsv'
             output.INS2VCF_junction(allMetaclusters['solo-BND'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
             # TODO 2020: Hacer un write especifico.
             for metasolo in allMetaclusters['solo-BND']:
                 print ('solo-BND ' + str(metasolo.beg) + ' '+ str(metasolo.SV_features))
-        '''
         
         
     def make_clusters(self):
