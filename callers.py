@@ -28,6 +28,7 @@ import bkp
 import filters
 import alignment
 import gRanges
+import retrotransposons
 
 ## FUNCTIONS ##
 
@@ -969,7 +970,10 @@ class SV_caller_sureselect(SV_caller):
         log.step(step, msg)
         metaclusters = clusters.metacluster_mate_suppl(filteredDiscordants, filteredLeftClippings, filteredRightClippings, self.confDict['minReads'], self.refLengths)
         
-        # Fill refLeftBkp and refRightBkp attributes
+        ## 6. Determine metaclusters precise coordinates ##
         bkp.bkp_retroTest(metaclusters, self.bam, self.confDict['readSize'])
-                              
+        
+        ## 7. Determine metaclusters identity ##           
+        retrotransposons.identity_metaclusters_retrotest(metaclusters, self.bam, self.outDir)
+        
         return [srcId, metaclusters]

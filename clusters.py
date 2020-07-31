@@ -1988,17 +1988,37 @@ class SUPPLEMENTARY_cluster(cluster):
         self.bridge = False
         self.bridgeInfo = {}
         self.orientation = None
+    
+    def clippOrientation(self):
+        '''
+        Determine cluster bkp side
+        '''
+        # 1. Collect supplementary events clipping sides
+        [event.clippingSide() for event in self.events]
+        clipSides = set([event.clipSide for event in self.events])
+        
+        # 2. Set supplementary cluster bkp side
+        if clipSides == {'left', 'right'}:
+            self.orientation = 'RECIPROCAL'
+        elif clipSides == {'right'}:
+            self.orientation = 'PLUS'
+        elif clipSides == {'left'}:
+            self.orientation = 'MINUS'
 
     def bkpPos(self):
         '''
         Compute and return breakpoint position
         '''
+        # Determine cluster bkp side
+        if self.orientation == None:
+            self.clippOrientation()
+        
         # a) Breakpoint on the left
-        if self.bkpSide == 'beg':
+        if self.bkpSide == 'left':
             bkpPos = self.beg
 
         # b) Breakpoint on the right
-        else:
+        elif self.bkpSide == 'right':
             bkpPos = self.end
         
         return bkpPos
@@ -2386,6 +2406,7 @@ class META_cluster():
         self.intRightBkp = None
         self.rightClipType = None
         self.leftClipType = None
+        self.identity = None
 
         # Shotr reads:
         if hasattr(self.events[0], 'identity'):
@@ -4330,8 +4351,11 @@ def metacluster_mate_suppl(discordants, leftClippings, rightClippings, minReads,
     supplClustersRight = [clipping.supplCluster for clipping in rightClippings]
     supplClusters = supplClustersLeft + supplClustersRight
     
+    ## 2.1. Fill supplementary cluster orientation attribute
+    [supplCluster.clippOrientation() for supplCluster in supplClusters]
+    
     ## 3. Organize discordant mate and suppl. clusters into a dictionary
-    mateDict = events.events2nestedDict(mateClusters, 'DISCORDANT')    
+    mateDict = events.events2nestedDict(mateClusters, 'DISCORDANT')
     supplDict = events.events2nestedDict(supplClusters, 'SUPPLEMENTARY')
     clustersDict = events.mergeNestedDict(mateDict, supplDict)
 

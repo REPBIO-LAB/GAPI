@@ -19,6 +19,8 @@ import formats
 import alignment
 import sequences
 import annotation
+import bamtools
+import bkp
 
 ## FUNCTIONS ##
 def retrotransposon_structure(FASTA_file, index, outDir):
@@ -680,5 +682,103 @@ def find_orf(sequence):
     ### return ORF status and ORF parameters		
     return orf1_status, orf2_status, orf1_len, orf2_len, orf1_pro, orf2_pro, orf1_sco, orf2_sco
 
+def identity_metaclusters_retrotest(metaclusters, bam, outDir):
+    '''
+    Determine retrotest metaclusters identity. If there is only a cluster and it contains a polyA tail, 
+    it will be clasified as a partnered event. Else, it will be an orphan transduction. 
+    
+    Partnered:
+    --------->
+             ----AAAAAA>
+       --------->
+           ------AAAA>
 
+    Orphan:
+    --------->
+             ----ACGTCA>
+       --------->
+           ------ACG>
+    
+    Input:
+    1. metaclusters: List of retrotest metaclusters
+    2. bam: Bam file
+    3. outDir: output directory
+    
+    Output:
+    Fill metacluster identity attribute with 'partnered' or 'orphan'    
+    '''
+    
+    # set new confDict parameters to search for clippings
+    newconfDict = {}
+    newconfDict['targetEvents'] = ['CLIPPING']
+    newconfDict['minMAPQ'] = 20
+    newconfDict['minCLIPPINGlen'] = 15
+    newconfDict['minINDELlen'] = 20
+    newconfDict['overhang'] = 0
+    newconfDict['filterDuplicates'] = True
 
+    # for each metacluster
+    for metacluster in metaclusters:
+        
+        # if there is no reciprocal clusters
+        if metacluster.orientation != 'RECIPROCAL':
+
+            # collect clippings in region
+            eventsDict = bamtools.collectSV(metacluster.ref, metacluster.refLeftBkp-100, metacluster.refRightBkp+100, bam, newconfDict, None, supplementary = False)
+            
+            # create clipping consensus
+            bkpDir = outDir + '/BKP'
+            unix.mkdir(bkpDir)
+            intConsensusPath_right, intConsensusSeq_right = bkp.makeConsSeqs(eventsDict['RIGHT-CLIPPING'], 'INT', bkpDir)
+            intConsensusPath_left, intConsensusSeq_left = bkp.makeConsSeqs(eventsDict['LEFT-CLIPPING'], 'INT', bkpDir)
+            clipConsensus = [consSeq for consSeq in [intConsensusSeq_right, intConsensusSeq_left] if consSeq != None]
+            unix.rm([bkpDir])
+            
+            # search for polyA/polyT tails
+            monomerTail = [has_polyA_illumina(targetSeq) for targetSeq in clipConsensus]
+            
+            # if there is any polyA/polyT tail
+            if any(monomerTail):
+                
+                # set metacluster identity to partnered
+                metacluster.identity = 'partnered'
+        
+        # if metacluster not partnered
+        if metacluster.identity != 'partnered':
+            
+            # set metacluster identity to orphan
+            metacluster.identity = 'orphan'
+
+def has_polyA_illumina(targetSeq):
+    '''
+    Search for polyA/polyT tails in consensus sequence of Illumina clipping events
+    
+    Input:
+    1. targetSeq: consensus sequence of Illumina clipping events
+    
+    Output:
+    1. has_polyA: True or False
+    '''
+    
+    ## 0. Set up monomer searching parameters ##
+    windowSize = 8
+    maxWindowDist = 2
+    minMonomerSize = 15
+    minPurity = 95
+    maxDist2Ends = 3 
+    
+    monomerTails = []
+    
+    ## 1. Search for polyA/polyT at the sequence ends ##
+    targetMonomers = ['T', 'A']
+        
+    for targetMonomer in targetMonomers:
+        
+        monomers = sequences.find_monomers(targetSeq, targetMonomer, windowSize, maxWindowDist, minMonomerSize, minPurity)
+        filtMonomers = sequences.filter_internal_monomers(monomers, targetSeq, maxDist2Ends, minMonomerSize)
+        monomerTails += filtMonomers if filtMonomers is not None else monomerTails
+    
+    while [] in monomerTails: monomerTails.remove([])    
+    has_polyA = True if monomerTails != [] else False
+    
+    return has_polyA

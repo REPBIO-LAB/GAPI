@@ -4,6 +4,7 @@ Module 'events' - Contains classes for dealing with structural variation events 
 
 ## DEPENDENCIES ##
 # External
+import re
 
 # Internal
 import annotation
@@ -946,6 +947,7 @@ class SUPPLEMENTARY():
         self.sample = sample
         self.readIndex = None
         self.anchorSide = None
+        self.clipSide = None
         self.insertSize = None
         self.insertSeq = None
 
@@ -959,7 +961,22 @@ class SUPPLEMENTARY():
         '''
         begQuery, endQuery = bamtools.alignment_interval_query(self.CIGAR, self.orientation)
         return begQuery, endQuery
+    
+    def clippingSide(self):
+        '''
+        Determine clipping side from CIGAR
         
+        Output:
+        Update self.clipSide attribute
+        '''
+        cigarParsed = re.findall(r'(\d+)([A-Z]{1})', self.CIGAR)
+        
+        if any([clipping in cigarParsed[0] for clipping in ["S", "H"]]):
+            self.clipSide = 'left'
+                            
+        elif any([clipping in cigarParsed[-1] for clipping in ["S", "H"]]):
+            self.clipSide = 'right'
+                
 class DISCORDANT():
     '''
     Discordant class
