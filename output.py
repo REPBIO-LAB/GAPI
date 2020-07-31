@@ -847,7 +847,7 @@ def write_tdCalls_sureselect(clustersPerSrc, outDir):
     ## 1. Write header 
     outFilePath = outDir + '/transduction_calls.tsv'
     outFile = open(outFilePath, 'w')
-    row = "#ref \t beg \t end \t orientation \t srcId \t nbReads \t nbDiscordant \t nbClipping \t readIds \n"
+    row = "#ref \t beg \t end \t orientation \t tdType \t srcId \t nbReads \t nbDiscordant \t nbClipping \t readIds \n"
     outFile.write(row)
 
     ## 2. Generate list containing transduction calls

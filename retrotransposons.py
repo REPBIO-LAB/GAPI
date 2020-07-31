@@ -729,25 +729,23 @@ def identity_metaclusters_retrotest(metaclusters, bam, outDir):
             # create clipping consensus
             bkpDir = outDir + '/BKP'
             unix.mkdir(bkpDir)
-            intConsensusPath_right, intConsensusSeq_right = bkp.makeConsSeqs(eventsDict['RIGHT-CLIPPING'], 'INT', bkpDir)
-            intConsensusPath_left, intConsensusSeq_left = bkp.makeConsSeqs(eventsDict['LEFT-CLIPPING'], 'INT', bkpDir)
-            clipConsensus = [consSeq for consSeq in [intConsensusSeq_right, intConsensusSeq_left] if consSeq != None]
+            
+            if metacluster.orientation == 'PLUS':
+                clipConsensusPath, clipConsensus = bkp.makeConsSeqs(eventsDict['RIGHT-CLIPPING'], 'INT', bkpDir)
+            
+            elif metacluster.orientation == 'MINUS':
+                clipConsensusPath, clipConsensus = bkp.makeConsSeqs(eventsDict['LEFT-CLIPPING'], 'INT', bkpDir)
+            
             unix.rm([bkpDir])
             
-            # search for polyA/polyT tails
-            monomerTail = [has_polyA_illumina(targetSeq) for targetSeq in clipConsensus]
-            
-            # if there is any polyA/polyT tail
-            if any(monomerTail):
+            # if there is a consensus
+            if clipConsensus != None:
                 
-                # set metacluster identity to partnered
-                metacluster.identity = 'partnered'
+                # set metacluster identity to partnered if there is polyA/polyT tail in consensus seq
+                if has_polyA_illumina(clipConsensus): metacluster.identity = 'partnered'
         
-        # if metacluster not partnered
-        if metacluster.identity != 'partnered':
-            
-            # set metacluster identity to orphan
-            metacluster.identity = 'orphan'
+        # set metacluster identity to orphan if metacluster not partnered
+        if metacluster.identity != 'partnered': metacluster.identity = 'orphan'
 
 def has_polyA_illumina(targetSeq):
     '''

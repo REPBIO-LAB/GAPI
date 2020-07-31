@@ -58,7 +58,7 @@ def bkp(metaclusters):
 def bkp_retroTest(metaclusters, bam, readSize):
     '''
     Determine precise breakpoint in sureselect data:
-    - if supplementary cluster in metacluster, use supplementary events clipping coordinates
+    - if supplementary cluster in metacluster, use supplementary events coordinates
     - elif, use MINUS-DISC cluster beg coordinate
     - elif, use PLUS-DISC cluster end coordinate. It must be calculated for mate clusters
     
@@ -79,21 +79,8 @@ def bkp_retroTest(metaclusters, bam, readSize):
         # if there is a SUPPLEMENTARY cluster:
         if 'SUPPLEMENTARY' in subclusters.keys():
             
-            bkp = []
-            
-            for event in subclusters['SUPPLEMENTARY'].events:
-                        
-                if "M" in re.findall(r'(\d+)([A-Z]{1})', event.CIGAR)[0]:
-                    bkp.append(event.end)
-                            
-                elif "M" in re.findall(r'(\d+)([A-Z]{1})', event.CIGAR)[-1]:
-                    bkp.append(event.beg)
-                    
-            # Fill refLeftBkp and refRightBkp attributes
-            if len(bkp) > 0:
-                bkp = max(set(bkp), key=bkp.count)
-                metacluster.refLeftBkp = bkp
-                metacluster.refRightBkp = bkp
+            bkp = subclusters['SUPPLEMENTARY'].bkpPos()
+            metacluster.refLeftBkp, metacluster.refRightBkp = bkp, bkp
         
         # elif there is a MINUS-DISCORDANT cluster:
         elif 'MINUS-DISCORDANT' in subclusters.keys():

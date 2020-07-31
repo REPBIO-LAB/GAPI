@@ -971,9 +971,15 @@ class SV_caller_sureselect(SV_caller):
         metaclusters = clusters.metacluster_mate_suppl(filteredDiscordants, filteredLeftClippings, filteredRightClippings, self.confDict['minReads'], self.refLengths)
         
         ## 6. Determine metaclusters precise coordinates ##
+        step = 'DETERMINE-BKP'
+        msg = 'Determine metaclusters breakpoints'
+        log.step(step, msg)
         bkp.bkp_retroTest(metaclusters, self.bam, self.confDict['readSize'])
         
-        ## 7. Determine metaclusters identity ##           
+        ## 7. Determine metaclusters identity ##
+        step = 'DEFINE-TD-TYPE'
+        msg = 'Define metaclusters transduction type'
+        log.step(step, msg)   
         retrotransposons.identity_metaclusters_retrotest(metaclusters, self.bam, self.outDir)
         
         return [srcId, metaclusters]

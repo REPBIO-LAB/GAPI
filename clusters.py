@@ -2000,8 +2000,10 @@ class SUPPLEMENTARY_cluster(cluster):
         # 2. Set supplementary cluster bkp side
         if clipSides == {'left', 'right'}:
             self.orientation = 'RECIPROCAL'
+            
         elif clipSides == {'right'}:
             self.orientation = 'PLUS'
+            
         elif clipSides == {'left'}:
             self.orientation = 'MINUS'
 
@@ -2014,12 +2016,19 @@ class SUPPLEMENTARY_cluster(cluster):
             self.clippOrientation()
         
         # a) Breakpoint on the left
-        if self.bkpSide == 'left':
-            bkpPos = self.beg
+        if self.orientation == 'MINUS':
+            coordList = [event.beg for event in self.events]
+            bkpPos = max(set(coordList), key=coordList.count)
 
         # b) Breakpoint on the right
-        elif self.bkpSide == 'right':
-            bkpPos = self.end
+        elif self.orientation == 'PLUS':
+            coordList = [event.end for event in self.events]
+            bkpPos = max(set(coordList), key=coordList.count)
+        
+        # c) If orientation reciprocal or unknown, return coordinate with max nb of counts
+        else:
+            coordList = [event.beg for event in self.events] + [event.end for event in self.events]
+            bkpPos = max(set(coordList), key=coordList.count)
         
         return bkpPos
         
@@ -2408,9 +2417,10 @@ class META_cluster():
         self.leftClipType = None
         self.identity = None
 
-        # Shotr reads:
+        # Short reads:
         if hasattr(self.events[0], 'identity'):
             self.identity = self.events[0].identity
+            
         if hasattr(clusters[0], 'orientation'):
             if all (cluster.orientation == 'PLUS' for cluster in clusters):
                 self.orientation = 'PLUS'
