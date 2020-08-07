@@ -2337,10 +2337,7 @@ class DISCORDANT_cluster(cluster):
         self.identity = self.events[0].identity
         self.orientation = self.events[0].orientation
         self.element = self.events[0].element
-        
-        #TEMPORARY
-        self.unspecificFilter = None
-    
+            
         if all (event.orientation == 'PLUS' for event in events):
             self.orientation = 'PLUS'
         elif all (event.orientation == 'MINUS' for event in events):
@@ -2373,9 +2370,6 @@ class DISCORDANT_cluster(cluster):
 
         ## 2. Create discordant cluster for mates
         matesCluster = DISCORDANT_cluster(mates)
-
-        #TEMPORARY
-        matesCluster.unspecificFilter = self.unspecificFilter
         
         return matesCluster
 
@@ -2399,12 +2393,6 @@ class META_cluster():
         self.refLeftBkp = None
         self.refRightBkp = None
         
-        #TEMPORARY
-        self.unspecificFilter = []
-        for cluster in clusters:
-            if cluster.clusterType == 'DISCORDANT':
-                self.unspecificFilter.append(cluster.unspecificFilter)
-
         # Organize events into subclusters
         self.subclusters = self.create_subclusters()
         # NOTE MERGE SR2020: To avoid key META error in clustering.reciprocal_overlap_clustering

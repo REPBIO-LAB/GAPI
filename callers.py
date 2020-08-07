@@ -961,7 +961,7 @@ class SV_caller_sureselect(SV_caller):
         filters2Apply = ['MIN-NBREADS', 'MATE-REF', 'MATE-SRC', 'MATE-MAPQ', 'GERMLINE', 'UNSPECIFIC', 'READ-DUP', 'CLUSTER-RANGE']
         if self.confDict['retroTestWGS']:
             filters2Apply.remove('UNSPECIFIC')
-        filteredDiscordants = filters.filter_discordants(discordants, filters2Apply, self.bam, self.normalBam, self.confDict, self.refLengths, self.annotations)
+        filteredDiscordants = filters.filter_discordants(discordants, filters2Apply, self.bam, self.normalBam, self.confDict)
 
         ## 4.2 Clipping cluster filtering ##
         step = 'FILTER-CLIPPING'

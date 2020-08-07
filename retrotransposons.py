@@ -815,7 +815,7 @@ def identity_metaclusters_retrotest_wgs(metaclusters, bam, outDir, confDict, ann
             # determine identity if there is discordants
             if 'DISCORDANT' in eventsDict.keys():
             
-                discordantEventsIdent = events.determine_discordant_identity(eventsDict['DISCORDANT'], annotations['REPEATS'], annotations['TRANSDUCTIONS'])
+                discordantEventsIdent = events.determine_discordant_identity_MEIs(eventsDict['DISCORDANT'], annotations['REPEATS'], annotations['TRANSDUCTIONS'])
                 
                 # filter keys by minClusterSize
                 for key, value in list(discordantEventsIdent.items()):

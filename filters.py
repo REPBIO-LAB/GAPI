@@ -109,7 +109,7 @@ def filter_clipping(clipping, filters2Apply, confDict):
     return failedFilters
 
 
-def filter_discordants(discordants, filters2Apply, bam, normalBam, confDict, refLengths, annotations):
+def filter_discordants(discordants, filters2Apply, bam, normalBam, confDict):
     '''
     Function to apply filters all discordant clusters. 
 
@@ -129,7 +129,7 @@ def filter_discordants(discordants, filters2Apply, bam, normalBam, confDict, ref
     for discordant in discordants:
 
         ## Apply filters
-        failedFilters = filter_discordant(discordant, filters2Apply, bam, normalBam, confDict, refLengths, annotations)
+        failedFilters = filter_discordant(discordant, filters2Apply, bam, normalBam, confDict)
 
         # Cluster pass all the filters
         if not failedFilters: 
@@ -143,7 +143,7 @@ def filter_discordants(discordants, filters2Apply, bam, normalBam, confDict, ref
     
     return discordantsPass
 
-def filter_discordant(discordant, filters2Apply, bam, normalBam, confDict, refLengths, annotations):
+def filter_discordant(discordant, filters2Apply, bam, normalBam, confDict):
     '''
     Apply selected filters to a discordant cluster provided as input
 
@@ -707,12 +707,7 @@ def filter_discordant_mate_MAPQ(discordant, minMAPQ, bam, normalBam):
     if (normalBam == None or (normalBam != None and readIdsNormal == [])):
             
         avMAPQ = bamtools.average_MAPQ_reads_interval(intervalRef, intervalBeg, intervalEnd, readIds, bamFile)
-        
-        print('avMAPQ')
-        print(discordant.ref, discordant.beg)
-        print(intervalRef, intervalBeg, intervalEnd)
-        print(avMAPQ)
-            
+                    
         if avMAPQ >= minMAPQ:
             PASS = True
 
@@ -807,18 +802,10 @@ def filter_discordant_mate_unspecific(discordant, threshold, bam):
                 properPairs.append(alignmentObj.query_name)
                 
     nbProperPair = len(set(properPairs))
-    # for alignmentObj in iterator:
-            
-    #     if alignmentObj.is_proper_pair and not alignmentObj.is_supplementary:
-            
-    #         nbProperPair += 1
         
     # if there are properly paired reads around insertion
     if nbProperPair > 0:
-            
-        # if the ratio discordants/properly paired reads is greater than threshold
-        discordant.unspecificFilter = nbDiscordants/nbProperPair
-        
+               
         if nbDiscordants/nbProperPair > threshold:        
             PASS = True
 
@@ -826,7 +813,7 @@ def filter_discordant_mate_unspecific(discordant, threshold, bam):
             PASS = False
 
     else:
-        discordant.unspecificFilter = 0   
+         
         PASS = True
             
     return PASS
