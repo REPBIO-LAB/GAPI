@@ -103,6 +103,7 @@ if __name__ == '__main__':
 	
  	# RetroTest
 	parser.add_argument('--blatClip', action="store_true", default=False, dest='blatClip', help='When selected, blat realignment will be performed with clippings. Higher sensitivity, but time-consuming. Default: False')
+	parser.add_argument('--retroTestWGS', action="store_true", default=False, dest='retroTestWGS', help='Apply Retrotest method on WGS data. Default: False')
 	
 	# Filtering viral bam
 	parser.add_argument('--minTotalMatchVirus', default=40, dest='minTotalMatchVirus', type=int, help='Minimum total matches of a read against viral DB. Default: 40.')
@@ -199,6 +200,7 @@ if __name__ == '__main__':
 
 	# RetroTest
 	blatClip = args.blatClip
+	retroTestWGS = args.retroTestWGS
 	
 	# Ouput
 	VCFInfoFields = args.VCFInfoFields
@@ -407,6 +409,7 @@ if __name__ == '__main__':
 	# b) Sureselect illumina data
 	elif (confDict['technology'] == 'SURESELECT'):
 		confDict['blatClip'] = blatClip
+		confDict['retroTestWGS'] = retroTestWGS
 		confDict['targetEvents'] = ['DISCORDANT', 'CLIPPING']
 		confDict['minNbDISCORDANT'] = minClusterSize
 		confDict['minNbCLIPPING'] = minClusterSize

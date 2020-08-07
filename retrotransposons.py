@@ -11,6 +11,7 @@ from Bio import SeqIO
 from Bio import pairwise2
 from Bio.pairwise2 import format_alignment
 from Bio.Seq import Seq
+import operator
 
 # Internal
 import log
@@ -19,6 +20,9 @@ import formats
 import alignment
 import sequences
 import annotation
+import bamtools
+import bkp
+import events
 
 ## FUNCTIONS ##
 def retrotransposon_structure(FASTA_file, index, outDir):
@@ -680,5 +684,198 @@ def find_orf(sequence):
     ### return ORF status and ORF parameters		
     return orf1_status, orf2_status, orf1_len, orf2_len, orf1_pro, orf2_pro, orf1_sco, orf2_sco
 
+def identity_metaclusters_retrotest(metaclusters, bam, outDir):
+    '''
+    Determine retrotest metaclusters identity. If there is only a cluster and it contains a polyA tail, 
+    it will be clasified as a partnered event. Else, it will be an orphan transduction. 
+    
+    Partnered:
+    --------->
+             ----AAAAAA>
+       --------->
+           ------AAAA>
+
+    Orphan:
+    --------->
+             ----ACGTCA>
+       --------->
+           ------ACG>
+    
+    Input:
+    1. metaclusters: List of retrotest metaclusters
+    2. bam: Bam file
+    3. outDir: output directory
+    
+    Output:
+    Fill metacluster identity attribute with 'partnered' or 'orphan'    
+    '''
+    
+    # set new confDict parameters to search for clippings
+    newconfDict = {}
+    newconfDict['targetEvents'] = ['CLIPPING']
+    newconfDict['minMAPQ'] = 20
+    newconfDict['minCLIPPINGlen'] = 15
+    newconfDict['minINDELlen'] = 20
+    newconfDict['overhang'] = 0
+    newconfDict['filterDuplicates'] = True
+
+    # for each metacluster
+    for metacluster in metaclusters:
+        
+        # if there is no reciprocal clusters
+        if metacluster.orientation != 'RECIPROCAL':
+
+            # collect clippings in region
+            eventsDict = bamtools.collectSV(metacluster.ref, metacluster.refLeftBkp-100, metacluster.refRightBkp+100, bam, newconfDict, None, supplementary = False)
+            
+            # create clipping consensus
+            bkpDir = outDir + '/BKP'
+            unix.mkdir(bkpDir)
+            
+            if metacluster.orientation == 'PLUS':
+                clipConsensusPath, clipConsensus = bkp.makeConsSeqs(eventsDict['RIGHT-CLIPPING'], 'INT', bkpDir)
+            
+            elif metacluster.orientation == 'MINUS':
+                clipConsensusPath, clipConsensus = bkp.makeConsSeqs(eventsDict['LEFT-CLIPPING'], 'INT', bkpDir)
+            
+            unix.rm([bkpDir])
+            
+            # if there is a consensus
+            if clipConsensus != None:
+                
+                # set metacluster identity to partnered if there is polyA/polyT tail in consensus seq
+                if has_polyA_illumina(clipConsensus): metacluster.identity = 'partnered'
+        
+        # set metacluster identity to orphan if metacluster not partnered
+        if metacluster.identity != 'partnered': metacluster.identity = 'orphan'
+
+def has_polyA_illumina(targetSeq):
+    '''
+    Search for polyA/polyT tails in consensus sequence of Illumina clipping events
+    
+    Input:
+    1. targetSeq: consensus sequence of Illumina clipping events
+    
+    Output:
+    1. has_polyA: True or False
+    '''
+    
+    ## 0. Set up monomer searching parameters ##
+    windowSize = 8
+    maxWindowDist = 2
+    minMonomerSize = 15
+    minPurity = 95
+    maxDist2Ends = 3 
+    
+    monomerTails = []
+    
+    ## 1. Search for polyA/polyT at the sequence ends ##
+    targetMonomers = ['T', 'A']
+        
+    for targetMonomer in targetMonomers:
+        
+        monomers = sequences.find_monomers(targetSeq, targetMonomer, windowSize, maxWindowDist, minMonomerSize, minPurity)
+        filtMonomers = sequences.filter_internal_monomers(monomers, targetSeq, maxDist2Ends, minMonomerSize)
+        monomerTails += filtMonomers if filtMonomers is not None else monomerTails
+    
+    while [] in monomerTails: monomerTails.remove([])    
+    has_polyA = True if monomerTails != [] else False
+    
+    return has_polyA
 
 
+def identity_metaclusters_retrotest_wgs(metaclusters, bam, outDir, confDict, annotations):
+    '''
+    Determine metaclusters identity using discordants around the insertion
+    
+    Input:
+    1. metaclusters: list of metaclusters
+    2. bam
+    3. outDir
+    4. confDict: original config dictionary
+    5. annotations: nested dictionary of ['REPEATS', 'TRANSDUCTIONS'] (first keys) containing 
+                    annotated repeats organized per chromosome (second keys) into genomic bins (values)
+    
+    Output: metacluster.identity attribute is filled
+    '''
+    
+    # create newconfDict to collect discordants around insertion
+    newconfDict = {}
+    newconfDict['targetEvents'] = ['DISCORDANT']
+    newconfDict['minMAPQ'] = 0
+    newconfDict['filterDuplicates'] = True
+    
+    # for each metacluster
+    for metacluster in metaclusters:
+
+            # collect discordants in region
+            buffer = 200
+            eventsDict = bamtools.collectSV(metacluster.ref, metacluster.refLeftBkp-buffer, metacluster.refRightBkp+buffer, bam, newconfDict, None, supplementary = False)
+            
+            # determine identity if there is discordants
+            if 'DISCORDANT' in eventsDict.keys():
+            
+                discordantEventsIdent = events.determine_discordant_identity_MEIs(eventsDict['DISCORDANT'], annotations['REPEATS'], annotations['TRANSDUCTIONS'])
+                
+                # filter keys by minClusterSize
+                for key, value in list(discordantEventsIdent.items()):
+                    
+                    if len(value) < confDict['minNbDISCORDANT']:
+                        
+                        discordantEventsIdent.pop(key)
+                        
+                # determine identity
+                determine_MEI_type_discordants(metacluster, discordantEventsIdent)
+                
+
+def determine_MEI_type_discordants(metacluster, discordantsIdentDict):
+    '''
+    Input:
+    1. metacluster: metacluster object
+    2. discordantsIdentDict: dict of dicordants ordered by orientation and mate identity (keys)
+    
+    Output: metacluster.identity attribute is filled
+    '''
+    
+    # split discordantsIdentDict by cluster orientation
+    plus_identity, minus_identity = None, None
+    
+    plus_identityDict = {key: len(value) for key, value in discordantsIdentDict.items() if 'PLUS' in key}
+    minus_identityDict = {key: len(value) for key, value in discordantsIdentDict.items() if 'MINUS' in key}
+    
+    # select most supported identity of plus cluster
+    if plus_identityDict:
+        plus_identity = max(plus_identityDict.items(), key=operator.itemgetter(1))[0].split('_', 2)[2]
+        
+    # select most supported identity of minus cluster   
+    if minus_identityDict:
+        minus_identity = max(minus_identityDict.items(), key=operator.itemgetter(1))[0].split('_', 2)[2]
+    
+    # if plus_identity and minus_identity has been assigned
+    if plus_identity and minus_identity:
+        
+        identities = [plus_identity, minus_identity]
+        
+        # if identities == [srcId_A, srcId_A] --> orphan 
+        if len(set(identities)) == 1 and 'L1' not in identities:
+            metacluster.identity = 'TD2'
+        
+        # if identities == [srcId_A, L1] --> partnered
+        elif len(set(identities)) == 2 and 'L1' in identities:
+            metacluster.identity = 'TD1'
+         
+        # if identities == [L1, L1] --> solo     
+        elif len(set(identities)) == 1 and 'L1' in identities:
+            metacluster.identity = 'TD0'
+            
+        else: 
+            metacluster.identity = identities
+    
+    # if there is no identity or just one cluster identified:
+    else:
+        
+        if plus_identity: metacluster.identity = 'plus_' + plus_identity
+        
+        elif minus_identity: metacluster.identity = 'minus_' + minus_identity
+        
+        else: metacluster.identity = 'none'
