@@ -150,7 +150,7 @@ def buildIdentityDb(metacluster, db, outDir):
         
     return indexDbSpecificIdentity
 
-def create_transduced_bed(sourceBed, size, outDir):
+def create_transduced_bed(sourceBed, size, buffer, outDir):
     '''
     Create bed file containing regions frequently transduced by source elements
 
@@ -164,7 +164,8 @@ def create_transduced_bed(sourceBed, size, outDir):
                       6) strand
 
         2. size: transduced region size
-        3. outDir: Output directory
+        3. buffer: buffer to apply to the end of the elemnt. ME end - buffer to define transduced region beg
+        4. outDir: Output directory
 
     Output:
         1. transducedPath: Bed file containing transduced region coordinates
@@ -192,8 +193,8 @@ def create_transduced_bed(sourceBed, size, outDir):
             ## a) Element in plus
             # ---------------> end ........transduced........ end + size
             if (strand == '+'):
-
-                tdBeg = int(end)
+                
+                tdBeg = int(end) - buffer
                 tdEnd = int(end) + size
 
 		    ## b) Element in minus
@@ -201,7 +202,7 @@ def create_transduced_bed(sourceBed, size, outDir):
             else:
 
                 tdBeg = int(beg) - size
-                tdEnd = int(beg)
+                tdEnd = int(beg) + buffer
 
             ## Write into output file
             row = "\t".join([ref, str(tdBeg), str(tdEnd), name, cytobandId, family, strand, "\n"])

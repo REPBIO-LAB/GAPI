@@ -11,6 +11,7 @@ from Bio import SeqIO
 from Bio import pairwise2
 from Bio.pairwise2 import format_alignment
 from Bio.Seq import Seq
+import operator
 
 # Internal
 import log
@@ -21,6 +22,7 @@ import sequences
 import annotation
 import bamtools
 import bkp
+import events
 
 ## FUNCTIONS ##
 def retrotransposon_structure(FASTA_file, index, outDir):
@@ -780,3 +782,100 @@ def has_polyA_illumina(targetSeq):
     has_polyA = True if monomerTails != [] else False
     
     return has_polyA
+
+
+def identity_metaclusters_retrotest_wgs(metaclusters, bam, outDir, confDict, annotations):
+    '''
+    Determine metaclusters identity using discordants around the insertion
+    
+    Input:
+    1. metaclusters: list of metaclusters
+    2. bam
+    3. outDir
+    4. confDict: original config dictionary
+    5. annotations: nested dictionary of ['REPEATS', 'TRANSDUCTIONS'] (first keys) containing 
+                    annotated repeats organized per chromosome (second keys) into genomic bins (values)
+    
+    Output: metacluster.identity attribute is filled
+    '''
+    
+    # create newconfDict to collect discordants around insertion
+    newconfDict = {}
+    newconfDict['targetEvents'] = ['DISCORDANT']
+    newconfDict['minMAPQ'] = 0
+    newconfDict['filterDuplicates'] = True
+    
+    # for each metacluster
+    for metacluster in metaclusters:
+
+            # collect discordants in region
+            buffer = 200
+            eventsDict = bamtools.collectSV(metacluster.ref, metacluster.refLeftBkp-buffer, metacluster.refRightBkp+buffer, bam, newconfDict, None, supplementary = False)
+            
+            # determine identity if there is discordants
+            if 'DISCORDANT' in eventsDict.keys():
+            
+                discordantEventsIdent = events.determine_discordant_identity(eventsDict['DISCORDANT'], annotations['REPEATS'], annotations['TRANSDUCTIONS'])
+                
+                # filter keys by minClusterSize
+                for key, value in list(discordantEventsIdent.items()):
+                    
+                    if len(value) < confDict['minNbDISCORDANT']:
+                        
+                        discordantEventsIdent.pop(key)
+                        
+                # determine identity
+                determine_MEI_type_discordants(metacluster, discordantEventsIdent)
+                
+
+def determine_MEI_type_discordants(metacluster, discordantsIdentDict):
+    '''
+    Input:
+    1. metacluster: metacluster object
+    2. discordantsIdentDict: dict of dicordants ordered by orientation and mate identity (keys)
+    
+    Output: metacluster.identity attribute is filled
+    '''
+    
+    # split discordantsIdentDict by cluster orientation
+    plus_identity, minus_identity = None, None
+    
+    plus_identityDict = {key: len(value) for key, value in discordantsIdentDict.items() if 'PLUS' in key}
+    minus_identityDict = {key: len(value) for key, value in discordantsIdentDict.items() if 'MINUS' in key}
+    
+    # select most supported identity of plus cluster
+    if plus_identityDict:
+        plus_identity = max(plus_identityDict.items(), key=operator.itemgetter(1))[0].split('_', 2)[2]
+        
+    # select most supported identity of minus cluster   
+    if minus_identityDict:
+        minus_identity = max(minus_identityDict.items(), key=operator.itemgetter(1))[0].split('_', 2)[2]
+    
+    # if plus_identity and minus_identity has been assigned
+    if plus_identity and minus_identity:
+        
+        identities = [plus_identity, minus_identity]
+        
+        # if identities == [srcId_A, srcId_A] --> orphan 
+        if len(set(identities)) == 1 and 'L1' not in identities:
+            metacluster.identity = 'TD2'
+        
+        # if identities == [srcId_A, L1] --> partnered
+        elif len(set(identities)) == 2 and 'L1' in identities:
+            metacluster.identity = 'TD1'
+         
+        # if identities == [L1, L1] --> solo     
+        elif len(set(identities)) == 1 and 'L1' in identities:
+            metacluster.identity = 'TD0'
+            
+        else: 
+            metacluster.identity = identities
+    
+    # if there is no identity or just one cluster identified:
+    else:
+        
+        if plus_identity: metacluster.identity = 'plus_' + plus_identity
+        
+        elif minus_identity: metacluster.identity = 'minus_' + minus_identity
+        
+        else: metacluster.identity = 'none'

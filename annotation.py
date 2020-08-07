@@ -40,19 +40,24 @@ def load_annotations(annotations2load, refLengths, annotationsDir, germlineMEI, 
     ## Create output directory
     unix.mkdir(outDir)
 
-    ## 1. Load annotated repeats into a bin database
+    ## 1A. Load annotated repeats into a bin database
     if 'REPEATS' in annotations2load:
 
         repeatsBed = annotationsDir + '/repeats.bed'
-        #repeatsBed = annotationsDir + '/repeats.L1.bed'
         annotations['REPEATS'] = formats.bed2binDb(repeatsBed, refLengths, threads)
 
+    ## 1B. Load L1 repeats into a bin database
+    elif 'REPEATS-L1' in annotations2load:
+        
+        repeatsBed = annotationsDir + '/repeats.L1.bed'
+        annotations['REPEATS'] = formats.bed2binDb(repeatsBed, refLengths, threads)
+    
     ## 2. Create transduced regions database
     if 'TRANSDUCTIONS' in annotations2load:
 
         ## Create bed file containing transduced regions
         sourceBed = annotationsDir + '/srcElements.bed'
-        transducedPath = databases.create_transduced_bed(sourceBed, 10000, outDir)
+        transducedPath = databases.create_transduced_bed(sourceBed, 10000, 0, outDir)
 
         ## Load transduced regions into a bin database
         annotations['TRANSDUCTIONS'] = formats.bed2binDb(transducedPath, refLengths, threads)
@@ -617,7 +622,7 @@ def intersect_mate_annotation(discordants, annotation, targetField):
             featureBinDb = annotation[discordant.mateRef]        
  
             ## Retrieve all the annotated features overlapping with the mate alignment interval
-            overlappingFeatures = featureBinDb.collect_interval(discordant.mateStart, discordant.mateStart + 100, 'ALL')    
+            overlappingFeatures = featureBinDb.collect_interval(discordant.mateStart, discordant.mateStart + 100, 'ALL')
 
             ## Determine mate status 
             # a) Mate does not align within an annotated feature

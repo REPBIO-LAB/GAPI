@@ -866,7 +866,14 @@ def write_tdCalls_sureselect(clustersPerSrc, outDir):
             beg = cluster.refLeftBkp if cluster.refLeftBkp is not None else cluster.beg
             end = cluster.refRightBkp if cluster.refRightBkp is not None else cluster.end
             
-            call = [cluster.ref, str(beg), str(end), str(cluster.orientation), str(cluster.identity), srcId, str(cluster.supportingReads()[0]), str(cluster.nbDISCORDANT()), str(cluster.nbSUPPLEMENTARY()), readIds]
+            #TEMPORARY
+            import statistics
+            try:
+                meanCluster = statistics.mean(cluster.unspecificFilter)
+            except:
+                meanCluster = 'pre'
+            # call = [cluster.ref, str(beg), str(end), str(cluster.orientation), str(cluster.identity), srcId, str(cluster.supportingReads()[0]), str(cluster.nbDISCORDANT()), str(cluster.nbSUPPLEMENTARY()), readIds]
+            call = [cluster.ref, str(beg), str(end), str(meanCluster), str(cluster.orientation), str(cluster.identity), srcId, str(cluster.supportingReads()[0]), str(cluster.nbDISCORDANT()), str(cluster.nbSUPPLEMENTARY()), readIds]
             calls.append(call)
 
     ## 3. Sort transduction calls first by chromosome and then by start position

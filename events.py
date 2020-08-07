@@ -259,7 +259,8 @@ def collect_soft_clipped_seqs(clippings):
 
     return clippedFasta
 
-def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, bam, normalBam, binDir, targetINT2Search, viralSeqs):
+
+def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb):
     '''
     Determine discortant read pair identity based on the mapping position of anchor´s mate
 
@@ -267,88 +268,143 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
         1. discordants: list containing input discordant read pair events
         2. repeatsBinDb: dictionary containing annotated retrotransposons organized per chromosome (keys) into genomic bins (values)
         3. transducedBinDb: dictionary containing source element transduced regions (keys) into genomic bins (values)
-        . viralSeqs
 
     Output:
-        1. discordantsIdentity: dictionary containing lists of discordant read pairs organized taking into account their identity
-                                This info is encoded in the dictionary keys as follows. Keys composed by 2 elements separated by '-':
+        1. discordantsIdentity: dictionary containing lists of discordant read pairs organized taking into account their orientation and if the mate aligns in an annotated retrotransposon 
+                                This info is encoded in the dictionary keys as follows. Keys composed by 3 elements separated by '_':
+                                
+                                    - Orientation: read orientation (PLUS or MINUS)
                                     - Event type: DISCORDANT   
                                     - Type: identity type. It can be retrotransposon family (L1, Alu, ...), source element (22q, 5p, ...), viral strain (HPV, ...)
     '''
-    # If both, RT and virus, are analysed check if it is a virus only if it is not a RT.
-    discordantsIdentityMEs = {}
-    discordantsNone = {}
+    
+    ## 1. Assess if discordant read pairs support transduction insertion if transduction database provided
+    if transducedBinDb is not None:
+        discordantsTd = annotation.intersect_mate_annotation(discordants, transducedBinDb, 'cytobandId')
 
-    if 'ME' in targetINT2Search:
-        ## 1. Assess if discordant read pairs support transduction insertion if transduction database provided
-        if transducedBinDb is not None:
-            discordantsTd = annotation.intersect_mate_annotation(discordants, transducedBinDb, 'cytobandId')
+        ## Separate discordants matching from those not matching source elements
+        discordants = []
 
-            ## Separate discordants matching from those not matching source elements
-            discordants = []
+        if 'PLUS_DISCORDANT_None' in discordantsTd:
+            discordants = discordants + discordantsTd['PLUS_DISCORDANT_None']
+            discordantsTd.pop('PLUS_DISCORDANT_None', None)
 
-            if 'PLUS-DISCORDANT-None' in discordantsTd:
-                discordants = discordants + discordantsTd['PLUS-DISCORDANT-None']
-                discordantsTd.pop('PLUS-DISCORDANT-None', None)
+        if 'MINUS_DISCORDANT_None' in discordantsTd:
+            discordants = discordants + discordantsTd['MINUS_DISCORDANT_None']
+            discordantsTd.pop('MINUS_DISCORDANT_None', None)
+    else:
 
-            if 'MINUS-DISCORDANT-None' in discordantsTd:
-                discordants = discordants + discordantsTd['MINUS-DISCORDANT-None']
-                discordantsTd.pop('MINUS-DISCORDANT-None', None)
-        else:
+        discordantsTd = {}
 
-            discordantsTd = {}
+    ## 2. Assess if discordant read pairs support retrotransposons insertion if repeats database provided
+    if repeatsBinDb is not None:
+        discordantsRt = annotation.intersect_mate_annotation(discordants, repeatsBinDb, 'family')
 
-        ## 2. Assess if discordant read pairs support retrotransposons insertion if repeats database provided
-        discordantsNone = {}
-        discordantsNone['PLUS-DISCORDANT-None'] = []
-        discordantsNone['MINUS-DISCORDANT-None'] = []
-        if repeatsBinDb is not None:
-            discordantsRt = annotation.intersect_mate_annotation(discordants, repeatsBinDb, 'family')
+        if 'PLUS_DISCORDANT_None' in discordantsRt:
+            discordantsRt.pop('PLUS_DISCORDANT_None', None)
 
-            if 'PLUS-DISCORDANT-None' in discordantsRt:
-                discordantsNone['PLUS-DISCORDANT-None'].extend(discordantsRt['PLUS-DISCORDANT-None'])
-                discordantsRt.pop('PLUS-DISCORDANT-None', None)
+        if 'MINUS_DISCORDANT_None' in discordantsRt:
+            discordantsRt.pop('MINUS_DISCORDANT_None', None)
 
-            if 'MINUS-DISCORDANT-None' in discordantsRt:
-                discordantsNone['MINUS-DISCORDANT-None'].extend(discordantsRt['MINUS-DISCORDANT-None'])
-                discordantsRt.pop('MINUS-DISCORDANT-None', None)
+    else:
+        discordantsRt = {}
 
-        else:
-            discordantsRt = {}
-        ## 3. Merge discordant read pairs supporting RT and transduction insertions if transduction database provided    
-        #discordantsIdentityMEs = structures.merge_dictionaries([discordantsTd, discordantsRt, discordantsNone])
-        discordantsIdentityMEs = structures.merge_dictionaries([discordantsTd, discordantsRt])
+    ## 3. Merge discordant read pairs supporting RT and transduction insertions if transduction database provided    
+    discordantsIdentity = structures.merge_dictionaries([discordantsTd, discordantsRt])
+    
+    return discordantsIdentity
 
-        # Remaining discordants for viruses:
-        # NOTE SR: If viruses and MEs are searched at once, those discordants identified as MEs are NOT checked for viral identities.
-        discordants = discordantsNone['PLUS-DISCORDANT-None'] + discordantsNone['MINUS-DISCORDANT-None']
+
+# def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, bam, normalBam, binDir, targetINT2Search, viralSeqs):
+#     '''
+#     Determine discortant read pair identity based on the mapping position of anchor´s mate
+
+#     Input:
+#         1. discordants: list containing input discordant read pair events
+#         2. repeatsBinDb: dictionary containing annotated retrotransposons organized per chromosome (keys) into genomic bins (values)
+#         3. transducedBinDb: dictionary containing source element transduced regions (keys) into genomic bins (values)
+#         . viralSeqs
+
+#     Output:
+#         1. discordantsIdentity: dictionary containing lists of discordant read pairs organized taking into account their identity
+#                                 This info is encoded in the dictionary keys as follows. Keys composed by 2 elements separated by '-':
+#                                     - Event type: DISCORDANT   
+#                                     - Type: identity type. It can be retrotransposon family (L1, Alu, ...), source element (22q, 5p, ...), viral strain (HPV, ...)
+#     '''
+#     # If both, RT and virus, are analysed check if it is a virus only if it is not a RT.
+#     discordantsIdentityMEs = {}
+#     discordantsNone = {}
+
+#     if 'ME' in targetINT2Search:
+#         ## 1. Assess if discordant read pairs support transduction insertion if transduction database provided
+#         if transducedBinDb is not None:
+#             discordantsTd = annotation.intersect_mate_annotation(discordants, transducedBinDb, 'cytobandId')
+
+#             ## Separate discordants matching from those not matching source elements
+#             discordants = []
+
+#             if 'PLUS-DISCORDANT-None' in discordantsTd:
+#                 discordants = discordants + discordantsTd['PLUS-DISCORDANT-None']
+#                 discordantsTd.pop('PLUS-DISCORDANT-None', None)
+
+#             if 'MINUS-DISCORDANT-None' in discordantsTd:
+#                 discordants = discordants + discordantsTd['MINUS-DISCORDANT-None']
+#                 discordantsTd.pop('MINUS-DISCORDANT-None', None)
+#         else:
+
+#             discordantsTd = {}
+
+#         ## 2. Assess if discordant read pairs support retrotransposons insertion if repeats database provided
+#         discordantsNone = {}
+#         discordantsNone['PLUS-DISCORDANT-None'] = []
+#         discordantsNone['MINUS-DISCORDANT-None'] = []
+#         if repeatsBinDb is not None:
+#             discordantsRt = annotation.intersect_mate_annotation(discordants, repeatsBinDb, 'family')
+
+#             if 'PLUS-DISCORDANT-None' in discordantsRt:
+#                 discordantsNone['PLUS-DISCORDANT-None'].extend(discordantsRt['PLUS-DISCORDANT-None'])
+#                 discordantsRt.pop('PLUS-DISCORDANT-None', None)
+
+#             if 'MINUS-DISCORDANT-None' in discordantsRt:
+#                 discordantsNone['MINUS-DISCORDANT-None'].extend(discordantsRt['MINUS-DISCORDANT-None'])
+#                 discordantsRt.pop('MINUS-DISCORDANT-None', None)
+
+#         else:
+#             discordantsRt = {}
+#         ## 3. Merge discordant read pairs supporting RT and transduction insertions if transduction database provided    
+#         #discordantsIdentityMEs = structures.merge_dictionaries([discordantsTd, discordantsRt, discordantsNone])
+#         discordantsIdentityMEs = structures.merge_dictionaries([discordantsTd, discordantsRt])
+
+#         # Remaining discordants for viruses:
+#         # NOTE SR: If viruses and MEs are searched at once, those discordants identified as MEs are NOT checked for viral identities.
+#         discordants = discordantsNone['PLUS-DISCORDANT-None'] + discordantsNone['MINUS-DISCORDANT-None']
     
 
 
-    ## 2. Assess if discordant read pairs support viral insertion
+#     ## 2. Assess if discordant read pairs support viral insertion
 
-    # Create a list containing all discordant events:
-    #discordantEvents = []
-    #for eventType in discordantDict.keys():
-    #discordantEvents.extend(discordantDict[eventType])
+#     # Create a list containing all discordant events:
+#     #discordantEvents = []
+#     #for eventType in discordantDict.keys():
+#     #discordantEvents.extend(discordantDict[eventType])
 
-    # TODO SR: Make viruses optional in determine_discordant_identity
-    # TODO SR: Add RT analysis in determine_discordant_identity
-    discordantEventsIdent = {}
+#     # TODO SR: Make viruses optional in determine_discordant_identity
+#     # TODO SR: Add RT analysis in determine_discordant_identity
+#     discordantEventsIdent = {}
 
-    # Remove discordants events that were clasified as MEs (MAYBE CHANGE THIS WHEN ADDED NEW PARAMETER)
+#     # Remove discordants events that were clasified as MEs (MAYBE CHANGE THIS WHEN ADDED NEW PARAMETER)
 
         
-    if 'VIRUS' in targetINT2Search and viralSeqs:
-        discordantEventsIdent = virusSR.is_virusSR(discordants, viralSeqs)
-    # If VIRUS is not selected, add events with identity == None. (If VIRUS is selected they are already in discordantEventsIdent)
-    else:
-        discordantsIdentityMEs.update(discordantsNone)
-    #discordantsIdentity = structures.merge_dictionaries([discordantEventsIdent, discordantsIdentityMEs])
-    discordantEventsIdent.update(discordantsIdentityMEs)
+#     if 'VIRUS' in targetINT2Search and viralSeqs:
+#         discordantEventsIdent = virusSR.is_virusSR(discordants, viralSeqs)
+#     # If VIRUS is not selected, add events with identity == None. (If VIRUS is selected they are already in discordantEventsIdent)
+#     else:
+#         discordantsIdentityMEs.update(discordantsNone)
+#     #discordantsIdentity = structures.merge_dictionaries([discordantEventsIdent, discordantsIdentityMEs])
+#     discordantEventsIdent.update(discordantsIdentityMEs)
 
-    #return discordantsIdentity
-    return discordantEventsIdent
+#     #return discordantsIdentity
+#     return discordantEventsIdent
 
 def discordants2mates(discordants):
     '''

@@ -779,18 +779,24 @@ class SV_caller_sureselect(SV_caller):
 
     def call(self):
         '''
-        Search for structural variants (SV) genome wide or in a set of target genomic regions
+        Search for structural variants (SV) in a set of target genomic regions
         '''
 
-        ### 1. Create bed file containing source element´s transduced intervals 
+        ### 1. Infer read size
+        self.confDict['readSize'] = self.infer_readSize()
+        
+        ### 2. Create bed file containing source element´s transduced intervals 
         tdDir = self.outDir + '/TRANSDUCED/'
         unix.mkdir(tdDir)
         sourceBed = self.refDir + '/srcElements.bed'
-        transducedPath = databases.create_transduced_bed(sourceBed, 10000, tdDir)
+        transducedPath = databases.create_transduced_bed(sourceBed, 10000, self.confDict['readSize'], tdDir)
         
-        ### 2. Infer read size
-        self.confDict['readSize'] = self.infer_readSize()
-                
+        ### 3. Load annotations if running method on wgs data
+        if self.confDict['retroTestWGS']:
+            annotDir = self.outDir + '/ANNOT/'
+            self.annotations = annotation.load_annotations(['REPEATS-L1', 'TRANSDUCTIONS'], self.refLengths, self.refDir, self.confDict['germlineMEI'], self.confDict['processes'], annotDir)
+            unix.rm([annotDir])
+            
         ### 3. Define genomic bins to search for SV (will correspond to transduced areas)
         bins = bamtools.binning(transducedPath, None, None, None)
 
@@ -952,8 +958,10 @@ class SV_caller_sureselect(SV_caller):
         msg = 'Discordant cluster filtering'
         log.step(step, msg)
 
-        filters2Apply = ['MIN-NBREADS', 'MATE-REF', 'MATE-SRC', 'MATE-MAPQ', 'GERMLINE', 'UNESPECIFIC', 'READ-DUP', 'CLUSTER-RANGE']
-        filteredDiscordants = filters.filter_discordants(discordants, filters2Apply, self.bam, self.normalBam, self.confDict)
+        filters2Apply = ['MIN-NBREADS', 'MATE-REF', 'MATE-SRC', 'MATE-MAPQ', 'GERMLINE', 'UNSPECIFIC', 'READ-DUP', 'CLUSTER-RANGE']
+        if self.confDict['retroTestWGS']:
+            filters2Apply.remove('UNSPECIFIC')
+        filteredDiscordants = filters.filter_discordants(discordants, filters2Apply, self.bam, self.normalBam, self.confDict, self.refLengths, self.annotations)
 
         ## 4.2 Clipping cluster filtering ##
         step = 'FILTER-CLIPPING'
@@ -979,7 +987,10 @@ class SV_caller_sureselect(SV_caller):
         ## 7. Determine metaclusters identity ##
         step = 'DEFINE-TD-TYPE'
         msg = 'Define metaclusters transduction type'
-        log.step(step, msg)   
-        retrotransposons.identity_metaclusters_retrotest(metaclusters, self.bam, self.outDir)
+        log.step(step, msg)
+        if self.confDict['retroTestWGS']:
+            retrotransposons.identity_metaclusters_retrotest_wgs(metaclusters, self.bam, self.outDir, self.confDict, self.annotations)
+        else:
+            retrotransposons.identity_metaclusters_retrotest(metaclusters, self.bam, self.outDir)
         
         return [srcId, metaclusters]

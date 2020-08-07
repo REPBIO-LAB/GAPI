@@ -2337,7 +2337,10 @@ class DISCORDANT_cluster(cluster):
         self.identity = self.events[0].identity
         self.orientation = self.events[0].orientation
         self.element = self.events[0].element
-
+        
+        #TEMPORARY
+        self.unspecificFilter = None
+    
         if all (event.orientation == 'PLUS' for event in events):
             self.orientation = 'PLUS'
         elif all (event.orientation == 'MINUS' for event in events):
@@ -2371,6 +2374,9 @@ class DISCORDANT_cluster(cluster):
         ## 2. Create discordant cluster for mates
         matesCluster = DISCORDANT_cluster(mates)
 
+        #TEMPORARY
+        matesCluster.unspecificFilter = self.unspecificFilter
+        
         return matesCluster
 
 class META_cluster():
@@ -2392,6 +2398,12 @@ class META_cluster():
         self.ref, self.beg, self.end = self.coordinates()
         self.refLeftBkp = None
         self.refRightBkp = None
+        
+        #TEMPORARY
+        self.unspecificFilter = []
+        for cluster in clusters:
+            if cluster.clusterType == 'DISCORDANT':
+                self.unspecificFilter.append(cluster.unspecificFilter)
 
         # Organize events into subclusters
         self.subclusters = self.create_subclusters()
@@ -4355,7 +4367,7 @@ def metacluster_mate_suppl(discordants, leftClippings, rightClippings, minReads,
     '''
     ## 1. Create list of discordant mate clusters
     mateClusters = [discordant.create_matesCluster() for discordant in discordants]
-
+    
     ## 2. Create list of supplementary clusters
     supplClustersLeft = [clipping.supplCluster for clipping in leftClippings]
     supplClustersRight = [clipping.supplCluster for clipping in rightClippings]
