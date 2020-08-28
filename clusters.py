@@ -4377,7 +4377,7 @@ def metacluster_mate_suppl(discordants, leftClippings, rightClippings, minReads,
 
     for binDb in wgBinDb.values():
         
-        meta = clustering.reciprocal_overlap_clustering(binDb, 1, 1, binDb.eventTypes, 300, 'META')
+        meta = clustering.reciprocal_overlap_clustering(binDb, 1, 1, binDb.eventTypes, 500, 'META')
         allMeta = allMeta + meta
 
     ## 6. Filter metaclusters based on read support
