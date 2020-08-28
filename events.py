@@ -1069,6 +1069,7 @@ class DISCORDANT():
             self.mateRef = None
             self.mateStart = None
             self.mateOrientation = None
+            self.insertSize = None
              
         else:
             self.isDup = alignmentObj.is_duplicate
@@ -1083,6 +1084,7 @@ class DISCORDANT():
                 self.mateOrientation = 'MINUS'
             else:
                 self.mateOrientation = 'PLUS'
+            self.insertSize = alignmentObj.template_length
 
     def fullReadName(self):
         '''

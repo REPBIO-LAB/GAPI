@@ -814,10 +814,14 @@ def identity_metaclusters_retrotest_wgs(metaclusters, bam, outDir, confDict, ann
             
             # determine identity if there is discordants
             if 'DISCORDANT' in eventsDict.keys():
-            
-                discordantEventsIdent = events.determine_discordant_identity_MEIs(eventsDict['DISCORDANT'], annotations['REPEATS'], annotations['TRANSDUCTIONS'])
                 
-                # filter keys by minClusterSize
+                # filter events by insert size
+                discordantList = filter_DISCORDANTS_insertSize(eventsDict['DISCORDANT'], 1000)
+                
+                # determine identity
+                discordantEventsIdent = events.determine_discordant_identity_MEIs(discordantList, annotations['REPEATS'], annotations['TRANSDUCTIONS'])
+                
+                # filter keys by minClusterSize# filter keys by minClusterSize
                 for key, value in list(discordantEventsIdent.items()):
                     
                     if len(value) < confDict['minNbDISCORDANT']:
@@ -879,3 +883,29 @@ def determine_MEI_type_discordants(metacluster, discordantsIdentDict):
         elif minus_identity: metacluster.identity = 'minus_' + minus_identity
         
         else: metacluster.identity = 'none'
+
+        
+def filter_DISCORDANTS_insertSize(discordants, min_insertSize):
+    '''
+    Filter DISCORDANT events from list if their |insert size| is not greater than insertSize. 
+    
+    Input:
+    1. discordants: List of discordant events
+    2. min_insertSize: minimum insert size
+    
+    Output:
+    1. filteredDisc: List of filtered events
+    '''
+    
+    filteredDisc = []
+    
+    for discordant in discordants:
+        
+        insertSize = discordant.insertSize
+        
+        if insertSize == 0 or abs(insertSize) > min_insertSize :
+            
+            filteredDisc.append(discordant)
+        
+    return filteredDisc
+

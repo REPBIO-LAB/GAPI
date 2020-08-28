@@ -886,7 +886,7 @@ def write_tdCalls_sureselect(clustersPerSrc, outDir):
     
     	# Columns to collapse (without ref, beg and end columns)
     	colList = list(range(4, len(call)+1))
-    	colFormat = ['collapse'] * (len(call) - 3)
+    	colFormat = ['distinct'] * (len(call) - 3)
 
-    	mergedOutput = outFile.merge(c=colList, o=colFormat, header=True)
+    	mergedOutput = outFile.merge(c=colList, o=colFormat, d=100, header=True)
     	mergedOutput.saveas(outFilePath)
