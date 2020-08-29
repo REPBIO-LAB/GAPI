@@ -958,7 +958,7 @@ class SV_caller_sureselect(SV_caller):
         msg = 'Discordant cluster filtering'
         log.step(step, msg)
 
-        filters2Apply = ['MIN-NBREADS', 'MATE-REF', 'MATE-SRC', 'MATE-MAPQ', 'GERMLINE', 'UNSPECIFIC', 'READ-DUP', 'CLUSTER-RANGE']
+        filters2Apply = ['MIN-NBREADS', 'MATE-REF', 'MATE-SRC', 'MATE-MAPQ', 'UNSPECIFIC', 'READ-DUP', 'CLUSTER-RANGE']
         if self.confDict['retroTestWGS']:
             filters2Apply.remove('UNSPECIFIC')
         filteredDiscordants = filters.filter_discordants(discordants, filters2Apply, self.bam, self.normalBam, self.confDict)
@@ -968,7 +968,7 @@ class SV_caller_sureselect(SV_caller):
         msg = 'Clipping cluster filtering'
         log.step(step, msg)
         
-        filters2Apply = ['MIN-NBREADS', 'SUPPL-REF', 'SUPPL-SRC', 'SUPPL-MAPQ', 'GERMLINE', 'READ-DUP', 'CLUSTER-RANGE']
+        filters2Apply = ['MIN-NBREADS', 'SUPPL-REF', 'SUPPL-SRC', 'SUPPL-MAPQ', 'READ-DUP', 'CLUSTER-RANGE']
         filteredLeftClippings = filters.filter_clippings(leftClippingClusters, filters2Apply, self.confDict)
         filteredRightClippings = filters.filter_clippings(rightClippingClusters, filters2Apply, self.confDict)
             
@@ -978,19 +978,28 @@ class SV_caller_sureselect(SV_caller):
         log.step(step, msg)
         metaclusters = clusters.metacluster_mate_suppl(filteredDiscordants, filteredLeftClippings, filteredRightClippings, self.confDict['minReads'], self.refLengths)
         
+        ## 6. Filter germline metaclusters ##
+        step = 'FILTER-GERM-METACLUSTERS'
+        msg = 'Filter germline metaclusters'
+        log.step(step, msg)
+        
+        filt_metaclusters = []
+        [filt_metaclusters.append(metacluster) for metacluster in metaclusters if filters.filter_germline(metacluster, self.confDict['minNormalReads'])]    
+        
+        
         ## 6. Determine metaclusters precise coordinates ##
         step = 'DETERMINE-BKP'
         msg = 'Determine metaclusters breakpoints'
         log.step(step, msg)
-        bkp.bkp_retroTest(metaclusters, self.bam, self.confDict['readSize'])
+        bkp.bkp_retroTest(filt_metaclusters, self.bam, self.confDict['readSize'])
         
         ## 7. Determine metaclusters identity ##
         step = 'DEFINE-TD-TYPE'
         msg = 'Define metaclusters transduction type'
         log.step(step, msg)
         if self.confDict['retroTestWGS']:
-            retrotransposons.identity_metaclusters_retrotest_wgs(metaclusters, self.bam, self.outDir, self.confDict, self.annotations)
+            retrotransposons.identity_metaclusters_retrotest_wgs(filt_metaclusters, self.bam, self.outDir, self.confDict, self.annotations)
         else:
-            retrotransposons.identity_metaclusters_retrotest(metaclusters, self.bam, self.outDir)
+            retrotransposons.identity_metaclusters_retrotest(filt_metaclusters, self.bam, self.outDir)
         
         return [srcId, metaclusters]

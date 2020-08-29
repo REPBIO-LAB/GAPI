@@ -304,7 +304,8 @@ def cluster_events_by_matePos(discordants, refLengths, minClusterSize):
     for ref in matesBinDb:
         binDb = matesBinDb[ref]
         binLevel = binDb.binSizes[0]
-        clusters = clustering.distance_clustering(binDb, binLevel, ['DISCORDANT_MATE'], 'DISCORDANT', binLevel, minClusterSize)
+        # clusters = clustering.distance_clustering(binDb, binLevel, ['DISCORDANT_MATE'], 'DISCORDANT', binLevel, minClusterSize)
+        clusters = clustering.distance_clustering(binDb, binLevel, ['DISCORDANT_MATE'], 'DISCORDANT', 500, minClusterSize)
         mateClusters = mateClusters + clusters
     
     ## 5. Make clusters of discordants based on mate clusters
