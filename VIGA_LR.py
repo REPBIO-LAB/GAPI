@@ -240,7 +240,7 @@ if __name__ == '__main__':
 	## Abort if SV unknown SV type provided
 
 	for SV_type in targetSV:		
-		if SV_type not in ['INS', 'BND']:
+		if SV_type not in ['INS', 'BND', 'INS_noOverlap']:
 			log.info('[ERROR] Abort execution as ' + SV_type + ' SV type not supported')
 			sys.exit(1)
 			

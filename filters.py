@@ -374,7 +374,7 @@ def filter_metacluster(metacluster, filters2Apply, confDict, bam):
 
     ## 5. FILTER 5: Whether a metacluster has a SV_type assigned or not
     if 'IDENTITY' in filters2Apply: 
-        if not identityFilter(metacluster):
+        if not identityFilter(metacluster, mode='LR'):
             failedFilters.append('IDENTITY')
 
     return failedFilters
@@ -507,13 +507,13 @@ def filter_SV_type(metacluster, targetSV):
 
     return PASS
 
-def identityFilter(cluster):
+def identityFilter(cluster, mode ='SR'):
     '''
     Filter metacluster by checking its SV type
 
     Input:
         1. metacluster: metacluster object
-        2. targetSV: list containing list of target SV types
+        2. mode: SR or LR (Short Reads or Long Reads). Default='SR'
     Output:
         1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
     '''
@@ -525,6 +525,16 @@ def identityFilter(cluster):
     else:
         PASS = False
 
+    if mode == 'LR':
+
+        if 'IDENTITY' in cluster.SV_features.keys():
+            if cluster.SV_features['IDENTITY']:
+                PASS = True 
+            else:
+                PASS = False
+        else:
+            PASS = False  
+    
     return PASS
 
 def filter_suppl_MAPQ(clipping, minMAPQ):

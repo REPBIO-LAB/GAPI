@@ -767,7 +767,7 @@ def write_junctions(junctions, outFileName, outDir):
     outFile = open(outFilePath, 'w')
 
     ## 2. Write header 
-    row = "#refA \t bkpA \t refB \t bkpB \t junctionType \t nbReadsTotal \t nbReadsTumour \t nbReadsNormal \t bridgeType \t family \t srcId \t supportTypes \t bridgeLen \t nbReadsBridge \t bridgeSeq \t junctionConsSeq \t bkpsConsSupport \n"
+    row = "#refA \t bkpA \t refB \t bkpB \t junctionType \t nbReadsTotal \t nbReadsTumour \t nbReadsNormal \t bridgeType \t family \t srcId \t supportTypes \t bridgeLen \t nbReadsBridge \t bridgeSeq \t junctionConsSeq \t bkpsConsSupport \t identity \n"
     outFile.write(row)
 
     ## 3. Write BND junctions  
@@ -783,6 +783,7 @@ def write_junctions(junctions, outFileName, outDir):
         nbReadsTotal, nbReadsTumour, nbReadsNormal = junction.supportingReads()
         junctionConsSeq = junction.junctionConsSeq
         bkpsConsSupport = junction.bkpsConsSupport
+        identity = junction.metaclusterA.identity
 
         # Bridge info
         bridgeType = junction.bridge.bridgeType if junction.bridge is not None else None
@@ -794,7 +795,7 @@ def write_junctions(junctions, outFileName, outDir):
         bridgeSeq = junction.bridge.bridgeSeq if junction.bridge is not None else None
 
         # Write BND junction call into output file
-        row = "\t".join([refA, str(bkpA), refB, str(bkpB), junction.junctionType(), str(nbReadsTotal), str(nbReadsTumour), str(nbReadsNormal), str(bridgeType), str(family), str(srcId), str(supportTypes), str(bridgeLen), str(nbReadsBridge), str(bridgeSeq), str(junctionConsSeq), str(bkpsConsSupport), "\n"])
+        row = "\t".join([refA, str(bkpA), refB, str(bkpB), junction.junctionType(), str(nbReadsTotal), str(nbReadsTumour), str(nbReadsNormal), str(bridgeType), str(family), str(srcId), str(supportTypes), str(bridgeLen), str(nbReadsBridge), str(bridgeSeq), str(junctionConsSeq), str(bkpsConsSupport), str(identity), "\n"])
         outFile.write(row)
 
     ## Close output file ##

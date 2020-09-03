@@ -514,6 +514,8 @@ class INS():
         self.readBkp = readBkp        
         self.sample = sample
         self.clusterId = None
+        self.identity = None
+        self.specificIdentity = None
 
         # Supporting read alignment properties:
         if alignmentObj is None:
@@ -603,6 +605,9 @@ class CLIPPING():
         self.clusterId = None
         self.blatIdentity = False
         self.cigarTuples = alignmentObj.cigartuples
+        self.identity = None
+        self.specificIdentity = None
+        self.bkpProximity = None
 
         # Supporting read alignment properties:
         if alignmentObj is None:
