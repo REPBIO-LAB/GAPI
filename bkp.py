@@ -79,7 +79,7 @@ def bkp_retroTest(metaclusters, bam, readSize):
         # if there is a SUPPLEMENTARY cluster:
         if 'SUPPLEMENTARY' in subclusters.keys():
             
-            bkp = subclusters['SUPPLEMENTARY'].bkpPos()
+            bkp = subclusters['SUPPLEMENTARY'].inferBkp_shortReads()
             metacluster.refLeftBkp, metacluster.refRightBkp = bkp, bkp
         
         # elif there is a MINUS-DISCORDANT cluster:

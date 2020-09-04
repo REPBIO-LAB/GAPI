@@ -2007,9 +2007,9 @@ class SUPPLEMENTARY_cluster(cluster):
         elif clipSides == {'left'}:
             self.orientation = 'MINUS'
 
-    def bkpPos(self):
+    def inferBkp_shortReads(self):
         '''
-        Compute and return breakpoint position
+        Compute and return breakpoint position for PE short reads
         '''
         # Determine cluster bkp side
         if self.orientation == None:
@@ -2029,6 +2029,20 @@ class SUPPLEMENTARY_cluster(cluster):
         else:
             coordList = [event.beg for event in self.events] + [event.end for event in self.events]
             bkpPos = max(set(coordList), key=coordList.count)
+        
+        return bkpPos
+
+    def bkpPos(self):
+        '''
+        Compute and return breakpoint position
+        '''
+        # a) Breakpoint on the left
+        if self.bkpSide == 'beg':
+            bkpPos = self.beg
+
+        # b) Breakpoint on the right
+        else:
+            bkpPos = self.end
         
         return bkpPos
         
