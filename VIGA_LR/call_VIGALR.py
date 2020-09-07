@@ -145,7 +145,7 @@ class SV_caller_long(SV_caller):
                         # No se si esto me valdra para algo...
         '''
 
-        #unix.rm([selectMETAoutDir])
+        unix.rm([selectMETAoutDir])
 
         # 1.d Put identity to only those metaclusters that are mapped and PASS filters, all the others identity will remain None
 
@@ -320,6 +320,7 @@ class SV_caller_long(SV_caller):
 
                                         buffer = 250
                                         bkpProximity = virusLR.checkBkpProximity_wSide(event, nombre, allHits_viral, buffer)
+                                        event.bkpProximity = bkpProximity
                                         
                                         if bkpProximity != None:
                                             #if (event.clippedSide == 'right' and bkpProximity < 250) or (event.clippedSide == 'left' and bkpProximity >= (ali_query_Len - 250)):
@@ -365,6 +366,7 @@ class SV_caller_long(SV_caller):
 
                                         buffer = 251
                                         bkpProximity = virusLR.checkBkpProximity_wSide(event, nombre, allHits_viral_minimap, buffer)
+                                        event.bkpProximity = bkpProximity
 
                                         if bkpProximity != None:
                                             ## NUEVO!!!:
@@ -380,7 +382,7 @@ class SV_caller_long(SV_caller):
                                     print ('metacluster.SV_featuresmarte4 ' + str(metacluster.SV_features['IDENTITY']) + ' ' + str(metacluster.beg))
                             
         
-        #unix.rm([polishDir])
+        unix.rm([polishDir])
         del allMetaclustersIdentitySeparated
         # Ahora tengo el mismo dictionario que antes, pero marcada la identidad en los eventos que la tienen (en el caso de los clipping, ademas aquellos que hacen clipping cerca del bkp)
 
@@ -530,7 +532,7 @@ class SV_caller_long(SV_caller):
 
             # DESILENCE
             # Remove output directory
-            #unix.rm([outDir])
+            unix.rm([outDir])
             
         ### 6. Apply second round of filtering 
         msg = '7. Apply second round of filtering'

@@ -740,7 +740,7 @@ def check_metaclusters_identity_allHits(SV_type, metacluster, eventsIdentity, al
                 # Alineo
                 '''
 
-            #unix.rm([polishDir])
+            unix.rm([polishDir])
 
 
     newAllMetaclusters[SV_type].append(metacluster)
@@ -941,6 +941,7 @@ def INS2VCF_junction(metaclusters, index, refLengths, source, build, species, ou
             'BKPCSEQR': ['.', 'String', 'Consensus sequence at Right BKP.'], \
             'BKPCSEQL': ['.', 'String', 'Consensus sequence at Left BKP.'], \
             'MAPQ': ['1', 'Integer', 'Average of MAPQ of discordant reads supporting the insertion'], \
+            'SUPPOBKP': ['.', 'String', 'Breakpoints that support the integrations (RIGHT or/and LEFT)'], \
             }
             
     ## Create header
@@ -974,6 +975,13 @@ def INS2VCF_junction(metaclusters, index, refLengths, source, build, species, ou
             eventsMAPQMean = int(statistics.mean(eventsMAPQ)) if eventsMAPQ else None
         else:
             eventsMAPQMean = None
+        
+        # Supporting bkp:
+        suppoBkps = []
+        for event in metacluster.events:
+            if event.bkpProximity:
+                suppoBkps.append(event.clippedSide)
+        suppoBkp = list(set(suppoBkps))
 
         INFO['VTYPE'] = metacluster.mutOrigin
         INFO['ITYPE'] = metacluster.SV_features['INS_TYPE'] if 'INS_TYPE' in metacluster.SV_features else None
@@ -1015,6 +1023,7 @@ def INS2VCF_junction(metaclusters, index, refLengths, source, build, species, ou
         INFO['BKPCSEQL'] = metacluster.consLeftSeq if metacluster.consLeftSeq != None else None
         INFO['MAPQ'] = eventsMAPQMean
         #INFO['INSEQ'] = metacluster.consensusEvent.pick_insert() if metacluster.consensusEvent is not None else None
+        INFO['SUPPOBKP'] = suppoBkp
 
         ## Create VCF variant object
         fields = [CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO, {}]
@@ -1032,7 +1041,7 @@ def INS2VCF_junction(metaclusters, index, refLengths, source, build, species, ou
            'NBTOTAL', 'NBTUMOR', 'NBNORMAL', 'NBSPAN', 'NBCLIP', 'LEN', 'CV', 'RTLEN', \
            'TRUN5LEN', 'TRUN3LEN', 'FULL', 'TDLEN', 'INVLEN', 'PERCR', \
            'QHITS', 'THITS', 'RTCOORD', 'POLYA', \
-           'IDENTITY', 'SPECIDENTITY', 'MAPQ', 'INSEQ', 'INS', 'CLIP', 'BKPCSEQR', 'BKPCSEQL']
+           'IDENTITY', 'SPECIDENTITY', 'MAPQ', 'SUPPOBKP', 'INSEQ', 'INS', 'CLIP', 'BKPCSEQR', 'BKPCSEQL']
 
     VCF.write(IDS, [], outName, outDir)
 
