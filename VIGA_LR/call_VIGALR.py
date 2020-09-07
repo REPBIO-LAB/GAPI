@@ -37,7 +37,7 @@ import gRanges
 import assembly
 
 #from modules.callers import SV_caller
-from callers import SV_caller
+#from callers import SV_caller
 
 ## FUNCTIONS ##
 # Multiprocessing lock as global variable. Useful for safely writting from different processes to the same output file.
@@ -46,6 +46,57 @@ def init(l):
     lock = l
 
 ## CLASSES ##
+class SV_caller():
+    '''
+    Structural variation (SV) caller 
+    '''
+    def __init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir):
+
+        self.mode = mode
+        self.bam = bam
+        self.normalBam = normalBam
+        self.reference = reference
+        self.refDir = refDir
+        self.confDict = confDict
+        self.outDir = outDir
+        self.repeatsBinDb = None
+
+        ## Compute reference lengths
+        self.refLengths = bamtools.get_ref_lengths(self.bam)
+
+    def minimap2_index(self):
+        '''
+        Return path to minimap2 index file
+        '''
+        index = os.path.splitext(self.reference)[0] + '.mmi' 
+
+        return index
+
+    def load_annotations(self):
+        '''
+        Load set of annotations into bin databases. Set 'annotation' attribute with one key per annotation type
+        and bin databases as values
+        '''
+        # NOTE MERGE SR2020: For SV_caller_short this load is managed inside the caller
+        # SONIA: why??
+        if self.confDict['technology'] != 'ILLUMINA':
+            annotDir = self.outDir + '/LOAD_ANNOT/'
+            unix.mkdir(annotDir)
+            annotations2load = ['REPEATS']
+    
+            if self.confDict['transductionSearch']:    
+                annotations2load.append('TRANSDUCTIONS')
+    
+            if True: # at one point include flag for pseudogene search
+                annotations2load.append('EXONS')
+    
+            if self.confDict['germlineMEI'] is not None:
+                annotations2load.append('GERMLINE-MEI')
+    
+            self.annotations = annotation.load_annotations(annotations2load, self.refLengths, self.refDir, self.confDict['germlineMEI'], self.confDict['processes'], annotDir)        
+            unix.rm([annotDir])
+
+
 class SV_caller_long(SV_caller):
     '''
     Structural variation (SV) caller for long read sequencing data
