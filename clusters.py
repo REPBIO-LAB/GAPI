@@ -366,7 +366,7 @@ def create_clusters(eventsBinDb, confDict):
         ## D) Perform clustering based on reciprocal overlap for DISCORDANT
         elif SV_type == 'DISCORDANT':
 
-            clustersDict[SV_type] = clustering.reciprocal_overlap_clustering(eventsBinDb, 1, confDict['minClusterSize'], [SV_type], 200, SV_type)    
+            clustersDict[SV_type] = clustering.reciprocal_overlap_clustering(eventsBinDb, 1, confDict['minClusterSize'], [SV_type], 500, SV_type)    
 
     ## 2. Organize clusters into bins ##    
     binSizes = [100, 1000, 10000, 100000, 1000000]
@@ -1860,6 +1860,49 @@ class SUPPLEMENTARY_cluster(cluster):
         self.bridge = False
         self.bridgeInfo = {}
         self.orientation = None
+    
+    def clippOrientation(self):
+        '''
+        Determine cluster bkp side
+        '''
+        # 1. Collect supplementary events clipping sides
+        [event.clippingSide() for event in self.events]
+        clipSides = set([event.clipSide for event in self.events])
+        
+        # 2. Set supplementary cluster bkp side
+        if clipSides == {'left', 'right'}:
+            self.orientation = 'RECIPROCAL'
+            
+        elif clipSides == {'right'}:
+            self.orientation = 'PLUS'
+            
+        elif clipSides == {'left'}:
+            self.orientation = 'MINUS'
+
+    def inferBkp_shortReads(self):
+        '''
+        Compute and return breakpoint position for PE short reads
+        '''
+        # Determine cluster bkp side
+        if self.orientation == None:
+            self.clippOrientation()
+        
+        # a) Breakpoint on the left
+        if self.orientation == 'MINUS':
+            coordList = [event.beg for event in self.events]
+            bkpPos = max(set(coordList), key=coordList.count)
+
+        # b) Breakpoint on the right
+        elif self.orientation == 'PLUS':
+            coordList = [event.end for event in self.events]
+            bkpPos = max(set(coordList), key=coordList.count)
+        
+        # c) If orientation reciprocal or unknown, return coordinate with max nb of counts
+        else:
+            coordList = [event.beg for event in self.events] + [event.end for event in self.events]
+            bkpPos = max(set(coordList), key=coordList.count)
+        
+        return bkpPos
 
     def bkpPos(self):
         '''
@@ -2198,7 +2241,7 @@ class DISCORDANT_cluster(cluster):
         self.identity = self.events[0].identity
         self.orientation = self.events[0].orientation
         self.element = self.events[0].element
-
+            
         if all (event.orientation == 'PLUS' for event in events):
             self.orientation = 'PLUS'
         elif all (event.orientation == 'MINUS' for event in events):
@@ -2231,7 +2274,7 @@ class DISCORDANT_cluster(cluster):
 
         ## 2. Create discordant cluster for mates
         matesCluster = DISCORDANT_cluster(mates)
-
+        
         return matesCluster
 
 class META_cluster():
@@ -2253,7 +2296,7 @@ class META_cluster():
         self.ref, self.beg, self.end = self.coordinates()
         self.refLeftBkp = None
         self.refRightBkp = None
-
+        
         # Organize events into subclusters
         self.subclusters = self.create_subclusters()
         # NOTE MERGE SR2020: To avoid key META error in clustering.reciprocal_overlap_clustering
@@ -2278,9 +2321,10 @@ class META_cluster():
         self.leftClipType = None
         self.identity = None
 
-        # Shotr reads:
+        # Short reads:
         if hasattr(self.events[0], 'identity'):
             self.identity = self.events[0].identity
+            
         if hasattr(clusters[0], 'orientation'):
             if all (cluster.orientation == 'PLUS' for cluster in clusters):
                 self.orientation = 'PLUS'
@@ -4272,14 +4316,17 @@ def metacluster_mate_suppl(discordants, leftClippings, rightClippings, minReads,
     '''
     ## 1. Create list of discordant mate clusters
     mateClusters = [discordant.create_matesCluster() for discordant in discordants]
-
+    
     ## 2. Create list of supplementary clusters
     supplClustersLeft = [clipping.supplCluster for clipping in leftClippings]
     supplClustersRight = [clipping.supplCluster for clipping in rightClippings]
     supplClusters = supplClustersLeft + supplClustersRight
     
+    ## 2.1. Fill supplementary cluster orientation attribute
+    [supplCluster.clippOrientation() for supplCluster in supplClusters]
+    
     ## 3. Organize discordant mate and suppl. clusters into a dictionary
-    mateDict = events.events2nestedDict(mateClusters, 'DISCORDANT')    
+    mateDict = events.events2nestedDict(mateClusters, 'DISCORDANT')
     supplDict = events.events2nestedDict(supplClusters, 'SUPPLEMENTARY')
     clustersDict = events.mergeNestedDict(mateDict, supplDict)
 
@@ -4291,7 +4338,7 @@ def metacluster_mate_suppl(discordants, leftClippings, rightClippings, minReads,
 
     for binDb in wgBinDb.values():
         
-        meta = clustering.reciprocal_overlap_clustering(binDb, 1, 1, binDb.eventTypes, 100, 'META')
+        meta = clustering.reciprocal_overlap_clustering(binDb, 1, 1, binDb.eventTypes, 500, 'META')
         allMeta = allMeta + meta
 
     ## 6. Filter metaclusters based on read support

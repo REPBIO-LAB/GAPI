@@ -9,6 +9,9 @@ import statistics
 import gRanges
 import bamtools
 import stats
+import structures
+import clusters
+import events
 
 
 ###############
@@ -185,11 +188,11 @@ def filter_discordant(discordant, filters2Apply, bam, normalBam, confDict):
         if not filter_germline(discordant, confDict['minNormalReads']):
             failedFilters.append('GERMLINE')
             
-    ## 6. FILTER 6: Filter out clus in unspecific regions ##
-    if 'UNESPECIFIC' in filters2Apply:
+    ## 6. FILTER 6: Filter out clusters in unspecific regions ##
+    if 'UNSPECIFIC' in filters2Apply:
 
-        if not filter_discordant_mate_unespecific(discordant, 0.2, bam):
-            failedFilters.append('UNESPECIFIC')
+        if not filter_discordant_mate_unspecific(discordant, 0.95, bam):
+            failedFilters.append('UNSPECIFIC')
 
     ## 7. FILTER 7: Filter out clusters based on duplicate percentage (Ex: 50%) ##
     if 'READ-DUP' in filters2Apply:
@@ -714,7 +717,7 @@ def filter_discordant_mate_MAPQ(discordant, minMAPQ, bam, normalBam):
     if (normalBam == None or (normalBam != None and readIdsNormal == [])):
             
         avMAPQ = bamtools.average_MAPQ_reads_interval(intervalRef, intervalBeg, intervalEnd, readIds, bamFile)
-            
+                    
         if avMAPQ >= minMAPQ:
             PASS = True
 
@@ -772,7 +775,7 @@ def filter_germline(cluster, minNormal):
     return PASS
 
 
-def filter_discordant_mate_unespecific(discordant, threshold, bam):
+def filter_discordant_mate_unspecific(discordant, threshold, bam):
     '''
     Filter out discordant whose mates are located in regions captured unspecifically
     Insertion points where there is more than discordant reads are likely to be false positives
@@ -791,7 +794,7 @@ def filter_discordant_mate_unespecific(discordant, threshold, bam):
     bamFile = pysam.AlignmentFile(bam, "rb")
     
     nbProperPair = 0
-    nbDiscordants = len(discordant.events)
+    nbDiscordants, discordantList = discordant.nbReads()
         
     buffer = 200
     ref = discordant.events[0].mateRef
@@ -801,16 +804,18 @@ def filter_discordant_mate_unespecific(discordant, threshold, bam):
     iterator = bamFile.fetch(ref, beg - buffer, end + buffer)
         
     # Count properly paired reads in region
+    properPairs = []
     for alignmentObj in iterator:
             
-        if alignmentObj.is_proper_pair:
+        if alignmentObj.is_proper_pair and not alignmentObj.is_supplementary:
                 
-            nbProperPair += 1
+                properPairs.append(alignmentObj.query_name)
+                
+    nbProperPair = len(set(properPairs))
         
     # if there are properly paired reads around insertion
     if nbProperPair > 0:
-            
-        # if the ratio discordants/properly paired reads is greater than threshold
+               
         if nbDiscordants/nbProperPair > threshold:        
             PASS = True
 
@@ -818,10 +823,11 @@ def filter_discordant_mate_unespecific(discordant, threshold, bam):
             PASS = False
 
     else:
-            
+         
         PASS = True
             
     return PASS
+
 
 # --------------- SHORT READS -----------------------
 # HACER OTRA PARECIDA A LA QUE ESTABA PARA SHORT READS
