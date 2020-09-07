@@ -590,7 +590,7 @@ class SV_caller_long(SV_caller):
         log.header(msg)
         filters2Apply = ['PERC-RESOLVED','IDENTITY']
         print ('allMetaclustersOrganised ' + str(allMetaclustersOrganised))
-        metaclustersPass, metaclustersFailed = filters.filter_metaclusters(allMetaclustersOrganised, filters2Apply, self.confDict)
+        metaclustersPass, metaclustersFailed = filters.filter_metaclusters(allMetaclustersOrganised, filters2Apply, self.confDict, mode='LR')
 
         ### 7. Report SV calls into output files
         msg = '8. Report SV calls into output files'
@@ -760,7 +760,7 @@ class SV_caller_long(SV_caller):
         log.step(step, msg)
         filters2Apply = ['MIN-NBREADS', 'MAX-NBREADS', 'CV', 'SV-TYPE']
         # NOTE 2020: New 2020
-        metaclustersSVType, metaclustersSVTypeFailed = filters.filter_metaclusters(metaclustersSVType, filters2Apply, self.confDict)
+        metaclustersSVType, metaclustersSVTypeFailed = filters.filter_metaclusters(metaclustersSVType, filters2Apply, self.confDict, mode='LR')
         #metaclustersSVType = filters.filter_metaclusters(metaclustersSVType, filters2Apply, self.confDict)[0]
 
         ## 8. Generate consensus event for SV metaclusters ##

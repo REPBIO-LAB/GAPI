@@ -259,7 +259,7 @@ def filter_metaclusters_SR(metaclusters, filters2Apply, confDict, bam):
     return metaclustersPass, metaclustersFail
 
 
-def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
+def filter_metaclusters(metaclustersDict, filters2Apply, confDict, mode='SR'):
     '''
     Function to apply filters to a set of metaclusters organized in a dictionary
 
@@ -286,7 +286,7 @@ def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
         for index, metacluster in enumerate(metaclusters):
 
             ## Apply filters
-            metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply, confDict, None)
+            metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply, confDict, None, mode=mode)
 
             # Metacluster fails some filter
             if metacluster.failedFilters:
@@ -315,7 +315,7 @@ def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
 
     return metaclustersPassDict, metaclustersFailDict
 
-def filter_metacluster(metacluster, filters2Apply, confDict, bam):
+def filter_metacluster(metacluster, filters2Apply, confDict, bam, mode='SR'):
     '''
     Apply selected filters to one metacluster.
 
@@ -377,7 +377,7 @@ def filter_metacluster(metacluster, filters2Apply, confDict, bam):
 
     ## 5. FILTER 5: Whether a metacluster has a SV_type assigned or not
     if 'IDENTITY' in filters2Apply: 
-        if not identityFilter(metacluster, mode='LR'):
+        if not identityFilter(metacluster, mode=mode):
             failedFilters.append('IDENTITY')
 
     return failedFilters
