@@ -1500,3 +1500,50 @@ def polish_INS_sequence(metacluster, events, name, outDir):
         polished_FASTA = templateFastaPath
 
     return polished_FASTA
+
+
+    ############################################################################
+
+def checkLowProportion(allMetaclustersIdentity, event, metacluster, allHits_viral, eventsIdentity, bufferBND, bufferNoOverlap, sideBND, sideNoOverlap):
+    '''
+    '''
+    bkpProximity = None
+    SV_TypeTested = None
+    identity = []
+    specificIdentity = []
+
+    # TODO: Do this in another way to find the event that is the key
+    # Find the event that was used as consensus name
+
+    nombre =  event.readName + '_'+ str(metacluster.beg)
+    
+    for alig in allHits_viral[nombre].alignments:
+        splitedtName = alig.tName.split('|')
+        identity.append(splitedtName[0])
+        if len(splitedtName) > 1:
+            specificIdentity.append(splitedtName[1])
+    
+    # Check if it's near bkp
+    if 'BND' in allMetaclustersIdentity.keys():
+        
+        if metacluster in allMetaclustersIdentity['BND']:
+            SV_TypeTested = True
+
+            if sideBND:
+                bkpProximity = checkBkpProximity_wSide(event, nombre, allHits_viral, bufferBND)
+            else:
+                bkpProximity = checkBkpProximity_woSide(event, nombre, allHits_viral, bufferBND)
+
+    # Check if it's near bkp
+    if 'INS_noOverlap' in allMetaclustersIdentity.keys():
+        if metacluster in allMetaclustersIdentity['INS_noOverlap']:
+            SV_TypeTested = True
+
+            if sideNoOverlap:
+                bkpProximity = checkBkpProximity_wSide(event, nombre, allHits_viral, bufferNoOverlap)
+            else:
+                bkpProximity = checkBkpProximity_woSide(event, nombre, allHits_viral, bufferNoOverlap)
+
+            event.bkpProximity = bkpProximity
+                    
+    return bkpProximity, SV_TypeTested, identity, specificIdentity
