@@ -39,7 +39,7 @@ import sequences
 import gRanges
 import stats
 import fileinput
-import virus
+from VIGA_LR import virusLR
 
 
 ###############
@@ -366,7 +366,7 @@ def create_clusters(eventsBinDb, confDict):
         ## D) Perform clustering based on reciprocal overlap for DISCORDANT
         elif SV_type == 'DISCORDANT':
 
-            clustersDict[SV_type] = clustering.reciprocal_overlap_clustering(eventsBinDb, 1, confDict['minClusterSize'], [SV_type], 200, SV_type)    
+            clustersDict[SV_type] = clustering.reciprocal_overlap_clustering(eventsBinDb, 1, confDict['minClusterSize'], [SV_type], 500, SV_type)    
 
     ## 2. Organize clusters into bins ##    
     binSizes = [100, 1000, 10000, 100000, 1000000]
@@ -712,48 +712,65 @@ def INS_type_metaclusters(metaclusters, reference, annotations, processes, viral
         6. rootOutDir: Root output directory
     '''
 
-    ## 1. Create fasta containing all consensus inserted sequences 
-    msg = '1. Create fasta containing all consensus inserted sequences'
-    log.info(msg)   
-    fastaPath = insertedSeq2fasta(metaclusters, rootOutDir)
+    # Initialize variables:
+    allHits_genome = {}
+    groupedEntries = {}
+    allHits_viral = {}
 
-    ## 2. Align consensus inserted sequences
-    msg = '2. Align consensus inserted sequences'
-    log.info(msg) 
+    # Dont search for viruses if there is not viralDb
+    if not viralDb:
+        ## 1. Create fasta containing all consensus inserted sequences 
+        msg = '1. Create fasta containing all consensus inserted sequences'
+        log.info(msg) 
+        fastaPath = insertedSeq2fasta(metaclusters, rootOutDir)
 
-    ## 2.1 Align consensus inserted sequences into the reference genome
-    msg = '2.1 Align consensus inserted sequences into the reference genome'
-    log.info(msg)    
-    SAM_genome = alignment.alignment_bwa(fastaPath, reference, 'alignments_genome', processes, rootOutDir)
+        ## 2. Align consensus inserted sequences
+        msg = '2. Align consensus inserted sequences'
+        log.info(msg) 
 
-    ## Convert SAM to PAF
-    PAF_genome = alignment.sam2paf(SAM_genome, 'alignments_genome', rootOutDir)
+        ## 2.1 Align consensus inserted sequences into the reference genome
+        msg = '2.1 Align consensus inserted sequences into the reference genome'
+        log.info(msg)    
+        SAM_genome = alignment.alignment_bwa(fastaPath, reference, 'alignments_genome', processes, rootOutDir)
 
-    ## Organize hits according to their corresponding metacluster
-    allHits_genome = alignment.organize_hits_paf(PAF_genome) 
+        ## Convert SAM to PAF
+        PAF_genome = alignment.sam2paf(SAM_genome, 'alignments_genome', rootOutDir)
 
-    ## 2.2 Align consensus inserted sequences into the reference genome (splicing-aware)
-    msg = '2.2 Align consensus inserted sequences into the reference genome (splicing-aware)'
-    log.info(msg)    
+        ## Organize hits according to their corresponding metacluster
+        allHits_genome = alignment.organize_hits_paf(PAF_genome) 
 
-    ## Minimap index for the reference
-    index = os.path.splitext(reference)[0] + '.mmi'
-    SAM_splicing = alignment.alignment_minimap2_spliced(fastaPath, index, 'alignments_spliced', processes, rootOutDir)
+        ## 2.2 Align consensus inserted sequences into the reference genome (splicing-aware)
+        msg = '2.2 Align consensus inserted sequences into the reference genome (splicing-aware)'
+        log.info(msg)    
 
-    ## Convert SAM to BAM
-    BAM_splicing = bamtools.SAM2BAM(SAM_splicing, rootOutDir)
+        ## Minimap index for the reference
+        index = os.path.splitext(reference)[0] + '.mmi'
+        SAM_splicing = alignment.alignment_minimap2_spliced(fastaPath, index, 'alignments_spliced', processes, rootOutDir)
 
-    ## Convert BAM to BED
-    BED_path = bamtools.BAM2BED(BAM_splicing, rootOutDir)
+        ## Convert SAM to BAM
+        BAM_splicing = bamtools.SAM2BAM(SAM_splicing, rootOutDir)
 
-    ## Organize hits according to their corresponding metacluster
-    allHits_splicing = formats.BED()
-    allHits_splicing.read(BED_path, 'List', None)
-    groupedEntries = allHits_splicing.group_entries_by_name()
+        ## Convert BAM to BED
+        BED_path = bamtools.BAM2BED(BAM_splicing, rootOutDir)
 
-    if viralDb:
+        ## Organize hits according to their corresponding metacluster
+        allHits_splicing = formats.BED()
+        allHits_splicing.read(BED_path, 'List', None)
+        groupedEntries = allHits_splicing.group_entries_by_name()
+
+    # Search only for viruses if there is viralDb
+    else:
+        ## 1. Create fasta containing all consensus inserted sequences and checking sequences local complexity
+        msg = '1. Create fasta containing all consensus inserted sequences'
+        log.info(msg) 
+        fastaPath = insertedSeq2fasta(metaclusters, rootOutDir, lccFilter=True)
+
+        ## 2. Align consensus inserted sequences
+        msg = '2. Align consensus inserted sequences'
+        log.info(msg) 
+
         ## 2.3 Align consensus inserted sequences into the viral database
-        msg = '2.3 Align consensus inserted sequences into the viral database'
+        msg = '2.1 Align consensus inserted sequences into the viral database'
         log.info(msg)  
 
         #start_time = time.time()
@@ -766,9 +783,6 @@ def INS_type_metaclusters(metaclusters, reference, annotations, processes, viral
         ## Organize hits according to their corresponding metacluster
         allHits_viral = alignment.organize_hits_paf(PAF_viral)
     
-    else:
-        allHits_viral = {}
-
     ## 3. For each metacluster determine the insertion type
     msg = '3. For each metacluster determine the insertion type'
     log.info(msg)   
@@ -801,145 +815,13 @@ def INS_type_metaclusters(metaclusters, reference, annotations, processes, viral
             hits_viral = formats.PAF()
 
         ## 3.2 Insertion type inference
-        metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'])
-
-# NOTE 2020: Copied from INS_type_metaclusters
-# TODO 2020: Do merge
-
-def soloBND_type_metaclusters(metaclusters, confDict, reference, refLengths, refDir, transductionSearch, processes, viralDb, rootOutDir):
-    '''
-    For each metacluster provided as input determine the type of insertion
-
-    Input:
-        1. metaclusters: list of metaclusters supporting insertion events
-        2. reference: Path to the reference genome in fasta format (bwa mem and minimap2 indexes must be located in the same folder)
-        3. refLengths: Dictionary containing reference ids as keys and as values the length for each reference. 
-        4. refDir: Directory containing reference databases. 
-        5. transductionSearch: boolean specifying if transduction search is enabled (True) or not (False)
-        6. processes: number of processes
-        7. viralDb: path to viral database in fasta format
-        8. rootOutDir: Root output directory
-    '''      
-    ### 1. Load repeats, transduced regions and exons database 
-    '''
-    msg = '1. Load repeats, transduced regions and exons database'
-    log.subHeader(msg)        
-    annotDir = rootOutDir + '/ANNOT/'
-    unix.mkdir(annotDir)
-    annotations2load = ['REPEATS']
-
-    
-    if transductionSearch:    
-        annotations2load.append('TRANSDUCTIONS')
-
-    if True: # at one point include flag for pseudogene search
-        annotations2load.append('EXONS')
-    
-
-    ## TODO: DESILENCE
-    #annotations = annotation.load_annotations(annotations2load, refLengths, refDir, processes, annotDir)
-
-    ## Cleanup
-    unix.rm([annotDir])
-    '''
-
-    for metacluster in metaclusters:
-
-        metacluster.consensusEvent = metacluster.rawSubclusters[0].pick_median_length()
-        
-        metacluster.consensusFasta = formats.FASTA()
-        #metacluster.consensusFasta.seqDict[metacluster.consensusEvent.readName] = metacluster.consensusEvent.readSeq
-        metacluster.consensusFasta.seqDict[metacluster.consensusEvent.readName] = metacluster.consensusEvent.clipped_seq()
-
-    ## 2. Create fasta containing all consensus inserted sequences 
-    msg = '2. Create fasta containing all consensus inserted sequences'
-    log.info(msg)   
-    fastaPath = soloBNDSeq2fasta(metaclusters, rootOutDir)
-    # NOTE 2020: En los solo-BND mirar solo si son virus
-    
-    ## 3. Align consensus inserted sequences
-    msg = '3. Align consensus inserted sequences'
-    log.info(msg) 
-
-    ## 3.1 Align consensus inserted sequences into the reference genome
-    msg = '3.1 Align consensus inserted sequences into the reference genome'
-    log.info(msg)    
-    SAM_genome = alignment.alignment_bwa(fastaPath, reference, 'alignments_genome', processes, rootOutDir)
-
-    ## Convert SAM to PAF
-    PAF_genome = alignment.sam2paf(SAM_genome, 'alignments_genome', rootOutDir)
-
-    ## Organize hits according to their corresponding metacluster
-    allHits_genome = alignment.organize_hits_paf(PAF_genome) 
-
-    ## 3.2 Align consensus inserted sequences into the reference genome (splicing-aware)
-    msg = '3.2 Align consensus inserted sequences into the reference genome (splicing-aware)'
-    log.info(msg)    
-
-    ## Minimap index for the reference
-    index = os.path.splitext(reference)[0] + '.mmi'
-    SAM_splicing = alignment.alignment_minimap2_spliced(fastaPath, index, 'alignments_spliced', processes, rootOutDir)
-
-    ## Convert SAM to BAM
-    BAM_splicing = bamtools.SAM2BAM(SAM_splicing, rootOutDir)
-
-    ## Convert BAM to BED
-    BED_path = bamtools.BAM2BED(BAM_splicing, rootOutDir)
-
-    ## Organize hits according to their corresponding metacluster
-    allHits_splicing = formats.BED()
-    allHits_splicing.read(BED_path, 'List', None)
-    groupedEntries = allHits_splicing.group_entries_by_name()
-
-    ## 3.3 Align consensus inserted sequences into the viral database
-    msg = '3.3 Align consensus inserted sequences into the viral database'
-    log.info(msg)  
-    
-    #start_time = time.time()
-    SAM_viral = alignment.alignment_bwa(fastaPath, viralDb, 'alignments_viral', processes, rootOutDir)
-    #print("--- %s seconds SAM_viral ---" % (time.time() - start_time))
-      
-    ## Convert SAM to PAF
-    PAF_viral = alignment.sam2paf(SAM_viral, 'alignments_viral', rootOutDir)
-
-    ## Organize hits according to their corresponding metacluster
-    allHits_viral = alignment.organize_hits_paf(PAF_viral)
-
-    ## 4. For each metacluster determine the insertion type
-    msg = '4. For each metacluster determine the insertion type'
-    log.info(msg)   
-
-    # For each metacluster
-    for metacluster in metaclusters:
-
-        ## 4.1 Collect consensus inserted sequence hits
-        metaId = str(metacluster.ref) + ':' + str(metacluster.beg) + '-' + str(metacluster.end)
-
-        ## Hits in the reference genome
-        if metaId in allHits_genome:
-            hits_genome = allHits_genome[metaId]
-        
+        if not viralDb:
+            metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'])
         else:
-            hits_genome = formats.PAF()
-
-        ## Hits in the reference genome (splice-aware alignment)
-        if metaId in groupedEntries:
-            hits_splicing = groupedEntries[metaId]
-
-        else:
-            hits_splicing = []
-
-        ## Hits in the viral database
-        if metaId in allHits_viral:
-            hits_viral = allHits_viral[metaId]
-
-        else:
-            hits_viral = formats.PAF()
-
-        ## 4.2 Insertion type inference
-        hits_genome = formats.PAF()
-        hits_splicing = []
-        metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'])
+            # Dont look if it was already identified
+            # TODO: This has to be organised in another way.
+            if 'IDENTITY' not in metacluster.SV_features.keys():
+                metacluster.determine_INS_type(hits_genome, hits_splicing, hits_viral, annotations['REPEATS'], annotations['TRANSDUCTIONS'], annotations['EXONS'], types2Search=['VIRUS'])
 
 
 def structure_inference_parallel(metaclusters, consensusPath, transducedPath, transductionSearch, processes, rootDir):
@@ -1020,7 +902,7 @@ def structure_inference(metacluster, consensusPath, transducedPath, transduction
 
     return metacluster
 
-def insertedSeq2fasta(metaclusters, outDir):
+def insertedSeq2fasta(metaclusters, outDir, lccFilter=False):
     '''
     Collect all the consensus inserted sequences from a list of metaclusters supporting INS and 
     generate fasta file containing them 
@@ -1028,6 +910,7 @@ def insertedSeq2fasta(metaclusters, outDir):
     Input:
         1. metaclusters: list of metaclusters
         2. outDir: output directory
+        3. lccFilter: Boolean. Filter reads by local complexity. Default= False.
 
     Output:
         1. fastaPath: fasta file containing all the consensus inserted sequences
@@ -1047,15 +930,14 @@ def insertedSeq2fasta(metaclusters, outDir):
         insert = metacluster.consensusEvent.pick_insert()
 
         # NOTE 2020: New 2020
-        # NOTE 2020: Add for viruses!!!
-        '''
-        complexity = Bio.SeqUtils.lcc.lcc_simp(insert)
-        print ('complexity ' + str(insert) + ' '+ str(complexity))
+        if lccFilter:
+            complexity = Bio.SeqUtils.lcc.lcc_simp(insert)
+            print ('complexity ' + str(insert) + ' '+ str(complexity))
 
-        # NOTE 2020: If works, put as option
-        if complexity > 1.9:
-            FASTA.seqDict[metaclusterId] = insert
-        '''
+            # NOTE 2020: If works, put as option
+            if complexity > 1.9:
+                FASTA.seqDict[metaclusterId] = insert
+        
 
         FASTA.seqDict[metaclusterId] = insert
         
@@ -1196,28 +1078,33 @@ def search4bridges_metaclusters_parallel(metaclusters, maxBridgeLen, minMatchPer
     For each metacluster update 'bridgeClusters' and 'bridgeType' attributes
     '''    
 
-    ## 1. Generate index containing consensus retrotranposon sequences + source elements downstream regions
-    ## Consensus retrotransposon sequences
-    consensusPath = refDir + '/consensusDb.fa'
-    consensus = formats.FASTA()
-    consensus.read(consensusPath)
+    if not viralDb:
+        ## 1. Generate index containing consensus retrotranposon sequences + source elements downstream regions
+        ## Consensus retrotransposon sequences
+        consensusPath = refDir + '/consensusDb.fa'
+        consensus = formats.FASTA()
+        consensus.read(consensusPath)
 
-    ## Transduced regions
-    transducedPath = refDir + '/transducedDb.fa.masked'
-    transduced = formats.FASTA()
-    transduced.read(transducedPath)
-    
-    ## Merge in a single fasta
-    allSeqs = formats.FASTA()
-    allSeqs.seqDict = {**consensus.seqDict, **transduced.seqDict}
+        ## Transduced regions
+        transducedPath = refDir + '/transducedDb.fa.masked'
+        transduced = formats.FASTA()
+        transduced.read(transducedPath)
+        
+        ## Merge in a single fasta
+        allSeqs = formats.FASTA()
+        allSeqs.seqDict = {**consensus.seqDict, **transduced.seqDict}
 
-    ## Write fasta
-    fastaPath = rootDir + '/reference_sequences.fa'
-    allSeqs.write(fastaPath)
+        ## Write fasta
+        fastaPath = rootDir + '/reference_sequences.fa'
+        allSeqs.write(fastaPath)
 
-    ## Index fasta 
-    fileName = 'reference_sequences'  
-    index = alignment.index_minimap2(fastaPath, fileName, rootDir)
+        ## Index fasta 
+        fileName = 'reference_sequences'  
+        index = alignment.index_minimap2(fastaPath, fileName, rootDir)
+
+    # When analysing viruses no index is needed:
+    else:
+        index = None
 
     ## 2. Create tuple list for multiprocessing
     tupleList = []
@@ -1314,14 +1201,9 @@ def search4junctions_metaclusters(metaclusters, refLengths, processes, minReads,
             allJunctions.append(junction)
             includedJunctions.append(junction.junctionCoord())
     
-    # NOTE 2020: Analyse solo-BNDs for viruses:
-    if viralDb:
-        analyse_BNDjunction_structure(allJunctions, reference, viralDb, outDir)
-    
     return allJunctions
 
-
-def analyse_BNDjunction_structure(allJunctions, reference, viralDb, outDir):
+def analyse_BNDjunction_structure(junction, reference, viralDb, outDir):
     '''
     Function to analyse BND_junction structure
     Input:
@@ -1335,86 +1217,95 @@ def analyse_BNDjunction_structure(allJunctions, reference, viralDb, outDir):
             - junction.bkpsConsSupport
     '''
 
-    for junction in allJunctions:
-        # TODO: REMOVE this line: junction = BND_junction
-        # TODO: REMOVE this line: junction.bridge = <clusters.BRIDGE object at 0x7f7d9cf8f940> antes: {'TRANSDUCTION': {'6p24.1': <clusters.BRIDGE object at 0x7f891bff6b38>}, 'REPEAT': {}}
+    junctionOutDir = outDir +'/'+ junction.junctionCoord() 
+    unix.mkdir(junctionOutDir)
 
-        # Pick reads supporting the BND_junction  
-        junctionsList = junction.extractSupportingRead()
+    junctionPAFChain = None
 
-        # Pick the event that is present in both metaclusters and all bridges (which is the one with the highest number in junctionsList[1]) and, from those, pick the one with the lowest number os suppAlignments (which is the one with the lowest number in junctionsList[2])
-        # If there are many that match these conditions, just pick the first one.
-        # Pick metacluster events of the read that will be used as a template
-        metaclustersEvents = junctionsList[0][0]
+    #for junction in allJunctions:
+    # TODO: REMOVE this line: junction = BND_junction
+    # TODO: REMOVE this line: junction.bridge = <clusters.BRIDGE object at 0x7f7d9cf8f940> antes: {'TRANSDUCTION': {'6p24.1': <clusters.BRIDGE object at 0x7f891bff6b38>}, 'REPEAT': {}}
 
-        # Pick the read coordinates that delimit the BND_junction
-        # TODO: int instead of a list
-        junctionInterval=[]
-        # Pick event which sequence will be used as template
-        templateEvent = junctionsList[0][0][0]
-        junctionInterval.append(templateEvent.readBkp)
+    # Pick reads supporting the BND_junction  
+    junctionsList = junction.extractSupportingRead()
 
-        # Get consensus sequence from all reads
-        polishedFastaEntireSequence = get_consensus_BNDjunction(templateEvent, junctionsList, outDir)
+    # Pick the event that is present in both metaclusters and all bridges (which is the one with the highest number in junctionsList[1]) and, from those, pick the one with the lowest number os suppAlignments (which is the one with the lowest number in junctionsList[2])
+    # If there are many that match these conditions, just pick the first one.
+    # Pick metacluster events of the read that will be used as a template
+    metaclustersEvents = junctionsList[0][0]
 
-        # TODO: remove junctionsList
-        # Get consensus sequence that spans the BND_junction +- 1000bp
-        # NOTE 2020: New EGA 2020
-        # TODO 2020: Put these checks in a good way
-        if polishedFastaEntireSequence:
-            if os.stat(polishedFastaEntireSequence).st_size !=0 :
-                polishedFastaInterval, polishedFastaIntervalObj = junction.get_consensus_BNDInterval(polishedFastaEntireSequence, junctionInterval, outDir)
+    # Pick the read coordinates that delimit the BND_junction
+    # TODO: int instead of a list
+    junctionInterval=[]
+    # Pick event which sequence will be used as template
+    templateEvent = junctionsList[0][0][0]
+    junctionInterval.append(templateEvent.readBkp)
 
-                # Get reference coordinates to perform target alignment
-                targetIntervalList = []
-                # metaclusterA
-                offset = 1000
-                intervalBeg = junction.metaclusterA.bkpPos - offset if junction.metaclusterA.bkpPos - offset >= 0 else 0 ## Set lower bound
-                intervalEnd = junction.metaclusterA.bkpPos + offset if junction.metaclusterA.bkpPos + offset >= 0 else 0 ## Set lower bound
-                intervalCoord = junction.metaclusterA.ref + ':' + str(min([intervalBeg,intervalEnd])) + '-' + str(max([intervalBeg,intervalEnd]))
+    # Get consensus sequence from all reads
+    polishedFastaEntireSequence = get_consensus_BNDjunction(templateEvent, junctionsList, junctionOutDir)
 
-                targetIntervalList.append(intervalCoord)
-                # metaclusterB
-                # TODO: PUT THIS IN A FUNCTION SO WE DONT HAVE TO REPEAT IT
-                offset = 1000
-                intervalBeg = junction.metaclusterB.bkpPos - offset if junction.metaclusterB.bkpPos - offset >= 0 else 0 ## Set lower bound
-                intervalEnd = junction.metaclusterB.bkpPos + offset if junction.metaclusterB.bkpPos + offset >= 0 else 0 ## Set lower bound
-                intervalCoord = junction.metaclusterB.ref + ':' + str(min([intervalBeg,intervalEnd])) + '-' + str(max([intervalBeg,intervalEnd]))
-                
+    # TODO: remove junctionsList
+    # Get consensus sequence that spans the BND_junction +- 1000bp
+    # NOTE 2020: New EGA 2020
+    # TODO 2020: Put these checks in a good way
+    if polishedFastaEntireSequence:
+        if os.stat(polishedFastaEntireSequence).st_size !=0 :
+            polishedFastaInterval, polishedFastaIntervalObj = junction.get_consensus_BNDInterval(polishedFastaEntireSequence, junctionInterval, junctionOutDir)
 
-                targetIntervalList.append(intervalCoord)
+            # Get reference coordinates to perform target alignment
+            targetIntervalList = []
+            # metaclusterA
+            offset = 1000
+            intervalBeg = junction.metaclusterA.bkpPos - offset if junction.metaclusterA.bkpPos - offset >= 0 else 0 ## Set lower bound
+            intervalEnd = junction.metaclusterA.bkpPos + offset if junction.metaclusterA.bkpPos + offset >= 0 else 0 ## Set lower bound
+            intervalCoord = junction.metaclusterA.ref + ':' + str(min([intervalBeg,intervalEnd])) + '-' + str(max([intervalBeg,intervalEnd]))
 
-                # TODO: fix reference file
-                #target = sequences.create_targeted_fasta(targetIntervalList, reference, outDir)
-                # Target reference from coordinates to perform target alignment
-                target = sequences.create_targeted_fasta(targetIntervalList, reference, outDir)
+            targetIntervalList.append(intervalCoord)
+            # metaclusterB
+            # TODO: PUT THIS IN A FUNCTION SO WE DONT HAVE TO REPEAT IT
+            offset = 1000
+            intervalBeg = junction.metaclusterB.bkpPos - offset if junction.metaclusterB.bkpPos - offset >= 0 else 0 ## Set lower bound
+            intervalEnd = junction.metaclusterB.bkpPos + offset if junction.metaclusterB.bkpPos + offset >= 0 else 0 ## Set lower bound
+            intervalCoord = junction.metaclusterB.ref + ':' + str(min([intervalBeg,intervalEnd])) + '-' + str(max([intervalBeg,intervalEnd]))
+            
 
-                junctionPAFChain = junction.get_BNDjunction_chain(polishedFastaInterval, target, viralDb, outDir)
+            targetIntervalList.append(intervalCoord)
 
-        if junctionPAFChain:
-            aligTNames, aligCoordinates = junction.get_consensus_BNDSeq(junctionPAFChain, polishedFastaIntervalObj)
-            junction.analyse_BNDjunction_bridge(aligTNames, aligCoordinates, polishedFastaIntervalObj, viralDb, outDir)
-            junction.consensusBNDjunction_support_Bkps(junctionPAFChain)
+            # TODO: fix reference file
+            #target = sequences.create_targeted_fasta(targetIntervalList, reference, outDir)
+            # Target reference from coordinates to perform target alignment
 
-            '''
-            # TODO: think if necessary
-            # Check if the pieces are close or there is space between them
-            alignmentsGaps = []
-            for alig in junctionPAFChain.alignments:
-                beg = alig.qBeg
-                if beg == junctionPAFChain.interval()[0]:
-                    end = alig.qEnd
-                else:
-                    beg = alig.qBeg
-                    alignmentsGaps.append(beg-end)
-                    end = alig.qEnd
+            target = sequences.create_targeted_fasta(targetIntervalList, reference, junctionOutDir)
 
-            if max(alignmentsGaps) > 100:
-                print ('Gap')
+            junctionPAFChain = junction.get_BNDjunction_chain(polishedFastaInterval, target, viralDb, junctionOutDir)
+
+    if junctionPAFChain:
+        aligTNames, aligCoordinates = junction.get_consensus_BNDSeq(junctionPAFChain, polishedFastaIntervalObj)
+        junction.analyse_BNDjunction_bridge(aligTNames, aligCoordinates, polishedFastaIntervalObj, viralDb, junctionOutDir)
+        junction.consensusBNDjunction_support_Bkps(junctionPAFChain)
+
+        '''
+        # TODO: think if necessary
+        # Check if the pieces are close or there is space between them
+        alignmentsGaps = []
+        for alig in junctionPAFChain.alignments:
+            beg = alig.qBeg
+            if beg == junctionPAFChain.interval()[0]:
+                end = alig.qEnd
             else:
-                print ('No gap')
-            '''
-            # TODO: Check if bridge element correponds to bridge type: if not WARNING.
+                beg = alig.qBeg
+                alignmentsGaps.append(beg-end)
+                end = alig.qEnd
+
+        if max(alignmentsGaps) > 100:
+            print ('Gap')
+        else:
+            print ('No gap')
+        '''
+        # TODO: Check if bridge element correponds to bridge type: if not WARNING.
+    #unix.rm([junctionOutDir])
+
+    return junction
 
 def get_consensus_BNDjunction(templateEvent, junctionsList, outDir):
     '''
@@ -1968,6 +1859,50 @@ class SUPPLEMENTARY_cluster(cluster):
         self.annot = None
         self.bridge = False
         self.bridgeInfo = {}
+        self.orientation = None
+    
+    def clippOrientation(self):
+        '''
+        Determine cluster bkp side
+        '''
+        # 1. Collect supplementary events clipping sides
+        [event.clippingSide() for event in self.events]
+        clipSides = set([event.clipSide for event in self.events])
+        
+        # 2. Set supplementary cluster bkp side
+        if clipSides == {'left', 'right'}:
+            self.orientation = 'RECIPROCAL'
+            
+        elif clipSides == {'right'}:
+            self.orientation = 'PLUS'
+            
+        elif clipSides == {'left'}:
+            self.orientation = 'MINUS'
+
+    def inferBkp_shortReads(self):
+        '''
+        Compute and return breakpoint position for PE short reads
+        '''
+        # Determine cluster bkp side
+        if self.orientation == None:
+            self.clippOrientation()
+        
+        # a) Breakpoint on the left
+        if self.orientation == 'MINUS':
+            coordList = [event.beg for event in self.events]
+            bkpPos = max(set(coordList), key=coordList.count)
+
+        # b) Breakpoint on the right
+        elif self.orientation == 'PLUS':
+            coordList = [event.end for event in self.events]
+            bkpPos = max(set(coordList), key=coordList.count)
+        
+        # c) If orientation reciprocal or unknown, return coordinate with max nb of counts
+        else:
+            coordList = [event.beg for event in self.events] + [event.end for event in self.events]
+            bkpPos = max(set(coordList), key=coordList.count)
+        
+        return bkpPos
 
     def bkpPos(self):
         '''
@@ -2033,7 +1968,8 @@ class SUPPLEMENTARY_cluster(cluster):
         self.bridge, supportType, bridgeType, bridgeSeq, bridgeLen, family, srcId = self.supports_unaligned_bridge(index, viralDb, outDir)
 
         ## 2. If bridge not found search for supplementary alignment supporting a bridge (algorithm 2)
-        if self.bridge is False:
+        # If there is viralDb, dont look for aligned bridges (since viruses are not supposed to be aligned in the genome)
+        if self.bridge is False and not viralDb:
             self.bridge, supportType, bridgeType, bridgeSeq, bridgeLen, family, srcId = self.supports_aligned_bridge(maxBridgeLen, minMatchPerc, minReads, minPercReads, annotations)
 
         self.bridgeInfo['supportType'] = supportType
@@ -2108,23 +2044,39 @@ class SUPPLEMENTARY_cluster(cluster):
             fasta.write(insertPath)
 
             ## Infer structure
-            structure = retrotransposons.retrotransposon_structure(insertPath, index, outDir)
+            # Look for retrotransposons if there is not viralDb.
+            if not viralDb:
+                structure = retrotransposons.retrotransposon_structure(insertPath, index, outDir)
 
-            # a) Resolved structure
-            if ('INS_TYPE' in structure) and (structure['INS_TYPE'] is not 'unknown') and ('PERC_RESOLVED' in structure) and (structure['PERC_RESOLVED'] >= 60):
-                bridge = True
-                supportType = 'unaligned'
-                bridgeType = structure['INS_TYPE']  
-                bridgeSeq = self.representative.insertSeq
-                bridgeLen = self.representative.insertSize
-                family = ','.join(structure['FAMILY']) 
-                srcId = ','.join(structure['CYTOBAND']) if ('CYTOBAND' in structure and structure['CYTOBAND']) else None
-
-            # b) Unresolved structure
-            else:
-                structure = virus.virus_structure(insertPath, viralDb, outDir)
-
+                # a) Resolved structure
                 if ('INS_TYPE' in structure) and (structure['INS_TYPE'] is not 'unknown') and ('PERC_RESOLVED' in structure) and (structure['PERC_RESOLVED'] >= 60):
+                    bridge = True
+                    supportType = 'unaligned'
+                    bridgeType = structure['INS_TYPE']  
+                    bridgeSeq = self.representative.insertSeq
+                    bridgeLen = self.representative.insertSize
+                    family = ','.join(structure['FAMILY']) 
+                    srcId = ','.join(structure['CYTOBAND']) if ('CYTOBAND' in structure and structure['CYTOBAND']) else None
+
+                # b) Unresolved structure
+                else: 
+                    bridge = True
+                    supportType = 'unaligned'
+                    bridgeType = 'unknown'
+                    bridgeSeq = self.representative.insertSeq
+                    bridgeLen = self.representative.insertSize
+                    family = None
+                    srcId = None
+
+            # Look for viruses if there is viralDb.
+            else:
+                structure = virusLR.virus_structure(insertPath, viralDb, outDir)
+
+
+                # a) Resolved structure
+                # TEMP
+                if ('INS_TYPE' in structure) and (structure['INS_TYPE'] is not 'unknown') and ('PERC_RESOLVED' in structure) and (structure['PERC_RESOLVED'] >= 0):
+                #if ('INS_TYPE' in structure) and (structure['INS_TYPE'] is not 'unknown') and ('PERC_RESOLVED' in structure) and (structure['PERC_RESOLVED'] >= 60):
                     bridge = True
                     supportType = 'unaligned'
                     bridgeType = structure['INS_TYPE']
@@ -2134,6 +2086,7 @@ class SUPPLEMENTARY_cluster(cluster):
                     ## TODO: add virusDsc to output
                     srcId = ','.join(structure['CYTOBAND']) if ('CYTOBAND' in structure and structure['CYTOBAND']) else None
 
+                # b) Unresolved structure
                 else: 
                     bridge = True
                     supportType = 'unaligned'
@@ -2288,7 +2241,7 @@ class DISCORDANT_cluster(cluster):
         self.identity = self.events[0].identity
         self.orientation = self.events[0].orientation
         self.element = self.events[0].element
-
+            
         if all (event.orientation == 'PLUS' for event in events):
             self.orientation = 'PLUS'
         elif all (event.orientation == 'MINUS' for event in events):
@@ -2321,7 +2274,7 @@ class DISCORDANT_cluster(cluster):
 
         ## 2. Create discordant cluster for mates
         matesCluster = DISCORDANT_cluster(mates)
-
+        
         return matesCluster
 
 class META_cluster():
@@ -2343,7 +2296,7 @@ class META_cluster():
         self.ref, self.beg, self.end = self.coordinates()
         self.refLeftBkp = None
         self.refRightBkp = None
-
+        
         # Organize events into subclusters
         self.subclusters = self.create_subclusters()
         # NOTE MERGE SR2020: To avoid key META error in clustering.reciprocal_overlap_clustering
@@ -2366,10 +2319,12 @@ class META_cluster():
         self.intRightBkp = None
         self.rightClipType = None
         self.leftClipType = None
+        self.identity = None
 
-        # Shotr reads:
+        # Short reads:
         if hasattr(self.events[0], 'identity'):
             self.identity = self.events[0].identity
+            
         if hasattr(clusters[0], 'orientation'):
             if all (cluster.orientation == 'PLUS' for cluster in clusters):
                 self.orientation = 'PLUS'
@@ -2772,14 +2727,8 @@ class META_cluster():
     def nbDISCORDANT(self):
         '''
         Return the number of discordant events composing the metacluster. 
-        '''        
-        nbDISCORDANT = 0   
-
-        # For each event composing the metacluster
-        for event in self.events:
-
-            if event.type == 'DISCORDANT':
-                nbDISCORDANT += 1
+        '''                       
+        nbDISCORDANT = len(set([event.readName for event in self.events if event.type == 'DISCORDANT']))
 
         return nbDISCORDANT
 
@@ -2787,14 +2736,8 @@ class META_cluster():
         '''
         Return the number of discordant events composing the metacluster. 
         '''        
-        nbSUPPL = 0   
-
-        # For each event composing the metacluster
-        for event in self.events:
-
-            if event.type == 'SUPPLEMENTARY':
-                nbSUPPL += 1
-
+        nbSUPPL = len(set([event.readName for event in self.events if event.type == 'SUPPLEMENTARY']))
+        
         return nbSUPPL
 
     def supportingCLIPPING(self, buffer, confDict, bam, normalBam, mode):
@@ -3071,9 +3014,10 @@ class META_cluster():
             if is_INS:
                 self.SV_type = 'INS'
 
-            ## b) Double clippings not support an INS
+            # CHANGE 2020!
+            ## b) Double clippings not support an INS, but they are still BND
             else: 
-                self.SV_type = None
+                self.SV_type = 'INS_noOverlap'
 
         ## D) Metacluster only composed by one clipping side (left or right) -> break end
         elif (len(subClusterTypes) == 1) and (('RIGHT-CLIPPING' in subClusterTypes) or ('LEFT-CLIPPING' in subClusterTypes)):
@@ -3365,7 +3309,7 @@ class META_cluster():
         return junctions
         
 
-    def determine_INS_type(self, hits_genome, hits_splicing, hits_viral, repeatsDb, transducedDb, exonsDb):
+    def determine_INS_type(self, hits_genome, hits_splicing, hits_viral, repeatsDb, transducedDb, exonsDb, types2Search=['EXPANSION','DUP','INTERSPERSED','PSEUDOGENE']):
         '''
         Determine the type of insertion based on the alignments of the inserted sequence on the reference genome
 
@@ -3376,90 +3320,151 @@ class META_cluster():
             4. repeatsDb: bin database containing annotated repeats in the reference. None if not available
             5. transducedDb: bin database containing regions transduced by source elements. None if not available
             6. exonsDb: bin database containing annotated exons. None if not available. 
+            7. types2Search: Comma separated list containing insertion types to look for. Default: ['EXPANSION','DUP','INTERSPERSED','PSEUDOGENE']
 
         Output: Add INS type annotation to the attribute SV_features
         ''' 
         ## 0. Abort if consensus event not available 
-        if self.consensusEvent is None:
+        if self.consensusEvent is None and 'VIRUS' not in types2Search:
             self.SV_features['INS_TYPE'] = 'unknown'
             self.SV_features['PERC_RESOLVED'] = 0
             return 
 
         ## 1. Assess if input sequence corresponds to a repeat expansion
-        is_EXPANSION, self.insertHits = self.is_expansion(hits_genome, repeatsDb)
+        if 'EXPANSION' in types2Search:
+            is_EXPANSION, self.insertHits = self.is_expansion(hits_genome, repeatsDb)
 
-        # Stop if insertion is a expansion
-        if is_EXPANSION:
-            return
+            # Stop if insertion is a expansion
+            if is_EXPANSION:
+                return
 
         ## 2. Assess if input sequence corresponds to duplication 
-        is_DUP, self.insertHits = self.is_duplication(hits_genome, 100)
+        if 'DUP' in types2Search:
+            is_DUP, self.insertHits = self.is_duplication(hits_genome, 100)
 
-        # Stop if insertion is a duplication
-        if is_DUP:
-            return
+            # Stop if insertion is a duplication
+            if is_DUP:
+                return
 
 
         ## 3. Assess if input sequence corresponds to solo interspersed insertion or transduction
         # Note: return boolean as well specifying if interspersed or not
-        is_INTERSPERSED, INS_features, self.insertHits = retrotransposons.is_interspersed_ins(self.consensusEvent.pick_insert(), hits_genome, repeatsDb, transducedDb)
+        if 'INTERSPERSED' in types2Search:
+            is_INTERSPERSED, INS_features, self.insertHits = retrotransposons.is_interspersed_ins(self.consensusEvent.pick_insert(), hits_genome, repeatsDb, transducedDb)
 
-        # Update metacluster with insertion features
-        self.SV_features.update(INS_features) 
-
-        # Stop if insertion is a interspersed insertion
-        if is_INTERSPERSED:
-            return    
-
-        ## 4. Assess if input sequence corresponds to processed pseudogene insertion
-        is_PSEUDOGENE, outHits = self.is_processed_pseudogene(hits_splicing, exonsDb)
-
-        # Stop if insertion is a processed pseudogene
-        if is_PSEUDOGENE:
-            return    
-
-        ## 5. Assess if input sequence corresponds to a viral insertion
-        is_VIRUS, INS_features = self.is_VIRUS(hits_viral)
-
-        # Stop if insertion is a viral insertion
-        if is_VIRUS:
             # Update metacluster with insertion features
             self.SV_features.update(INS_features) 
-            return
 
-    def is_VIRUS(self, PAF):
+            # Stop if insertion is a interspersed insertion
+            if is_INTERSPERSED:
+                return    
+
+        ## 4. Assess if input sequence corresponds to processed pseudogene insertion
+        if 'PSEUDOGENE' in types2Search:
+            is_PSEUDOGENE, outHits = self.is_processed_pseudogene(hits_splicing, exonsDb)
+
+            # Stop if insertion is a processed pseudogene
+            if is_PSEUDOGENE:
+                return    
+
+        ## 5. Assess if input sequence corresponds to a viral insertion
+        if 'VIRUS' in types2Search:
+            is_VIRUS, INS_features = self.is_VIRUS(hits_viral)
+
+            # Stop if insertion is a viral insertion
+            if is_VIRUS:
+                # Update metacluster with insertion features
+                self.SV_features.update(INS_features) 
+                return is_VIRUS
+
+    def is_VIRUS(self, PAF, side=None):
         '''
         Determine if input sequence corresponds to a viral insertion
 
         Input:
             1. PAF: PAF object containing input sequence alignments on the reference genome
+            2. side: para los INS_noOverlap, saber que lado se esta analizando
         Output:
             1. VIRUS: Boolean specifying if inserted sequence corresponds to a virus (True) or not (False)
             2. INS_features: dictionary containing viral insertion features
         '''
         INS_features = {}
+        identity = []
+        specificIdentity = []
+        
 
-        ## 0. Abort if no hit available
+        print ('self.SV_type ' + str(self.SV_type))
+        print ('self.beg ' + str(self.beg))
+
+        ## 0a. Abort if no PAF available
+        if not PAF:
+            print ('Start not PAF')
+            VIRUS = False
+            INS_features['INS_TYPE'] = 'unknown'
+            INS_features['PERC_RESOLVED'] = 0
+
+            return VIRUS, INS_features
+
+        ## 0b. Abort if no hit available
         if not PAF.alignments:
-
+            print ('Start not PAF.alignments')
             VIRUS = False
             INS_features['INS_TYPE'] = 'unknown'
             INS_features['PERC_RESOLVED'] = 0
 
             return VIRUS, INS_features
         
-        chain = PAF.chain(300, 20)
-        print ('PAFchain ' + str(chain.alignments))
-        ## Identify it as a viral insertion if percentage of query covered is higher than 0.80
-        percVirus = chain.perc_query_covered()
-        if percVirus > 0:
-        	VIRUS = True
-        	INS_features['INS_TYPE'] = 'viral'
-        	INS_features['PERC_RESOLVED'] = percVirus
-        else:
-            VIRUS = False
-            INS_features['INS_TYPE'] = 'unknown'
-            INS_features['PERC_RESOLVED'] = 0
+        if self.SV_type == 'INS':
+            # TODO: pedir un minimo
+            #chain = PAF.chain(300, 20)
+            chain = PAF.chain(300, 50)
+            print ('PAFchain ' + str(chain.alignments))
+            ## Identify it as a viral insertion if percentage of query covered is higher than 0.80
+            percVirus = chain.perc_query_covered()
+            # TODO: Poner in threshold!!
+            if percVirus > 0:
+                VIRUS = True
+                INS_features['INS_TYPE'] = 'viral'
+                INS_features['PERC_RESOLVED'] = percVirus
+                for ali in PAF.alignments:
+                    splitedtName = ali.tName.split('|')
+                    identity.append(splitedtName[0])
+                    if len(splitedtName) > 1:
+                        specificIdentity.append(splitedtName[1])
+                INS_features['IDENTITY'] = set(identity)
+                if specificIdentity:
+                    INS_features['SPECIDENTITY'] = specificIdentity
+            else:
+                VIRUS = False
+                INS_features['INS_TYPE'] = 'unknown'
+                INS_features['PERC_RESOLVED'] = 0
+                INS_features['IDENTITY'] = None
+
+        elif 'BND' in self.SV_type:
+            VIRUS = True
+            INS_features['INS_TYPE'] = 'viral'
+            for ali in PAF.alignments:
+                splitedtName = ali.tName.split('|')
+                identity.append(splitedtName[0])
+                if len(splitedtName) > 1:
+                    specificIdentity.append(splitedtName[1])
+            INS_features['IDENTITY'] = set(identity)
+            if specificIdentity:
+                INS_features['SPECIDENTITY'] = specificIdentity
+
+        elif 'INS_noOverlap' in self.SV_type:
+            VIRUS = True
+            INS_features[side] = 'viral'
+            INS_features['IDENTITY'] = 'viral'
+            for ali in PAF.alignments:
+                splitedtName = ali.tName.split('|')
+                identity.append(splitedtName[0])
+                if len(splitedtName) > 1:
+                    specificIdentity.append(splitedtName[1])
+            INS_features['IDENTITY_' + side] = set(identity)
+            if specificIdentity:
+                INS_features['SPECIDENTITY_' + side] = specificIdentity
+
         
         return VIRUS, INS_features
 
@@ -3925,6 +3930,7 @@ class BND_junction():
         self.junctionConsSeq = None
         self.bkpsConsSupport = None # Boolean telling if metaclsuters bkps are supported by consensus realignment with buffr of 100 bp
 
+        self.identity = None
 
     def junctionCoord(self):
         '''
@@ -4226,7 +4232,7 @@ class BND_junction():
                 # Look for viral structure
                 # TODO: change db path
                 # NOTE (EVA): This function was run before (in supports_unaligned_bridge) and I think it's quite redundant
-                structure = virus.virus_structure(polishedFastaBridgePath, viralDb, outDir)
+                structure = virusLR.virus_structure(polishedFastaBridgePath, viralDb, outDir)
 
                 if ('INS_TYPE' in structure) and (structure['INS_TYPE'] is not 'unknown') and ('PERC_RESOLVED' in structure) and (structure['PERC_RESOLVED'] >= 60):
                     # b) Unresolved structure
@@ -4310,14 +4316,17 @@ def metacluster_mate_suppl(discordants, leftClippings, rightClippings, minReads,
     '''
     ## 1. Create list of discordant mate clusters
     mateClusters = [discordant.create_matesCluster() for discordant in discordants]
-
+    
     ## 2. Create list of supplementary clusters
     supplClustersLeft = [clipping.supplCluster for clipping in leftClippings]
     supplClustersRight = [clipping.supplCluster for clipping in rightClippings]
     supplClusters = supplClustersLeft + supplClustersRight
     
+    ## 2.1. Fill supplementary cluster orientation attribute
+    [supplCluster.clippOrientation() for supplCluster in supplClusters]
+    
     ## 3. Organize discordant mate and suppl. clusters into a dictionary
-    mateDict = events.events2nestedDict(mateClusters, 'DISCORDANT')    
+    mateDict = events.events2nestedDict(mateClusters, 'DISCORDANT')
     supplDict = events.events2nestedDict(supplClusters, 'SUPPLEMENTARY')
     clustersDict = events.mergeNestedDict(mateDict, supplDict)
 
@@ -4329,7 +4338,7 @@ def metacluster_mate_suppl(discordants, leftClippings, rightClippings, minReads,
 
     for binDb in wgBinDb.values():
         
-        meta = clustering.reciprocal_overlap_clustering(binDb, 1, 1, binDb.eventTypes, 100, 'META')
+        meta = clustering.reciprocal_overlap_clustering(binDb, 1, 1, binDb.eventTypes, 500, 'META')
         allMeta = allMeta + meta
 
     ## 6. Filter metaclusters based on read support
@@ -4339,7 +4348,57 @@ def metacluster_mate_suppl(discordants, leftClippings, rightClippings, minReads,
 
         if meta.supportingReads()[0] >= minReads:
             filteredMeta.append(meta)
-
+    
     return filteredMeta
 
 
+def discCluster_from_readNames(readNames, ref, beg, end, bam, sample):
+    '''
+    Create discordant cluster from indicated reads in the region ref:beg-end. Useful to create cluster of mates having all the info.
+    
+    Input:
+    1. readNames: List of read names
+    2. ref
+    3. beg
+    4. end
+    5. bam: Bam file
+    6. sample: Sample type ['TUMOUR', 'NORMAL', None]
+    
+    Output: 
+    1. newCluster: Cluster of discordants 
+    '''
+    DISCORDANTS = []
+    
+    ## Open BAM file for reading
+    bamFile = pysam.AlignmentFile(bam, "rb")
+
+    ## Extract alignments
+    iterator = bamFile.fetch(ref, beg, end)
+    
+    # For each read alignment
+    for alignmentObj in iterator:
+        
+        if alignmentObj.query_name in readNames:
+            
+            ## 1. Determine discordant orientation
+            # a) Minus
+            if alignmentObj.is_reverse:
+                orientation = 'MINUS'
+
+            # b) Plus
+            else:
+                orientation = 'PLUS'
+            
+            ## 2. Determine if discordant is mate 1 or 2
+            if alignmentObj.is_read1:
+                pair = '1'
+
+            else:
+                pair = '2'
+           
+            DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, orientation, pair, alignmentObj.query_name, alignmentObj, sample, alignmentObj.is_duplicate)
+            DISCORDANTS.append(DISCORDANT)
+            
+    newCluster = create_cluster(DISCORDANTS, 'DISCORDANT')    
+    
+    return(newCluster)

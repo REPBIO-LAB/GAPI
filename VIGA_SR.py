@@ -6,6 +6,7 @@
 ####################
 
 # import basic internal module
+#import modules.check_dependencies as cd
 import check_dependencies as cd
 
 if __name__ == '__main__':
@@ -33,9 +34,8 @@ if __name__ == '__main__':
 
 	## 1. Define parser ##
 	### Mandatory arguments
-	parser = argparse.ArgumentParser(description='Call mobile element insertions (MEI) and viral integrations from second and third generation sequencing data. Two running modes: 1) SINGLE: individual sample; 2) PAIRED: tumour and matched normal sample')
+	parser = argparse.ArgumentParser(description='Call viral integrations from second generation sequencing data. Two running modes: 1) SINGLE: individual sample; 2) PAIRED: tumour and matched normal sample')
 	parser.add_argument('bam', help='Input bam file. Will correspond to the tumour sample in the PAIRED mode')
-	parser.add_argument('technology', help='Sequencing technology used to generate the data (NANOPORE, PACBIO, ILLUMINA or SURESELECT)')
 	parser.add_argument('reference', help='Reference genome in fasta format. An index of the reference generated with samtools faidx must be located in the same directory')
 	parser.add_argument('refDir', help='Directory containing reference databases (consensus sequences, source elements...)')
 
@@ -44,9 +44,6 @@ if __name__ == '__main__':
 	parser.add_argument('--species', default='Homo sapiens', dest='species', help='Target species. Default: Homo sapiens')
 	parser.add_argument('--build', default='GRCh37', dest='build', help='Reference genome build. Default: GRCh37')
 	parser.add_argument('--normalBam', default=None, dest='normalBam', help='Matched normal bam file. If provided MEIGA will run in PAIRED mode')
-	parser.add_argument('--germlineMEI', default=None, dest='germlineMEI', help='Bed file containing set of known germline MEI')
-	parser.add_argument('--transduction-search', action="store_true", default=False, dest='transductionSearch', help='Enable transduction search. If not enabled only solo events will be identified')
-	parser.add_argument('--source-families', default=None, dest='srcFamilies', type=str, help='Comma separated list of possible families for source elements mediating transductions. Default: None. Mandatory if transduction search enabled')
 	parser.add_argument('--gene-annot-dir', default=None, dest='annovarDir', help='Directory containing annovar reference files for gene-based annotation of MEI breakpoints. If not provided gene annotation step will be skipped')
 	parser.add_argument('--polishing-rounds', default=1, dest='rounds', type=int, help='Number of polishing rounds to be attempted. Default: 1')
 	parser.add_argument('-p', '--processes', default=1, dest='processes', type=int, help='Number of processes. Default: 1')
@@ -62,11 +59,11 @@ if __name__ == '__main__':
 	parser.add_argument('--readFilters', default="SMS", dest='readFilters', type=str, help='Comma separated list of read filters to apply (SMS)')
 	parser.add_argument('--readOverhang', default=5000, dest='overhang', type=int, help='Number of flanking base pairs around the SV event to be collected from the supporting read sequence. Default: 5000')
 	parser.add_argument('--minINDELlen', default=50, dest='minINDELlen', type=int, help='Minimum indel length. Default: 50')
-	parser.add_argument('--minCLIPPINGlen', default=None, dest='minCLIPPINGlen', type=int, help='Minimum clipped sequence length for each read. Default [ILLUMINA, SURESELECT]: 20; [NANOPORE, PACBIO]: 500')
+	parser.add_argument('--minCLIPPINGlen', default=5, dest='minCLIPPINGlen', type=int, help='Minimum clipped sequence length for each read. Default [ILLUMINA, SURESELECT]: 20; [NANOPORE, PACBIO]: 500')
 	
 	## Clustering
 	parser.add_argument('--INSdist', default=250, dest='maxInsDist', type=int, help='Maximum distance bewteen two adjacent INS to be clustered together (Between 0-999). Default: 250')
-	parser.add_argument('--BKPdist', default=50, dest='maxBkpDist', type=int, help='Maximum distance bewteen two adjacent breakpoints for CLIPPING clustering (Between 0-999). Default: 250')
+	parser.add_argument('--BKPdist', default=300, dest='maxBkpDist', type=int, help='Maximum distance bewteen two adjacent breakpoints for CLIPPING clustering (Between 0-999). Default: 250')
 	parser.add_argument('--minPercOverlap', default=70, dest='minPercRcplOverlap', type=int, help='Minimum percentage of reciprocal overlap for DEL clustering. Default: 70')
 	parser.add_argument('--equalOrientBuffer', default=200, dest='equalOrientBuffer', type=int, help='Distance between reads that are equally oriented. Default: 200')
 	parser.add_argument('--oppositeOrientBuffer', default=600, dest='oppositeOrientBuffer', type=int, help='Distance between reads that are opposite oriented. Default: 600')
@@ -89,21 +86,15 @@ if __name__ == '__main__':
 	parser.add_argument('--minReadsRegionMQ', default=10, dest='minReadsRegionMQ', type=int, help='Surrounding reads above this MQ are considered low MQ reads. Default: 10')
 	parser.add_argument('--maxRegionlowMQ', default=0.3, dest='maxRegionlowMQ', type=int, help='Maximum percentage of lowMAPQ/nbReads in cluster´s region. Default: 0.3')
 	parser.add_argument('--maxRegionSMS', default=0.15, dest='maxRegionSMS', type=int, help='Maximum percentage of SMS clipping reads in cluster´s region. Default: 0.15')
-	parser.add_argument('--INT2Search', default="ME,VIRUS", dest='INT2Search', type=str, help='Comma separated list of insertion types to collect (Mobile Elements (ME),VIRUS). Default: ME,VIRUS')
 	parser.add_argument('--komplexityThreshold', default=0.4, dest='komplexityThreshold', type=float, help='Threshold for filtering mates sequence with komplexity tool. Default: 0.4')
 	parser.add_argument('--discordantMatesMaxMAPQ', default=20, dest='discordantMatesMaxMAPQ', type=int, help='Maximum mapping quality used for collecting dicordant read mates. Default: 20')
 	parser.add_argument('--no-discordantMatesCheckUnmapped', action="store_false", default=True, dest='discordantMatesCheckUnmapped', help='If not selected, when a dicordant read mate is unmapped, collect it no matter its MAPQ. If selected, mapping state is not checked.')
 	parser.add_argument('--no-discordantMatesSupplementary', action="store_false", default=True, dest='discordantMatesSupplementary', help='When selected, avoid collecting dicordant read mates that are supplementary alignments.')
 	parser.add_argument('--discordantMatesMaxBasePerc', default=85, dest='discordantMatesMaxBasePerc', type=int, help='Maximum base percentage of discordant read mates sequences. Default: 85')
 	parser.add_argument('--discordantMatesMinLcc', default=1.49, dest='discordantMatesMinLcc', type=float, help='Minimum local complexity of discordant read mates sequences. Default: 1.49')
-	parser.add_argument('--MEDB', default=None, dest='MEDB', type=str, help='Path to ME database used for analysing metacluster bkp.')
 	parser.add_argument('--filtersBfClip', default="MAX-NBREADS,AREAMAPQ,AREASMS,IDENTITY", dest='filtersBfClip', type=str, help='Comma separated list of filters to apply before adding clippings to metaclusters. Default: MAX-NBREADS,AREAMAPQ,AREASMS,IDENTITY')
 	parser.add_argument('--filtersAfClip', default="MIN-NBREADS,MAX-NBREADS", dest='filtersAfClip', type=str, help='Comma separated list of filters to apply after adding clippings to metaclusters. Default: MIN-NBREADS, MAX-NBREADS')
 	parser.add_argument('--analyseFiltered', action="store_true", default=False, dest='analyseFiltered', help='If selected, add clippings and analyse breakpoint of those metaclusters that do not PASS selected filters.')
-	
- 	# RetroTest
-	parser.add_argument('--blatClip', action="store_true", default=False, dest='blatClip', help='When selected, blat realignment will be performed with clippings. Higher sensitivity, but time-consuming. Default: False')
-	parser.add_argument('--retroTestWGS', action="store_true", default=False, dest='retroTestWGS', help='Apply Retrotest method on WGS data. Default: False')
 	
 	# Filtering viral bam
 	parser.add_argument('--minTotalMatchVirus', default=40, dest='minTotalMatchVirus', type=int, help='Minimum total matches of a read against viral DB. Default: 40.')
@@ -126,7 +117,6 @@ if __name__ == '__main__':
 
 	### Mandatory arguments
 	bam = args.bam
-	technology = args.technology
 	reference = args.reference
 	refDir = args.refDir
 
@@ -135,9 +125,6 @@ if __name__ == '__main__':
 	species = args.species
 	build = args.build
 	normalBam = args.normalBam
-	germlineMEI = args.germlineMEI
-	transductionSearch = args.transductionSearch
-	srcFamilies = args.srcFamilies
 	annovarDir = args.annovarDir
 	rounds = args.rounds
 	processes = args.processes
@@ -179,14 +166,12 @@ if __name__ == '__main__':
 	minReadsRegionMQ = args.minReadsRegionMQ
 	maxRegionlowMQ = args.maxRegionlowMQ
 	maxRegionSMS = args.maxRegionSMS
-	INT2Search = args.INT2Search
 	komplexityThreshold = args.komplexityThreshold
 	discordantMatesMaxMAPQ = args.discordantMatesMaxMAPQ
 	discordantMatesCheckUnmapped = args.discordantMatesCheckUnmapped
 	discordantMatesSupplementary = args.discordantMatesSupplementary
 	discordantMatesMaxBasePerc = args.discordantMatesMaxBasePerc
 	discordantMatesMinLcc = args.discordantMatesMinLcc
-	MEDB = args.MEDB
 	filtersBfClip = args.filtersBfClip
 	filtersAfClip = args.filtersAfClip
 	analyseFiltered = args.analyseFiltered
@@ -198,10 +183,6 @@ if __name__ == '__main__':
 	maxBasePercVirus = args.maxBasePercVirus
 	minLccVirus = args.minLccVirus
 
-	# RetroTest
-	blatClip = args.blatClip
-	retroTestWGS = args.retroTestWGS
-	
 	# Ouput
 	VCFInfoFields = args.VCFInfoFields
 	annotRepeats = args.annotRepeats
@@ -221,7 +202,7 @@ if __name__ == '__main__':
 	###################################################################
 	
 	# load Internal
-	import callers
+	import VIGA_SR.call_VIGASR as call_VIGASR
 	import log
 	import bamtools
 
@@ -236,7 +217,7 @@ if __name__ == '__main__':
 	###################################################################
 	
 	# load Internal
-	import callers
+	import VIGA_SR.call_VIGASR as call_VIGASR
 	import log
 	import bamtools
 
@@ -247,18 +228,12 @@ if __name__ == '__main__':
 	# Convert comma-separated string inputs into lists:
 	targetSV = targetSV.split(',')
 	targetRefs = refs.split(',')
-	targetINT2Search = INT2Search.split(',')
 	targetVCFInfoFields = VCFInfoFields.split(',')
 	filtersBfClipList = filtersBfClip.split(',')
 	filtersAfClipList = filtersAfClip.split(',')
 
 	## Determine running mode:
 	mode = 'SINGLE' if normalBam == None else 'PAIRED'
-
-	## If unknown technology provided raise an error and exit 
-	if technology not in ['NANOPORE', 'PACBIO', 'ILLUMINA', 'SURESELECT']:
-		log.info('[ERROR] Abort execution as ' + technology + ' technology not supported')
-		sys.exit(1)
 
 	## Abort if SV unknown SV type provided
 
@@ -267,24 +242,17 @@ if __name__ == '__main__':
 			log.info('[ERROR] Abort execution as ' + SV_type + ' SV type not supported')
 			sys.exit(1)
 			
-
-	## Abort if transduction search enabled and target families for source elements not provided
-	if (transductionSearch) and (srcFamilies is None):
-		log.info('[ERROR] Abort execution as transduction search enabled (--transduction-search) and target families for source elements not provided (--source-families)')
-		sys.exit(1)	
-
 	##############################################
 	## Display configuration to standard output ##
 	##############################################
 	scriptName = os.path.basename(sys.argv[0])
 	scriptName = os.path.splitext(scriptName)[0]
-	version='0.26.0'
+	version='0.22.0'
 
 	print()
 	print('***** ', scriptName, version, 'configuration *****')
 	print('*** Mandatory arguments ***')
 	print('bam: ', bam)
-	print('technology: ', technology)
 	print('reference: ', reference)
 	print('refDir: ', refDir, "\n")
 
@@ -294,9 +262,6 @@ if __name__ == '__main__':
 	print('species: ', species)
 	print('build: ', build)
 	print('normalBam: ', normalBam)
-	print('germlineMEI: ', germlineMEI)
-	print('transduction-search: ', transductionSearch)
-	print('source-families: ', srcFamilies)
 	print('gene-annot-dir: ', annovarDir)
 	print('polishing-rounds: ', rounds)
 	print('processes: ', processes)
@@ -312,8 +277,7 @@ if __name__ == '__main__':
 	print('readFilters: ', readFilters)
 	print('overhang: ', overhang)
 	print('minINDELlength: ', minINDELlen)
-	print('minCLIPPINGlength: ', minCLIPPINGlen)
-	print('targetINT2Search ', INT2Search, "\n")
+	print('minCLIPPINGlength: ', minCLIPPINGlen, "\n")
 
 	print('** Clustering **')
 	print('maxInsDist: ', maxInsDist)
@@ -342,7 +306,6 @@ if __name__ == '__main__':
 	print('discordantMatesSupplementary: ', discordantMatesSupplementary)
 	print('discordantMatesMaxBasePerc: ', discordantMatesMaxBasePerc)
 	print('discordantMatesMinLcc: ', discordantMatesMinLcc)
-	print('MEDB: ', MEDB)
 	print('minTotalMatchVirus', minTotalMatchVirus)
 	print('minParcialMatchVirus', minParcialMatchVirus)
 	print('maxMatchCheckMAPQVirus', maxMatchCheckMAPQVirus)
@@ -371,19 +334,15 @@ if __name__ == '__main__':
 	#######################################
 	confDict = {}
 
-	## Mandatory
-	confDict['technology'] = technology
-
 	## General
-	confDict['source'] = 'MEIGA-' + version
+	confDict['source'] = scriptName + version
 	confDict['species'] = species
 	confDict['build'] = build
-	confDict['germlineMEI'] = germlineMEI
-	confDict['transductionSearch'] = transductionSearch
-	confDict['srcFamilies'] = srcFamilies.split(',') if srcFamilies is not None else []
 	confDict['annovarDir'] = annovarDir
 	confDict['rounds'] = rounds
 	confDict['processes'] = processes
+	# Hardcoded (there are no other options)
+	confDict['targetINT2Search'] = ['VIRUS']
 
 	## BAM processing
 	confDict['targetBins'] = targetBins
@@ -399,25 +358,8 @@ if __name__ == '__main__':
 	## Target SV events to search for
 	confDict['targetSV'] = targetSV
 
-	## Technology specific parameters
-	# a) WGS illumina data (WGS)
-	if (confDict['technology'] == 'ILLUMINA'):
-		confDict['targetEvents'] = ['DISCORDANT']
-		if confDict['minCLIPPINGlen'] == None:
-			confDict['minCLIPPINGlen'] = 20
-
-	# b) Sureselect illumina data
-	elif (confDict['technology'] == 'SURESELECT'):
-		confDict['blatClip'] = blatClip
-		confDict['retroTestWGS'] = retroTestWGS
-		confDict['targetEvents'] = ['DISCORDANT', 'CLIPPING']
-		confDict['minNbDISCORDANT'] = minClusterSize
-		confDict['minNbCLIPPING'] = minClusterSize
-		if confDict['minCLIPPINGlen'] == None:
-			confDict['minCLIPPINGlen'] = 20
-
 	# c) Long read sequencing data -> INS or INS + BND
-	elif ('INS' in confDict['targetSV']):
+	if ('INS' in confDict['targetSV']):
 		confDict['targetEvents'] = ['INS', 'CLIPPING']
 		if confDict['minCLIPPINGlen'] == None:
 			confDict['minCLIPPINGlen'] = 500
@@ -454,14 +396,12 @@ if __name__ == '__main__':
 	confDict['minReadsRegionMQ'] = minReadsRegionMQ
 	confDict['maxRegionlowMQ'] = maxRegionlowMQ
 	confDict['maxRegionSMS'] = maxRegionSMS
-	confDict['targetINT2Search'] = targetINT2Search
 	confDict['komplexityThreshold'] = komplexityThreshold
 	confDict['discordantMatesMaxMAPQ'] = discordantMatesMaxMAPQ
 	confDict['discordantMatesCheckUnmapped'] = discordantMatesCheckUnmapped
 	confDict['discordantMatesSupplementary'] = discordantMatesSupplementary
 	confDict['discordantMatesMaxBasePerc'] = discordantMatesMaxBasePerc
 	confDict['discordantMatesMinLcc'] = discordantMatesMinLcc
-	confDict['MEDB'] = MEDB
 	confDict['filtersBfClip'] = filtersBfClipList
 	confDict['filtersAfClip'] = filtersAfClipList
 	confDict['analyseFiltered'] = analyseFiltered
@@ -484,17 +424,7 @@ if __name__ == '__main__':
 	###########################################
 
 	### Create caller
-	# A) Pacbio or Nanopore long reads 
-	if confDict['technology'] in ['NANOPORE', 'PACBIO']:
-		caller = callers.SV_caller_long(mode, bam, normalBam, reference, refDir, confDict, outDir)
-
-	# B) Illumina short reads
-	elif confDict['technology'] == 'ILLUMINA':
-		caller = callers.SV_caller_short(mode, bam, normalBam, reference, refDir, confDict, outDir)
-
-	# C) Source elements sureselect data
-	elif confDict['technology'] == 'SURESELECT':
-		caller = callers.SV_caller_sureselect(mode, bam, normalBam, reference, refDir, confDict, outDir)
+	caller = call_VIGASR.SV_caller_short(mode, bam, normalBam, reference, refDir, confDict, outDir)
 
 	### Do calling
 	caller.call()

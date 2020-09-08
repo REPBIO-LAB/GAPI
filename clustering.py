@@ -488,3 +488,5 @@ def distance_clustering_SR(events, minPercOverlap, minClusterSize, eventTypes, c
     #for meta in metaclustersList:
         #print ('META events ' + str(meta.ref) + ' ' + str(meta.beg) + ' ' + str(len(meta.events)) +' '+ str(meta.events[0].beg) + ' ' + str(meta.events[-1].beg) +' '+ str(meta.events[-1].beg - meta.events[0].beg))
     return metaclustersList
+
+

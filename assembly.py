@@ -222,8 +222,8 @@ def getConsensusSeq(FASTA_file, outDir):
             msg = 'Cons failed' 
             log.step(step, msg)
 
-        # 4. Check that consensus file is not empty
-        if not os.stat(consensusPath).st_size == 0:
+        # 4. Check that consensus file exists and is not empty
+        if os.path.exists(consensusPath) and not os.stat(consensusPath).st_size == 0:
             
             # 5. Read consensus sequence 
             consensusFastaObj = formats.FASTA()

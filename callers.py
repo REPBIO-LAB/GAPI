@@ -28,7 +28,7 @@ import bkp
 import filters
 import alignment
 import gRanges
-import virus
+import retrotransposons
 
 ## FUNCTIONS ##
 
@@ -779,18 +779,24 @@ class SV_caller_sureselect(SV_caller):
 
     def call(self):
         '''
-        Search for structural variants (SV) genome wide or in a set of target genomic regions
+        Search for structural variants (SV) in a set of target genomic regions
         '''
 
-        ### 1. Create bed file containing source element´s transduced intervals 
+        ### 1. Infer read size
+        self.confDict['readSize'] = self.infer_readSize()
+        
+        ### 2. Create bed file containing source element´s transduced intervals 
         tdDir = self.outDir + '/TRANSDUCED/'
         unix.mkdir(tdDir)
         sourceBed = self.refDir + '/srcElements.bed'
-        transducedPath = databases.create_transduced_bed(sourceBed, 10000, tdDir)
+        transducedPath = databases.create_transduced_bed(sourceBed, 10000, self.confDict['readSize'], tdDir)
         
-        ### 2. Infer read size
-        self.confDict['readSize'] = self.infer_readSize()
-                
+        ### 3. Load annotations if running method on wgs data
+        if self.confDict['retroTestWGS']:
+            annotDir = self.outDir + '/ANNOT/'
+            self.annotations = annotation.load_annotations(['REPEATS-L1', 'TRANSDUCTIONS'], self.refLengths, self.refDir, self.confDict['germlineMEI'], self.confDict['processes'], annotDir)
+            unix.rm([annotDir])
+            
         ### 3. Define genomic bins to search for SV (will correspond to transduced areas)
         bins = bamtools.binning(transducedPath, None, None, None)
 
@@ -822,10 +828,6 @@ class SV_caller_sureselect(SV_caller):
 
         ## 6.2 Transduction calls
         output.write_tdCalls_sureselect(clusterPerSrcDict, self.outDir)
-
-        ### Do cleanup
-        supplDir = self.outDir + '/SUPPLEMENTARY/'
-        unix.rm([supplDir])    
     
     def infer_readSize(self):
         '''
@@ -878,23 +880,26 @@ class SV_caller_sureselect(SV_caller):
         msg = 'Number of SV events in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
         log.step(step, msg)
 
-        ## 2. Search for supplementary alignments by realigning the clipped sequences
-        step = 'SEARCH4SUPPL'
-        msg = 'Search for supplementary alignments by realigning the clipped sequences'
-        log.step(step, msg)
+        ## If search for supplementary alignments selected:
+        if self.confDict['blatClip']:
+            
+            ## 2. Search for supplementary alignments by realigning the clipped sequences
+            step = 'SEARCH4SUPPL'
+            msg = 'Search for supplementary alignments by realigning the clipped sequences'
+            log.step(step, msg)
 
-        ## Create output directory 
-        supplDir = self.outDir + '/SUPPLEMENTARY/' + srcId
-        unix.mkdir(supplDir)
+            ## Create output directory 
+            supplDir = self.outDir + '/SUPPLEMENTARY/' + srcId
+            unix.mkdir(supplDir)
+            
+            ## Left-clippings
+            events.search4supplementary(eventsDict['LEFT-CLIPPING'], self.reference, srcId, supplDir)
+                
+            ## Rigth-clippings
+            events.search4supplementary(eventsDict['RIGHT-CLIPPING'], self.reference, srcId, supplDir)
 
-        ## Left-clippings
-        events.search4supplementary(eventsDict['LEFT-CLIPPING'], self.reference, srcId, supplDir)
-        
-        ## Rigth-clippings
-        events.search4supplementary(eventsDict['RIGHT-CLIPPING'], self.reference, srcId, supplDir)
-
-        ## Remove output directory
-        unix.rm([supplDir])
+            ## Remove output directory
+            unix.rm([supplDir])
 
         ## 3. Discordant and clipping clustering ##
         ## 3.1 Organize discordant and clipping events into genomic bins prior clustering ##
@@ -953,7 +958,9 @@ class SV_caller_sureselect(SV_caller):
         msg = 'Discordant cluster filtering'
         log.step(step, msg)
 
-        filters2Apply = ['MIN-NBREADS', 'MATE-REF', 'MATE-SRC', 'MATE-MAPQ', 'GERMLINE', 'UNESPECIFIC', 'READ-DUP', 'CLUSTER-RANGE']
+        filters2Apply = ['MIN-NBREADS', 'MATE-REF', 'MATE-SRC', 'MATE-MAPQ', 'GERMLINE', 'UNSPECIFIC', 'READ-DUP', 'CLUSTER-RANGE']
+        if self.confDict['retroTestWGS']:
+            filters2Apply.remove('UNSPECIFIC')
         filteredDiscordants = filters.filter_discordants(discordants, filters2Apply, self.bam, self.normalBam, self.confDict)
 
         ## 4.2 Clipping cluster filtering ##
@@ -964,11 +971,26 @@ class SV_caller_sureselect(SV_caller):
         filters2Apply = ['MIN-NBREADS', 'SUPPL-REF', 'SUPPL-SRC', 'SUPPL-MAPQ', 'GERMLINE', 'READ-DUP', 'CLUSTER-RANGE']
         filteredLeftClippings = filters.filter_clippings(leftClippingClusters, filters2Apply, self.confDict)
         filteredRightClippings = filters.filter_clippings(rightClippingClusters, filters2Apply, self.confDict)
-
+            
         ## 5. Create metaclusters ##
         step = 'META-CLUSTERING'
         msg = 'Group discordant mates and suplementary clusters into metaclusters'
         log.step(step, msg)
         metaclusters = clusters.metacluster_mate_suppl(filteredDiscordants, filteredLeftClippings, filteredRightClippings, self.confDict['minReads'], self.refLengths)
-
+        
+        ## 6. Determine metaclusters precise coordinates ##
+        step = 'DETERMINE-BKP'
+        msg = 'Determine metaclusters breakpoints'
+        log.step(step, msg)
+        bkp.bkp_retroTest(metaclusters, self.bam, self.confDict['readSize'])
+        
+        ## 7. Determine metaclusters identity ##
+        step = 'DEFINE-TD-TYPE'
+        msg = 'Define metaclusters transduction type'
+        log.step(step, msg)
+        if self.confDict['retroTestWGS']:
+            retrotransposons.identity_metaclusters_retrotest_wgs(metaclusters, self.bam, self.outDir, self.confDict, self.annotations)
+        else:
+            retrotransposons.identity_metaclusters_retrotest(metaclusters, self.bam, self.outDir)
+        
         return [srcId, metaclusters]

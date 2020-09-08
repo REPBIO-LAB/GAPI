@@ -9,6 +9,9 @@ import statistics
 import gRanges
 import bamtools
 import stats
+import structures
+import clusters
+import events
 
 
 ###############
@@ -185,11 +188,11 @@ def filter_discordant(discordant, filters2Apply, bam, normalBam, confDict):
         if not filter_germline(discordant, confDict['minNormalReads']):
             failedFilters.append('GERMLINE')
             
-    ## 6. FILTER 6: Filter out clus in unspecific regions ##
-    if 'UNESPECIFIC' in filters2Apply:
+    ## 6. FILTER 6: Filter out clusters in unspecific regions ##
+    if 'UNSPECIFIC' in filters2Apply:
 
-        if not filter_discordant_mate_unespecific(discordant, 0.2, bam):
-            failedFilters.append('UNESPECIFIC')
+        if not filter_discordant_mate_unspecific(discordant, 0.95, bam):
+            failedFilters.append('UNSPECIFIC')
 
     ## 7. FILTER 7: Filter out clusters based on duplicate percentage (Ex: 50%) ##
     if 'READ-DUP' in filters2Apply:
@@ -256,7 +259,7 @@ def filter_metaclusters_SR(metaclusters, filters2Apply, confDict, bam):
     return metaclustersPass, metaclustersFail
 
 
-def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
+def filter_metaclusters(metaclustersDict, filters2Apply, confDict, mode='SR'):
     '''
     Function to apply filters to a set of metaclusters organized in a dictionary
 
@@ -283,7 +286,7 @@ def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
         for index, metacluster in enumerate(metaclusters):
 
             ## Apply filters
-            metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply, confDict, None)
+            metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply, confDict, None, mode=mode)
 
             # Metacluster fails some filter
             if metacluster.failedFilters:
@@ -312,7 +315,7 @@ def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
 
     return metaclustersPassDict, metaclustersFailDict
 
-def filter_metacluster(metacluster, filters2Apply, confDict, bam):
+def filter_metacluster(metacluster, filters2Apply, confDict, bam, mode='SR'):
     '''
     Apply selected filters to one metacluster.
 
@@ -374,7 +377,7 @@ def filter_metacluster(metacluster, filters2Apply, confDict, bam):
 
     ## 5. FILTER 5: Whether a metacluster has a SV_type assigned or not
     if 'IDENTITY' in filters2Apply: 
-        if not identityFilter(metacluster):
+        if not identityFilter(metacluster, mode=mode):
             failedFilters.append('IDENTITY')
 
     return failedFilters
@@ -507,13 +510,13 @@ def filter_SV_type(metacluster, targetSV):
 
     return PASS
 
-def identityFilter(cluster):
+def identityFilter(cluster, mode ='SR'):
     '''
     Filter metacluster by checking its SV type
 
     Input:
         1. metacluster: metacluster object
-        2. targetSV: list containing list of target SV types
+        2. mode: SR or LR (Short Reads or Long Reads). Default='SR'
     Output:
         1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
     '''
@@ -525,6 +528,16 @@ def identityFilter(cluster):
     else:
         PASS = False
 
+    if mode == 'LR':
+
+        if 'IDENTITY' in cluster.SV_features.keys():
+            if cluster.SV_features['IDENTITY']:
+                PASS = True 
+            else:
+                PASS = False
+        else:
+            PASS = False  
+    
     return PASS
 
 def filter_suppl_MAPQ(clipping, minMAPQ):
@@ -704,7 +717,7 @@ def filter_discordant_mate_MAPQ(discordant, minMAPQ, bam, normalBam):
     if (normalBam == None or (normalBam != None and readIdsNormal == [])):
             
         avMAPQ = bamtools.average_MAPQ_reads_interval(intervalRef, intervalBeg, intervalEnd, readIds, bamFile)
-            
+                    
         if avMAPQ >= minMAPQ:
             PASS = True
 
@@ -762,7 +775,7 @@ def filter_germline(cluster, minNormal):
     return PASS
 
 
-def filter_discordant_mate_unespecific(discordant, threshold, bam):
+def filter_discordant_mate_unspecific(discordant, threshold, bam):
     '''
     Filter out discordant whose mates are located in regions captured unspecifically
     Insertion points where there is more than discordant reads are likely to be false positives
@@ -781,7 +794,7 @@ def filter_discordant_mate_unespecific(discordant, threshold, bam):
     bamFile = pysam.AlignmentFile(bam, "rb")
     
     nbProperPair = 0
-    nbDiscordants = len(discordant.events)
+    nbDiscordants, discordantList = discordant.nbReads()
         
     buffer = 200
     ref = discordant.events[0].mateRef
@@ -791,16 +804,18 @@ def filter_discordant_mate_unespecific(discordant, threshold, bam):
     iterator = bamFile.fetch(ref, beg - buffer, end + buffer)
         
     # Count properly paired reads in region
+    properPairs = []
     for alignmentObj in iterator:
             
-        if alignmentObj.is_proper_pair:
+        if alignmentObj.is_proper_pair and not alignmentObj.is_supplementary:
                 
-            nbProperPair += 1
+                properPairs.append(alignmentObj.query_name)
+                
+    nbProperPair = len(set(properPairs))
         
     # if there are properly paired reads around insertion
     if nbProperPair > 0:
-            
-        # if the ratio discordants/properly paired reads is greater than threshold
+               
         if nbDiscordants/nbProperPair > threshold:        
             PASS = True
 
@@ -808,10 +823,11 @@ def filter_discordant_mate_unespecific(discordant, threshold, bam):
             PASS = False
 
     else:
-            
+         
         PASS = True
             
     return PASS
+
 
 # --------------- SHORT READS -----------------------
 # HACER OTRA PARECIDA A LA QUE ESTABA PARA SHORT READS

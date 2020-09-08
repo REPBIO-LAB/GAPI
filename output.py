@@ -401,7 +401,7 @@ def INS2VCF_junction(metaclusters, index, refLengths, source, build, species, ou
             }
             
     ## Create header
-    VCF.create_header(source, build, species, refLengths, info)
+    VCF.create_header(source, build, species, refLengths, info, {}, [])
 
     ## 3. Add insertion calls to the VCF
     ## 3.1 Load reference index
@@ -458,7 +458,7 @@ def INS2VCF_junction(metaclusters, index, refLengths, source, build, species, ou
         #INFO['INSEQ'] = metacluster.consensusEvent.pick_insert() if metacluster.consensusEvent is not None else None
 
         ## Create VCF variant object
-        fields = [CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO]
+        fields = [CHROM, POS, ID, REF, ALT, QUAL, FILTER, INFO, {}]
 
         ## Add variant to the VCF
         INS = formats.VCF_variant(fields)
@@ -474,7 +474,7 @@ def INS2VCF_junction(metaclusters, index, refLengths, source, build, species, ou
            'TRUN5LEN', 'TRUN3LEN', 'FULL', 'TDLEN', 'INVLEN', 'PERCR', \
            'QHITS', 'THITS', 'RTCOORD', 'POLYA', 'INSEQ']
 
-    VCF.write(IDS, outName, outDir)
+    VCF.write(IDS, [], outName, outDir)
 
 
 def INS2VCF(metaclusters, index, refLengths, source, build, species, outName, outDir):
@@ -767,7 +767,7 @@ def write_junctions(junctions, outFileName, outDir):
     outFile = open(outFilePath, 'w')
 
     ## 2. Write header 
-    row = "#refA \t bkpA \t refB \t bkpB \t junctionType \t nbReadsTotal \t nbReadsTumour \t nbReadsNormal \t bridgeType \t family \t srcId \t supportTypes \t bridgeLen \t nbReadsBridge \t bridgeSeq \t junctionConsSeq \t bkpsConsSupport \n"
+    row = "#refA \t bkpA \t refB \t bkpB \t junctionType \t nbReadsTotal \t nbReadsTumour \t nbReadsNormal \t bridgeType \t family \t srcId \t supportTypes \t bridgeLen \t nbReadsBridge \t bridgeSeq \t junctionConsSeq \t bkpsConsSupport \t identity \n"
     outFile.write(row)
 
     ## 3. Write BND junctions  
@@ -783,6 +783,7 @@ def write_junctions(junctions, outFileName, outDir):
         nbReadsTotal, nbReadsTumour, nbReadsNormal = junction.supportingReads()
         junctionConsSeq = junction.junctionConsSeq
         bkpsConsSupport = junction.bkpsConsSupport
+        identity = junction.metaclusterA.identity
 
         # Bridge info
         bridgeType = junction.bridge.bridgeType if junction.bridge is not None else None
@@ -794,7 +795,7 @@ def write_junctions(junctions, outFileName, outDir):
         bridgeSeq = junction.bridge.bridgeSeq if junction.bridge is not None else None
 
         # Write BND junction call into output file
-        row = "\t".join([refA, str(bkpA), refB, str(bkpB), junction.junctionType(), str(nbReadsTotal), str(nbReadsTumour), str(nbReadsNormal), str(bridgeType), str(family), str(srcId), str(supportTypes), str(bridgeLen), str(nbReadsBridge), str(bridgeSeq), str(junctionConsSeq), str(bkpsConsSupport), "\n"])
+        row = "\t".join([refA, str(bkpA), refB, str(bkpB), junction.junctionType(), str(nbReadsTotal), str(nbReadsTumour), str(nbReadsNormal), str(bridgeType), str(family), str(srcId), str(supportTypes), str(bridgeLen), str(nbReadsBridge), str(bridgeSeq), str(junctionConsSeq), str(bkpsConsSupport), str(identity), "\n"])
         outFile.write(row)
 
     ## Close output file ##
@@ -847,7 +848,7 @@ def write_tdCalls_sureselect(clustersPerSrc, outDir):
     ## 1. Write header 
     outFilePath = outDir + '/transduction_calls.tsv'
     outFile = open(outFilePath, 'w')
-    row = "#ref \t beg \t end \t srcId \t nbReads \t nbDiscordant \t nbClipping \t readIds \n"
+    row = "#ref \t beg \t end \t orientation \t tdType \t srcId \t nbReads \t nbDiscordant \t nbClipping \t readIds \n"
     outFile.write(row)
 
     ## 2. Generate list containing transduction calls
@@ -859,8 +860,14 @@ def write_tdCalls_sureselect(clustersPerSrc, outDir):
 
         # For each cluster
         for cluster in clusters:
+            
             readIds = ','.join(cluster.supportingReads()[3])
-            call = [cluster.ref, str(cluster.beg), str(cluster.end), srcId, str(cluster.supportingReads()[0]), str(cluster.nbDISCORDANT()), str(cluster.nbSUPPLEMENTARY()), readIds]
+            
+            # if bkp has being defined, use it as call coordinates
+            beg = cluster.refLeftBkp if cluster.refLeftBkp is not None else cluster.beg
+            end = cluster.refRightBkp if cluster.refRightBkp is not None else cluster.end
+            
+            call = [cluster.ref, str(beg), str(end), str(cluster.orientation), str(cluster.identity), srcId, str(cluster.supportingReads()[0]), str(cluster.nbDISCORDANT()), str(cluster.nbSUPPLEMENTARY()), readIds]
             calls.append(call)
 
     ## 3. Sort transduction calls first by chromosome and then by start position
@@ -874,14 +881,13 @@ def write_tdCalls_sureselect(clustersPerSrc, outDir):
     outFile.close()
     
     ## 5. Collapse calls when pointing to the same MEI. It happens when source elements are too close.
-    
     if call is not None:
     
     	outFile = pybedtools.BedTool(outFilePath)
     
     	# Columns to collapse (without ref, beg and end columns)
     	colList = list(range(4, len(call)+1))
-    	colFormat = ['collapse'] * (len(call) - 3)
+    	colFormat = ['distinct'] * (len(call) - 3)
 
-    	mergedOutput = outFile.merge(c=colList, o=colFormat, header=True)
+    	mergedOutput = outFile.merge(c=colList, o=colFormat, d=100, header=True)
     	mergedOutput.saveas(outFilePath)

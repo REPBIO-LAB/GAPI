@@ -8,6 +8,8 @@ import subprocess
 import log
 import unix
 import operator
+import re
+import pysam
 ## [SR CHANGE]
 import sequences
 import assembly
@@ -16,7 +18,83 @@ import events
 import itertools
 import bamtools
 import formats
+import clusters
 
+def bkp(metaclusters):
+    '''
+    Determine breakpoints
+    
+    Input: 
+    1. List of metaclusters
+    
+    Output:
+    There is no output, but refLeftBkp and refRightBkp attributes are filled
+    '''
+    for metacluster in metaclusters:
+        
+        leftBkps = []
+        rightBkps = []
+
+        # Choose bkp with highest number of clipping events
+        for event in metacluster.events:
+            
+            if event.type == 'CLIPPING':
+                
+                if event.clippedSide == 'left':
+                    leftBkps.append(event.beg)
+                    
+                elif event.clippedSide == 'right':
+                    rightBkps.append(event.beg)
+
+        # Fill refLeftBkp and refRightBkp attributes
+        if len(leftBkps) > 0:
+            leftBkp = max(set(leftBkps), key=leftBkps.count)
+            metacluster.refLeftBkp = leftBkp
+            
+        if len(rightBkps) > 0:
+            rightBkp = max(set(rightBkps), key=rightBkps.count)
+            metacluster.refRightBkp = rightBkp
+            
+def bkp_retroTest(metaclusters, bam, readSize):
+    '''
+    Determine precise breakpoint in sureselect data:
+    - if supplementary cluster in metacluster, use supplementary events coordinates
+    - elif, use MINUS-DISC cluster beg coordinate
+    - elif, use PLUS-DISC cluster end coordinate. It must be calculated for mate clusters
+    
+    Input: 
+    1. metaclusters: List of metaclusters
+    2. bam: Bam file
+    3. readSize: Bam read size
+    
+    Output:
+    There is no output, but refLeftBkp and refRightBkp attributes are filled
+    '''
+        
+    for metacluster in metaclusters:
+        
+        # create subclusters
+        subclusters = metacluster.create_subclusters()
+        
+        # if there is a SUPPLEMENTARY cluster:
+        if 'SUPPLEMENTARY' in subclusters.keys():
+            
+            bkp = subclusters['SUPPLEMENTARY'].inferBkp_shortReads()
+            metacluster.refLeftBkp, metacluster.refRightBkp = bkp, bkp
+        
+        # elif there is a MINUS-DISCORDANT cluster:
+        elif 'MINUS-DISCORDANT' in subclusters.keys():
+            
+            metacluster.refLeftBkp, metacluster.refRightBkp = subclusters['MINUS-DISCORDANT'].beg, subclusters['MINUS-DISCORDANT'].beg
+        
+        # elif there is a PLUS-DISCORDANT cluster:
+        elif 'PLUS-DISCORDANT' in subclusters.keys():
+                               
+                readNames = set([event.readName for event in subclusters['PLUS-DISCORDANT'].events])
+                fullCLuster = clusters.discCluster_from_readNames(readNames, metacluster.ref, metacluster.end, metacluster.end + readSize, bam, 'TUMOUR')
+                
+                metacluster.refLeftBkp, metacluster.refRightBkp = fullCLuster.end, fullCLuster.end
+                
 
 def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, binId, identDbPath):
     '''
@@ -118,27 +196,10 @@ def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, bi
     # Add clippings when there are no discordant clippings, but they have BLAT matches and clippings without blat hits but same bkp as the ones that match
     addBlatClippings(metaclustersWODiscClip, identDbPath, binId, bkpDir)
 
+    # b. Determine bkp
+    bkp(metaclusters)
     
     for metacluster in metaclusters:
-        # b. Determine bkps.
-
-        leftBkps = []
-        rightBkps = []
-
-        # Choose bkp with highest number of clipping events
-        for event in metacluster.events:
-            if event.type == 'CLIPPING':
-                if event.clippedSide == 'left':
-                    leftBkps.append(event.beg)
-                elif event.clippedSide == 'right':
-                    rightBkps.append(event.beg)
-
-        if len(leftBkps) > 0:
-            leftBkp = max(set(leftBkps), key=leftBkps.count)
-            metacluster.refLeftBkp = leftBkp
-        if len(rightBkps) > 0:
-            rightBkp = max(set(rightBkps), key=rightBkps.count)
-            metacluster.refRightBkp = rightBkp
         
         # c. Reconstruct bkp sequence:
 
@@ -507,7 +568,7 @@ def collectClipBkpMatch(matchClippings, clippingEventsToAdd):
 
         # Collect clipping events whose bkp is in desired region
         for clipping in clippingEventsToAdd:
-            if clipping.readBkp >= binBeg and clipping.readBkp <= binEnd:
+            if clipping.readBkp >= binBeg and clipping.readBkp <= binEnd and clipping in clippings:
                 if metacluster in clippings2Add.keys():
                     clippings2Add[metacluster].append(clipping)
                     
@@ -696,8 +757,10 @@ def clippingSeq(clippingEvents, CLIPPING_clusterID, seqSide, outDir):
 
     fastaObj = formats.FASTA()
     fastaDict = {}
+                
     # Determine bkp
     for event in clippingEvents:
+        
         # Si queremos sacar la secuencia del lado de la integracion:
         if seqSide == 'INT':
             fastaDict[event.readName] = event.clipped_seq()
