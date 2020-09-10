@@ -152,7 +152,8 @@ class SV_caller_long(SV_caller):
         self.annotations['TRANSDUCTIONS'] = []
         self.annotations['EXONS'] = []
 
-        # 1.a Write sequences of all events of metaclusters together in a fasta file:
+        # 2. Select those metaclusters related with viruses.
+        # 2.a Write sequences of all events of metaclusters together in a fasta file:
         # If SV_type == INS, write only the inserted sequence of each event
         # If SV_type == BND, write only the clipped sequence of each event
 
@@ -170,14 +171,14 @@ class SV_caller_long(SV_caller):
         
         l = mp.Lock()
         
-        # Create FASTA file with INS or CLIPPING sequence of each event of each metacluster.
+        # 2.b Create FASTA file with INS or CLIPPING sequence of each event of each metacluster.
 
         pool = mp.Pool(processes=self.confDict['processes'], initializer=init, initargs=(l,))
         pool.starmap(virusLR.supportingEventsFasta, tupleList)
         pool.close()
         pool.join()
 
-        # 1.b Alig against viral db and filter hits.
+        # 2.c Align against viral db and filter hits.
         # Have a dictionary with only those events that have identity after the filters
 
         eventsFasta = selectMETAoutDir + "/events.fasta"
@@ -198,7 +199,9 @@ class SV_caller_long(SV_caller):
 
         unix.rm([selectMETAoutDir])
 
-        # 1.d Put identity to only those metaclusters that are mapped and PASS filters, all the others identity will remain None
+        # 3. Address identities
+        # 3.a Put identity to events and only to those metaclusters that are mapped and PASS filters and have a minimum percentage of identified events, all the others identity will remain None.
+        # Also have a dictionary (fastaDict) with consensus sequences of those metaclusters that have no identity yet.
 
         tupleList = []
 
@@ -211,20 +214,17 @@ class SV_caller_long(SV_caller):
         
         l = mp.Lock()
         pool = mp.Pool(processes=self.confDict['processes'])
-        # Ponerle la identity a los eventos
         allMetaclustersIdentitySeparated, fastaDict = zip(*pool.starmap(virusLR.check_metaclusters_identity_allHits, tupleList))
         pool.close()
         pool.join()
-
-        #print ('fastaDict ' + str(fastaDict))
 
         del allMetaclusters
 
         allMetaclustersIdentity = structures.merge_dictionaries(allMetaclustersIdentitySeparated)
 
-        
-        # Analyse those with identity proportion < 0.70 >= 0.50
+        # 3.b Analyse consensus sequences of those metaclusters with events identity proportion < 0.70 >= 0.50
         # Merge dictionary
+
         allfastaDict = {}
         for dicti in fastaDict:
             if dicti != {}:
@@ -232,8 +232,9 @@ class SV_caller_long(SV_caller):
                     allfastaDict[key] = value
                 
 
-        # Perform bwa and minimap2 alignments for those sequences in fastaDict.
+        # 3.c Perform bwa and minimap2 alignments for those sequences in fastaDict.
         # Write fasta
+
         polishDir = self.outDir + '/lowIdentitiesProportion'
         unix.mkdir(polishDir)
         fastaObj = formats.FASTA()
@@ -241,15 +242,20 @@ class SV_caller_long(SV_caller):
         lowIdentityFasta = polishDir + '/lowidentity.fa'
         fastaObj.write(lowIdentityFasta)
 
-        ## 3.3 Align consensus inserted sequences into the viral database
-        msg = '3.3 Align consensus inserted sequences into the viral database'
+        ## 3.c Align consensus inserted sequences into the viral database
+        msg = '3.c Align consensus inserted sequences into the viral database'
         log.info(msg)  
         
-        # bwa alignment
+        # 3.c.1 bwa alignment
         SAM_viral = alignment.alignment_bwa(lowIdentityFasta, self.confDict['viralDb'], 'lowidentity', self.confDict['processes'], polishDir)
-        print ('SAM_viral ' + str(SAM_viral))
-
         BAM_sorted = bamtools.SAM2BAM(SAM_viral, polishDir)
+
+        # Convert SAM to PAF
+        PAF_viral = alignment.sam2paf(SAM_viral, 'lowidentity', polishDir)
+        # Organize hits according to their corresponding metacluster
+        allHits_viral = alignment.organize_hits_paf(PAF_viral)
+
+        # Filter bwa alignment
         # NOTE: Vuelve a pasar los filtros pero esta vez de la consenso. Vuelvo a filtrar (pero ahora la consenso)
         minParcialMatchVirus = 0
         minTotalMatchVirus = 125 # >= 125
@@ -258,22 +264,23 @@ class SV_caller_long(SV_caller):
         maxBasePercVirus = 60 # <= 60 (no mucho pero algo filtra)
         minLccVirus = 1.57 # > 1.7 Cambio 28/08 16:00
 
-        # Filter bwa alignment
         # Keys: readName_metacluster.beg = identity (solo aquellos que pasaron los filtros)
-        if pysam.idxstats(BAM_sorted) != '*\t0\t0\t0\n':
+        if pysam.idxstats(BAM_sorted) != '*\t0\t0\t0\n': # If bam is not empty
             eventsIdentity2 = bamtools_VIGASR.filterBAM2FastaDict_LR(BAM_sorted, minTotalMatchVirus, minParcialMatchVirus, maxMatchCheckMAPQVirus, minMAPQVirus, maxBasePercVirus, minLccVirus, mode='LR')
         else:
             eventsIdentity2 = {}
 
-        ## Convert SAM to PAF
-        PAF_viral = alignment.sam2paf(SAM_viral, 'lowidentity', polishDir)
-        
-        # minimap2 alignment
-        SAM_viral_minimap = virusLR.alignment_minimap2_SAM(lowIdentityFasta, self.confDict['viralDb'], 'lowidentity_minimap', self.confDict['processes'], polishDir)
-        print ('SAM_viral_minimap ' + str(SAM_viral_minimap))
 
+        # 3.c.2 minimap2 alignment
+        SAM_viral_minimap = virusLR.alignment_minimap2_SAM(lowIdentityFasta, self.confDict['viralDb'], 'lowidentity_minimap', self.confDict['processes'], polishDir)
         BAM_sorted_minimap = bamtools.SAM2BAM(SAM_viral_minimap, polishDir)
 
+        # Convert SAM to PAF
+        PAF_viral_minimap = alignment.sam2paf(SAM_viral_minimap, 'lowidentity_minimap', polishDir) # cambio 12:10
+        # Organize hits according to their corresponding metacluster
+        allHits_viral_minimap = alignment.organize_hits_paf(PAF_viral_minimap)
+
+        # Filter minimap2 alignment
         # NOTE: Vuelve a pasar los filtros pero esta vez de la consenso. Vuelvo a filtrar (pero ahora la consenso)
         minParcialMatchVirus = 0
         minTotalMatchVirus = 125 # >= 125
@@ -282,156 +289,62 @@ class SV_caller_long(SV_caller):
         maxBasePercVirus = 60 # <= 60 (no mucho pero algo filtra)
         minLccVirus = 1.7 # > 1.7
 
-        PAF_viral_minimap = alignment.sam2paf(SAM_viral_minimap, 'lowidentity_minimap', polishDir) # cambio 12:10
-
-        allHits_viral_minimap = alignment.organize_hits_paf(PAF_viral_minimap)
-
-
-        # Filter minimap2 alignment
         # Keys: readName_metacluster.beg = identity (solo aquellos que pasaron los filtros)
-        if pysam.idxstats(BAM_sorted_minimap) != '*\t0\t0\t0\n':
+        if pysam.idxstats(BAM_sorted_minimap) != '*\t0\t0\t0\n': # If bam is not empty
             eventsIdentity3 = bamtools_VIGASR.filterBAM2FastaDict_LR(BAM_sorted_minimap, minTotalMatchVirus, minParcialMatchVirus, maxMatchCheckMAPQVirus, minMAPQVirus, maxBasePercVirus, minLccVirus, mode='LR', allHits_viral=allHits_viral_minimap)
         else:
             eventsIdentity3 = {}
 
 
-
-        ## Organize hits according to their corresponding metacluster
-        allHits_viral = alignment.organize_hits_paf(PAF_viral)
-
-
-        # Put identity tu metacluster if the consensus match with db.
+        # 3.d Put identity to metacluster if the consensus match with db.
         # TODO: Save the consensus since it doesnt have to be done again
-        print ('allMetaclustersIdentity0 ' + str(allMetaclustersIdentity))
-        print ('eventsIdentity2 ' + str(eventsIdentity2))
-        print ('eventsIdentity3 ' + str(eventsIdentity3))
 
-        # Based in their consensus and in previous alignments with bwa and minimap, give identity to these metaclusters that don't have it:
+        # Based on their consensus and in previous alignments with bwa and minimap, give identity to these metaclusters that don't have it:
         for metaclusterList in allMetaclustersIdentity.values():
             for metacluster in metaclusterList:
-                print ('meta1 ' + str(metacluster))
                 # TODO: Or identity == None.
                 if 'IDENTITY' not in metacluster.SV_features.keys():
-                    print ('IDENTITY1')
-                    SV_TypeTested = None
+                    #SV_TypeTested = None
                     identity = []
                     specificIdentity = []
-                    bkpProximity = None
-                    #if any([event.readName in allHits_viral.keys() for event in metacluster.events]) or any([event.readName in allHits_viral_minimap.keys() for event in metacluster.events]): # aqui estaran solo los que tienen la low identity
-                    # If the alignment of the event.read passed the filters:
+                    #bkpProximity = None
+                    # If the alignment of the event.read passed the filters (in bwa or minimap2):
                     if any([(event.readName + '_'+ str(metacluster.beg)) in eventsIdentity2.keys() for event in metacluster.events]) or any([(event.readName + '_'+ str(metacluster.beg)) in eventsIdentity3.keys() for event in metacluster.events]):
-                        
-                        print ('IDENTITY2')
-                        '''
-                        identities = list(itertools.chain(*[event.identity for event in metacluster.events if event.identity != None]))
-                        if identities:
-                            countIdentities = Counter(identities)
-                            metacluster.SV_features['IDENTITY'] = countIdentities.most_common(3)
-                            specificIdentities = list(itertools.chain(*[event.specificIdentity for event in metacluster.events if event.identity != None]))
-                            if specificIdentities:
-                                countSpecificIdentities = Counter(specificIdentities)
-                                metacluster.SV_features['SPECIDENTITY'] = countSpecificIdentities.most_common(3)
-                        '''
+
                         # TODO: Do this in another way to find the event that is the key
+
                         # Find the event that was used as consensus name
-                        # TODO: maybe previous if inst neccesary, as eventsIdentity is checked here as well.
                         for event in metacluster.events:
                             nombre =  event.readName + '_'+ str(metacluster.beg)
                             # Check bwa alignment
                             if (nombre in allHits_viral.keys() and nombre in eventsIdentity2.keys()):
-                                for alig in allHits_viral[nombre].alignments:
-                                    splitedtName = alig.tName.split('|')
-                                    identity.append(splitedtName[0])
-                                    if len(splitedtName) > 1:
-                                        specificIdentity.append(splitedtName[1])
-                                
-                                # Check if it's near bkp
-                                if 'BND' in allMetaclustersIdentity.keys():
-                                    print ('BND1')
-                                    
-                                    if metacluster in allMetaclustersIdentity['BND']:
-                                        #begsEnds = []
-                                        SV_TypeTested = True
-                                        print ('BND2')
-
-                                        buffer = 651
-                                        bkpProximity = virusLR.checkBkpProximity_wSide(event, nombre, allHits_viral, buffer)
-
-                                        if bkpProximity != None:
-                                            metacluster.SV_features['IDENTITY']  = list(set(identity))
-                                            metacluster.SV_features['SPECIDENTITY'] = list(set(specificIdentity))
-                                            print ('metacluster.SV_featuresmarte1 ' + str(metacluster.SV_features['IDENTITY']) + ' ' + str(metacluster.beg))
-
-                                # Check if it's near bkp
-                                if 'INS_noOverlap' in allMetaclustersIdentity.keys():
-                                    print ('allMetaclustersIdentity1 ' + str(allMetaclustersIdentity['INS_noOverlap']))
-                                    if metacluster in allMetaclustersIdentity['INS_noOverlap']:
-                                        begsEnds = []
-                                        SV_TypeTested = True
-
-                                        buffer = 250
-                                        bkpProximity = virusLR.checkBkpProximity_wSide(event, nombre, allHits_viral, buffer)
-                                        event.bkpProximity = bkpProximity
-                                        
-                                        if bkpProximity != None:
-                                            #if (event.clippedSide == 'right' and bkpProximity < 250) or (event.clippedSide == 'left' and bkpProximity >= (ali_query_Len - 250)):
-                                            metacluster.SV_features['IDENTITY']  = list(set(identity))
-                                            metacluster.SV_features['SPECIDENTITY'] = list(set(specificIdentity))
-                                            print ('metacluster.SV_featuresmarte2 ' + str(metacluster.SV_features['IDENTITY']) + ' ' + str(metacluster.beg) +' '+ str(event.readName))
-
-                                # If it's another SV_type dont need to check if bkp is near
-                                if not SV_TypeTested:
+                                bufferBND = 651
+                                bufferNoOverlap = 250
+                                bkpProximity, SV_TypeTested, identityEvent, specificIdentityEvent = virusLR.checkLowProportion(allMetaclustersIdentity, event, metacluster, allHits_viral, eventsIdentity2, bufferBND, bufferNoOverlap, True, True)
+                                print ('1h')
+                                print (bkpProximity, SV_TypeTested, identityEvent, specificIdentityEvent)
+                                identity.extend(identityEvent)
+                                specificIdentity.extend(specificIdentityEvent)
+                                print (identity)
+                                if (bkpProximity != None and SV_TypeTested) or not SV_TypeTested:
                                     metacluster.SV_features['IDENTITY']  = list(set(identity))
                                     metacluster.SV_features['SPECIDENTITY'] = list(set(specificIdentity))
-                                    print ('metacluster.SV_featuresmarte3 ' + str(metacluster.SV_features['IDENTITY']) + ' ' + str(metacluster.beg))
+                                    print ('IDENTITY ' + str(identity))
 
-                            # if bwa aligment wasnt successful, check minimap2 alignment
+                            # If bwa aligment wasnt successful, check minimap2 alignment
                             elif nombre in allHits_viral_minimap.keys() and nombre in eventsIdentity3.keys():
-                                for alig in allHits_viral_minimap[nombre].alignments:
-                                    splitedtName = alig.tName.split('|')
-                                    identity.append(splitedtName[0])
-                                    if len(splitedtName) > 1:
-                                        specificIdentity.append(splitedtName[1])
-
-                                # Check if it's near bkp
-                                if 'BND' in allMetaclustersIdentity.keys():
-                                    print ('BND3')
-                                    if metacluster in allMetaclustersIdentity['BND']:
-                                        begsEnds = []
-                                        SV_TypeTested = True
-                                        print ('BND4')
-                                        buffer = 251
-                                        bkpProximity = virusLR.checkBkpProximity_woSide(event, nombre, allHits_viral_minimap, buffer)
-
-                                        if bkpProximity != None:
-                                            metacluster.SV_features['IDENTITY']  = list(set(identity))
-                                            metacluster.SV_features['SPECIDENTITY'] = list(set(specificIdentity))
-                                            print ('metacluster.SV_featuresmarteMINIMAP1 ' + str(metacluster.SV_features['IDENTITY']) + ' ' + str(metacluster.beg))
-
-                                # Repito con INs_noOverlap, hacer una sola:
-                                if 'INS_noOverlap' in allMetaclustersIdentity.keys():
-                                    print ('allMetaclustersIdentity2 ' + str(allMetaclustersIdentity['INS_noOverlap']))
-                                    if metacluster in allMetaclustersIdentity['INS_noOverlap']:
-                                        begsEnds = []
-                                        SV_TypeTested = True
-
-                                        buffer = 251
-                                        bkpProximity = virusLR.checkBkpProximity_wSide(event, nombre, allHits_viral_minimap, buffer)
-                                        event.bkpProximity = bkpProximity
-
-                                        if bkpProximity != None:
-                                            ## NUEVO!!!:
-                                            #if (event.clippedSide == 'right' and bkpProximity < 250) or (event.clippedSide == 'left' and bkpProximity >= (ali_query_Len - 250)):
-                                            metacluster.SV_features['IDENTITY']  = list(set(identity))
-                                            metacluster.SV_features['SPECIDENTITY'] = list(set(specificIdentity))
-                                            print ('metacluster.SV_featuresmarteMINIMAP2 ' + str(metacluster.SV_features['IDENTITY']) + ' ' + str(metacluster.beg) +' '+ str(event.readName) +' '+ str(event.clippedSide))
-
-                                # If it's another SV_type dont need to check if bkp is near
-                                if not SV_TypeTested:
+                                bufferBND = 251
+                                bufferNoOverlap = 251
+                                bkpProximity, SV_TypeTested, identityEvent, specificIdentityEvent = virusLR.checkLowProportion(allMetaclustersIdentity, event, metacluster, allHits_viral_minimap, eventsIdentity3, bufferBND, bufferNoOverlap, False, True)
+                                print ('2h')
+                                print (bkpProximity, SV_TypeTested, identityEvent, specificIdentityEvent)
+                                identity.extend(identityEvent)
+                                specificIdentity.extend(specificIdentityEvent)
+                                print (identity)
+                                if (bkpProximity != None and SV_TypeTested) or not SV_TypeTested:
                                     metacluster.SV_features['IDENTITY']  = list(set(identity))
-                                    metacluster.SV_features['SPECIDENTITY'] = list(set(specificIdentity))
-                                    print ('metacluster.SV_featuresmarte4 ' + str(metacluster.SV_features['IDENTITY']) + ' ' + str(metacluster.beg))
-                            
+                                    metacluster.SV_features['SPECIDENTITY'] = list(set(specificIdentity))        
+                                    print ('IDENTITY ' + str(identity))                    
         
         unix.rm([polishDir])
         del allMetaclustersIdentitySeparated
@@ -464,8 +377,8 @@ class SV_caller_long(SV_caller):
         # allMetaclustersOrganised: Es un dictionario en el que los metaclsuters estan ordenados en funcion de si sus eventos tienen identidad o no.
 
 
-        ### 3. Determine what type of sequence has been inserted for INS metaclusters
-        msg = '3. Determine what type of sequence has been inserted for INS metaclusters'
+        ### 4. Determine what type of sequence has been inserted for INS metaclusters
+        msg = '4. Determine what type of sequence has been inserted for INS metaclusters'
         log.header(msg)
 
         # Create output directory
@@ -480,8 +393,8 @@ class SV_caller_long(SV_caller):
         # Remove output directory
         unix.rm([outDir])
             
-        ### 4. Resolve structure for solo, partnered and orphan transductions
-        msg = '4. Resolve structure for solo, partnered and orphan transductions'
+        ### 5. Resolve structure for solo, partnered and orphan transductions
+        msg = '5. Resolve structure for solo, partnered and orphan transductions'
         log.header(msg)
         
         if 'INS_identity' in allMetaclustersOrganised:
@@ -506,8 +419,8 @@ class SV_caller_long(SV_caller):
                 metacluster.consRightSeq
                 metacluster.consLefttSeq
         '''
-        ### 5. Identify BND junctions
-        msg = '5. Identify BND junctions'
+        ### 6. Identify BND junctions
+        msg = '6. Identify BND junctions'
         log.header(msg)
         allJunctions = []
 
@@ -585,18 +498,17 @@ class SV_caller_long(SV_caller):
             # Remove output directory
             unix.rm([outDir])
             
-        ### 6. Apply second round of filtering 
+        ### 7. Apply second round of filtering 
         msg = '7. Apply second round of filtering'
         log.header(msg)
         filters2Apply = ['PERC-RESOLVED','IDENTITY']
-        print ('allMetaclustersOrganised ' + str(allMetaclustersOrganised))
         metaclustersPass, metaclustersFailed = filters.filter_metaclusters(allMetaclustersOrganised, filters2Apply, self.confDict, mode='LR')
 
-        ### 7. Report SV calls into output files
+        ### 8. Report SV calls into output files
         msg = '8. Report SV calls into output files'
         log.header(msg)
 
-        ## 7.1 Report INS
+        ## 8.1 Report INS
         if 'INS_identity' in metaclustersPass:
             outFileName = 'INS_MEIGA.PASS'
             virusLR.INS2VCF(metaclustersPass['INS_identity'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
@@ -605,12 +517,12 @@ class SV_caller_long(SV_caller):
             outFileName = 'INS_MEIGA.FAILED.2'
             virusLR.INS2VCF(metaclustersFailed['INS_unknown'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
 
-        ## 7.2 Report BND junctions
+        ## 8.2 Report BND junctions
         if allJunctions:
             outFileName = 'BND_MEIGA.tsv'
             output.write_junctions(allJunctions, outFileName, self.outDir)
 
-        ## 7.3 Report INS_noOverlap junctions
+        ## 8.3 Report INS_noOverlap junctions
         if 'INS_noOverlap_identity' in metaclustersPass.keys():
             outFileName = 'INS_noOverlap_MEIGA'
             virusLR.INS2VCF_junction(metaclustersPass['INS_noOverlap_identity'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
@@ -619,7 +531,7 @@ class SV_caller_long(SV_caller):
             outFileName = 'INS_noOverlap_MEIGA.FAILED'
             virusLR.INS2VCF_junction(metaclustersFailed['INS_noOverlap_unknown'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
 
-        ## 7.4 Report solo-BND junctions
+        ## 8.4 Report solo-BND junctions
         if 'solo-BND_identity' in metaclustersPass.keys():
             outFileName = 'soloBND_MEIGA'
             virusLR.INS2VCF_junction(metaclustersPass['solo-BND_identity'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
