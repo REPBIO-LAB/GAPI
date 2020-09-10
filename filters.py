@@ -18,38 +18,47 @@ import events
 ## FUNCTIONS ##
 ###############
 
-def filter_clippings(clippings, filters2Apply, confDict):
+def filter_clusters(clusters, filters2Apply, bam, normalBam, confDict, clusterType):
     '''
-    Function to apply filters all metaclusters. 
+    Function to apply filters all discordant clusters. 
 
     Input:
-        1. clippings: list of clipping clusters
-        2. filters2Apply: list containing the filters to apply       
-        3. confDict
+        1. clusters: list of clusters
+        2. filters2Apply: list containing the filters to apply 
+        3. bam: path to bam file. None if not needed
+        4. normalBam: path to matched normal bam file. None if not needed        
+        5. confDict
+        6. clusterType: 'CLIPPING', 'DISCORDANT', 'META'
 
     Output:
-        1. clippingsPass: List of clippings clusters passing all the filters    
+        1. clustersPass: List of clusters passing all the filters
     '''
-    clippingsPass = []
+    clustersPass = []
+    
+    # For each cluster
+    for cluster in clusters:
 
-    # For discordant cluster
-    for clipping in clippings:
-        
         ## Apply filters
-        failedFilters = filter_clipping(clipping, filters2Apply, confDict)
-
-        # Metacluster pass all the filters
-        if not failedFilters: 
-            clippingsPass.append(clipping)
+        if clusterType == 'DISCORDANT':
+            failedFilters = filter_discordant(cluster, filters2Apply, bam, normalBam, confDict)
+            
+        elif clusterType == 'CLIPPING':
+            failedFilters = filter_clipping(cluster, filters2Apply, confDict)
         
+        elif clusterType == 'META':
+            failedFilters = filter_metacluster(cluster, filters2Apply, bam, normalBam, confDict)
+            
+        # Cluster pass all the filters
+        if not failedFilters: 
+            clustersPass.append(cluster)
+            
         else:
-            print("Discarded clipping cluster")
-            print(clipping.ref, clipping.beg, clipping.end)
+            print("Discarded", clusterType, "cluster")
+            print(cluster.ref, cluster.beg, cluster.end)
             print(failedFilters)
-            print([event.readName for event in clipping.events])
-
-    return clippingsPass
-
+            print([event.readName for event in cluster.events])
+    
+    return clustersPass
 
 def filter_clipping(clipping, filters2Apply, confDict):
     '''
@@ -107,41 +116,6 @@ def filter_clipping(clipping, filters2Apply, confDict):
             failedFilters.append('CLUSTER-RANGE')
 
     return failedFilters
-
-
-def filter_discordants(discordants, filters2Apply, bam, normalBam, confDict):
-    '''
-    Function to apply filters all discordant clusters. 
-
-    Input:
-        1. discordants: list of discordant clusters
-        2. filters2Apply: list containing the filters to apply 
-        3. bam: path to bam file. None if not needed
-        4. normalBam: path to matched normal bam file. None if not needed        
-        5. confDict
-
-    Output:
-        1. discordantsPass: List of discordant clusters passing all the filters
-    '''
-    discordantsPass = []
-    
-    # For discordant cluster
-    for discordant in discordants:
-
-        ## Apply filters
-        failedFilters = filter_discordant(discordant, filters2Apply, bam, normalBam, confDict)
-
-        # Cluster pass all the filters
-        if not failedFilters: 
-            discordantsPass.append(discordant)
-            
-        else:
-            print("Discarded discordant cluster")
-            print(discordant.ref, discordant.beg, discordant.end)
-            print(failedFilters)
-            print([event.readName for event in discordant.events])
-    
-    return discordantsPass
 
 def filter_discordant(discordant, filters2Apply, bam, normalBam, confDict):
     '''
@@ -237,7 +211,7 @@ def filter_metaclusters_SR(metaclusters, filters2Apply, confDict, bam):
         # Set meacluster element:
         element = metacluster.setElement() if metacluster.setElement() else 'GENERIC'
         ## Apply filters
-        metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply[element], confDict, bam)
+        metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply[element], bam, normalBam, confDict)
 
         # Metacluster fails some filter
         if metacluster.failedFilters:
@@ -257,7 +231,6 @@ def filter_metaclusters_SR(metaclusters, filters2Apply, confDict, bam):
             metaclustersPass.append(metacluster)
 
     return metaclustersPass, metaclustersFail
-
 
 def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
     '''
@@ -286,7 +259,7 @@ def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
         for index, metacluster in enumerate(metaclusters):
 
             ## Apply filters
-            metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply, confDict, None)
+            metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply, bam, normalBam, confDict)
 
             # Metacluster fails some filter
             if metacluster.failedFilters:
@@ -315,14 +288,16 @@ def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
 
     return metaclustersPassDict, metaclustersFailDict
 
-def filter_metacluster(metacluster, filters2Apply, confDict, bam):
+def filter_metacluster(metacluster, filters2Apply, bam, normalBam, confDict):
     '''
     Apply selected filters to one metacluster.
 
     Input:
         1. metacluster: metacluster object
         2. filters2Apply: list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
-        3. confDict
+        3. bam  
+        4. normalBam
+        5. confDict
 
     Output:
         1. failedFilters -> list containing those filters that the metacluster doesn't pass.
@@ -365,20 +340,30 @@ def filter_metacluster(metacluster, filters2Apply, confDict, bam):
             failedFilters.append('PERC-RESOLVED')
     '''
 
-    ## 3. FILTER 3: Area mapping quality
+    ## 6. FILTER 6: Area mapping quality
     if "AREAMAPQ" in filters2Apply:
         if not area(metacluster,confDict,bam)[0]:
             failedFilters.append('AREAMAPQ')
 
-    ## 4. FILTER 4: Area clipping SMS
+    ## 7. FILTER 7: Area clipping SMS
     if "AREASMS" in filters2Apply:
         if not area(metacluster,confDict,bam)[1]:
             failedFilters.append('AREASMS')
 
-    ## 5. FILTER 5: Whether a metacluster has a SV_type assigned or not
+    ## 8. FILTER 8: Whether a metacluster has a SV_type assigned or not
     if 'IDENTITY' in filters2Apply: 
         if not identityFilter(metacluster):
             failedFilters.append('IDENTITY')
+    
+    ## 9. FILTER 9: Whether a metacluster is germline
+    if 'GERMLINE' in filters2Apply: 
+        if not filter_germline(metacluster, confDict['minNormalReads']):
+            failedFilters.append('GERMLINE')
+    
+    ## 10. FILTER 10: Reciprocal metaclusters range 
+    if 'META-RANGE' in filters2Apply: 
+        if not metacluster_reciprocalRange(metacluster, 200):
+            failedFilters.append('META-RANGE')
 
     return failedFilters
 
@@ -394,38 +379,44 @@ def filter_min_nb_reads(cluster, minReads, minNormalReads):
     Output:
         1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
     '''
+    if cluster.events:
+        
+        ## 1. Compute number of events supporting the cluster 
+        nbTotal, nbTumour, nbNormal = cluster.supportingReads()[0:3]
 
-    ## 1. Compute number of events supporting the cluster 
-    nbTotal, nbTumour, nbNormal = cluster.supportingReads()[0:3]
+        ## 2. Compare the number of events supporting the cluster against the minimum required
+        # 2.1 Paired mode:
+        if nbTumour != None:
 
-    ## 2. Compare the number of events supporting the cluster against the minimum required
-    # 2.1 Paired mode:
-    if nbTumour != None:
+            if nbTumour >= minReads and nbNormal >= minNormalReads:
+                cluster.mutOrigin = 'germline'
+                PASS = True
 
-        if nbTumour >= minReads and nbNormal >= minNormalReads:
-            cluster.mutOrigin = 'germline'
-            PASS = True
+            elif nbTumour >= minReads and not nbNormal >= minNormalReads:
+                cluster.mutOrigin = 'somatic-tumour'
+                PASS = True
 
-        elif nbTumour >= minReads and not nbNormal >= minNormalReads:
-            cluster.mutOrigin = 'somatic-tumour'
-            PASS = True
+            elif nbNormal >= minReads:
+                cluster.mutOrigin = 'somatic-normal'
+                PASS = True
 
-        elif nbNormal >= minReads:
-            cluster.mutOrigin = 'somatic-normal'
-            PASS = True
+            else:
+                PASS = False
 
+        # 2.1 Single mode:
         else:
-            PASS = False
-
-    # 2.1 Single mode:
+            # If running in single mode (do no set mutation origin because it doesn't make sense)
+            if nbTotal >= minReads:
+                PASS = True
+            else:
+                PASS = False
+                
     else:
-        # If running in single mode (do no set mutation origin because it sdoesn't make sense)
-        if nbTotal >= minReads:
-            PASS = True
-        else:
-            PASS = False
+        PASS = False    
     
     return PASS
+    
+    
 
 def filter_max_nb_reads(metacluster, maxNbEvents):
     '''
@@ -520,8 +511,6 @@ def identityFilter(cluster):
     Output:
         1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
     '''
-
-    ## 2. Compare the percentage of outliers against the maximum required
     if cluster.identity != None:
         PASS = True 
         
@@ -1125,5 +1114,44 @@ def filter_clusterRange_clipping(cluster):
               
         if(n_clusterCoord <= 2):
             PASS = False
+        
+    return PASS
+
+
+def metacluster_reciprocalRange(cluster, maxTSDlen):
+    '''
+    Filter metacluster reciprocal clusters if plus clusters and minus clusters overlap more than buffer
+    Filter out:
+         ------->
+    <-------
+     ------->
+      <-------
+             <-------
+   end         beg
+    '''
+    PASS = True
+    
+    if cluster.orientation == "RECIPROCAL":
+            
+        beg = cluster.refLeftBkp if cluster.refLeftBkp is not None else cluster.beg
+        end = cluster.refRightBkp if cluster.refRightBkp is not None else cluster.end
+        
+        if abs(beg-end) > maxTSDlen:
+            PASS = False
+        
+    # if cluster.TSD != None and cluster.TSD < maxTSDlen:
+        
+    #     PASS = False
+        
+    #     print('metacluster_reciprocalRange')
+    #     print(cluster.__dict__)
+        
+    #     beg = cluster.refLeftBkp if cluster.refLeftBkp is not None else cluster.beg
+    #     end = cluster.refRightBkp if cluster.refRightBkp is not None else cluster.end
+               
+    #     print('end - beg')
+    #     print(end - beg)
+    #     print(cluster.TSD)
+    #     print(PASS)
         
     return PASS

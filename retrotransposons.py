@@ -802,14 +802,14 @@ def identity_metaclusters_retrotest_wgs(metaclusters, bam, outDir, confDict, ann
     # create newconfDict to collect discordants around insertion
     newconfDict = {}
     newconfDict['targetEvents'] = ['DISCORDANT']
-    newconfDict['minMAPQ'] = 0
+    newconfDict['minMAPQ'] = 20
     newconfDict['filterDuplicates'] = True
     
     # for each metacluster
     for metacluster in metaclusters:
 
             # collect discordants in region
-            buffer = 200
+            buffer = confDict['readSize'] * 2
             eventsDict = bamtools.collectSV(metacluster.ref, metacluster.refLeftBkp-buffer, metacluster.refRightBkp+buffer, bam, newconfDict, None, supplementary = False)
             
             # determine identity if there is discordants
@@ -817,20 +817,84 @@ def identity_metaclusters_retrotest_wgs(metaclusters, bam, outDir, confDict, ann
                 
                 # filter events by insert size
                 discordantList = filter_DISCORDANTS_insertSize(eventsDict['DISCORDANT'], 1000)
+                        
+                # determine identity
+                discordantEventsIdent = events.determine_discordant_identity_MEIs(discordantList, annotations['REPEATS'], annotations['TRANSDUCTIONS'], confDict['readSize'])
+                
+                # Add pA support 
+                discordantsIdentDict = add_polyA_discordantsIdentDict(discordantEventsIdent)
                 
                 # determine identity
-                discordantEventsIdent = events.determine_discordant_identity_MEIs(discordantList, annotations['REPEATS'], annotations['TRANSDUCTIONS'])
+                determine_MEI_type_discordants(metacluster, discordantsIdentDict)
                 
-                # filter keys by minClusterSize# filter keys by minClusterSize
-                for key, value in list(discordantEventsIdent.items()):
+
+def identity_metaclusters_wgs(metaclusters, bam, outDir, confDict, annotations):
+    '''
+    Determine metaclusters identity using discordants around the insertion
+    
+    Input:
+    1. metaclusters: list of metaclusters
+    2. bam
+    3. outDir
+    4. confDict: original config dictionary
+    5. annotations: nested dictionary of ['REPEATS', 'TRANSDUCTIONS'] (first keys) containing 
+                    annotated repeats organized per chromosome (second keys) into genomic bins (values)
+    
+    Output: metacluster.identity attribute is filled
+    '''
+    
+    # for each metacluster
+    for metacluster in metaclusters:
+
+            # collect discordants subclusters
+            discordants = [event for event in metacluster.events if event.type == 'DISCORDANT']
+            
+            # determine identity if there is discordants
+            if discordants:
+                                
+                # filter events by insert size
+                discordantList = filter_DISCORDANTS_insertSize(discordants, 1000)
+                                        
+                # determine identity
+                discordantEventsIdent = events.determine_discordant_identity_MEIs(discordantList, annotations['REPEATS'], annotations['TRANSDUCTIONS'], confDict['readSize'])
+                                                               
+                # Add pA support 
+                discordantsIdentDict = add_polyA_discordantsIdentDict(discordantEventsIdent)
+                                        
+                # determine identity
+                determine_MEI_type_discordants(metacluster, discordantsIdentDict)
+
+              
+def add_polyA_discordantsIdentDict(discordantEventsIdent):
+    '''
+    Add polyA support to other clusters with the same orientation
+    
+    Input: 
+    1. discordantEventsIdent: Dictionary with keys following this pattern 'PLUS_DISCORDANT_L1', 'MINUS_DISCORDANT_Simple_repeat', 'PLUS_DISCORDANT_22q12.1'
+    
+    Output: 
+    1. discordantEventsIdent: The same dictionary but events supporting polyA are merged into other identities with the same orientation
+    '''
+    
+    for orientation in ['PLUS', 'MINUS']:
+        
+        pA_key = orientation + '_DISCORDANT_Simple_repeat'
+        
+        # if there is polyA key in dict keys
+        if pA_key in discordantEventsIdent.keys():
+            
+            # for all identity keys
+            for identity in discordantEventsIdent.keys():
+                
+                # select keys with same orientation but discard polyA key
+                if identity != pA_key and orientation in identity:
                     
-                    if len(value) < confDict['minNbDISCORDANT']:
+                    # add polyA events to other identity keys with same orientation
+                    discordantEventsIdent[identity] = discordantEventsIdent[identity] + discordantEventsIdent[pA_key]
                         
-                        discordantEventsIdent.pop(key)
-                        
-                # determine identity
-                determine_MEI_type_discordants(metacluster, discordantEventsIdent)
-                
+    return(discordantEventsIdent)
+    
+
 
 def determine_MEI_type_discordants(metacluster, discordantsIdentDict):
     '''
@@ -859,18 +923,38 @@ def determine_MEI_type_discordants(metacluster, discordantsIdentDict):
     if plus_identity and minus_identity:
         
         identities = [plus_identity, minus_identity]
+                
+        ## 1. Remove all elements that do not support the identity from metacluster
+        identity_keys = ['PLUS_DISCORDANT_' + plus_identity, 'MINUS_DISCORDANT_' + minus_identity]
         
+        # select events to keep
+        events2keep = []
+        for key in discordantsIdentDict.keys():
+            if key in identity_keys: events2keep += discordantsIdentDict[key]
+        
+        events2remove = list(set(metacluster.events) - set(events2keep))
+        metacluster.remove(events2remove)
+        
+        ## 2. Set identity in metacluster attribute
         # if identities == [srcId_A, srcId_A] --> orphan 
-        if len(set(identities)) == 1 and 'L1' not in identities:
+        if len(set(identities)) == 1 and 'L1' not in identities and 'Simple_repeat' not in identities:
             metacluster.identity = 'TD2'
         
-        # if identities == [srcId_A, L1] --> partnered
+        # if identities == [L1, pA] --> solo    
+        elif len(set(identities)) == 2 and set(identities) == {'L1', 'Simple_repeat'}:
+            metacluster.identity = 'TD0'
+        
+        # if identities == [srcId_A, L1] --> partnered   
         elif len(set(identities)) == 2 and 'L1' in identities:
             metacluster.identity = 'TD1'
-         
+        
         # if identities == [L1, L1] --> solo     
         elif len(set(identities)) == 1 and 'L1' in identities:
             metacluster.identity = 'TD0'
+            
+        # if identities == [pA, pA] --> solo     
+        elif len(set(identities)) == 1 and 'Simple_repeat' in identities:
+            metacluster.identity = 'pA'
             
         else: 
             metacluster.identity = identities
@@ -882,7 +966,7 @@ def determine_MEI_type_discordants(metacluster, discordantsIdentDict):
         
         elif minus_identity: metacluster.identity = 'minus_' + minus_identity
         
-        else: metacluster.identity = 'none'
+        else: metacluster.identity = None
 
         
 def filter_DISCORDANTS_insertSize(discordants, min_insertSize):
@@ -909,3 +993,85 @@ def filter_DISCORDANTS_insertSize(discordants, min_insertSize):
         
     return filteredDisc
 
+
+def metaclusters_MEI_type(metaclusters):
+    '''
+    Determine metaclusters identity
+    
+    Input:
+    1. metaclusters: list of metaclusters
+    
+    Output: metacluster.identity attribute is filled
+    '''
+    for metacluster in metaclusters:
+        
+        metacluster.identity_shortReads_ME()
+        
+        ## 1. Set identity
+        identities = [metacluster.plus_id, metacluster.minus_id]
+        
+        # if metacluster.plus_id == metacluster.minus_id:
+        if len(set(identities)) == 1:
+            
+            if metacluster.plus_id == 'L1':
+                metacluster.identity = 'TD0'
+            
+            elif metacluster.plus_id == None:
+                if metacluster.plus_pA and metacluster.minus_pA:
+                    metacluster.identity = 'pA'
+            
+            else:
+                metacluster.identity = 'TD2'
+                metacluster.src_id = metacluster.plus_id
+        
+        # elif both cluster have identity but are not equal
+        elif metacluster.plus_id and metacluster.minus_id:
+            
+            # if identities == [srcId_A, L1] --> partnered 
+            if len(set(identities)) == 2 and 'L1' in identities:
+                metacluster.identity = 'TD1'
+                identities.remove('L1')
+                metacluster.src_id = identities[0]             
+                        
+            # if identities == [srcId_A, srcId_B] 
+            else:
+                metacluster.identity =  'clusters_' + identities[0] + '_' + identities[1]
+        
+        # elif only the identity of one of the clusters has been set
+        elif metacluster.plus_id or metacluster.minus_id:
+            
+            if metacluster.plus_id:
+                if metacluster.minus_pA:
+                    if metacluster.plus_id == 'L1':
+                        metacluster.identity = 'TD0-TD1'
+                    else:
+                        metacluster.identity = 'TD2'
+                        metacluster.src_id = metacluster.plus_id
+                        
+            elif metacluster.minus_id:
+                if metacluster.plus_pA:
+                    if metacluster.minus_id == 'L1':
+                        metacluster.identity = 'TD0-TD1'
+                    else:
+                        metacluster.identity = 'TD2'
+                        metacluster.src_id = metacluster.minus_id
+            
+            else:                        
+                identities.remove(None)
+                metacluster.identity =  'single_cluster_' + identities[0]
+        
+        else:
+            metacluster.identity = None
+            
+        ## 2. Set strand and polyA support
+        if metacluster.plus_pA:
+            metacluster.pA = True
+            if not metacluster.minus_pA:
+                metacluster.strand = '-'
+            
+        if metacluster.minus_pA:
+            metacluster.pA = True
+            if not metacluster.plus_pA:
+                metacluster.strand = '+'
+            
+        

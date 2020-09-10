@@ -46,10 +46,10 @@ def load_annotations(annotations2load, refLengths, annotationsDir, germlineMEI, 
         repeatsBed = annotationsDir + '/repeats.bed'
         annotations['REPEATS'] = formats.bed2binDb(repeatsBed, refLengths, threads)
 
-    ## 1B. Load L1 repeats into a bin database
+    ## 1B. Load L1 repeats and pA into a bin database
     elif 'REPEATS-L1' in annotations2load:
         
-        repeatsBed = annotationsDir + '/repeats.L1.bed'
+        repeatsBed = annotationsDir + '/repeats.L1.pA.bed'
         annotations['REPEATS'] = formats.bed2binDb(repeatsBed, refLengths, threads)
     
     ## 2. Create transduced regions database
@@ -57,8 +57,9 @@ def load_annotations(annotations2load, refLengths, annotationsDir, germlineMEI, 
 
         ## Create bed file containing transduced regions
         sourceBed = annotationsDir + '/srcElements.bed'
-        transducedPath = databases.create_transduced_bed(sourceBed, 10000, 0, outDir)
-
+        # buffer equals -150 to avoid the end of the src element
+        transducedPath = databases.create_transduced_bed(sourceBed, 10000, -150, outDir)
+        
         ## Load transduced regions into a bin database
         annotations['TRANSDUCTIONS'] = formats.bed2binDb(transducedPath, refLengths, threads)
 
@@ -338,8 +339,11 @@ def addGnAnnot2events(events, out1):
     eventsDict = {}
 
     for event in events:
-
-        name = event.ref + ':' + str(event.beg) + '-' + str(event.end)
+        
+        beg = event.refLeftBkp if event.refLeftBkp is not None else event.beg
+        end = event.refRightBkp if event.refRightBkp is not None else event.end
+        
+        name = event.ref + ':' + str(beg) + '-' + str(end)
         eventsDict[name] = event
 
     ## 2. Add to each event gene annotation info    
@@ -405,9 +409,12 @@ def create_annovar_input(events, fileName, outDir):
     ## 2. Write events
     # For each event
     for event in events:
+        
+        beg = event.refLeftBkp if event.refLeftBkp is not None else event.beg
+        end = event.refRightBkp if event.refRightBkp is not None else event.end
 
-        name = event.ref + ':' + str(event.beg) + '-' + str(event.end)
-        fields = [event.ref, str(event.beg), str(event.end), '0', '0', 'comments: ' + name]
+        name = event.ref + ':' + str(beg) + '-' + str(end)
+        fields = [event.ref, str(beg), str(end), '0', '0', 'comments: ' + name]
         row = "\t".join(fields)
         
         # Add entry to BED
@@ -592,7 +599,7 @@ def run_annovar(inputFile, annovarDir, outDir):
     return out1, out2
 
 
-def intersect_mate_annotation(discordants, annotation, targetField):
+def intersect_mate_annotation(discordants, annotation, targetField, readSize):
     '''
     For each input read assess if the mate aligns over an annotated feature
 
@@ -600,6 +607,7 @@ def intersect_mate_annotation(discordants, annotation, targetField):
         1) discordants: list containing input discordant read pair events
         2) annotation: dictionary containing annotated features organized per chromosome (keys) into genomic bins (values)
         3) targetField: optional field name to be used to determine overlapping feature name
+        4) readSize: read size
 
     Output:
         1) matesIdentity: dictionary containing lists of discordant read pairs organized taking into account their orientation and if the mate aligns in an annotated feature 
@@ -614,7 +622,6 @@ def intersect_mate_annotation(discordants, annotation, targetField):
     ##  For each input discordant intersect mate alignment coordinates with the provided annotation 
     for discordant in discordants:
         
-        ## Note: Apply filter to discard unmapped mates  
         # A) Annotated feature in the same ref where the mate aligns
         if discordant.mateRef in annotation:
 
@@ -622,8 +629,9 @@ def intersect_mate_annotation(discordants, annotation, targetField):
             featureBinDb = annotation[discordant.mateRef]        
  
             ## Retrieve all the annotated features overlapping with the mate alignment interval
-            overlappingFeatures = featureBinDb.collect_interval(discordant.mateStart, discordant.mateStart + 100, 'ALL')
-
+            buffer = readSize if readSize else 100
+            overlappingFeatures = featureBinDb.collect_interval(discordant.mateStart, discordant.mateStart + buffer, 'ALL')
+            
             ## Determine mate status 
             # a) Mate does not align within an annotated feature
             if len(overlappingFeatures) == 0:
@@ -637,7 +645,7 @@ def intersect_mate_annotation(discordants, annotation, targetField):
             else:
                 overlappingFeatures = sorted(overlappingFeatures,key=itemgetter(1), reverse=True)
                 featureType = overlappingFeatures[0][0].optional[targetField]
-
+            
         # B) No feature in the same ref as mate
         else:
             featureType = 'None'

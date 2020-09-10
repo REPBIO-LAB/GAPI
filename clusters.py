@@ -196,6 +196,33 @@ def cluster_by_matePos(discordants, refLengths, minClusterSize):
 
     return outDiscordants
 
+
+def cluster_by_identity(clusters, refLengths, minClusterSize):
+    '''
+    Apply an extra clustering step to clusters based on mate or SA identity
+
+    Input:
+        1. clusters: list of clusters
+        2. refLengths: dictionary containing references as keys and their lengths as values
+        3. minClusterSize: minimum cluster size
+
+    Output:
+        1. outClusters: list of clusters after applying identity based clustering
+    '''     
+    outClusters = []
+
+    ## For each cluster
+    for cluster in clusters:
+
+        ## Cluster by mate position
+        newClusters = cluster_events_by_identity(cluster.events, refLengths, minClusterSize)
+            
+        ## Add newly created clusters to the list
+        outClusters = outClusters + newClusters
+
+    return outClusters
+
+
 def cluster_by_supplPos(clippings, refLengths, minClusterSize, clippingSide):
     '''
     Apply an extra clustering step to clipping clusters based on suppl. alignment position
@@ -367,7 +394,7 @@ def create_clusters(eventsBinDb, confDict):
         ## D) Perform clustering based on reciprocal overlap for DISCORDANT
         elif SV_type == 'DISCORDANT':
 
-            clustersDict[SV_type] = clustering.reciprocal_overlap_clustering(eventsBinDb, 1, confDict['minClusterSize'], [SV_type], 500, SV_type)    
+            clustersDict[SV_type] = clustering.reciprocal_overlap_clustering(eventsBinDb, 1, confDict['minClusterSize'], [SV_type], confDict['equalOrientBuffer'], SV_type)    
 
     ## 2. Organize clusters into bins ##    
     binSizes = [100, 1000, 10000, 100000, 1000000]
@@ -414,17 +441,18 @@ def polish_clusters(clustersBinDb, minClusterSize):
     ## 3. Polish CLIPPING clusters (TO DO)
 
 
-def create_metaclusters(clustersBinDb):
+def create_metaclusters(clustersBinDb, buffer):
     '''    
     Group SV cluster events into metaclusters
 
     Input:
-        1. clustersBinDb: Data structure containing a set of clusters organized in genomic bins  
+        1. clustersBinDb: Data structure containing a set of clusters organized in genomic bins
+        2. buffer: buffer to extend cluster coordinates
 
     Output:
         1. metaclusters: list containing newly created metaclusters
     '''
-    metaclusters = clustering.reciprocal_overlap_clustering(clustersBinDb, 1, 1, clustersBinDb.eventTypes, 50, 'META')
+    metaclusters = clustering.reciprocal_overlap_clustering(clustersBinDb, 1, 1, clustersBinDb.eventTypes, buffer, 'META')
 
     return metaclusters
 
@@ -1535,7 +1563,7 @@ class cluster():
         '''
         # Sort events from lower to upper beg coordinates
         self.sort()  
-
+        
         # Define cluster coordinates 
         ref = self.events[0].ref
         beg = self.events[0].beg
@@ -1573,7 +1601,8 @@ class cluster():
         self.events = [event for event in self.events if event not in events2remove]
 
         ## 2. Resort and redefine metacluster begin and end coordinates ##
-        self.ref, self.beg, self.end = self.coordinates()
+        if self.events:
+            self.ref, self.beg, self.end = self.coordinates()
 
     def pick_median_length(self):
         '''
@@ -1841,7 +1870,8 @@ class CLIPPING_cluster(cluster):
     def __init__(self, events):
 
         cluster.__init__(self, events, 'CLIPPING')
-        self.supplCluster = None            
+        self.supplCluster = None
+        self.orientation = None  
 
     def infer_breakpoint(self):
         '''
@@ -2335,17 +2365,27 @@ class DISCORDANT_cluster(cluster):
         cluster.__init__(self, events, 'DISCORDANT')
 
         self.matesCluster = None
-        self.identity = self.events[0].identity
-        self.orientation = self.events[0].orientation
+        self.identity = None
         self.element = self.events[0].element
-            
+
         if all (event.orientation == 'PLUS' for event in events):
             self.orientation = 'PLUS'
         elif all (event.orientation == 'MINUS' for event in events):
             self.orientation = 'MINUS'
         else:
             self.orientation = 'RECIPROCAL'
-
+    
+    def setIdentity(self):
+        '''
+        Set identity based on events identity
+        '''
+        identities = set([event.identity for event in self.events])
+           
+        if len(identities) == 1:
+            self.identity = self.events[0].identity
+        else:
+            self.identity = list(identities)
+            
     def mates_start_interval(self):
         '''
         Compute mates start alignment position interval. 
@@ -2416,20 +2456,31 @@ class META_cluster():
         self.intRightBkp = None
         self.rightClipType = None
         self.leftClipType = None
-        self.identity = None
 
         # Short reads:
+        self.identity = None
+        self.orientation = None
+        self.pA = None
+        self.plus_pA = None
+        self.minus_pA = None
+        self.plus_id = None
+        self.minus_id = None
+        self.strand = None
+        self.src_id = None
+        self.TSD = None
+        self.repeatAnnot = None
+        
         if hasattr(self.events[0], 'identity'):
             self.identity = self.events[0].identity
             
-        if hasattr(clusters[0], 'orientation'):
-            if all (cluster.orientation == 'PLUS' for cluster in clusters):
+        if hasattr(self.events[0], 'orientation'):
+            if all (event.orientation in ['PLUS', None] for event in self.events):
                 self.orientation = 'PLUS'
-            elif all (cluster.orientation == 'MINUS' for cluster in clusters):
+            elif all (event.orientation in ['MINUS', None] for event in self.events):
                 self.orientation = 'MINUS'
             else:
                 self.orientation = 'RECIPROCAL'
-
+                    
         # Update input cluster's clusterId attribute
         for cluster in clusters:
             cluster.clusterId = self.id
@@ -2438,7 +2489,37 @@ class META_cluster():
         self.SV_features = {}
         self.supplClusters = {}
         self.bridge = None
-
+    
+    def identity_shortReads_ME(self):
+        '''
+        Define plus and minus cluster identities, and set polyA attributes if polyA present
+        '''
+        self.identity = None
+        
+        ## 1. collect events identities
+        plus_identities = [event.identity for event in self.events if event.orientation == 'PLUS']
+        minus_identities = [event.identity for event in self.events if event.orientation == 'MINUS']
+        
+        ## 2. set pA support
+        if 'Simple_repeat' in plus_identities:
+            self.plus_pA = True
+            plus_identities = [value for value in plus_identities if value != 'Simple_repeat']
+        
+        if 'Simple_repeat' in minus_identities:
+            self.minus_pA = True
+            minus_identities = [value for value in minus_identities if value != 'Simple_repeat']
+                    
+        ## 3. set clusters identity
+        plus_identityDict = Counter(plus_identities)
+        minus_identityDict = Counter(minus_identities)
+        
+        # select most supported identity
+        if plus_identityDict:
+            self.plus_id = max(plus_identityDict.items(), key=itemgetter(1))[0]
+              
+        if minus_identityDict:
+            self.minus_id = max(minus_identityDict.items(), key=itemgetter(1))[0]
+                   
     def sort(self):
         '''
         Sort events in increasing coordinates order
@@ -2603,7 +2684,8 @@ class META_cluster():
         self.events = [event for event in self.events if event not in events2remove]
 
         ## 2. Resort and redefine metacluster begin and end coordinates ##
-        self.ref, self.beg, self.end = self.coordinates()
+        if self.events:
+            self.ref, self.beg, self.end = self.coordinates()
 
         ## 3. Separate events according to their type into multiple lists ##
         eventTypes = events.separate(events2remove)
@@ -2831,11 +2913,19 @@ class META_cluster():
 
     def nbSUPPLEMENTARY(self):
         '''
-        Return the number of discordant events composing the metacluster. 
+        Return the number of supplementary events composing the metacluster. 
         '''        
         nbSUPPL = len(set([event.readName for event in self.events if event.type == 'SUPPLEMENTARY']))
         
         return nbSUPPL
+
+    def nbCLIPPINGS(self):
+        '''
+        Return the number of clipping events composing the metacluster. 
+        '''        
+        nbCLIPP = len(set([event.readName for event in self.events if event.type == 'CLIPPING']))
+        
+        return nbCLIPP
 
     def supportingCLIPPING(self, buffer, confDict, bam, normalBam, mode):
         # Note: This function works but you have to allow duplicates in the clipping 
@@ -2879,29 +2969,76 @@ class META_cluster():
             CLIPPING_cluster = self.add_clippingEvents(ref, binBeg, binEnd, clippingEventsDict, ['RIGHT-CLIPPING', 'LEFT-CLIPPING'], confDict)
 
         return CLIPPING_cluster
+
+    def supportingCLIPPING_sonia(self, confDict, bam, normalBam):
+        '''
+        Collect supporting clippings 
+        '''
+        
+        # Make custom conf. dict
+        clippingConfDict = dict(confDict)
+        clippingConfDict['targetEvents'] = ['CLIPPING']
+        clippingConfDict['minMAPQ'] = 1
+        clippingConfDict['readFilters'] = ['SMS']
+        clippingConfDict['minClusterSize'] = 1
+
+        clippingEventsDict = {}
+
+        # Define region
+        ref = self.ref
+        beg = self.refLeftBkp if self.refLeftBkp is not None else self.beg
+        end = self.refRightBkp if self.refRightBkp is not None else self.end
+
+        # Collect clippings
+        if not normalBam:
+            clippingEventsDict = bamtools.collectSV(ref, beg, end, bam, clippingConfDict, None)
+            
+        else:
+            clippingEventsDict = bamtools.collectSV_paired(ref, beg, end, bam, normalBam, clippingConfDict)
+
+        print('clippingEventsDict')
+        print(clippingEventsDict)
+        
+        # When cluster orientation is 'PLUS', add the biggest right clipping cluster if any:
+        if self.orientation == 'PLUS':
+            
+            ## Get clipping clusters:
+            clippingRightEventsDict = dict((key,value) for key, value in clippingEventsDict.items() if key == 'RIGHT-CLIPPING')
+            CLIPPING_cluster = self.add_clippingEvents(ref, beg, end, clippingRightEventsDict, ['RIGHT-CLIPPING'], confDict)
+
+        # When cluster orientation is LEFT, add the biggest left clipping cluster if any:
+        elif self.orientation == 'MINUS':
+            
+            ## Get clipping clusters:
+            clippingLeftEventsDict = dict((key,value) for key, value in clippingEventsDict.items() if key == 'LEFT-CLIPPING')
+            CLIPPING_cluster = self.add_clippingEvents(ref, beg, end, clippingLeftEventsDict, ['LEFT-CLIPPING'], confDict)
+
+        # If it is reciprocal
+        elif self.orientation == 'RECIPROCAL':
+            
+            CLIPPING_cluster = self.add_clippingEvents(ref, beg, end, clippingEventsDict, ['RIGHT-CLIPPING', 'LEFT-CLIPPING'], confDict)
+
+        return CLIPPING_cluster
         
     def add_clippingEvents(self, ref, binBeg, binEnd, clippingEventsDict, eventTypes, confDict):
         '''
-
+        Create clipping clusters and add them to metacluster
         '''
-        binSizes = [100, 1000]
+        binSizes = [1000]
         clippingBinDb = structures.create_bin_database_interval(ref, binBeg, binEnd, clippingEventsDict, binSizes)
         binSize = clippingBinDb.binSizes[0]
         CLIPPING_clusters = clustering.distance_clustering(clippingBinDb, binSize, eventTypes, 'CLIPPING', confDict['maxBkpDist'], confDict['minClusterSize']) 
 
+        print('clippingBinDb')
+        print(clippingBinDb)
+        
         # If there is a clipping cluster
         for CLIPPING_cluster in CLIPPING_clusters:
             
-            ## Choose the clipping cluster with the highest number of events:
-            # Coger el cluster de la lista de clusters si si length es igual a la maxima length de todos los clusters de la lista. (como devuelve una lista de un solo elemento, cojo el primer elemento de la lista.)
-
             ## Add cluster's reads to the discordant metacluster:
             self.addEvents(CLIPPING_cluster.events)
 
         return CLIPPING_clusters
-
-            ## Remove events from discordant cluster that are higher (more to the right) than the clippingEnd
-            # discordantCluster.removeDiscordant(clippingEnd, 'right')
  
     def polish(self, confDict, reference, outDir):
         '''
@@ -4418,6 +4555,11 @@ def discCluster_from_readNames(readNames, ref, beg, end, bam, sample):
     # For each read alignment
     for alignmentObj in iterator:
         
+        # if end coordinate is None, continue. 
+        # returns None if read is unmapped or no cigar alignment present
+        if alignmentObj.reference_end == None:
+            continue
+        
         if alignmentObj.query_name in readNames:
             
             ## 1. Determine discordant orientation
@@ -4435,10 +4577,13 @@ def discCluster_from_readNames(readNames, ref, beg, end, bam, sample):
 
             else:
                 pair = '2'
-           
+
             DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, orientation, pair, alignmentObj.query_name, alignmentObj, sample, alignmentObj.is_duplicate)
             DISCORDANTS.append(DISCORDANT)
-            
-    newCluster = create_cluster(DISCORDANTS, 'DISCORDANT')    
+        
+    if DISCORDANTS:        
+        newCluster = create_cluster(DISCORDANTS, 'DISCORDANT')
+    else:
+        newCluster = None
     
     return(newCluster)

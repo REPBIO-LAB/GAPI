@@ -260,7 +260,7 @@ def collect_soft_clipped_seqs(clippings):
     return clippedFasta
 
 
-def determine_discordant_identity_MEIs(discordants, repeatsBinDb, transducedBinDb):
+def determine_discordant_identity_MEIs(discordants, repeatsBinDb, transducedBinDb, readSize):
     '''
     Determine discortant read pair identity based on the mapping position of anchor´s mate
 
@@ -268,6 +268,7 @@ def determine_discordant_identity_MEIs(discordants, repeatsBinDb, transducedBinD
         1. discordants: list containing input discordant read pair events
         2. repeatsBinDb: dictionary containing annotated retrotransposons organized per chromosome (keys) into genomic bins (values)
         3. transducedBinDb: dictionary containing source element transduced regions (keys) into genomic bins (values)
+        4. readSize: read size
 
     Output:
         1. discordantsIdentity: dictionary containing lists of discordant read pairs organized taking into account their orientation and if the mate aligns in an annotated retrotransposon 
@@ -280,7 +281,7 @@ def determine_discordant_identity_MEIs(discordants, repeatsBinDb, transducedBinD
     
     ## 1. Assess if discordant read pairs support transduction insertion if transduction database provided
     if transducedBinDb is not None:
-        discordantsTd = annotation.intersect_mate_annotation(discordants, transducedBinDb, 'cytobandId')
+        discordantsTd = annotation.intersect_mate_annotation(discordants, transducedBinDb, 'cytobandId', readSize)
 
         ## Separate discordants matching from those not matching source elements
         discordants = []
@@ -298,7 +299,7 @@ def determine_discordant_identity_MEIs(discordants, repeatsBinDb, transducedBinD
 
     ## 2. Assess if discordant read pairs support retrotransposons insertion if repeats database provided
     if repeatsBinDb is not None:
-        discordantsRt = annotation.intersect_mate_annotation(discordants, repeatsBinDb, 'family')
+        discordantsRt = annotation.intersect_mate_annotation(discordants, repeatsBinDb, 'family', readSize)
 
         if 'PLUS_DISCORDANT_None' in discordantsRt:
             discordantsRt.pop('PLUS_DISCORDANT_None', None)
@@ -338,7 +339,7 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
     if 'ME' in targetINT2Search:
         ## 1. Assess if discordant read pairs support transduction insertion if transduction database provided
         if transducedBinDb is not None:
-            discordantsTd = annotation.intersect_mate_annotation(discordants, transducedBinDb, 'cytobandId')
+            discordantsTd = annotation.intersect_mate_annotation(discordants, transducedBinDb, 'cytobandId', None)
 
             ## Separate discordants matching from those not matching source elements
             discordants = []
@@ -359,7 +360,7 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
         discordantsNone['PLUS-DISCORDANT-None'] = []
         discordantsNone['MINUS-DISCORDANT-None'] = []
         if repeatsBinDb is not None:
-            discordantsRt = annotation.intersect_mate_annotation(discordants, repeatsBinDb, 'family')
+            discordantsRt = annotation.intersect_mate_annotation(discordants, repeatsBinDb, 'family', None)
 
             if 'PLUS-DISCORDANT-None' in discordantsRt:
                 discordantsNone['PLUS-DISCORDANT-None'].extend(discordantsRt['PLUS-DISCORDANT-None'])
@@ -661,11 +662,13 @@ class CLIPPING():
         self.clusterId = None
         self.blatIdentity = False
         self.cigarTuples = alignmentObj.cigartuples
+        self.orientation = 'PLUS' if clippedSide == 'right' else 'MINUS'
 
         # Supporting read alignment properties:
         if alignmentObj is None:
             self.CIGAR = None
             self.reverse = None
+            self.orientation = None
             self.secondary = None
             self.supplementary = None
             self.mapQual = None
@@ -675,6 +678,11 @@ class CLIPPING():
         else:
             self.CIGAR = alignmentObj.cigarstring
             self.reverse = alignmentObj.is_reverse
+            # if not self.reverse:
+            #     self.orientation = 'PLUS' if clippedSide == 'right' else 'MINUS'
+            # else:
+            #     self.orientation = 'MINUS' if clippedSide == 'left' else 'PLUS'
+                
             self.secondary = alignmentObj.is_secondary
             self.supplementary = alignmentObj.is_supplementary
             self.mapQual = alignmentObj.mapping_quality
@@ -1059,6 +1067,7 @@ class DISCORDANT():
         
         ## Mate info
         self.mateSeq = None
+        self.mateEnd = None
 
         if alignmentObj is None:
             self.isDup = None
@@ -1183,3 +1192,43 @@ def collect_clipped_seqs(clippings):
         clippedFasta.seqDict[clipping.readName] = clipping.clipped_seq()
 
     return clippedFasta
+
+
+def SA_as_DISCORDANTS(clippings):
+    '''
+    Store clippings with supplementary alignments (SA) as discordant pairs
+    
+    Input:
+    1. List of clipping events
+    
+    Output:
+    2. List of discordant events
+    '''
+    DISCORDANTS = []
+    
+    for clipping in clippings:
+        
+        SA = clipping.parse_supplAlignments_field()
+        
+        # if there is a SAs in clipping
+        if SA:
+            
+            for ref, SAs in SA.items():
+                
+                # for each SA
+                for suppA in SAs:
+                    
+                    # create discordant event using clipping coordinates
+                    event = DISCORDANT(clipping.ref, clipping.beg, clipping.end, clipping.orientation, clipping.pair, clipping.readName, None, clipping.sample, False)
+                    
+                    event.CIGAR = clipping.CIGAR
+                    
+                    # fill mate coordinates using SA coordinates
+                    event.mateRef = suppA.ref
+                    event.mateStart = suppA.beg
+                    event.mateEnd = suppA.end
+                    
+                    # append new DISCORDANT to output list
+                    DISCORDANTS.append(event)
+    
+    return(DISCORDANTS)

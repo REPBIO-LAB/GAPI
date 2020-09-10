@@ -41,7 +41,7 @@ def create_bin_database(refLengths, eventsDict):
             continue
 
         # Define bin sizes
-        binSizes = [300, 1000, 10000, 100000, refLen]
+        binSizes = [100, 1000, 10000, 100000, refLen]
 
         # Create bin database for reference
         binDb = create_bin_database_interval(ref, 0, refLen, eventsDict[ref], binSizes)      
@@ -390,10 +390,10 @@ class bin_database():
         ### Initialize events list adding the events from the root bin
         try:
             events = self.collect_bin(rootSize, rootIndex, eventTypes)
-
+            
             ### Select upper windows sizes/levels
             upperSizes = [ binSize for binSize in self.binSizes if binSize > rootSize]
-
+            
             # For each upper window size
             for upperSize in upperSizes:
                     
@@ -405,7 +405,7 @@ class bin_database():
 
                 ## Add upper bin´s events to the list
                 events = events + upperBinEvents
-
+            
         except KeyError:
             events =  []
 

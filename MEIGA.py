@@ -59,11 +59,11 @@ if __name__ == '__main__':
 	parser.add_argument('--target-SV', default="INS", dest='targetSV', type=str, help='Comma separated list of SV types to be detected (INS AND/OR BND). Default: INS')
 	parser.add_argument('--no-duplicates', action="store_true", default=False, dest='filterDuplicates', help='Filter out reads marked as duplicates if filter enabled')
 	parser.add_argument('--minMAPQ', default=20, dest='minMAPQ', type=int, help='Minimum mapping quality required for each read. Default: 20')
-	parser.add_argument('--readFilters', default="SMS", dest='readFilters', type=str, help='Comma separated list of read filters to apply (SMS)')
+	parser.add_argument('--readFilters', default=None, dest='readFilters', type=str, help='Comma separated list of possible read filters. Default: None. Options: [mateUnmap, insertSize, SMS, noDuplicates]')
 	parser.add_argument('--readOverhang', default=5000, dest='overhang', type=int, help='Number of flanking base pairs around the SV event to be collected from the supporting read sequence. Default: 5000')
 	parser.add_argument('--minINDELlen', default=50, dest='minINDELlen', type=int, help='Minimum indel length. Default: 50')
 	parser.add_argument('--minCLIPPINGlen', default=None, dest='minCLIPPINGlen', type=int, help='Minimum clipped sequence length for each read. Default [ILLUMINA, SURESELECT]: 20; [NANOPORE, PACBIO]: 500')
-	
+
 	## Clustering
 	parser.add_argument('--INSdist', default=250, dest='maxInsDist', type=int, help='Maximum distance bewteen two adjacent INS to be clustered together (Between 0-999). Default: 250')
 	parser.add_argument('--BKPdist', default=50, dest='maxBkpDist', type=int, help='Maximum distance bewteen two adjacent breakpoints for CLIPPING clustering (Between 0-999). Default: 250')
@@ -273,95 +273,6 @@ if __name__ == '__main__':
 		log.info('[ERROR] Abort execution as transduction search enabled (--transduction-search) and target families for source elements not provided (--source-families)')
 		sys.exit(1)	
 
-	##############################################
-	## Display configuration to standard output ##
-	##############################################
-	scriptName = os.path.basename(sys.argv[0])
-	scriptName = os.path.splitext(scriptName)[0]
-	version='0.24.0'
-
-	print()
-	print('***** ', scriptName, version, 'configuration *****')
-	print('*** Mandatory arguments ***')
-	print('bam: ', bam)
-	print('technology: ', technology)
-	print('reference: ', reference)
-	print('refDir: ', refDir, "\n")
-
-	print('*** Optional arguments ***')
-	print('** General **')
-	print('mode: ', mode)
-	print('species: ', species)
-	print('build: ', build)
-	print('normalBam: ', normalBam)
-	print('germlineMEI: ', germlineMEI)
-	print('transduction-search: ', transductionSearch)
-	print('source-families: ', srcFamilies)
-	print('gene-annot-dir: ', annovarDir)
-	print('polishing-rounds: ', rounds)
-	print('processes: ', processes)
-	print('outDir: ', outDir, "\n")
-
-	print('** BAM processing **')
-	print('targetBins: ', targetBins)
-	print('binSize: ', binSize)
-	print('targetRefs: ', refs)
-	print('targetSV: ', targetSV)
-	print('filterDuplicates: ', filterDuplicates)
-	print('minMAPQ: ', minMAPQ)
-	print('readFilters: ', readFilters)
-	print('overhang: ', overhang)
-	print('minINDELlength: ', minINDELlen)
-	print('minCLIPPINGlength: ', minCLIPPINGlen)
-	print('targetINT2Search ', INT2Search, "\n")
-
-	print('** Clustering **')
-	print('maxInsDist: ', maxInsDist)
-	print('maxBkpDist: ', maxBkpDist)
-	print('minPercOverlap: ', minPercRcplOverlap)
-	print('equalOrientBuffer: ', equalOrientBuffer)
-	print('oppositeOrientBuffer: ', oppositeOrientBuffer)
-	print('libraryReadLength: ', libraryReadLength, "\n")
-
-	print('** Databases **')
-	print('viralDb: ', viralDb, "\n")
-
-	print('** Filtering **')
-	print('minClusterSize: ', minClusterSize)
-	print('maxClusterSize: ', maxClusterSize)
-	print('maxClusterCV: ', maxClusterCV)
-	print('minReads: ', minReads)
-	print('minNormalReads: ', minNormalReads)
-	print('targetStatus: ', targetStatus)
-	print('minReadsRegionMQ: ', minReadsRegionMQ)
-	print('maxRegionlowMQ: ', maxRegionlowMQ)
-	print('maxRegionSMS: ', maxRegionSMS)
-	print('komplexityThreshold: ', komplexityThreshold)
-	print('discordantMatesMaxMAPQ: ', discordantMatesMaxMAPQ)
-	print('discordantMatesCheckUnmapped: ', discordantMatesCheckUnmapped)
-	print('discordantMatesSupplementary: ', discordantMatesSupplementary)
-	print('discordantMatesMaxBasePerc: ', discordantMatesMaxBasePerc)
-	print('discordantMatesMinLcc: ', discordantMatesMinLcc)
-	print('MEDB: ', MEDB)
-	print('minTotalMatchVirus', minTotalMatchVirus)
-	print('minParcialMatchVirus', minParcialMatchVirus)
-	print('maxMatchCheckMAPQVirus', maxMatchCheckMAPQVirus)
-	print('minMAPQVirus', minMAPQVirus)
-	print('maxBasePercVirus', maxBasePercVirus)
-	print('minLccVirus', minLccVirus)
-	print('filtersBfClip', filtersBfClip)
-	print('filtersAfClip', filtersAfClip)
-	print('analyseFiltered', analyseFiltered, "\n")
-
-	print('** Output format**')
-	print ('VCFInfoFields: ', VCFInfoFields)
-	print ('annotRepeats: ', annotRepeats)
-	print ('VCFREF: ', VCFREF)
-	print ('consBkpSeq: ', consBkpSeq)
-	print ('keepIdentDb: ', keepIdentDb)
-	print ('printFiltered: ', printFiltered, "\n")
-
-	print('***** Executing ', scriptName, '.... *****', "\n")
 
 	##########
 	## CORE ## 
@@ -370,6 +281,10 @@ if __name__ == '__main__':
 	## 1. Create configuration dictionary
 	#######################################
 	confDict = {}
+ 
+	scriptName = os.path.basename(sys.argv[0])
+	scriptName = os.path.splitext(scriptName)[0]
+	version='0.26.0'
 
 	## Mandatory
 	confDict['technology'] = technology
@@ -402,9 +317,14 @@ if __name__ == '__main__':
 	## Technology specific parameters
 	# a) WGS illumina data (WGS)
 	if (confDict['technology'] == 'ILLUMINA'):
-		confDict['targetEvents'] = ['DISCORDANT']
+		confDict['targetEvents'] = ['DISCORDANT', 'CLIPPING']
+		confDict['minNbDISCORDANT'] = minClusterSize
+		confDict['minNbCLIPPING'] = minClusterSize
+		if confDict['readFilters'] == None:
+			confDict['readFilters'] = ['mateUnmap', 'insertSize', 'SMS']
 		if confDict['minCLIPPINGlen'] == None:
 			confDict['minCLIPPINGlen'] = 20
+
 
 	# b) Sureselect illumina data
 	elif (confDict['technology'] == 'SURESELECT'):
@@ -415,6 +335,8 @@ if __name__ == '__main__':
 		confDict['minNbCLIPPING'] = minClusterSize
 		if confDict['minCLIPPINGlen'] == None:
 			confDict['minCLIPPINGlen'] = 20
+		if confDict['readFilters'] == None:
+			confDict['readFilters'] = ['mateUnmap', 'insertSize', 'SMS']
 
 	# c) Long read sequencing data -> INS or INS + BND
 	elif ('INS' in confDict['targetSV']):
@@ -479,6 +401,96 @@ if __name__ == '__main__':
 	confDict['consBkpSeq'] = consBkpSeq
 	confDict['keepIdentDb'] = keepIdentDb
 	confDict['printFiltered'] = printFiltered
+
+	##############################################
+	## Display configuration to standard output ##
+	##############################################
+
+	print()
+	print('***** ', scriptName, version, 'configuration *****')
+	print('*** Mandatory arguments ***')
+	print('bam: ', bam)
+	print('technology: ', technology)
+	print('reference: ', reference)
+	print('refDir: ', refDir, "\n")
+
+	print('*** Optional arguments ***')
+	print('** General **')
+	print('mode: ', mode)
+	print('species: ', species)
+	print('build: ', build)
+	print('normalBam: ', normalBam)
+	print('germlineMEI: ', germlineMEI)
+	print('transduction-search: ', transductionSearch)
+	print('source-families: ', srcFamilies)
+	print('gene-annot-dir: ', annovarDir)
+	print('polishing-rounds: ', rounds)
+	print('processes: ', processes)
+	print('outDir: ', outDir, "\n")
+
+	print('** BAM processing **')
+	print('targetBins: ', targetBins)
+	print('binSize: ', binSize)
+	print('targetRefs: ', refs)
+	print('targetSV: ', targetSV)
+	print('filterDuplicates: ', filterDuplicates)
+	print('minMAPQ: ', minMAPQ)
+	print('readFilters: ', confDict['readFilters'])
+	print('overhang: ', overhang)
+	print('minINDELlength: ', minINDELlen)
+	print('minCLIPPINGlength: ', minCLIPPINGlen)
+	print('targetINT2Search ', INT2Search, "\n")
+
+	print('** Clustering **')
+	print('maxInsDist: ', maxInsDist)
+	print('maxBkpDist: ', maxBkpDist)
+	print('minPercOverlap: ', minPercRcplOverlap)
+	print('equalOrientBuffer: ', equalOrientBuffer)
+	print('oppositeOrientBuffer: ', oppositeOrientBuffer)
+	print('libraryReadLength: ', libraryReadLength, "\n")
+
+	print('** Databases **')
+	print('viralDb: ', viralDb, "\n")
+
+	print('** Filtering **')
+	print('minClusterSize: ', minClusterSize)
+	print('maxClusterSize: ', maxClusterSize)
+	print('maxClusterCV: ', maxClusterCV)
+	print('minReads: ', minReads)
+	print('minNormalReads: ', minNormalReads)
+	print('targetStatus: ', targetStatus)
+	print('minReadsRegionMQ: ', minReadsRegionMQ)
+	print('maxRegionlowMQ: ', maxRegionlowMQ)
+	print('maxRegionSMS: ', maxRegionSMS)
+	print('komplexityThreshold: ', komplexityThreshold)
+	print('discordantMatesMaxMAPQ: ', discordantMatesMaxMAPQ)
+	print('discordantMatesCheckUnmapped: ', discordantMatesCheckUnmapped)
+	print('discordantMatesSupplementary: ', discordantMatesSupplementary)
+	print('discordantMatesMaxBasePerc: ', discordantMatesMaxBasePerc)
+	print('discordantMatesMinLcc: ', discordantMatesMinLcc)
+	print('MEDB: ', MEDB)
+	print('minTotalMatchVirus', minTotalMatchVirus)
+	print('minParcialMatchVirus', minParcialMatchVirus)
+	print('maxMatchCheckMAPQVirus', maxMatchCheckMAPQVirus)
+	print('minMAPQVirus', minMAPQVirus)
+	print('maxBasePercVirus', maxBasePercVirus)
+	print('minLccVirus', minLccVirus)
+	print('filtersBfClip', filtersBfClip)
+	print('filtersAfClip', filtersAfClip)
+	print('analyseFiltered', analyseFiltered, "\n")
+
+	print('** Output format**')
+	print ('VCFInfoFields: ', VCFInfoFields)
+	print ('annotRepeats: ', annotRepeats)
+	print ('VCFREF: ', VCFREF)
+	print ('consBkpSeq: ', consBkpSeq)
+	print ('keepIdentDb: ', keepIdentDb)
+	print ('printFiltered: ', printFiltered, "\n")
+
+	print('***** Executing ', scriptName, '.... *****', "\n")
+ 
+ 
+
 	
 	## 2. Execute structural variation caller
 	###########################################
@@ -490,7 +502,7 @@ if __name__ == '__main__':
 
 	# B) Illumina short reads
 	elif confDict['technology'] == 'ILLUMINA':
-		caller = callers.SV_caller_short(mode, bam, normalBam, reference, refDir, confDict, outDir)
+		caller = callers.SV_caller_short_ME(mode, bam, normalBam, reference, refDir, confDict, outDir)
 
 	# C) Source elements sureselect data
 	elif confDict['technology'] == 'SURESELECT':

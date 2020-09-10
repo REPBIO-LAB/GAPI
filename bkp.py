@@ -34,27 +34,42 @@ def bkp(metaclusters):
         
         leftBkps = []
         rightBkps = []
-
-        # Choose bkp with highest number of clipping events
-        for event in metacluster.events:
+        
+        ## A) Create subclusters
+        subclusters = metacluster.create_subclusters()
+        
+        ## B) Collect read clipping boundaries
+        # if there is a LEFT-CLIPPING cluster:
+        if 'LEFT-CLIPPING' in subclusters.keys():
+            leftBkps = [event.beg for event in subclusters['LEFT-CLIPPING'].events]
+        
+        # elif there is a LEFT-CLIPPING cluster
+        elif 'RIGHT-CLIPPING' in subclusters.keys():
+            rightBkps = [event.beg for event in subclusters['RIGHT-CLIPPING'].events]
+        
+        ## C) Set bkps
+        # if right and left bkps found
+        if leftBkps and rightBkps:
             
-            if event.type == 'CLIPPING':
-                
-                if event.clippedSide == 'left':
-                    leftBkps.append(event.beg)
-                    
-                elif event.clippedSide == 'right':
-                    rightBkps.append(event.beg)
-
-        # Fill refLeftBkp and refRightBkp attributes
-        if len(leftBkps) > 0:
+            leftBkp = max(set(leftBkps), key=leftBkps.count)
+            rightBkp = max(set(rightBkps), key=rightBkps.count)
+            
+            bkp = max(set(rightBkps+leftBkps), key=rightBkps.count)
+            
+            # if there is less than 20 bp between bkps
+            if abs(rightBkp - leftBkp) < 20:
+                metacluster.refLeftBkp, metacluster.refRightBkp = leftBkp, rightBkp if leftBkp < rightBkp else bkp, bkp
+        
+        # if just left bkp found
+        elif leftBkps:
             leftBkp = max(set(leftBkps), key=leftBkps.count)
             metacluster.refLeftBkp = leftBkp
-            
-        if len(rightBkps) > 0:
+        
+        # if just right bkp found
+        elif rightBkps:
             rightBkp = max(set(rightBkps), key=rightBkps.count)
             metacluster.refRightBkp = rightBkp
-            
+
 def bkp_retroTest(metaclusters, bam, readSize):
     '''
     Determine precise breakpoint in sureselect data:
@@ -75,11 +90,18 @@ def bkp_retroTest(metaclusters, bam, readSize):
         
         # create subclusters
         subclusters = metacluster.create_subclusters()
+        clippingKeys = set(['LEFT-CLIPPING', 'RIGHT-CLIPPING']).intersection(subclusters.keys())
         
         # if there is a SUPPLEMENTARY cluster:
         if 'SUPPLEMENTARY' in subclusters.keys():
             
             bkp = subclusters['SUPPLEMENTARY'].bkpPos()
+            metacluster.refLeftBkp, metacluster.refRightBkp = bkp, bkp
+        
+        # elif there is a CLIPPING cluster:
+        elif bool(clippingKeys):
+            
+            bkp = subclusters[[*clippingKeys][0]].infer_breakpoint()
             metacluster.refLeftBkp, metacluster.refRightBkp = bkp, bkp
         
         # elif there is a MINUS-DISCORDANT cluster:
@@ -91,11 +113,57 @@ def bkp_retroTest(metaclusters, bam, readSize):
         elif 'PLUS-DISCORDANT' in subclusters.keys():
                                
                 readNames = set([event.readName for event in subclusters['PLUS-DISCORDANT'].events])
-                fullCLuster = clusters.discCluster_from_readNames(readNames, metacluster.ref, metacluster.end, metacluster.end + readSize, bam, 'TUMOUR')
                 
-                metacluster.refLeftBkp, metacluster.refRightBkp = fullCLuster.end, fullCLuster.end
+                fullCLuster = clusters.discCluster_from_readNames(readNames, metacluster.ref, metacluster.beg, metacluster.beg + 3*readSize, bam, 'TUMOUR')
                 
-
+                if fullCLuster:
+                    metacluster.refLeftBkp, metacluster.refRightBkp = fullCLuster.end, fullCLuster.end
+                
+def bkp_shortReads_ME(metaclusters, confDict, bam, normalBam):
+    '''
+    Determine precise breakpoints
+    
+    Input: 
+    1. metaclusters: List of metaclusters
+    
+    Output:
+    There is no output, but refLeftBkp and refRightBkp attributes are filled
+    '''
+        
+    for metacluster in metaclusters:
+        
+        ## A) Create subclusters
+        subclusters = metacluster.create_subclusters()
+        discordantKeys = set(['MINUS-DISCORDANT', 'PLUS-DISCORDANT']).intersection(subclusters.keys())
+        
+        ## B) Narrow metacluster coordinates
+        # if it is a RECIPROCAL metacluster:
+        if discordantKeys == {'MINUS-DISCORDANT', 'PLUS-DISCORDANT'}:
+            
+            beg = subclusters['MINUS-DISCORDANT'].beg
+            end = subclusters['PLUS-DISCORDANT'].end
+            
+            if beg < end:
+                metacluster.refLeftBkp, metacluster.refRightBkp = beg, end
+            else:
+                metacluster.refLeftBkp, metacluster.refRightBkp = end, beg
+                
+        # elif there is a MINUS-DISCORDANT cluster:
+        elif discordantKeys == {'MINUS-DISCORDANT'}:
+            
+            metacluster.refLeftBkp, metacluster.refRightBkp = subclusters['MINUS-DISCORDANT'].beg, subclusters['MINUS-DISCORDANT'].beg
+        
+        # elif there is a PLUS-DISCORDANT cluster:
+        elif discordantKeys == {'PLUS-DISCORDANT'}:
+            
+            metacluster.refLeftBkp, metacluster.refRightBkp = subclusters['PLUS-DISCORDANT'].end, subclusters['PLUS-DISCORDANT'].end
+        
+        ## C) Collect CLIPPINGS 
+        metacluster.supportingCLIPPING_sonia(confDict, bam, normalBam)
+    
+    ## D) Refine bkp using clipping info
+    bkp(metaclusters)
+        
 def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, binId, identDbPath):
     '''
     Four main steps
@@ -329,6 +397,7 @@ def supportingCLIPPING(metacluster, buffer, confDict, bam, normalBam, mode, side
         # From dictionary to list
         clippings = list(itertools.chain(*clippingEventsToAdd.values()))
         return clippings, discClip
+    
     else:
         return [], False
 
