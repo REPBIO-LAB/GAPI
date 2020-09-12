@@ -1038,37 +1038,8 @@ class SV_caller_short_ME(SV_caller):
         ### 3. Create SV clusters 
         msg = '3. Create SV clusters'
         log.header(msg)
-        allMetaclusters = self.make_clusters()
-        metaclusters = [item for sublist in allMetaclusters for item in sublist]
-        
-        ## TEMPORARY
-                    
-        ## Output to a different file      
-        file = self.outDir + '/output_SR'
-        f = open(file, "w")
-        f.write("#ref")
-        f.close()
-        
-        f = open(file, "a")
-        f.write("\n")
-        f.write(str(self.confDict))
-        f.write(str(self.mode))
-        f.write("\n")
-        
-        for metacluster in metaclusters:
-            f.write("\n")
-            f.write("\n")
-            f.write("\n")
-            f.write(metacluster.ref)
-            f.write(str(metacluster.beg))
-            f.write("\n")
-            f.write(str(metacluster.supportingReads()))
-            f.write("\n")
-            f.write(str(metacluster.__dict__))
-
-        f.close()
-               
-        
+        metaclusters, metaclustersFail = self.make_clusters()
+                
         ### 4. Annotate metaclusters
         # Create output directory
         annotDir = self.outDir + '/ANNOT/'
@@ -1086,8 +1057,9 @@ class SV_caller_short_ME(SV_caller):
         
         ### 5. Write output
         output.write_short_calls(metaclusters, self.outDir)
-                
-    
+        output.write_short_calls(metaclustersFail, self.outDir, PASS = False)
+        
+        
     def infer_readSize(self):
         '''
         Infer read size from bam file
@@ -1131,14 +1103,24 @@ class SV_caller_short_ME(SV_caller):
 
         # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
-        metaclustersPass = pool.starmap(self.make_clusters_bin, bins)
+        metaclusters = pool.starmap(self.make_clusters_bin, bins)
         pool.close()
         pool.join()
 
+        metaclusters = [item for sublist in metaclusters for item in sublist]
+        
+        # filter metaclusters
+        metaclustersPass, metaclustersFail = [], []
+        for metacluster in metaclusters:
+            if metacluster.failedFilters:
+                metaclustersFail.append(metacluster)
+            else:
+                metaclustersPass.append(metacluster)
+                
         # Remove output directory
         unix.rm([self.outDir + '/CLUSTER/'])
                
-        return metaclustersPass
+        return metaclustersPass, metaclustersFail
     
 
     def make_clusters_bin(self, ref, beg, end):
@@ -1250,33 +1232,26 @@ class SV_caller_short_ME(SV_caller):
         msg = 'Filter metaclusters'
         log.step(step, msg)
         
-        filters2Apply = ['MIN-NBREADS', 'AREAMAPQ', 'AREASMS', 'GERMLINE']
+        filters2Apply = ['MIN-NBREADS', 'GERMLINE', 'AREAMAPQ', 'AREASMS']
         if self.mode == 'SINGLE':
             filters2Apply.remove('GERMLINE')
             
-        filteredMetaclusters = filters.filter_clusters(metaclusters, filters2Apply, self.bam, self.normalBam, self.confDict, 'META')
-        
+        metaclusters = filters.filter_clusters(metaclusters, filters2Apply, self.bam, self.normalBam, self.confDict, 'META')
+
         
         ## 8. Determine metaclusters identity ##
         step = 'DEFINE-TD-TYPE'
         msg = 'Define metaclusters identity'
         log.step(step, msg)
         
-        retrotransposons.metaclusters_MEI_type(filteredMetaclusters)
+        retrotransposons.metaclusters_MEI_type(metaclusters)
         
-        filters2Apply = ['IDENTITY']
-        metaclusters = filters.filter_clusters(filteredMetaclusters, filters2Apply, self.bam, self.normalBam, self.confDict, 'META')        
-
         
         ## 9. Determine metaclusters precise coordinates ##
         step = 'DETERMINE-BKP'
         msg = 'Determine metaclusters breakpoints'
         log.step(step, msg)
         bkp.bkp_shortReads_ME(metaclusters, self.confDict, self.bam, self.normalBam)
-        
-        # # filters2Apply = ['META-RANGE']
-        # filters2Apply = []
-        # metaclusters = filters.filter_clusters(metaclusters, filters2Apply, self.bam, self.normalBam, self.confDict, 'META')
         
         
         ## 10. Annotate metaclusters ##
@@ -1285,20 +1260,16 @@ class SV_caller_short_ME(SV_caller):
         log.step(step, msg)
         annotation.repeats_annotation(metaclusters, self.annotations['REPEATS'], self.confDict['readSize'])    
         
-        # for metacluster in metaclusters:
-            
-        #     repeats = metacluster.repeatAnnot if metacluster.repeatAnnot else []
-        #     families = ','.join([repeat['family'] for repeat in repeats]) if repeats else None 
-        #     subfamilies = ','.join([repeat['subfamily'] for repeat in repeats]) if repeats else None   
-        #     distances = ','.join([str(repeat['distance']) for repeat in repeats]) if repeats else None
-            
-        #     # if subfamilies and any( ['L1PA' in subfamily for subfamily in subfamilies] ):
-        #     #     print('metacluster.repeatAnnot')
-        #     #     print(repeats)
-        #     print('metacluster.repeatAnnot')
-        #     print(metacluster.__dict__)
-        #     print(families, subfamilies, distances)
-            
+        
+        ## 11. Last filtering step ##
+        step = 'LAST-FILTERING'
+        msg = 'Last filtering step '
+        log.step(step, msg)
+        
+        filters2Apply = ['IDENTITY', 'META-RANGE', 'GERMLINE', 'ANNOTATION', 'SVs-NORMAL']
+        filters.filter_metaclusters_sonia(metaclusters, filters2Apply, self.confDict, self.bam, self.normalBam)
+        
+        
         if metaclusters == []:
             unix.rm([binDir])
             metaclusters = {}
