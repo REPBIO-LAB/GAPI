@@ -209,8 +209,9 @@ def filter_metaclusters_SR(metaclusters, filters2Apply, confDict, bam):
     for index, metacluster in enumerate(metaclusters):
 
         # Set meacluster element:
-        element = metacluster.setElement() if metacluster.setElement() else 'GENERIC'
+        # element = metacluster.setElement() if metacluster.setElement() else 'GENERIC'
         ## Apply filters
+        # metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply[element], bam, normalBam, confDict)
         metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply[element], bam, normalBam, confDict)
 
         # Metacluster fails some filter
@@ -329,24 +330,14 @@ def filter_metacluster(metacluster, filters2Apply, bam, normalBam, confDict):
 
         if not filter_perc_resolved(metacluster, confDict['minPercResolved']):
             failedFilters.append('PERC-RESOLVED')
-
-    # NOTE 2020: NEw 2020
-    # TODO 2020: Put in another way!!
-    '''
-    ## 5. FILTER 5: Minimum percentage of inserted sequence resolved
-    if ('PERC-RESOLVED' in filters2Apply) and ('PERC_RESOLVED' in metacluster.SV_features): 
-
-        if not filter_perc_resolved(metacluster, confDict['minPercResolved']):
-            failedFilters.append('PERC-RESOLVED')
-    '''
-
+            
     ## 6. FILTER 6: Area mapping quality
-    if "AREAMAPQ" in filters2Apply:
+    if 'AREAMAPQ' in filters2Apply:
         if not area(metacluster,confDict,bam)[0]:
             failedFilters.append('AREAMAPQ')
 
     ## 7. FILTER 7: Area clipping SMS
-    if "AREASMS" in filters2Apply:
+    if 'AREASMS' in filters2Apply:
         if not area(metacluster,confDict,bam)[1]:
             failedFilters.append('AREASMS')
 
@@ -356,9 +347,22 @@ def filter_metacluster(metacluster, filters2Apply, bam, normalBam, confDict):
             failedFilters.append('IDENTITY')
     
     ## 9. FILTER 9: Whether a metacluster is germline
-    if 'GERMLINE' in filters2Apply: 
-        if not filter_germline(metacluster, confDict['minNormalReads']):
+    print('FILTERING')
+    
+    if 'GERMLINE' in filters2Apply:
+        
+        print('GERMLINE FILTER')
+        print(metacluster.ref, metacluster.beg)
+        print(confDict['minNormalReads'])
+        print(metacluster.supportingReads()[0:3])
+        print('filter_germline(metacluster, confDict[minNormalReads])')
+        print(filter_germline(metacluster, confDict['minNormalReads']))
+        
+        if not filter_germline_metaclusters(metacluster, 2):
             failedFilters.append('GERMLINE')
+            
+            print('failedFilters')
+            print(failedFilters)
     
     ## 10. FILTER 10: Reciprocal metaclusters range 
     if 'META-RANGE' in filters2Apply: 
@@ -741,7 +745,7 @@ def filter_germline(cluster, minNormal):
     count = 0
         
     for event in cluster.events:
-            
+        
         if event.sample == 'NORMAL':
             count += 1
                 
@@ -750,8 +754,31 @@ def filter_germline(cluster, minNormal):
         
     else:
         PASS = False
-
+        
     return PASS
+
+
+def filter_germline_metaclusters(metacluster, minNormal):
+    '''
+    Filter out those clusters formed by tumour and normal reads
+    
+    Input:
+        1. cluster: cluster object
+        2. minNormal: minimum number of reads supporting a SV in normal sample
+    
+    Output:
+        1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
+    '''
+    
+    PASS = True
+    
+    nbNormal = metacluster.supportingReads()[2]
+    
+    if nbNormal >= minNormal:
+        PASS = False
+        
+    return PASS
+
 
 
 def filter_discordant_mate_unspecific(discordant, threshold, bam):
@@ -1155,3 +1182,40 @@ def metacluster_reciprocalRange(cluster, maxTSDlen):
     #     print(PASS)
         
     return PASS
+
+
+def filter_metacluster_on_subfamilyAnnot(metacluster, family, subtype, minDist):
+    '''
+    Filter metacluster if located at less than minDist in specific ME subtypes
+    
+    Input:
+    1. metacluster
+    2. family: Annotation family. Ex: 'L1'
+    3. subtype: Annotation subfamily. Ex: 'L1PA'
+    4. minDist: minimum distance from metacluster to annotated repeat. Ex: 150
+    
+    Output: 
+    1. PASS: Boolean indicating whether it should be filtered out or not
+    '''
+    PASS = True
+    
+    if metacluster.repeatAnnot:
+        
+        repeats = metacluster.repeatAnnot
+        families = [repeat['family'] for repeat in repeats]
+        
+        if family in families:
+            
+            subfamilies = [repeat['subfamily'] for repeat in repeats] 
+            distances = [repeat['distance'] for repeat in repeats]
+            
+            for idx, subfamily in enumerate(subfamilies):
+                
+                if subtype in subfamily:
+                    
+                    if distances[idx] < minDist:
+                        
+                        PASS = False
+                        break
+        
+    return(PASS)

@@ -916,12 +916,14 @@ def write_short_calls(metaclusters, outDir):
     for cluster in metaclusters:
         
         readIds = ','.join(cluster.supportingReads()[3])
-        
+        normal_readIds = ','.join(cluster.supportingReads()[4])
+                
         # if bkp has being defined, use it as call coordinates
         beg = cluster.refLeftBkp if cluster.refLeftBkp is not None else cluster.beg
         end = cluster.refRightBkp if cluster.refRightBkp is not None else cluster.end
         geneAnnot = cluster.geneAnnot if hasattr(cluster, 'geneAnnot') else None
-        call = [cluster.ref, str(beg), str(end), str(cluster.TSD), str(cluster.orientation), str(cluster.identity), str(cluster.src_id), str(geneAnnot), str(cluster.pA), str(cluster.plus_pA), str(cluster.minus_pA), str(cluster.plus_id), str(cluster.minus_id), str(cluster.strand), str(cluster.supportingReads()[0]), str(cluster.nbDISCORDANT()), str(cluster.nbCLIPPINGS()), readIds]
+        repeatAnnot = cluster.repeatAnnot if hasattr(cluster, 'repeatAnnot') else None
+        call = [cluster.ref, str(beg), str(end), str(cluster.TSD), str(cluster.orientation), str(cluster.identity), str(cluster.src_id), str(geneAnnot), str(repeatAnnot), str(cluster.pA), str(cluster.plus_pA), str(cluster.minus_pA), str(cluster.plus_id), str(cluster.minus_id), str(cluster.strand), str(cluster.supportingReads()[0]), str(cluster.supportingReads()[1]), str(cluster.supportingReads()[2]), str(cluster.nbDISCORDANT()), str(cluster.nbCLIPPINGS()), readIds, normal_readIds]
         calls.append(call)
             
     ## 3. Sort transduction calls first by chromosome and then by start position

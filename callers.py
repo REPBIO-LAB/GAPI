@@ -1041,6 +1041,34 @@ class SV_caller_short_ME(SV_caller):
         allMetaclusters = self.make_clusters()
         metaclusters = [item for sublist in allMetaclusters for item in sublist]
         
+        ## TEMPORARY
+                    
+        ## Output to a different file      
+        file = self.outDir + '/output_SR'
+        f = open(file, "w")
+        f.write("#ref")
+        f.close()
+        
+        f = open(file, "a")
+        f.write("\n")
+        f.write(str(self.confDict))
+        f.write(str(self.mode))
+        f.write("\n")
+        
+        for metacluster in metaclusters:
+            f.write("\n")
+            f.write("\n")
+            f.write("\n")
+            f.write(metacluster.ref)
+            f.write(str(metacluster.beg))
+            f.write("\n")
+            f.write(str(metacluster.supportingReads()))
+            f.write("\n")
+            f.write(str(metacluster.__dict__))
+
+        f.close()
+               
+        
         ### 4. Annotate metaclusters
         # Create output directory
         annotDir = self.outDir + '/ANNOT/'
@@ -1156,7 +1184,7 @@ class SV_caller_short_ME(SV_caller):
         if 'RIGHT-CLIPPING' in eventsDict.keys():
             clippings += eventsDict['RIGHT-CLIPPING']
             
-        discordants_SA = events.SA_as_DISCORDANTS(clippings)
+        discordants_SA = events.SA_as_DISCORDANTS(clippings, self.confDict['readSize'])
         discordants = eventsDict['DISCORDANT'] + discordants_SA
         
         
@@ -1201,7 +1229,7 @@ class SV_caller_short_ME(SV_caller):
 
         filters2Apply = ['MIN-NBREADS', 'READ-DUP', 'CLUSTER-RANGE']
         filteredDiscordants = filters.filter_clusters(discordantClusters, filters2Apply, self.bam, self.normalBam, self.confDict, 'DISCORDANT')
-                
+        
         
         ## 6. Create metaclusters ##
         step = 'META-CLUSTERING'
@@ -1236,8 +1264,7 @@ class SV_caller_short_ME(SV_caller):
         
         retrotransposons.metaclusters_MEI_type(filteredMetaclusters)
         
-        # filters2Apply = ['IDENTITY']
-        filters2Apply = []
+        filters2Apply = ['IDENTITY']
         metaclusters = filters.filter_clusters(filteredMetaclusters, filters2Apply, self.bam, self.normalBam, self.confDict, 'META')        
 
         
@@ -1247,30 +1274,30 @@ class SV_caller_short_ME(SV_caller):
         log.step(step, msg)
         bkp.bkp_shortReads_ME(metaclusters, self.confDict, self.bam, self.normalBam)
         
-        # filters2Apply = ['META-RANGE']
-        filters2Apply = []
-        metaclusters = filters.filter_clusters(metaclusters, filters2Apply, self.bam, self.normalBam, self.confDict, 'META')
+        # # filters2Apply = ['META-RANGE']
+        # filters2Apply = []
+        # metaclusters = filters.filter_clusters(metaclusters, filters2Apply, self.bam, self.normalBam, self.confDict, 'META')
         
         
         ## 10. Annotate metaclusters ##
         step = 'ANNOTATE-BKP'
         msg = 'Annotate metaclusters'
         log.step(step, msg)
-        annotation.repeats_annotation(metaclusters, self.annotations['REPEATS'], self.confDict['readSize'])
+        annotation.repeats_annotation(metaclusters, self.annotations['REPEATS'], self.confDict['readSize'])    
         
-        for metacluster in metaclusters:
+        # for metacluster in metaclusters:
             
-            repeats = metacluster.repeatAnnot if metacluster.repeatAnnot else []
-            families = ','.join([repeat['family'] for repeat in repeats]) if repeats else None 
-            subfamilies = ','.join([repeat['subfamily'] for repeat in repeats]) if repeats else None   
-            distances = ','.join([str(repeat['distance']) for repeat in repeats]) if repeats else None
+        #     repeats = metacluster.repeatAnnot if metacluster.repeatAnnot else []
+        #     families = ','.join([repeat['family'] for repeat in repeats]) if repeats else None 
+        #     subfamilies = ','.join([repeat['subfamily'] for repeat in repeats]) if repeats else None   
+        #     distances = ','.join([str(repeat['distance']) for repeat in repeats]) if repeats else None
             
-            # if subfamilies and any( ['L1PA' in subfamily for subfamily in subfamilies] ):
-            #     print('metacluster.repeatAnnot')
-            #     print(repeats)
-            print('metacluster.repeatAnnot')
-            print(metacluster.__dict__)
-            print(families, subfamilies, distances)
+        #     # if subfamilies and any( ['L1PA' in subfamily for subfamily in subfamilies] ):
+        #     #     print('metacluster.repeatAnnot')
+        #     #     print(repeats)
+        #     print('metacluster.repeatAnnot')
+        #     print(metacluster.__dict__)
+        #     print(families, subfamilies, distances)
             
         if metaclusters == []:
             unix.rm([binDir])

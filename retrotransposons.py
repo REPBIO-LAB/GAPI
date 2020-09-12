@@ -1019,6 +1019,8 @@ def metaclusters_MEI_type(metaclusters):
             elif metacluster.plus_id == None:
                 if metacluster.plus_pA and metacluster.minus_pA:
                     metacluster.identity = 'pA'
+                else:
+                    metacluster.identity = 'single_cluster_pA'
             
             else:
                 metacluster.identity = 'TD2'
@@ -1040,16 +1042,14 @@ def metaclusters_MEI_type(metaclusters):
         # elif only the identity of one of the clusters has been set
         elif metacluster.plus_id or metacluster.minus_id:
             
-            if metacluster.plus_id:
-                if metacluster.minus_pA:
+            if metacluster.plus_id and metacluster.minus_pA:
                     if metacluster.plus_id == 'L1':
                         metacluster.identity = 'TD0-TD1'
                     else:
                         metacluster.identity = 'TD2'
                         metacluster.src_id = metacluster.plus_id
                         
-            elif metacluster.minus_id:
-                if metacluster.plus_pA:
+            elif metacluster.minus_id and metacluster.plus_pA:
                     if metacluster.minus_id == 'L1':
                         metacluster.identity = 'TD0-TD1'
                     else:

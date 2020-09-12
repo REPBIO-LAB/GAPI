@@ -1194,7 +1194,7 @@ def collect_clipped_seqs(clippings):
     return clippedFasta
 
 
-def SA_as_DISCORDANTS(clippings):
+def SA_as_DISCORDANTS(clippings, readSize):
     '''
     Store clippings with supplementary alignments (SA) as discordant pairs
     
@@ -1218,8 +1218,16 @@ def SA_as_DISCORDANTS(clippings):
                 # for each SA
                 for suppA in SAs:
                     
+                    # define beg and end coordinates
+                    if clipping.orientation == 'MINUS':
+                        beg = clipping.beg
+                        end = beg + (readSize - clipping.length)
+                    else:
+                        end = clipping.beg
+                        beg = end - (readSize - clipping.length)
+                        
                     # create discordant event using clipping coordinates
-                    event = DISCORDANT(clipping.ref, clipping.beg, clipping.end, clipping.orientation, clipping.pair, clipping.readName, None, clipping.sample, False)
+                    event = DISCORDANT(clipping.ref, beg, end, clipping.orientation, clipping.pair, clipping.readName, None, clipping.sample, False)
                     
                     event.CIGAR = clipping.CIGAR
                     

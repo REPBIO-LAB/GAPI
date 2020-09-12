@@ -457,6 +457,21 @@ def create_metaclusters(clustersBinDb, buffer):
     return metaclusters
 
 
+def create_metaclusters_distanceClustering(clustersBinDb, binSize, buffer):
+    '''    
+    Group SV cluster events into metaclusters
+
+    Input:
+        1. clustersBinDb: Data structure containing a set of clusters organized in genomic bins
+        2. buffer: buffer to extend cluster coordinates
+
+    Output:
+        1. metaclusters: list containing newly created metaclusters
+    '''
+    metaclusters = clustering.distance_clustering(clustersBinDb, binSize, clustersBinDb.eventTypes, 'META', buffer, 1)
+    
+    return metaclusters
+
 def SV_type_metaclusters(metaclusters, minINDELlen, technology, rootOutDir):
     '''
     Infer the SV type supported by each metacluster
