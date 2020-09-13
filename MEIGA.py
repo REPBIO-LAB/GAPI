@@ -6,7 +6,7 @@
 ####################
 
 # import basic internal module
-import check_dependencies as cd
+# import check_dependencies as cd
 
 if __name__ == '__main__':
 	
@@ -211,11 +211,11 @@ if __name__ == '__main__':
 	printFiltered = args.printFiltered
 	
 
-    ## Check file dependencies (list with the paths) ##
-	missing_dependencies = missing_dependencies or  cd.missing_needed_files((bam,reference,refDir,normalBam,annovarDir,outDir))
+    # ## Check file dependencies (list with the paths) ##
+	# missing_dependencies = missing_dependencies or  cd.missing_needed_files((bam,reference,refDir,normalBam,annovarDir,outDir))
 
-	if missing_dependencies:
-		exit()
+	# if missing_dependencies:
+	# 	exit()
 
 	###################################################################
 	# lazy load of the modules to avoid problems with the dependences #
