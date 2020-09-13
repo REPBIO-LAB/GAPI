@@ -373,13 +373,13 @@ def filter_metacluster(metacluster, filters2Apply, bam, normalBam, confDict):
     
     ## 10. FILTER 10: Reciprocal metaclusters range 
     if 'META-RANGE' in filters2Apply: 
-        if not filter_clusterRange_reciprocalMeta(metacluster, 50):
+        if not filter_clusterRange_reciprocalMeta(metacluster, 40):
             failedFilters.append('META-RANGE')
     
     ## 11. FILTER 11: Whether a cluster is on a L1PA element and has no pA support
     if 'ANNOTATION' in filters2Apply:
         if not metacluster.pA:
-            if not filter_metacluster_subfamilyAnnot(metacluster, 'L1', 'L1PA', 100):
+            if not filter_metacluster_subfamilyAnnot(metacluster, 'L1', 'L1PA', 0):
                 failedFilters.append('ANNOTATION')
     
     ## 12. FILTER 12: Whether a cluster is on a L1PA element and has no pA support
@@ -1256,7 +1256,7 @@ def filter_clusterRange_reciprocalMeta(metacluster, maxPercOverlap):
                 
                 # calculate ratio of overlapLen / total metacluster amplitude 
                 lenCluster = metacluster.end - metacluster.beg
-                percOverlap = lenCluster/overlapLen * 100
+                percOverlap = overlapLen/lenCluster * 100
                 
                 if percOverlap > maxPercOverlap:
                     PASS = False
