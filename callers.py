@@ -1045,13 +1045,11 @@ class SV_caller_short_ME(SV_caller):
         annotDir = self.outDir + '/ANNOT/'
         unix.mkdir(annotDir)
         
-        # Define annotation steps
-        # steps = ['REPEAT']
+        # Define annotation steps: ['REPEAT', 'GENE']
         steps = []
         if self.confDict['annovarDir'] is not None:
             steps.append('GENE')
-
-        annotation.annotate(metaclusters, steps, self.annotations, self.confDict['annovarDir'], annotDir)
+            annotation.annotate(metaclusters, steps, self.annotations, self.confDict['annovarDir'], annotDir)
         
         unix.rm([annotDir])
         
