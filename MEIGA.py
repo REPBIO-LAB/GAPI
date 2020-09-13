@@ -11,7 +11,7 @@ import check_dependencies as cd
 if __name__ == '__main__':
 	
 	## Check dependencies, true if there are some missing dependencies ##
-	missing_dependencies=cd.missing_python_dependencies() or cd.missing_program_dependencies()
+	# missing_dependencies=cd.missing_python_dependencies() or cd.missing_program_dependencies()
 
 	####################
 	## Import modules ##
@@ -210,20 +210,6 @@ if __name__ == '__main__':
 	keepIdentDb = args.keepIdentDb
 	printFiltered = args.printFiltered
 	
-    ## Check file dependencies (list with the paths) ##
-	missing_dependencies = missing_dependencies or  cd.missing_needed_files((bam,reference,refDir,normalBam,annovarDir,outDir))
-
-	if missing_dependencies:
-		exit()
-
-	###################################################################
-	# lazy load of the modules to avoid problems with the dependences #
-	###################################################################
-	
-	# load Internal
-	import callers
-	import log
-	import bamtools
 
     ## Check file dependencies (list with the paths) ##
 	missing_dependencies = missing_dependencies or  cd.missing_needed_files((bam,reference,refDir,normalBam,annovarDir,outDir))
