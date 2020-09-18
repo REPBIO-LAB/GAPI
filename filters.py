@@ -281,7 +281,7 @@ def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
         for index, metacluster in enumerate(metaclusters):
 
             ## Apply filters
-            metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply, bam, normalBam, confDict)
+            metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply, confDict, None, mode=mode)
 
             # Metacluster fails some filter
             if metacluster.failedFilters:
@@ -310,7 +310,7 @@ def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
 
     return metaclustersPassDict, metaclustersFailDict
 
-def filter_metacluster(metacluster, filters2Apply, bam, normalBam, confDict):
+def filter_metacluster(metacluster, filters2Apply, confDict, bam, mode='SR'):
     '''
     Apply selected filters to one metacluster.
 
@@ -363,7 +363,7 @@ def filter_metacluster(metacluster, filters2Apply, bam, normalBam, confDict):
 
     ## 8. FILTER 8: Whether a metacluster has a SV_type assigned or not
     if 'IDENTITY' in filters2Apply: 
-        if not identityFilter(metacluster):
+        if not identityFilter(metacluster, mode=mode):
             failedFilters.append('IDENTITY')
     
     ## 9. FILTER 9: Whether a metacluster is germline
@@ -579,13 +579,13 @@ def filter_SV_type(metacluster, targetSV):
 
     return PASS
 
-def identityFilter(cluster):
+def identityFilter(cluster, mode ='SR'):
     '''
     Filter metacluster by checking its SV type
 
     Input:
         1. metacluster: metacluster object
-        2. targetSV: list containing list of target SV types
+        2. mode: SR or LR (Short Reads or Long Reads). Default='SR'
     Output:
         1. PASS -> boolean: True if the cluster pass the filter, False if it doesn't
     '''
@@ -595,6 +595,16 @@ def identityFilter(cluster):
     else:
         PASS = False
 
+    if mode == 'LR':
+
+        if 'IDENTITY' in cluster.SV_features.keys():
+            if cluster.SV_features['IDENTITY']:
+                PASS = True 
+            else:
+                PASS = False
+        else:
+            PASS = False  
+    
     return PASS
 
 def filter_suppl_MAPQ(clipping, minMAPQ):

@@ -12,6 +12,12 @@ import time
 import subprocess
 import statistics
 import itertools
+from collections import Counter
+# TEMP BORRAR
+import Bio.SeqUtils
+from Bio.SeqUtils import lcc
+from VIGA_SR import bamtools_VIGASR
+from VIGA_LR import virusLR
 
 # Internal
 import log
@@ -28,13 +34,69 @@ import bkp
 import filters
 import alignment
 import gRanges
+import assembly
 
 #from modules.callers import SV_caller
-from callers import SV_caller
+#from callers import SV_caller
 
 ## FUNCTIONS ##
+# Multiprocessing lock as global variable. Useful for safely writting from different processes to the same output file.
+def init(l):
+    global lock
+    lock = l
 
 ## CLASSES ##
+class SV_caller():
+    '''
+    Structural variation (SV) caller 
+    '''
+    def __init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir):
+
+        self.mode = mode
+        self.bam = bam
+        self.normalBam = normalBam
+        self.reference = reference
+        self.refDir = refDir
+        self.confDict = confDict
+        self.outDir = outDir
+        self.repeatsBinDb = None
+
+        ## Compute reference lengths
+        self.refLengths = bamtools.get_ref_lengths(self.bam)
+
+    def minimap2_index(self):
+        '''
+        Return path to minimap2 index file
+        '''
+        index = os.path.splitext(self.reference)[0] + '.mmi' 
+
+        return index
+
+    def load_annotations(self):
+        '''
+        Load set of annotations into bin databases. Set 'annotation' attribute with one key per annotation type
+        and bin databases as values
+        '''
+        # NOTE MERGE SR2020: For SV_caller_short this load is managed inside the caller
+        # SONIA: why??
+        if self.confDict['technology'] != 'ILLUMINA':
+            annotDir = self.outDir + '/LOAD_ANNOT/'
+            unix.mkdir(annotDir)
+            annotations2load = ['REPEATS']
+    
+            if self.confDict['transductionSearch']:    
+                annotations2load.append('TRANSDUCTIONS')
+    
+            if True: # at one point include flag for pseudogene search
+                annotations2load.append('EXONS')
+    
+            if self.confDict['germlineMEI'] is not None:
+                annotations2load.append('GERMLINE-MEI')
+    
+            self.annotations = annotation.load_annotations(annotations2load, self.refLengths, self.refDir, self.confDict['germlineMEI'], self.confDict['processes'], annotDir)        
+            unix.rm([annotDir])
+
+
 class SV_caller_long(SV_caller):
     '''
     Structural variation (SV) caller for long read sequencing data
@@ -53,6 +115,8 @@ class SV_caller_long(SV_caller):
         log.header(msg)
         allMetaclusters = self.make_clusters()
 
+        # TODO: Put annotations as an option as it's done in short reads
+        '''
         ### 2. Annotate SV clusters intervals  
         msg = '2. Annotate SV clusters intervals'
         log.header(msg)
@@ -81,28 +145,259 @@ class SV_caller_long(SV_caller):
 
         # Remove annotation directory
         unix.rm([annotDir])
+        '''
+        # NOTE: For the moment, annotations is a empty dictionary. Change this!!!
+        self.annotations = {}
+        self.annotations['REPEATS'] = []
+        self.annotations['TRANSDUCTIONS'] = []
+        self.annotations['EXONS'] = []
 
-        ### 3. Determine what type of sequence has been inserted for INS metaclusters
-        msg = '3. Determine what type of sequence has been inserted for INS metaclusters'
+        # 2. Select those metaclusters related with viruses.
+        # 2.a Write sequences of all events of metaclusters together in a fasta file:
+        # If SV_type == INS, write only the inserted sequence of each event
+        # If SV_type == BND, write only the clipped sequence of each event
+
+        selectMETAoutDir = self.outDir + '/SELECT_METACLUSTERS/'
+        unix.mkdir(selectMETAoutDir)
+
+        tupleList = []
+
+        for SV_type, metaclusters in allMetaclusters.items():
+            for metacluster in metaclusters:
+            
+                ## Add to the list
+                fields = (metacluster, selectMETAoutDir)
+                tupleList.append(fields)
+        
+        l = mp.Lock()
+        
+        # 2.b Create FASTA file with INS or CLIPPING sequence of each event of each metacluster.
+
+        pool = mp.Pool(processes=self.confDict['processes'], initializer=init, initargs=(l,))
+        pool.starmap(virusLR.supportingEventsFasta, tupleList)
+        pool.close()
+        pool.join()
+
+        # 2.c Align against viral db and filter hits.
+        # Have a dictionary with only those events that have identity after the filters
+
+        eventsFasta = selectMETAoutDir + "/events.fasta"
+        eventsIdentity, allHits_viral = virusLR.checkEventsIdentity(eventsFasta, self.confDict['viralDb'], self.confDict['processes'], selectMETAoutDir)
+
+        '''
+        # No se si esto me hara falta en algun momento pero creo que de momento no...
+        for SV_type, metaclusters in allMetaclusters.items():
+            for metacluster in metaclusters:
+                # TODO: PONER EN PARALELO!!!!
+                metacluster.insertHits = []
+                for query in allHits_viral.keys():
+                    if any(query == event.readName for event in metacluster.events):
+                        metacluster.insertHits.append(allHits_viral[query])
+                        # Asi ya no tengo que hacer mas alineamientos
+                        # No se si esto me valdra para algo...
+        '''
+
+        unix.rm([selectMETAoutDir])
+
+        # 3. Address identities
+        # 3.a Put identity to events and only to those metaclusters that are mapped and PASS filters and have a minimum percentage of identified events, all the others identity will remain None.
+        # Also have a dictionary (fastaDict) with consensus sequences of those metaclusters that have no identity yet.
+
+        tupleList = []
+
+        for SV_type, metaclusters in allMetaclusters.items():
+            for metacluster in metaclusters:
+            
+                ## Add to the list
+                fields = (SV_type, metacluster, eventsIdentity, allHits_viral, self.outDir)
+                tupleList.append(fields)
+        
+        l = mp.Lock()
+        pool = mp.Pool(processes=self.confDict['processes'])
+        allMetaclustersIdentitySeparated, fastaDict = zip(*pool.starmap(virusLR.check_metaclusters_identity_allHits, tupleList))
+        pool.close()
+        pool.join()
+
+        del allMetaclusters
+
+        allMetaclustersIdentity = structures.merge_dictionaries(allMetaclustersIdentitySeparated)
+
+        # 3.b Analyse consensus sequences of those metaclusters with events identity proportion < 0.70 >= 0.50
+        # Merge dictionary
+
+        allfastaDict = {}
+        for dicti in fastaDict:
+            if dicti != {}:
+                for key,value in dicti.items():
+                    allfastaDict[key] = value
+                
+
+        # 3.c Perform bwa and minimap2 alignments for those sequences in fastaDict.
+        # Write fasta
+
+        polishDir = self.outDir + '/lowIdentitiesProportion'
+        unix.mkdir(polishDir)
+        fastaObj = formats.FASTA()
+        fastaObj.seqDict = allfastaDict
+        lowIdentityFasta = polishDir + '/lowidentity.fa'
+        fastaObj.write(lowIdentityFasta)
+
+        ## 3.c Align consensus inserted sequences into the viral database
+        msg = '3.c Align consensus inserted sequences into the viral database'
+        log.info(msg)  
+        
+        # 3.c.1 bwa alignment
+        SAM_viral = alignment.alignment_bwa(lowIdentityFasta, self.confDict['viralDb'], 'lowidentity', self.confDict['processes'], polishDir)
+        BAM_sorted = bamtools.SAM2BAM(SAM_viral, polishDir)
+
+        # Convert SAM to PAF
+        PAF_viral = alignment.sam2paf(SAM_viral, 'lowidentity', polishDir)
+        # Organize hits according to their corresponding metacluster
+        allHits_viral = alignment.organize_hits_paf(PAF_viral)
+
+        # Filter bwa alignment
+        # NOTE: Vuelve a pasar los filtros pero esta vez de la consenso. Vuelvo a filtrar (pero ahora la consenso)
+        minParcialMatchVirus = 0
+        minTotalMatchVirus = 125 # >= 125
+        maxMatchCheckMAPQVirus = 45 # Cambio 28/08 15:54
+        minMAPQVirus = 0
+        maxBasePercVirus = 60 # <= 60 (no mucho pero algo filtra)
+        minLccVirus = 1.57 # > 1.7 Cambio 28/08 16:00
+
+        # Keys: readName_metacluster.beg = identity (solo aquellos que pasaron los filtros)
+        if pysam.idxstats(BAM_sorted) != '*\t0\t0\t0\n': # If bam is not empty
+            eventsIdentity2 = bamtools_VIGASR.filterBAM2FastaDict_LR(BAM_sorted, minTotalMatchVirus, minParcialMatchVirus, maxMatchCheckMAPQVirus, minMAPQVirus, maxBasePercVirus, minLccVirus, mode='LR')
+        else:
+            eventsIdentity2 = {}
+
+
+        # 3.c.2 minimap2 alignment
+        SAM_viral_minimap = virusLR.alignment_minimap2_SAM(lowIdentityFasta, self.confDict['viralDb'], 'lowidentity_minimap', self.confDict['processes'], polishDir)
+        BAM_sorted_minimap = bamtools.SAM2BAM(SAM_viral_minimap, polishDir)
+
+        # Convert SAM to PAF
+        PAF_viral_minimap = alignment.sam2paf(SAM_viral_minimap, 'lowidentity_minimap', polishDir) # cambio 12:10
+        # Organize hits according to their corresponding metacluster
+        allHits_viral_minimap = alignment.organize_hits_paf(PAF_viral_minimap)
+
+        # Filter minimap2 alignment
+        # NOTE: Vuelve a pasar los filtros pero esta vez de la consenso. Vuelvo a filtrar (pero ahora la consenso)
+        minParcialMatchVirus = 0
+        minTotalMatchVirus = 125 # >= 125
+        maxMatchCheckMAPQVirus = 83 # cambio 28/08 12:53, cambio 28/08 15:29
+        minMAPQVirus = 0
+        maxBasePercVirus = 60 # <= 60 (no mucho pero algo filtra)
+        minLccVirus = 1.7 # > 1.7
+
+        # Keys: readName_metacluster.beg = identity (solo aquellos que pasaron los filtros)
+        if pysam.idxstats(BAM_sorted_minimap) != '*\t0\t0\t0\n': # If bam is not empty
+            eventsIdentity3 = bamtools_VIGASR.filterBAM2FastaDict_LR(BAM_sorted_minimap, minTotalMatchVirus, minParcialMatchVirus, maxMatchCheckMAPQVirus, minMAPQVirus, maxBasePercVirus, minLccVirus, mode='LR', allHits_viral=allHits_viral_minimap)
+        else:
+            eventsIdentity3 = {}
+
+
+        # 3.d Put identity to metacluster if the consensus match with db.
+        # TODO: Save the consensus since it doesnt have to be done again
+
+        # Based on their consensus and in previous alignments with bwa and minimap, give identity to these metaclusters that don't have it:
+        for metaclusterList in allMetaclustersIdentity.values():
+            for metacluster in metaclusterList:
+                # TODO: Or identity == None.
+                if 'IDENTITY' not in metacluster.SV_features.keys():
+                    #SV_TypeTested = None
+                    identity = []
+                    specificIdentity = []
+                    #bkpProximity = None
+                    # If the alignment of the event.read passed the filters (in bwa or minimap2):
+                    if any([(event.readName + '_'+ str(metacluster.beg)) in eventsIdentity2.keys() for event in metacluster.events]) or any([(event.readName + '_'+ str(metacluster.beg)) in eventsIdentity3.keys() for event in metacluster.events]):
+
+                        # TODO: Do this in another way to find the event that is the key
+
+                        # Find the event that was used as consensus name
+                        for event in metacluster.events:
+                            nombre =  event.readName + '_'+ str(metacluster.beg)
+                            # Check bwa alignment
+                            if (nombre in allHits_viral.keys() and nombre in eventsIdentity2.keys()):
+                                bufferBND = 651
+                                bufferNoOverlap = 250
+                                bkpProximity, SV_TypeTested, identityEvent, specificIdentityEvent = virusLR.checkLowProportion(allMetaclustersIdentity, event, metacluster, allHits_viral, eventsIdentity2, bufferBND, bufferNoOverlap, True, True)
+                                print ('1h')
+                                print (bkpProximity, SV_TypeTested, identityEvent, specificIdentityEvent)
+                                identity.extend(identityEvent)
+                                specificIdentity.extend(specificIdentityEvent)
+                                print (identity)
+                                if (bkpProximity != None and SV_TypeTested) or not SV_TypeTested:
+                                    metacluster.SV_features['IDENTITY']  = list(set(identity))
+                                    metacluster.SV_features['SPECIDENTITY'] = list(set(specificIdentity))
+                                    print ('IDENTITY ' + str(identity))
+
+                            # If bwa aligment wasnt successful, check minimap2 alignment
+                            elif nombre in allHits_viral_minimap.keys() and nombre in eventsIdentity3.keys():
+                                bufferBND = 251
+                                bufferNoOverlap = 251
+                                bkpProximity, SV_TypeTested, identityEvent, specificIdentityEvent = virusLR.checkLowProportion(allMetaclustersIdentity, event, metacluster, allHits_viral_minimap, eventsIdentity3, bufferBND, bufferNoOverlap, False, True)
+                                print ('2h')
+                                print (bkpProximity, SV_TypeTested, identityEvent, specificIdentityEvent)
+                                identity.extend(identityEvent)
+                                specificIdentity.extend(specificIdentityEvent)
+                                print (identity)
+                                if (bkpProximity != None and SV_TypeTested) or not SV_TypeTested:
+                                    metacluster.SV_features['IDENTITY']  = list(set(identity))
+                                    metacluster.SV_features['SPECIDENTITY'] = list(set(specificIdentity))        
+                                    print ('IDENTITY ' + str(identity))                    
+        
+        unix.rm([polishDir])
+        del allMetaclustersIdentitySeparated
+        # Ahora tengo el mismo dictionario que antes, pero marcada la identidad en los eventos que la tienen (en el caso de los clipping, ademas aquellos que hacen clipping cerca del bkp)
+
+        # Split metaclusters dictionary in those that have identity and those with no identity
+
+        allMetaclustersOrganised = {}
+        for SV_type, metaclusters in allMetaclustersIdentity.items():
+            for metacluster in metaclusters:
+                SV_type_identity = SV_type + '_identity'
+                SV_type_unknown = SV_type + '_unknown'
+
+                if 'IDENTITY' in metacluster.SV_features.keys():
+                    if metacluster.SV_features['IDENTITY']:
+                        if SV_type_identity in allMetaclustersOrganised:
+                            allMetaclustersOrganised[SV_type_identity].append(metacluster)
+                        else:
+                            allMetaclustersOrganised[SV_type_identity] = []
+                            allMetaclustersOrganised[SV_type_identity].append(metacluster)
+                else:
+                    if SV_type_unknown in allMetaclustersOrganised:
+                        allMetaclustersOrganised[SV_type_unknown].append(metacluster)
+                    else:
+                        allMetaclustersOrganised[SV_type_unknown] = []
+                        allMetaclustersOrganised[SV_type_unknown].append(metacluster)
+
+        del allMetaclustersIdentity
+
+        # allMetaclustersOrganised: Es un dictionario en el que los metaclsuters estan ordenados en funcion de si sus eventos tienen identidad o no.
+
+
+        ### 4. Determine what type of sequence has been inserted for INS metaclusters
+        msg = '4. Determine what type of sequence has been inserted for INS metaclusters'
         log.header(msg)
 
         # Create output directory
         outDir = self.outDir + '/INS_TYPE/'
         unix.mkdir(outDir)
 
-        if 'INS' in allMetaclusters:
+        if 'INS_identity' in allMetaclustersOrganised:
 
             ## Infer insertion type
-            clusters.INS_type_metaclusters(allMetaclusters['INS'], self.reference, self.annotations, 1, self.confDict['viralDb'], outDir)
+            clusters.INS_type_metaclusters(allMetaclustersOrganised['INS_identity'], self.reference, self.annotations, 1, self.confDict['viralDb'], outDir)
 
         # Remove output directory
         unix.rm([outDir])
             
-        ### 4. Resolve structure for solo, partnered and orphan transductions
-        msg = '4. Resolve structure for solo, partnered and orphan transductions'
+        ### 5. Resolve structure for solo, partnered and orphan transductions
+        msg = '5. Resolve structure for solo, partnered and orphan transductions'
         log.header(msg)
         
-        if 'INS' in allMetaclusters:
+        if 'INS_identity' in allMetaclustersOrganised:
             consensus = self.refDir + '/consensusDb.fa'
             transduced = self.refDir + '/transducedDb.fa.masked'
 
@@ -111,83 +406,139 @@ class SV_caller_long(SV_caller):
             unix.mkdir(outDir)
 
             # Structure inference
-            allMetaclusters['INS'] = clusters.structure_inference_parallel(allMetaclusters['INS'], consensus, transduced, self.confDict['transductionSearch'], self.confDict['processes'], outDir)
+            # TODO: Etso esta solo hecho para RT creo!!
+            allMetaclustersOrganised['INS_identity'] = clusters.structure_inference_parallel(allMetaclustersOrganised['INS_identity'], consensus, transduced, self.confDict['transductionSearch'], self.confDict['processes'], outDir)
 
             # Remove output directory
-            unix.rm([outDir])
-        
-        ### 5. Identify BND junctions
-        msg = '5. Identify BND junctions'
+            unix.rm([outDir])     
+
+        # Resolve identity for INS_noOverlap
+        '''
+        if 'INS_noOverlap_identity' in allMetaclustersOrganised:
+            for metacluster in allMetaclustersOrganised['INS_noOverlap_identity']:
+                metacluster.consRightSeq
+                metacluster.consLefttSeq
+        '''
+        ### 6. Identify BND junctions
+        msg = '6. Identify BND junctions'
         log.header(msg)
         allJunctions = []
 
-        if 'BND' in allMetaclusters:
-        
+        if 'BND_identity' in allMetaclustersOrganised:
+
+            # 1. Analyse only those BND matching with virus:
+            outDir = self.outDir + '/BND_JUNCTIONS/'
+            unix.mkdir(outDir)
+            
+            # From now on, only work with those that have identity
+            # TODO: Put as an option to work with all BNDs, as it is done in VIGA_SR
+                
             ### Search for repeat, transduction or viral bridges
             # Create output directory
-            outDir = self.outDir + '/BND_JUNCTIONS/'
-            unix.mkdir(outDir)   
-            allMetaclusters['BND'] = clusters.search4bridges_metaclusters_parallel(allMetaclusters['BND'], 10000, 80, self.confDict['minReads'], 25, self.annotations, self.refDir, self.confDict['viralDb'], self.confDict['processes'], outDir)
+            allMetaclustersOrganised['BND_identity'] = clusters.search4bridges_metaclusters_parallel(allMetaclustersOrganised['BND_identity'], 10000, 80, self.confDict['minReads'], 25, self.annotations, self.refDir, self.confDict['viralDb'], self.confDict['processes'], outDir)
 
             ### Search for BND junctions
-            allJunctions = clusters.search4junctions_metaclusters(allMetaclusters['BND'], self.refLengths, self.confDict['processes'], self.confDict['minReads'], 25, self.reference, self.refDir, self.confDict['viralDb'], outDir)
+            allJunctions = clusters.search4junctions_metaclusters(allMetaclustersOrganised['BND_identity'], self.refLengths, self.confDict['processes'], self.confDict['minReads'], 25, self.reference, self.refDir, self.confDict['viralDb'], outDir)
+
+            if allJunctions:
+                # Analyse BNDjunction structure
+
+                # Initialize variables:
+                tupleList = []
+
+                for junction in allJunctions:
+                    
+                    ## Add to the list
+                    fields = (junction, self.reference, self.confDict['viralDb'], outDir)
+                    tupleList.append(fields)
+                
+                l = mp.Lock()
+                pool = mp.Pool(processes=self.confDict['processes'])
+                allJunctions = pool.starmap(clusters.analyse_BNDjunction_structure, tupleList)
+                pool.close()
+                pool.join()
+                
 
             # NOTE 2020: New June 2020. For keeping those BNDs without pair
-            
-            for metaclusterBND in allMetaclusters['BND']:
-                if metaclusterBND not in allJunctions:
-                    if 'solo-BND' not in allMetaclusters:
-                        allMetaclusters['solo-BND'] = []
-                    allMetaclusters['solo-BND'].append(metaclusterBND)
-            
-            if 'solo-BND' in allMetaclusters.keys():
-                clusters.soloBND_type_metaclusters(allMetaclusters['solo-BND'], self.confDict, self.reference, self.refLengths, self.refDir, self.confDict['transductionSearch'], 1, self.confDict['viralDb'], outDir)
-            
+            # TODO: From now on, only work with those that have identity!!!!! Put unknown as option.
+            # TODO: Cambiar y poner solo-BND_identity
 
+            for metaclusterBND in allMetaclustersOrganised['BND_identity']:
+                if metaclusterBND.beg not in [junction.metaclusterA.beg for junction in allJunctions]:
+                    if metaclusterBND.beg not in [junction.metaclusterB.beg for junction in allJunctions]:
+                        if 'solo-BND_identity' not in allMetaclustersOrganised:
+                            allMetaclustersOrganised['solo-BND_identity'] = []
+                        allMetaclustersOrganised['solo-BND_identity'].append(metaclusterBND)
+            
+            # Make consensus of solo-BND:
+            
+            if 'solo-BND_identity' in allMetaclustersOrganised.keys():
 
+                
+                # Determine soloBND type
+
+                # Initialize variables:
+                tupleList = []
+                allHits_genome = {}
+                groupedEntries = {}
+
+                for metacluster in allMetaclustersOrganised['solo-BND_identity']:
+
+                    ## Add to the list
+                    fields = (metacluster, 'BND', self.confDict['processes'], outDir)
+                    tupleList.append(fields)
+                
+                l = mp.Lock()
+                pool = mp.Pool(processes=self.confDict['processes'])
+                allMetaclustersOrganised['solo-BND_identity'] = pool.starmap(virusLR.get_consensus_nonClassisSVTypes, tupleList)
+                pool.close()
+                pool.join()
+
+            # DESILENCE
             # Remove output directory
             unix.rm([outDir])
-
-        ### 6. Assess MEI novelty
-        msg = '6. Assess MEI novelty'
-        log.header(msg)
-
-        if self.confDict['germlineMEI'] is not None:
-            steps = ['GERMLINE-MEI']
-            annotation.annotate(allMetaclusters['INS'], steps, self.annotations, self.confDict['annovarDir'], annotDir)
-
+            
         ### 7. Apply second round of filtering 
         msg = '7. Apply second round of filtering'
         log.header(msg)
-        filters2Apply = ['PERC-RESOLVED']
-        metaclustersPass, metaclustersFailed = filters.filter_metaclusters(allMetaclusters, filters2Apply, self.confDict)
-                
+        filters2Apply = ['PERC-RESOLVED','IDENTITY']
+        metaclustersPass, metaclustersFailed = filters.filter_metaclusters(allMetaclustersOrganised, filters2Apply, self.confDict, mode='LR')
+
         ### 8. Report SV calls into output files
         msg = '8. Report SV calls into output files'
         log.header(msg)
-        
-        ##  8.1 Report INS
-        if 'INS' in metaclustersPass:
-            outFileName = 'INS_MEIGA.PASS'
-            output.INS2VCF(metaclustersPass['INS'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
 
-        if 'INS' in metaclustersFailed:
+        ## 8.1 Report INS
+        if 'INS_identity' in metaclustersPass:
+            outFileName = 'INS_MEIGA.PASS'
+            virusLR.INS2VCF(metaclustersPass['INS_identity'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
+
+        if 'INS_unknown' in metaclustersFailed:
             outFileName = 'INS_MEIGA.FAILED.2'
-            output.INS2VCF(metaclustersFailed['INS'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
+            virusLR.INS2VCF(metaclustersFailed['INS_unknown'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
 
         ## 8.2 Report BND junctions
         if allJunctions:
             outFileName = 'BND_MEIGA.tsv'
             output.write_junctions(allJunctions, outFileName, self.outDir)
 
-        ## 8.2 Report solo-BND junctions
-        if 'solo-BND' in allMetaclusters.keys():
-            outFileName = 'soloBND_MEIGA.tsv'
-            output.INS2VCF_junction(allMetaclusters['solo-BND'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
-            # TODO 2020: Hacer un write especifico.
-            for metasolo in allMetaclusters['solo-BND']:
-                print ('solo-BND ' + str(metasolo.beg) + ' '+ str(metasolo.SV_features))
-        
+        ## 8.3 Report INS_noOverlap junctions
+        if 'INS_noOverlap_identity' in metaclustersPass.keys():
+            outFileName = 'INS_noOverlap_MEIGA'
+            virusLR.INS2VCF_junction(metaclustersPass['INS_noOverlap_identity'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
+
+        if 'INS_noOverlap_unknown' in metaclustersFailed.keys():
+            outFileName = 'INS_noOverlap_MEIGA.FAILED'
+            virusLR.INS2VCF_junction(metaclustersFailed['INS_noOverlap_unknown'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
+
+        ## 8.4 Report solo-BND junctions
+        if 'solo-BND_identity' in metaclustersPass.keys():
+            outFileName = 'soloBND_MEIGA'
+            virusLR.INS2VCF_junction(metaclustersPass['solo-BND_identity'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
+
+        if 'solo-BND_unknown' in metaclustersFailed.keys():
+            outFileName = 'soloBND_MEIGA.FAILED'
+            virusLR.INS2VCF_junction(metaclustersFailed['solo-BND_unknown'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
         
     def make_clusters(self):
         '''
@@ -224,7 +575,16 @@ class SV_caller_long(SV_caller):
         if 'INS' in metaclustersFailed:
             outFileName = 'INS_MEIGA.FAILED.1.tsv'
             output.write_INS(metaclustersFailed['INS'], outFileName, self.outDir)
-   
+
+        if 'INS_noOverlap' in metaclustersFailed:
+            outFileName = 'INS_noOverlap_MEIGA.FAILED.1.tsv'
+            output.write_INS(metaclustersFailed['INS_noOverlap'], outFileName, self.outDir)
+
+        # Output FAILED BND:
+        if 'BND' in metaclustersFailed:
+            outFileName = 'BND_MEIGA_FAILED_1'
+            virusLR.INS2VCF_junction(metaclustersFailed['BND'], self.minimap2_index(), self.refLengths, self.confDict['source'], self.confDict['build'], self.confDict['species'], outFileName, self.outDir)
+
                 
         return metaclustersPass
 
@@ -294,6 +654,8 @@ class SV_caller_long(SV_caller):
         log.step(step, msg)
 
         ## 6. Infer structural variant type ##
+        # Get consensus event and FASTA for INS and DEL.
+        # Get bkpPos and supplClusters for BND.
         step = 'SV-TYPE'
         msg = 'Infer structural variant type' 
         log.step(step, msg)
@@ -310,7 +672,7 @@ class SV_caller_long(SV_caller):
         log.step(step, msg)
         filters2Apply = ['MIN-NBREADS', 'MAX-NBREADS', 'CV', 'SV-TYPE']
         # NOTE 2020: New 2020
-        metaclustersSVType, metaclustersSVTypeFailed = filters.filter_metaclusters(metaclustersSVType, filters2Apply, self.confDict)
+        metaclustersSVType, metaclustersSVTypeFailed = filters.filter_metaclusters(metaclustersSVType, filters2Apply, self.confDict, mode='LR')
         #metaclustersSVType = filters.filter_metaclusters(metaclustersSVType, filters2Apply, self.confDict)[0]
 
         ## 8. Generate consensus event for SV metaclusters ##
@@ -320,7 +682,19 @@ class SV_caller_long(SV_caller):
 
         targetSV = ['INS']
         outDir = binDir + '/CONSENSUS/' 
-        clusters.create_consensus(metaclustersSVType, self.confDict, self.reference, targetSV, outDir)       
+        clusters.create_consensus(metaclustersSVType, self.confDict, self.reference, targetSV, outDir)
+        # TODO: Create consensus also for metaclustersSVTypeFailed
+
+        # Consensus for INS_noOverlap
+        for SV, metaclusters in metaclustersSVType.items():
+            if SV == 'INS_noOverlap':
+                for metacluster in metaclusters:
+                    virusLR.get_consensus_nonClassisSVTypes(metacluster, 'INS_noOverlap', self.confDict['processes'], outDir)
+
+        for SV, metaclusters in metaclustersSVTypeFailed.items():
+            if SV == 'INS_noOverlap':
+                for metacluster in metaclusters:
+                    virusLR.get_consensus_nonClassisSVTypes(metacluster, 'INS_noOverlap', self.confDict['processes'], outDir)
 
         ## 9. Lighten up metaclusters  ##
         ## Metaclusters passing all the filters
@@ -330,7 +704,7 @@ class SV_caller_long(SV_caller):
         clusters.lighten_up_metaclusters(metaclustersSVTypeFailed)
 
         # Do cleanup
-        unix.rm([outDir, binDir])
+        #([outDir, binDir])
 
         ## Print time taken to process bin
         end = time.time()

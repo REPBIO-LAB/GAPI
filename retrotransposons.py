@@ -630,6 +630,39 @@ def is_polyA(sequence, minPerc):
     return polyA, percPolyA
 
 
+
+def trim_polyA(sequence):
+    '''
+    Trim poly(A) at sequence end 
+    '''
+    ## Configuration for monomere search:
+    windowSize = 8
+    maxWindowDist = 2
+    minMonomerSize = 10
+    minPurity = 80  
+
+    ## Seach poly(A) monomers
+    targetMonomer = 'A'
+    monomersA = sequences.find_monomers(sequence, targetMonomer, windowSize, maxWindowDist, minMonomerSize, minPurity)
+
+    if not monomersA:
+        return sequence
+        
+    ## Select monomer closest to sequence end
+    candidate = monomersA[-1]
+
+    ## Filter out monomer if more than Xbp from end
+    seqLen = len(sequence)
+    dist2end = seqLen - candidate.end
+
+    if dist2end <= 30:
+        sequence = sequence[:candidate.beg]
+
+    else:
+        sequence = sequence
+
+    return sequence
+
 def find_orf(sequence):
     '''
     '''
