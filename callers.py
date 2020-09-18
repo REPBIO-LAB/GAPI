@@ -326,7 +326,8 @@ class SV_caller_long(SV_caller):
         msg = 'Group events into metaclusters' 
         log.step(step, msg)
 
-        metaclusters = clusters.create_metaclusters(clustersBinDb)        
+        overlapBuffer = 50
+        metaclusters = clusters.create_metaclusters(clustersBinDb, overlapBuffer)        
         msg = 'Number of created metaclusters: ' + str(len(metaclusters)) 
         log.step(step, msg)
 
@@ -911,7 +912,7 @@ class SV_caller_sureselect(SV_caller):
         discordantsDict = {}
         discordantsDict['DISCORDANT'] = eventsDict['DISCORDANT']
 
-        binSizes = [500, 1000, 10000, 100000, 1000000]  
+        binSizes = [1000, 10000, 100000, 1000000]  
         discordantsBinDb = structures.create_bin_database_interval(ref, beg, end, discordantsDict, binSizes)
 
         ## Create bin database with clippings 
@@ -958,20 +959,20 @@ class SV_caller_sureselect(SV_caller):
         msg = 'Discordant cluster filtering'
         log.step(step, msg)
 
-        filters2Apply = ['MIN-NBREADS', 'MATE-REF', 'MATE-SRC', 'MATE-MAPQ', 'GERMLINE', 'UNSPECIFIC', 'READ-DUP', 'CLUSTER-RANGE']
+        filters2Apply = ['MIN-NBREADS', 'MATE-REF', 'MATE-SRC', 'MATE-MAPQ', 'UNSPECIFIC', 'READ-DUP', 'CLUSTER-RANGE']
         if self.confDict['retroTestWGS']:
             filters2Apply.remove('UNSPECIFIC')
-        filteredDiscordants = filters.filter_discordants(discordants, filters2Apply, self.bam, self.normalBam, self.confDict)
+        filteredDiscordants = filters.filter_clusters(discordants, filters2Apply, self.bam, self.normalBam, self.confDict, 'DISCORDANT')
 
         ## 4.2 Clipping cluster filtering ##
         step = 'FILTER-CLIPPING'
         msg = 'Clipping cluster filtering'
         log.step(step, msg)
         
-        filters2Apply = ['MIN-NBREADS', 'SUPPL-REF', 'SUPPL-SRC', 'SUPPL-MAPQ', 'GERMLINE', 'READ-DUP', 'CLUSTER-RANGE']
-        filteredLeftClippings = filters.filter_clippings(leftClippingClusters, filters2Apply, self.confDict)
-        filteredRightClippings = filters.filter_clippings(rightClippingClusters, filters2Apply, self.confDict)
-            
+        filters2Apply = ['MIN-NBREADS', 'SUPPL-REF', 'SUPPL-SRC', 'SUPPL-MAPQ', 'READ-DUP', 'CLUSTER-RANGE']
+        filteredLeftClippings = filters.filter_clusters(leftClippingClusters, filters2Apply, self.bam, self.normalBam, self.confDict, 'CLIPPING')
+        filteredRightClippings = filters.filter_clusters(rightClippingClusters, filters2Apply, self.bam, self.normalBam, self.confDict, 'CLIPPING')
+                    
         ## 5. Create metaclusters ##
         step = 'META-CLUSTERING'
         msg = 'Group discordant mates and suplementary clusters into metaclusters'
@@ -993,4 +994,282 @@ class SV_caller_sureselect(SV_caller):
         else:
             retrotransposons.identity_metaclusters_retrotest(metaclusters, self.bam, self.outDir)
         
-        return [srcId, metaclusters]
+        ## 8. Filter metaclusters ##
+        step = 'FILTER-METACLUSTERS'
+        msg = 'Filter metaclusters'
+        log.step(step, msg)
+        
+        filters2Apply = ['MIN-NBREADS', 'AREAMAPQ', 'AREASMS', 'IDENTITY', 'GERMLINE']
+        if self.mode == 'SINGLE':
+            filters2Apply.remove('GERMLINE')
+        filteredMetaclusters = filters.filter_clusters(metaclusters, filters2Apply, self.bam, self.normalBam, self.confDict, 'META')
+        
+        return [srcId, filteredMetaclusters]
+    
+    
+
+
+
+class SV_caller_short_ME(SV_caller):
+    '''
+    Structural variation (SV) caller for long read sequencing data
+    '''
+    def __init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir):
+
+        SV_caller.__init__(self, mode, bam, normalBam, reference, refDir, confDict, outDir)
+
+    def call(self):
+        '''
+        Search for structural variants (SV) genome wide or in a set of target genomic regions
+        '''
+        
+        ### 1. Infer read size
+        self.confDict['readSize'] = self.infer_readSize()
+        
+        ### 2. Annotate SV clusters intervals  
+        msg = '2. Annotate SV clusters intervals'
+        log.header(msg)
+
+        # Load annotations
+        annotDir = self.outDir + '/ANNOT/'
+        self.annotations = annotation.load_annotations(['REPEATS-L1', 'TRANSDUCTIONS'], self.refLengths, self.refDir, self.confDict['germlineMEI'], self.confDict['processes'], annotDir)
+        unix.rm([annotDir])
+        
+        ### 3. Create SV clusters 
+        msg = '3. Create SV clusters'
+        log.header(msg)
+        metaclusters, metaclustersFail = self.make_clusters()
+                
+        ### 4. Annotate metaclusters
+        # Create output directory
+        annotDir = self.outDir + '/ANNOT/'
+        unix.mkdir(annotDir)
+        
+        # Define annotation steps: ['REPEAT', 'GENE']
+        steps = []
+        if self.confDict['annovarDir'] is not None:
+            steps.append('GENE')
+            annotation.annotate(metaclusters, steps, self.annotations, self.confDict['annovarDir'], annotDir)
+        
+        unix.rm([annotDir])
+        
+        ### 5. Write output
+        output.write_short_calls(metaclusters, self.outDir)
+        output.write_short_calls(metaclustersFail, self.outDir, PASS = False)
+        
+        
+    def infer_readSize(self):
+        '''
+        Infer read size from bam file
+        '''
+        
+        # take the first 500 reads of the bam file
+        command = 'samtools view ' + self.bam + '| awk \'{print length($10)}\' | head -500 | tr \'\n\' \' \''
+        result = subprocess.run(command, stdout=subprocess.PIPE, shell=True)
+        
+        # if command fails, exit
+        if result.returncode != 0:
+            step = 'infer_readSize'
+            msg = 'readSize inference failed' 
+            log.step(step, msg)
+            sys.exit(1)
+        
+        # save the result in a list of integers
+        readSizes_str = result.stdout.decode('utf-8').split(" ")
+        readSizes_str.remove("")
+        readSizes_int = [int(i) for i in readSizes_str]
+        
+        # calculate the mode
+        readSize = statistics.mode(readSizes_int)
+        
+        return(readSize)
+    
+    
+    def make_clusters(self):
+        '''
+        Search for structural variant (SV) clusters 
+
+        Output:
+            1. metaclustersPass: dictionary containing one key per SV type and the list of metaclusters identified of each given SV type
+        '''
+        ### 1. Define genomic bins to search for SV ##
+        bins = bamtools.binning(self.confDict['targetBins'], self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
+        
+        ### 2. Search for SV clusters in each bin ##
+        # Create output directory
+        unix.mkdir(self.outDir + '/CLUSTER/')
+
+        # Genomic bins will be distributed into X processes
+        pool = mp.Pool(processes=self.confDict['processes'])
+        metaclusters = pool.starmap(self.make_clusters_bin, bins)
+        pool.close()
+        pool.join()
+
+        metaclusters = [item for sublist in metaclusters for item in sublist]
+        
+        # filter metaclusters
+        metaclustersPass, metaclustersFail = [], []
+        for metacluster in metaclusters:
+            if metacluster.failedFilters:
+                metaclustersFail.append(metacluster)
+            else:
+                metaclustersPass.append(metacluster)
+                
+        # Remove output directory
+        unix.rm([self.outDir + '/CLUSTER/'])
+               
+        return metaclustersPass, metaclustersFail
+    
+
+    def make_clusters_bin(self, ref, beg, end):
+        '''
+        Search for structural variant (SV) clusters in a genomic bin/window
+        '''
+        
+        ## 0. Set bin id and create bin directory ##
+        binId = '_'.join([str(ref), str(beg), str(end)])
+        msg = 'SV calling in bin: ' + binId
+        log.subHeader(msg)
+        start = time.time()
+
+        binDir = self.outDir + '/CLUSTER/' + binId
+        unix.mkdir(binDir)
+
+
+        ## 1. Search for SV candidate events in the bam file/s ##      
+        # a) Single sample mode
+        if self.mode == "SINGLE":
+            eventsDict = bamtools.collectSV(ref, beg, end, self.bam, self.confDict, None)
+
+        # b) Paired sample mode (tumour & matched normal)
+        else:
+            eventsDict = bamtools.collectSV_paired(ref, beg, end, self.bam, self.normalBam, self.confDict)
+
+        SV_types = sorted(eventsDict.keys())
+        counts = [str(len(eventsDict[SV_type])) for SV_type in SV_types]
+
+        step = 'COLLECT'
+        msg = 'Number of SV events in bin (' + ','.join(['binId'] + SV_types) + '): ' + '\t'.join([binId] + counts)
+        log.step(step, msg)
+        
+        
+        ## 2. Transform clippings in discordants
+        step = 'SA AS DISCORDANTS'
+        msg = 'Store supp alignments as discordant pairs'
+        log.step(step, msg)
+        
+        clippings = []
+        if 'LEFT-CLIPPING' in eventsDict.keys():
+            clippings += eventsDict['LEFT-CLIPPING']
+        if 'RIGHT-CLIPPING' in eventsDict.keys():
+            clippings += eventsDict['RIGHT-CLIPPING']
+            
+        discordants_SA = events.SA_as_DISCORDANTS(clippings, self.confDict['readSize'])
+        discordants = eventsDict['DISCORDANT'] + discordants_SA
+        
+        
+        ## 3. Determine discordant mates identity ##
+        step = 'DISCORDANTS IDENTITY'
+        msg = 'Determine discordant mates identity'
+        log.step(step, msg)
+        
+        discordantsIdentity = events.determine_discordant_identity_MEIs(discordants, self.annotations['REPEATS'], self.annotations['TRANSDUCTIONS'], self.confDict['readSize'])
+        
+        
+        ## 4. Group events into clusters ##
+        step = 'CLUSTERING'
+        msg = 'Group events into clusters by identity' 
+        log.step(step, msg)
+        
+        discordantClusters = []
+
+        # for each identity
+        for eventType in discordantsIdentity.keys():
+            
+            # 1. create bin database with discordants
+            discordantsDict = {}
+            discordantsDict['DISCORDANT'] = discordantsIdentity[eventType]
+                
+            binSizes = [100, 1000, 10000, 100000, 1000000]  
+            discordantsBinDb = structures.create_bin_database_interval(ref, beg, end, discordantsDict, binSizes)
+        
+            # 2. discordant clustering
+            discordantClustersBinDb = clusters.create_clusters(discordantsBinDb, self.confDict)
+            discordants = discordantClustersBinDb.collect(['DISCORDANT'])
+            discordantClusters += discordants
+        
+        msg = 'Number of created clusters: ' + str(len(discordantClusters))
+        log.step(step, msg)
+        
+
+        ## 5. Cluster filtering ##
+        step = 'FILTER-DISCORDANT'
+        msg = 'Discordant cluster filtering'
+        log.step(step, msg)
+
+        filters2Apply = ['MIN-NBREADS', 'READ-DUP', 'CLUSTER-RANGE']
+        filteredDiscordants = filters.filter_clusters(discordantClusters, filters2Apply, self.bam, self.normalBam, self.confDict, 'DISCORDANT')
+        
+        
+        ## 6. Create metaclusters ##
+        step = 'META-CLUSTERING'
+        msg = 'Group discordant mates and suplementary clusters into metaclusters'
+        log.step(step, msg)
+        
+        discordantDict = events.events2nestedDict(discordantClusters, 'DISCORDANT')
+        clustersBinDb = structures.create_bin_database(self.refLengths, discordantDict)
+        
+        if clustersBinDb == {}:
+            return {}
+        else:
+            metaclusters = clusters.create_metaclusters(clustersBinDb[ref], self.confDict['oppositeOrientBuffer'])
+
+
+        ## 7. Filter metaclusters ##
+        step = 'FILTER-METACLUSTERS'
+        msg = 'Filter metaclusters'
+        log.step(step, msg)
+        
+        filters2Apply = ['MIN-NBREADS', 'GERMLINE', 'AREAMAPQ', 'AREASMS']
+        if self.mode == 'SINGLE':
+            filters2Apply.remove('GERMLINE')
+            
+        metaclusters = filters.filter_clusters(metaclusters, filters2Apply, self.bam, self.normalBam, self.confDict, 'META')
+
+        
+        ## 8. Determine metaclusters identity ##
+        step = 'DEFINE-TD-TYPE'
+        msg = 'Define metaclusters identity'
+        log.step(step, msg)
+        
+        retrotransposons.metaclusters_MEI_type(metaclusters)
+        
+        
+        ## 9. Determine metaclusters precise coordinates ##
+        step = 'DETERMINE-BKP'
+        msg = 'Determine metaclusters breakpoints'
+        log.step(step, msg)
+        bkp.bkp_shortReads_ME(metaclusters, self.confDict, self.bam, self.normalBam)
+        
+        
+        ## 10. Annotate metaclusters ##
+        step = 'ANNOTATE-BKP'
+        msg = 'Annotate metaclusters'
+        log.step(step, msg)
+        annotation.repeats_annotation(metaclusters, self.annotations['REPEATS'], self.confDict['readSize'])    
+        
+        
+        ## 11. Last filtering step ##
+        step = 'LAST-FILTERING'
+        msg = 'Last filtering step '
+        log.step(step, msg)
+        
+        filters2Apply = ['IDENTITY', 'META-RANGE', 'GERMLINE', 'ANNOTATION', 'SVs-NORMAL']
+        filters.filter_metaclusters_sonia(metaclusters, filters2Apply, self.confDict, self.bam, self.normalBam)
+        
+        
+        if metaclusters == []:
+            unix.rm([binDir])
+            metaclusters = {}
+        
+        return metaclusters

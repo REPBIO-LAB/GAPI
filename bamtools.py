@@ -510,7 +510,35 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample, supplementary = True):
         # Filter supplementary alignments if FALSE. (Neccesary to avoid pick supplementary clipping reads while adding to discordant clusters in short reads mode)
         if supplementary == False and alignmentObj.is_supplementary == True:
             continue
-    
+        
+        # Filtering: 
+        # to do: move to a functiom
+        if confDict['readFilters'] != None:
+            
+            # Discard alignment if mate is unmapped:
+            if 'mateUnmap' in confDict['readFilters']:
+                
+                if alignmentObj.mate_is_unmapped:
+                    continue
+            
+            # Discard alignment if insert size not greater than min_insertSize:
+            if 'insertSize' in confDict['readFilters']:
+                
+                min_insertSize = 5000
+                insertSize = alignmentObj.template_length
+                
+                if insertSize != 0 and abs(insertSize) < min_insertSize :
+                    continue
+            
+            # Filter SMS reads (reads with CIGAR #S#M#S)
+            if 'SMS' in confDict['readFilters']:
+                    
+                firstOperation, firstOperationLen = alignmentObj.cigartuples[0]
+                lastOperation, lastOperationLen = alignmentObj.cigartuples[-1]
+                
+                if ((firstOperation == 4) or (firstOperation == 5)) and ((lastOperation == 4) or (lastOperation == 5)):
+                    continue
+            
         ## 2. Collect CLIPPINGS
         if 'CLIPPING' in confDict['targetEvents']:
 
@@ -536,7 +564,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample, supplementary = True):
 
         ## 4. Collect DISCORDANT
         if 'DISCORDANT' in confDict['targetEvents']:
-
+            
             DISCORDANTS = collectDISCORDANT(alignmentObj, sample)
 
             # Add discordant events
@@ -731,7 +759,7 @@ def collectDISCORDANT(alignmentObj, sample):
 
         else:
             pair = '2'
-
+                   
         ## 3. Determine number of alignment blocks
         operations = [t[0] for t in alignmentObj.cigartuples]
         nbBlocks = operations.count(3) + 1 
@@ -741,7 +769,7 @@ def collectDISCORDANT(alignmentObj, sample):
         if nbBlocks == 1:
             DISCORDANT = events.DISCORDANT(alignmentObj.reference_name, alignmentObj.reference_start, alignmentObj.reference_end, orientation, pair, alignmentObj.query_name, alignmentObj, sample, None)
             DISCORDANTS.append(DISCORDANT)
-
+        
         # B) Read alignning in multiple blocks (RNA-seq read spanning one or multiple splice junctions) -> Create one discordant event per block
         else:
 

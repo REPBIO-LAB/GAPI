@@ -891,3 +891,63 @@ def write_tdCalls_sureselect(clustersPerSrc, outDir):
 
     	mergedOutput = outFile.merge(c=colList, o=colFormat, d=100, header=True)
     	mergedOutput.saveas(outFilePath)
+     
+
+def write_short_calls(metaclusters, outDir, PASS = True):
+    '''
+    Write metacluster calls into file
+
+    Input:
+        1. metaclusters: list of metaclusters 
+        2. outDir: Output directory
+        3. PASS: Boolean
+        
+    Output: tsv file containing transduction counts per source element ordered by chromosome and then by start position
+    '''
+    ## 1. Write header
+    outFilePath = outDir + '/meiga_sr_calls.tsv' if PASS else outDir + '/meiga_sr_calls_filteredOut.tsv'
+    outFile = open(outFilePath, 'w')
+    row = "#ref \t beg \t end \t orientation \t tdType \t nbReads \t nbDiscordant \t nbSupplem \t nbClipping \t readIds \n"
+    outFile.write(row)
+
+    ## 2. Generate list containing transduction calls
+    call = None 
+    calls = []
+
+    # For each cluster
+    for cluster in metaclusters:
+        
+        readIds = ','.join(cluster.supportingReads()[3])
+        normal_readIds = ','.join(cluster.supportingReads()[4])
+                
+        # if bkp has being defined, use it as call coordinates
+        beg = cluster.refLeftBkp if cluster.refLeftBkp is not None else cluster.beg
+        end = cluster.refRightBkp if cluster.refRightBkp is not None else cluster.end
+        geneAnnot = cluster.geneAnnot if hasattr(cluster, 'geneAnnot') else None
+        repeatAnnot = cluster.repeatAnnot if hasattr(cluster, 'repeatAnnot') else None
+        failedFilters = cluster.failedFilters if hasattr(cluster, 'failedFilters') else None
+        
+        call = [cluster.ref, str(beg), str(end), str(cluster.beg), str(cluster.end), str(cluster.refLeftBkp), str(cluster.refRightBkp), str(cluster.failedFilters), str(cluster.orientation), str(cluster.identity), str(cluster.src_id), str(geneAnnot), str(repeatAnnot), str(cluster.pA), str(cluster.plus_pA), str(cluster.minus_pA), str(cluster.plus_id), str(cluster.minus_id), str(cluster.strand), str(cluster.supportingReads()[0]), str(cluster.supportingReads()[1]), str(cluster.supportingReads()[2]), str(cluster.nbDISCORDANT()), str(cluster.nbCLIPPINGS()), readIds, normal_readIds]
+        calls.append(call)
+            
+    ## 3. Sort transduction calls first by chromosome and then by start position
+    calls.sort(key=lambda x: (x[0], int(x[1])))
+
+    ## 4. Write transduction calls into output file
+    for transduction in calls:
+        row = "\t".join(transduction) + "\n"
+        outFile.write(row)
+    
+    outFile.close()
+    
+    # ## 5. Collapse calls when pointing to the same MEI. It happens when source elements are too close.
+    # if call is not None:
+    
+    # 	outFile = pybedtools.BedTool(outFilePath)
+    
+    # 	# Columns to collapse (without ref, beg and end columns)
+    # 	colList = list(range(4, len(call)+1))
+    # 	colFormat = ['distinct'] * (len(call) - 3)
+
+    # 	mergedOutput = outFile.merge(c=colList, o=colFormat, d=10, header=True)
+    # 	mergedOutput.saveas(outFilePath)

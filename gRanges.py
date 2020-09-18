@@ -132,8 +132,8 @@ def rcplOverlap(begA, endA, begB, endB, minPercOverlap):
     overlapLen = overlap(begA, endA, begB, endB)[1]
     lenA = (endA - begA)
     lenB = (endB - begB)
-    percA = (overlapLen / lenA) * 100
-    percB = (overlapLen / lenB) * 100
+    percA = (overlapLen / lenA) * 100 if lenA > 0 else 0
+    percB = (overlapLen / lenB) * 100 if lenB > 0 else 0
 
     # a) Both ranges overlap with a minimum X percentage of reciprocal overlap
     if (percA >= minPercOverlap) and (percB >= minPercOverlap):
