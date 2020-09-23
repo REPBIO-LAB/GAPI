@@ -751,6 +751,7 @@ def identity_metaclusters_retrotest(metaclusters, bam, outDir):
     newconfDict['minINDELlen'] = 20
     newconfDict['overhang'] = 0
     newconfDict['filterDuplicates'] = True
+    newconfDict['readFilters'] = ['mateUnmap', 'insertSize', 'SMS']
 
     # for each metacluster
     for metacluster in metaclusters:
@@ -833,10 +834,11 @@ def identity_metaclusters_retrotest_wgs(metaclusters, bam, outDir, confDict, ann
     '''
     
     # create newconfDict to collect discordants around insertion
-    newconfDict = {}
-    newconfDict['targetEvents'] = ['DISCORDANT']
+    newconfDict = confDict
+    newconfDict['targetEvents'] = ['DISCORDANT', 'CLIPPING']
     newconfDict['minMAPQ'] = 20
     newconfDict['filterDuplicates'] = True
+    newconfDict['readFilters'] = ['mateUnmap', 'insertSize', 'SMS']
     
     # for each metacluster
     for metacluster in metaclusters:
@@ -848,17 +850,25 @@ def identity_metaclusters_retrotest_wgs(metaclusters, bam, outDir, confDict, ann
             # determine identity if there is discordants
             if 'DISCORDANT' in eventsDict.keys():
                 
-                # filter events by insert size
-                discordantList = filter_DISCORDANTS_insertSize(eventsDict['DISCORDANT'], 1000)
-                        
-                # determine identity
-                discordantEventsIdent = events.determine_discordant_identity_MEIs(discordantList, annotations['REPEATS'], annotations['TRANSDUCTIONS'], confDict['readSize'])
+                ## 1. Transform clippings in discordants
+                clippings = []
+                if 'LEFT-CLIPPING' in eventsDict.keys():
+                    clippings += eventsDict['LEFT-CLIPPING']
+                if 'RIGHT-CLIPPING' in eventsDict.keys():
+                    clippings += eventsDict['RIGHT-CLIPPING']
+                    
+                discordants_SA = events.SA_as_DISCORDANTS(clippings, confDict['readSize'])
+                discordants = eventsDict['DISCORDANT'] + discordants_SA
+                
+                ## 2. Determine discordant identity
+                discordantEventsIdent = events.determine_discordant_identity_MEIs(discordants, annotations['REPEATS'], annotations['TRANSDUCTIONS'], confDict['readSize'])
                 
                 # Add pA support 
                 discordantsIdentDict = add_polyA_discordantsIdentDict(discordantEventsIdent)
                 
-                # determine identity
+                ## 3. Determine metacluster identity
                 determine_MEI_type_discordants(metacluster, discordantsIdentDict)
+
                 
 
 def identity_metaclusters_wgs(metaclusters, bam, outDir, confDict, annotations):
@@ -936,8 +946,7 @@ def determine_MEI_type_discordants(metacluster, discordantsIdentDict):
     2. discordantsIdentDict: dict of dicordants ordered by orientation and mate identity (keys)
     
     Output: metacluster.identity attribute is filled
-    '''
-    
+    '''   
     # split discordantsIdentDict by cluster orientation
     plus_identity, minus_identity = None, None
     
@@ -955,31 +964,30 @@ def determine_MEI_type_discordants(metacluster, discordantsIdentDict):
     # if plus_identity and minus_identity has been assigned
     if plus_identity and minus_identity:
         
+        ## 1. Set identities
         identities = [plus_identity, minus_identity]
-                
-        ## 1. Remove all elements that do not support the identity from metacluster
-        identity_keys = ['PLUS_DISCORDANT_' + plus_identity, 'MINUS_DISCORDANT_' + minus_identity]
-        
-        # select events to keep
-        events2keep = []
-        for key in discordantsIdentDict.keys():
-            if key in identity_keys: events2keep += discordantsIdentDict[key]
-        
-        events2remove = list(set(metacluster.events) - set(events2keep))
-        metacluster.remove(events2remove)
-        
+               
         ## 2. Set identity in metacluster attribute
         # if identities == [srcId_A, srcId_A] --> orphan 
         if len(set(identities)) == 1 and 'L1' not in identities and 'Simple_repeat' not in identities:
             metacluster.identity = 'TD2'
+            metacluster.src_id = identities[0]
         
         # if identities == [L1, pA] --> solo    
         elif len(set(identities)) == 2 and set(identities) == {'L1', 'Simple_repeat'}:
             metacluster.identity = 'TD0'
         
-        # if identities == [srcId_A, L1] --> partnered   
+        # if identities == [L1, srcId_A] --> partnered   
         elif len(set(identities)) == 2 and 'L1' in identities:
             metacluster.identity = 'TD1'
+            identities.remove('L1')
+            metacluster.src_id = identities[0]
+            
+        # if identities == [srcId_A, pA] --> orphan   
+        elif len(set(identities)) == 2 and 'Simple_repeat' in identities:
+            metacluster.identity = 'TD2'
+            identities.remove('Simple_repeat')
+            metacluster.src_id = identities[0]
         
         # if identities == [L1, L1] --> solo     
         elif len(set(identities)) == 1 and 'L1' in identities:
@@ -1000,6 +1008,12 @@ def determine_MEI_type_discordants(metacluster, discordantsIdentDict):
         elif minus_identity: metacluster.identity = 'minus_' + minus_identity
         
         else: metacluster.identity = None
+        
+    # set pA support
+    for key in discordantsIdentDict.keys():
+        
+        if 'Simple_repeat' in key:
+            metacluster.pA = True
 
         
 def filter_DISCORDANTS_insertSize(discordants, min_insertSize):
@@ -1096,14 +1110,12 @@ def metaclusters_MEI_type(metaclusters):
         else:
             metacluster.identity = None
             
-        ## 2. Set strand and polyA support
+        ## 2. Set strand support
         if metacluster.plus_pA:
-            metacluster.pA = True
             if not metacluster.minus_pA:
                 metacluster.strand = '-'
             
         if metacluster.minus_pA:
-            metacluster.pA = True
             if not metacluster.plus_pA:
                 metacluster.strand = '+'
             

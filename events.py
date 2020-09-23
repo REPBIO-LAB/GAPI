@@ -423,7 +423,10 @@ def discordants2mates(discordants):
     for discordant in discordants:
         pair = '2' if discordant.pair == '1' else '1'
         mate = DISCORDANT(discordant.mateRef, discordant.mateStart, discordant.mateStart, discordant.mateOrientation, pair, discordant.readName, None, discordant.sample, None)
-
+        mate.mateRef = discordant.ref
+        mate.mateStart = discordant.beg
+        mate.mateOrientation = discordant.orientation
+            
         mates.append(mate)
 
     return mates
@@ -664,15 +667,16 @@ class CLIPPING():
         self.clusterId = None
         self.blatIdentity = False
         self.cigarTuples = alignmentObj.cigartuples
+        
         self.identity = None
         self.specificIdentity = None
         self.bkpProximity = None
+        self.orientation = 'PLUS' if clippedSide == 'right' else 'MINUS'
 
         # Supporting read alignment properties:
         if alignmentObj is None:
             self.CIGAR = None
             self.reverse = None
-            self.orientation = None
             self.secondary = None
             self.supplementary = None
             self.mapQual = None

@@ -816,14 +816,18 @@ def write_tdCounts_sureselect(clusterPerSrc, outDir):
     counts = []
 
     for srcId, clusters in clusterPerSrc.items():
-        nbTd = len(clusters)
+        nbTd = 0
+        for cluster in clusters:
+            if cluster.identity == "orphan":
+                nbTd += 1
+                
         counts.append((srcId, nbTd))
     
     ## 2. Sort source elements in decreasing order of counts
     sortedCounts = sorted(counts, key=lambda x: x[1], reverse=True)
 
     ## 3. Write header 
-    outFilePath = outDir + '/transduction_counts.tsv'
+    outFilePath = outDir + '/transduction_counts_TD2.tsv'
     outFile = open(outFilePath, 'w')
 
     row = "#srcId \t nbTransductions \n"
@@ -918,7 +922,8 @@ def write_short_calls(metaclusters, outDir, PASS = True):
     for cluster in metaclusters:
         
         readIds = ','.join(cluster.supportingReads()[3])
-        normal_readIds = ','.join(cluster.supportingReads()[4])
+        normalReads = cluster.supportingReads()[4]
+        normal_readIds = ','.join(normalReads) if normalReads else None
                 
         # if bkp has being defined, use it as call coordinates
         beg = cluster.refLeftBkp if cluster.refLeftBkp is not None else cluster.beg
@@ -927,7 +932,7 @@ def write_short_calls(metaclusters, outDir, PASS = True):
         repeatAnnot = cluster.repeatAnnot if hasattr(cluster, 'repeatAnnot') else None
         failedFilters = cluster.failedFilters if hasattr(cluster, 'failedFilters') else None
         
-        call = [cluster.ref, str(beg), str(end), str(cluster.beg), str(cluster.end), str(cluster.refLeftBkp), str(cluster.refRightBkp), str(cluster.failedFilters), str(cluster.orientation), str(cluster.identity), str(cluster.src_id), str(geneAnnot), str(repeatAnnot), str(cluster.pA), str(cluster.plus_pA), str(cluster.minus_pA), str(cluster.plus_id), str(cluster.minus_id), str(cluster.strand), str(cluster.supportingReads()[0]), str(cluster.supportingReads()[1]), str(cluster.supportingReads()[2]), str(cluster.nbDISCORDANT()), str(cluster.nbCLIPPINGS()), readIds, normal_readIds]
+        call = [cluster.ref, str(beg), str(end), str(cluster.beg), str(cluster.end), str(cluster.refLeftBkp), str(cluster.refRightBkp), str(cluster.failedFilters), str(cluster.orientation), str(cluster.identity), str(cluster.src_id), str(geneAnnot), str(repeatAnnot), str(cluster.pA), str(cluster.plus_pA), str(cluster.minus_pA), str(cluster.plus_id), str(cluster.minus_id), str(cluster.strand), str(cluster.supportingReads()[0]), str(cluster.supportingReads()[1]), str(cluster.supportingReads()[2]), str(cluster.nbDISCORDANT()), str(cluster.nbCLIPPINGS()), readIds, str(normal_readIds)]
         calls.append(call)
             
     ## 3. Sort transduction calls first by chromosome and then by start position

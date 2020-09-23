@@ -2421,11 +2421,11 @@ class META_cluster():
         
         ## 2. set pA support
         if 'Simple_repeat' in plus_identities:
-            self.plus_pA = True
+            self.plus_pA, self.pA = True, True
             plus_identities = [value for value in plus_identities if value != 'Simple_repeat']
         
         if 'Simple_repeat' in minus_identities:
-            self.minus_pA = True
+            self.minus_pA, self.pA = True, True
             minus_identities = [value for value in minus_identities if value != 'Simple_repeat']
                     
         ## 3. set clusters identity

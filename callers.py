@@ -811,8 +811,6 @@ class SV_caller_sureselect(SV_caller):
         for index, coords in enumerate(bins):
             coords.append(BED.lines[index].optional['cytobandId'])
         
-        unix.rm([tdDir])
-        
         ### 5. Search for SV clusters in each bin 
         # Genomic bins will be distributed into X processes
         pool = mp.Pool(processes=self.confDict['processes'])
@@ -829,6 +827,10 @@ class SV_caller_sureselect(SV_caller):
 
         ## 6.2 Transduction calls
         output.write_tdCalls_sureselect(clusterPerSrcDict, self.outDir)
+        
+        ### 7. Clean up
+        unix.rm([tdDir])
+        unix.rm([self.outDir + '/SUPPLEMENTARY'])
     
     def infer_readSize(self):
         '''
@@ -999,7 +1001,7 @@ class SV_caller_sureselect(SV_caller):
         msg = 'Filter metaclusters'
         log.step(step, msg)
         
-        filters2Apply = ['MIN-NBREADS', 'AREAMAPQ', 'AREASMS', 'IDENTITY', 'GERMLINE']
+        filters2Apply = ['MIN-NBREADS', 'AREAMAPQ', 'AREASMS', 'IDENTITY', 'GERMLINE', 'srcREF-TDs']
         if self.mode == 'SINGLE':
             filters2Apply.remove('GERMLINE')
         filteredMetaclusters = filters.filter_clusters(metaclusters, filters2Apply, self.bam, self.normalBam, self.confDict, 'META')
@@ -1238,7 +1240,7 @@ class SV_caller_short_ME(SV_caller):
 
         
         ## 8. Determine metaclusters identity ##
-        step = 'DEFINE-TD-TYPE'
+        step = 'DEFINE-IDENTITY'
         msg = 'Define metaclusters identity'
         log.step(step, msg)
         
@@ -1265,6 +1267,10 @@ class SV_caller_short_ME(SV_caller):
         log.step(step, msg)
         
         filters2Apply = ['IDENTITY', 'META-RANGE', 'GERMLINE', 'ANNOTATION', 'SVs-NORMAL']
+        if self.mode == 'SINGLE':
+            filters2Apply.remove('GERMLINE')
+            filters2Apply.remove('SVs-NORMAL')
+        
         filters.filter_metaclusters_sonia(metaclusters, filters2Apply, self.confDict, self.bam, self.normalBam)
         
         

@@ -89,7 +89,7 @@ if __name__ == '__main__':
 	parser.add_argument('--minReadsRegionMQ', default=1, dest='minReadsRegionMQ', type=int, help='Surrounding reads above this MQ are considered low MQ reads. Default: 10')
 	parser.add_argument('--maxRegionlowMQ', default=0.5, dest='maxRegionlowMQ', type=int, help='Maximum percentage of lowMAPQ/nbReads in cluster´s region. Default: 0.3')
 	parser.add_argument('--maxRegionSMS', default=0.10, dest='maxRegionSMS', type=int, help='Maximum percentage of SMS clipping reads in cluster´s region. Default: 0.15')
-	parser.add_argument('--INT2Search', default="ME,VIRUS", dest='INT2Search', type=str, help='Comma separated list of insertion types to collect (Mobile Elements (ME),VIRUS). Default: ME,VIRUS')
+	parser.add_argument('--INT2Search', default="VIRUS", dest='INT2Search', type=str, help='Comma separated list of insertion types to collect (Mobile Elements (ME),VIRUS). Default: ME,VIRUS')
 	parser.add_argument('--komplexityThreshold', default=0.4, dest='komplexityThreshold', type=float, help='Threshold for filtering mates sequence with komplexity tool. Default: 0.4')
 	parser.add_argument('--discordantMatesMaxMAPQ', default=20, dest='discordantMatesMaxMAPQ', type=int, help='Maximum mapping quality used for collecting dicordant read mates. Default: 20')
 	parser.add_argument('--no-discordantMatesCheckUnmapped', action="store_false", default=True, dest='discordantMatesCheckUnmapped', help='If not selected, when a dicordant read mate is unmapped, collect it no matter its MAPQ. If selected, mapping state is not checked.')
@@ -577,7 +577,12 @@ if __name__ == '__main__':
 
 	# B) Illumina short reads
 	elif confDict['technology'] == 'ILLUMINA':
-		caller = callers.SV_caller_short_ME(mode, bam, normalBam, reference, refDir, confDict, outDir)
+
+		if 'VIRUS' in confDict['targetINT2Search']:
+			caller = callers.SV_caller_short(mode, bam, normalBam, reference, refDir, confDict, outDir)
+
+		elif 'ME' in confDict['targetINT2Search']:
+			caller = callers.SV_caller_short_ME(mode, bam, normalBam, reference, refDir, confDict, outDir)
 
 	# C) Source elements sureselect data
 	elif confDict['technology'] == 'SURESELECT':

@@ -46,8 +46,8 @@ def filter_clusters(clusters, filters2Apply, bam, normalBam, confDict, clusterTy
             failedFilters = filter_clipping(cluster, filters2Apply, confDict)
         
         elif clusterType == 'META':
-            failedFilters = filter_metacluster(cluster, filters2Apply, bam, normalBam, confDict)
-            
+            failedFilters = filter_metacluster(cluster, filters2Apply, confDict, bam, normalBam, mode='SR')
+                  
         # Cluster pass all the filters
         if not failedFilters: 
             clustersPass.append(cluster)
@@ -209,7 +209,7 @@ def filter_metaclusters_SR(metaclusters, filters2Apply, confDict, bam):
         # Set meacluster element:
         element = metacluster.setElement() if metacluster.setElement() else 'GENERIC'
         ## Apply filters
-        metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply[element], bam, normalBam, confDict)
+        metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply[element], confDict, bam, normalBam)
         
         # Metacluster fails some filter
         if metacluster.failedFilters:
@@ -250,8 +250,7 @@ def filter_metaclusters_sonia(metaclusters, filters2Apply, confDict, bam, normal
     for metacluster in metaclusters:
         
         # Apply filters
-        metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply, bam, normalBam, confDict)
-        
+        metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply, confDict, bam, normalBam)
 
 
 def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
@@ -281,7 +280,7 @@ def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
         for index, metacluster in enumerate(metaclusters):
 
             ## Apply filters
-            metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply, confDict, None, mode=mode)
+            metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply, confDict, None, None, mode=mode)
 
             # Metacluster fails some filter
             if metacluster.failedFilters:
@@ -310,16 +309,16 @@ def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
 
     return metaclustersPassDict, metaclustersFailDict
 
-def filter_metacluster(metacluster, filters2Apply, confDict, bam, mode='SR'):
+def filter_metacluster(metacluster, filters2Apply, confDict, bam, normalBam, mode='SR'):
     '''
     Apply selected filters to one metacluster.
 
     Input:
         1. metacluster: metacluster object
         2. filters2Apply: list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
-        3. bam  
-        4. normalBam
-        5. confDict
+        3. confDict
+        4. bam  
+        5. normalBam
 
     Output:
         1. failedFilters -> list containing those filters that the metacluster doesn't pass.
@@ -382,11 +381,16 @@ def filter_metacluster(metacluster, filters2Apply, confDict, bam, mode='SR'):
             if not filter_metacluster_subfamilyAnnot(metacluster, 'L1', 'L1PA', 0):
                 failedFilters.append('ANNOTATION')
     
-    ## 12. FILTER 12: Whether a cluster is on a L1PA element and has no pA support
+    ## 12. FILTER 12: Whether a cluster is on noisy region (calculated using the normal)
     if 'SVs-NORMAL' in filters2Apply:
         maxPercSVs = 20
         if not filter_percSVs_inNormal(metacluster, maxPercSVs, normalBam, confDict):
             failedFilters.append('SVs-NORMAL')
+    
+    ## 13. FILTER 13: Whether a transduction is on the same chr as the source element with no pA support
+    if 'srcREF-TDs' in filters2Apply:
+        if not filter_TDs_sameRef_srcElement(metacluster):
+            failedFilters.append('srcREF-TDs')
                 
     return failedFilters
 
@@ -1356,4 +1360,29 @@ def filter_percSVs_inNormal(metacluster, maxPercSVs, normalBam, confDict):
     return(PASS)
      
 
+def filter_TDs_sameRef_srcElement(metacluster):
+    '''
+    Filter metacluster if it's a transduction and the source element is located in the same ref as insertion. 
+    Metalusters will only be discarded if no polyA support is found.
     
+    Input:
+    1. metacluster
+    
+    Output: 
+    1. PASS: Boolean indicating whether it should be filtered out or not
+    '''
+    PASS = True
+    
+    # If it's a transduction
+    if metacluster.identity == 'TD1' or metacluster.identity == 'TD2':
+        
+        # Extract src_id ref
+        src_id = metacluster.src_id.replace('p', 'q')
+        src_ref = src_id.split('q')[0]
+        
+        # If scr_ref is equal to transduction ref and there is no pA support
+        if metacluster.ref == src_ref and not metacluster.pA:
+            
+            PASS = False
+        
+    return(PASS)
