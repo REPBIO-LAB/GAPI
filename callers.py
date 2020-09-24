@@ -1266,7 +1266,9 @@ class SV_caller_short_ME(SV_caller):
         msg = 'Last filtering step '
         log.step(step, msg)
         
-        filters2Apply = ['IDENTITY', 'META-RANGE', 'GERMLINE', 'ANNOTATION', 'SVs-NORMAL']
+        # filters2Apply = ['IDENTITY', 'META-RANGE', 'GERMLINE', 'ANNOTATION', 'SVs-NORMAL']
+        # Remove 'SVs-NORMAL'. It seems to be problematic in some region of chrX. Revisar!!
+        filters2Apply = ['IDENTITY', 'META-RANGE', 'GERMLINE', 'ANNOTATION']
         if self.mode == 'SINGLE':
             filters2Apply.remove('GERMLINE')
             filters2Apply.remove('SVs-NORMAL')
