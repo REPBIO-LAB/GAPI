@@ -34,6 +34,42 @@ def bkp(metaclusters):
         
         leftBkps = []
         rightBkps = []
+
+        # Choose bkp with highest number of clipping events
+        for event in metacluster.events:
+            
+            if event.type == 'CLIPPING':
+                
+                if event.clippedSide == 'left':
+                    leftBkps.append(event.beg)
+                    
+                elif event.clippedSide == 'right':
+                    rightBkps.append(event.beg)
+
+        # Fill refLeftBkp and refRightBkp attributes
+        if len(leftBkps) > 0:
+            leftBkp = max(set(leftBkps), key=leftBkps.count)
+            metacluster.refLeftBkp = leftBkp
+            
+        if len(rightBkps) > 0:
+            rightBkp = max(set(rightBkps), key=rightBkps.count)
+            metacluster.refRightBkp = rightBkp
+
+
+def bkp_fromClusters(metaclusters):
+    '''
+    Determine breakpoints
+    
+    Input: 
+    1. List of metaclusters
+    
+    Output:
+    There is no output, but refLeftBkp and refRightBkp attributes are filled
+    '''
+    for metacluster in metaclusters:
+        
+        leftBkps = []
+        rightBkps = []
         
         ## A) Create subclusters
         subclusters = metacluster.create_subclusters()
@@ -162,7 +198,7 @@ def bkp_shortReads_ME(metaclusters, confDict, bam, normalBam):
         metacluster.supportingCLIPPING_sonia(confDict, bam, normalBam)
     
     ## D) Refine bkp using clipping info
-    bkp(metaclusters)
+    bkp_fromClusters(metaclusters)
         
 def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, binId, identDbPath):
     '''
