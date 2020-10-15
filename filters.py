@@ -182,7 +182,7 @@ def filter_discordant(discordant, filters2Apply, bam, normalBam, confDict):
     
     return failedFilters
 
-def filter_metaclusters_SR(metaclusters, filters2Apply, confDict, bam):
+def filter_metaclusters_SR(metaclusters, filters2Apply, confDict, bam, normalBam = None):
     '''
     Function to apply filters all metaclusters. 
 
@@ -253,7 +253,7 @@ def filter_metaclusters_sonia(metaclusters, filters2Apply, confDict, bam, normal
         metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply, confDict, bam, normalBam)
 
 
-def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
+def filter_metaclusters(metaclustersDict, filters2Apply, confDict, mode='SR'):
     '''
     Function to apply filters to a set of metaclusters organized in a dictionary
 
@@ -280,7 +280,7 @@ def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
         for index, metacluster in enumerate(metaclusters):
 
             ## Apply filters
-            metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply, confDict, None, None, mode=mode)
+            metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply, confDict, None, mode=mode)
 
             # Metacluster fails some filter
             if metacluster.failedFilters:
@@ -309,7 +309,7 @@ def filter_metaclusters(metaclustersDict, filters2Apply, confDict):
 
     return metaclustersPassDict, metaclustersFailDict
 
-def filter_metacluster(metacluster, filters2Apply, confDict, bam, normalBam, mode='SR'):
+def filter_metacluster(metacluster, filters2Apply, confDict, bam, normalBam = None, mode='SR'):
     '''
     Apply selected filters to one metacluster.
 

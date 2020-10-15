@@ -441,7 +441,7 @@ def polish_clusters(clustersBinDb, minClusterSize):
     ## 3. Polish CLIPPING clusters (TO DO)
 
 
-def create_metaclusters(clustersBinDb, buffer):
+def create_metaclusters(clustersBinDb, buffer = 500):
     '''    
     Group SV cluster events into metaclusters
 
@@ -2293,6 +2293,20 @@ class DISCORDANT_cluster(cluster):
             self.orientation = 'MINUS'
         else:
             self.orientation = 'RECIPROCAL'
+
+        # cluster.__init__(self, events, 'DISCORDANT')
+
+        # self.matesCluster = None
+        # self.identity = self.events[0].identity
+        # self.orientation = self.events[0].orientation
+        # self.element = self.events[0].element
+            
+        # if all (event.orientation == 'PLUS' for event in events):
+        #     self.orientation = 'PLUS'
+        # elif all (event.orientation == 'MINUS' for event in events):
+        #     self.orientation = 'MINUS'
+        # else:
+        #     self.orientation = 'RECIPROCAL'
     
     def setIdentity(self):
         '''
@@ -2388,14 +2402,15 @@ class META_cluster():
         self.src_id = None
         self.TSD = None
         self.repeatAnnot = None
-        
+
+        # Short reads:
         if hasattr(self.events[0], 'identity'):
             self.identity = self.events[0].identity
             
-        if hasattr(self.events[0], 'orientation'):
-            if all (event.orientation in ['PLUS', None] for event in self.events):
+        if hasattr(clusters[0], 'orientation'):
+            if all (cluster.orientation == 'PLUS' for cluster in clusters):
                 self.orientation = 'PLUS'
-            elif all (event.orientation in ['MINUS', None] for event in self.events):
+            elif all (cluster.orientation == 'MINUS' for cluster in clusters):
                 self.orientation = 'MINUS'
             else:
                 self.orientation = 'RECIPROCAL'
