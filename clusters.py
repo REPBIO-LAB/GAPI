@@ -441,7 +441,7 @@ def polish_clusters(clustersBinDb, minClusterSize):
     ## 3. Polish CLIPPING clusters (TO DO)
 
 
-def create_metaclusters(clustersBinDb, buffer = 500):
+def create_metaclusters(clustersBinDb, buffer = 200):
     '''    
     Group SV cluster events into metaclusters
 

@@ -326,8 +326,8 @@ class SV_caller_long(SV_caller):
         msg = 'Group events into metaclusters' 
         log.step(step, msg)
 
-        overlapBuffer = 50
-        metaclusters = clusters.create_metaclusters(clustersBinDb, overlapBuffer)        
+        buffer = 50
+        metaclusters = clusters.create_metaclusters(clustersBinDb, buffer)        
         msg = 'Number of created metaclusters: ' + str(len(metaclusters)) 
         log.step(step, msg)
 
