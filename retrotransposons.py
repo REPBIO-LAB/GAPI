@@ -772,7 +772,7 @@ def identity_metaclusters_retrotest(metaclusters, bam, outDir):
             elif metacluster.orientation == 'MINUS':
                 clipConsensusPath, clipConsensus = bkp.makeConsSeqs(eventsDict['LEFT-CLIPPING'], 'INT', bkpDir)
             
-            unix.rm([bkpDir])
+            #unix.rm([bkpDir])
             
             # if there is a consensus
             if clipConsensus != None:

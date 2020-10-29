@@ -831,6 +831,7 @@ class SV_caller_sureselect(SV_caller):
         ### 7. Clean up
         unix.rm([tdDir])
         unix.rm([self.outDir + '/SUPPLEMENTARY'])
+        unix.rm([self.outDir + '/BKP'])
     
     def infer_readSize(self):
         '''
