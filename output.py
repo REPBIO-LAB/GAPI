@@ -4,6 +4,7 @@ import pybedtools
 import mappy as mp
 import itertools
 import statistics
+from collections import Counter
 
 # Internal
 import structures
@@ -802,57 +803,21 @@ def write_junctions(junctions, outFileName, outDir):
     outFile.close()
 
 
-def write_tdCounts_sureselect(clusterPerSrc, outDir):
-    '''
-    Compute transduction counts per source element and write into file
-
-    Input:
-        1. clusterPerSrc: list containing list of BND junction objects 
-        2. outDir: Output directory
-        
-    Output: tsv file containing transduction counts per source element
-    '''
-    ## 1. Compute number of transductions per source element
-    counts = []
-
-    for srcId, clusters in clusterPerSrc.items():
-        nbTd = 0
-        for cluster in clusters:
-            if cluster.identity == "orphan":
-                nbTd += 1
-                
-        counts.append((srcId, nbTd))
-    
-    ## 2. Sort source elements in decreasing order of counts
-    sortedCounts = sorted(counts, key=lambda x: x[1], reverse=True)
-
-    ## 3. Write header 
-    outFilePath = outDir + '/transduction_counts_TD2.tsv'
-    outFile = open(outFilePath, 'w')
-
-    row = "#srcId \t nbTransductions \n"
-    outFile.write(row)
-
-    ## 4. Write counts 
-    for srcId, nbTd in sortedCounts:
-        row = "\t".join([srcId, str(nbTd), "\n"])
-        outFile.write(row)       
-
-
-def write_tdCalls_sureselect(clustersPerSrc, outDir):
+def write_tdCalls_sureselect(clustersPerSrc, outDir, germlineDb):
     '''
     Compute transduction counts per source element and write into file
 
     Input:
         1. clustersPerSrc: Dictionary containing one key per source element and the list of identified transduction clusters 
         2. outDir: Output directory
+        3. germlineDb: germline MEI bed file 
         
     Output: tsv file containing transduction counts per source element ordered by chromosome and then by start position
     '''
     ## 1. Write header 
     outFilePath = outDir + '/transduction_calls.tsv'
     outFile = open(outFilePath, 'w')
-    row = "#ref \t beg \t end \t orientation \t tdType \t srcId \t nbReads \t nbDiscordant \t nbClipping \t readIds \n"
+    row = "#ref \t beg \t end \t srcId \t tdType \t orientation \t nbReads \t nbDiscordant \t nbClipping \t readIds \n"
     outFile.write(row)
 
     ## 2. Generate list containing transduction calls
@@ -871,7 +836,7 @@ def write_tdCalls_sureselect(clustersPerSrc, outDir):
             beg = cluster.refLeftBkp if cluster.refLeftBkp is not None else cluster.beg
             end = cluster.refRightBkp if cluster.refRightBkp is not None else cluster.end
             
-            call = [cluster.ref, str(beg), str(end), str(cluster.orientation), str(cluster.identity), srcId, str(cluster.supportingReads()[0]), str(cluster.nbDISCORDANT()), str(cluster.nbSUPPLEMENTARY()), readIds]
+            call = [cluster.ref, str(beg), str(end), srcId, str(cluster.identity), str(cluster.orientation), str(cluster.supportingReads()[0]), str(cluster.nbDISCORDANT()), str(cluster.nbSUPPLEMENTARY()), readIds]
             calls.append(call)
 
     ## 3. Sort transduction calls first by chromosome and then by start position
@@ -884,18 +849,60 @@ def write_tdCalls_sureselect(clustersPerSrc, outDir):
     
     outFile.close()
     
-    ## 5. Collapse calls when pointing to the same MEI. It happens when source elements are too close.
+    # if there is calls
     if call is not None:
     
-    	outFile = pybedtools.BedTool(outFilePath)
-    
-    	# Columns to collapse (without ref, beg and end columns)
-    	colList = list(range(4, len(call)+1))
-    	colFormat = ['distinct'] * (len(call) - 3)
+        outFile = pybedtools.BedTool(outFilePath)
 
-    	mergedOutput = outFile.merge(c=colList, o=colFormat, d=100, header=True)
-    	mergedOutput.saveas(outFilePath)
-     
+        ## 5. Collapse calls when pointing to the same MEI. It happens when source elements are too close
+        colList = list(range(4, len(call)+1))
+        colFormat = ['distinct'] * (len(call) - 3)
+        outBed = outFile.merge(c=colList, o=colFormat, d=100, header=True)
+
+        ## 6. Filter germline variants if orphan germline DB provided
+        if germlineDb:
+            
+            dbBed = pybedtools.BedTool(germlineDb)
+            outBed = outBed.intersect(b=dbBed, v=True, header=True)
+        
+        outBed.saveas(outFilePath)
+    
+    ## 7. Write final transduction counts to file
+    write_tdCounts_sureselect(outFilePath, outDir)
+
+
+def write_tdCounts_sureselect(outBed, outDir):
+    '''
+    Compute transduction counts per source element and write into file
+
+    Input:
+        1. outBed: RetroTest output bed file 
+        2. outDir: Output directory
+        
+    Output: tsv file containing orphan counts per source element
+    '''
+    ## 1. Open output bed 
+    BED = formats.BED()
+    BED.read(outBed, 'List', None)
+    
+    ## 2. Select orphan calls
+    src_ids = [line.optional['srcId'] for line in BED.lines if line.optional['tdType'] == "orphan"]
+    
+    ## 3. Count orphans per source id
+    srcCounter = Counter(src_ids)
+
+    ## 4. Write counts to output file
+    outFilePath = outDir + '/orphan_counts.tsv'
+    outFile = open(outFilePath, 'w')
+    row = "#srcId \t nbTransductions \n"
+    outFile.write(row)
+    
+    for srcId, nbTd in srcCounter.items():
+        row = "\t".join([srcId, str(nbTd), "\n"])
+        outFile.write(row)
+    
+    outFile.close()
+
 
 def write_short_calls(metaclusters, outDir, PASS = True):
     '''

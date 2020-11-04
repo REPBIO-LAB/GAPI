@@ -822,11 +822,7 @@ class SV_caller_sureselect(SV_caller):
         clusterPerSrcDict = {srcId:clusters for srcId,clusters in clusterPerSrc}
 
         ### 6. Write calls to file
-        ## 6.1 Transduction counts per source element
-        output.write_tdCounts_sureselect(clusterPerSrcDict, self.outDir)
-
-        ## 6.2 Transduction calls
-        output.write_tdCalls_sureselect(clusterPerSrcDict, self.outDir)
+        output.write_tdCalls_sureselect(clusterPerSrcDict, self.outDir, self.confDict['germlineMEI'])
         
         ### 7. Clean up
         unix.rm([tdDir])

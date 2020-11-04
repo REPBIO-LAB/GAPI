@@ -746,9 +746,8 @@ def identity_metaclusters_retrotest(metaclusters, bam, outDir):
     # set new confDict parameters to search for clippings
     newconfDict = {}
     newconfDict['targetEvents'] = ['CLIPPING']
-    newconfDict['minMAPQ'] = 20
-    newconfDict['minCLIPPINGlen'] = 15
-    newconfDict['minINDELlen'] = 20
+    newconfDict['minMAPQ'] = 30
+    newconfDict['minCLIPPINGlen'] = 8
     newconfDict['overhang'] = 0
     newconfDict['filterDuplicates'] = True
     newconfDict['readFilters'] = ['mateUnmap', 'insertSize', 'SMS']
@@ -759,23 +758,41 @@ def identity_metaclusters_retrotest(metaclusters, bam, outDir):
         # if there is no reciprocal clusters
         if metacluster.orientation != 'RECIPROCAL':
 
-            # collect clippings in region
+            ## 1. Collect clippings in region
             eventsDict = bamtools.collectSV(metacluster.ref, metacluster.refLeftBkp-100, metacluster.refRightBkp+100, bam, newconfDict, None, supplementary = False)
             
-            # create clipping consensus
+            ## 2. Create clipping consensus
+            # create bkp dir
             bkpDir = outDir + '/BKP'
             unix.mkdir(bkpDir)
             
+            # initialize variable 
+            clipConsensus = None
+            
+            # if cluster orientation is plus
             if metacluster.orientation == 'PLUS':
-                clipConsensusPath, clipConsensus = bkp.makeConsSeqs(eventsDict['RIGHT-CLIPPING'], 'INT', bkpDir)
+                
+                # if there is only a clipping event
+                if len(eventsDict['RIGHT-CLIPPING']) == 1:
+                    clipConsensus = eventsDict['RIGHT-CLIPPING'][0].clipped_seq()
+                
+                # if there is more than a clipping event
+                elif len(eventsDict['RIGHT-CLIPPING']) > 1:
+                    clipConsensusPath, clipConsensus = bkp.makeConsSeqs(eventsDict['RIGHT-CLIPPING'], 'INT', bkpDir)
             
+            # if cluster orientation is minus
             elif metacluster.orientation == 'MINUS':
-                clipConsensusPath, clipConsensus = bkp.makeConsSeqs(eventsDict['LEFT-CLIPPING'], 'INT', bkpDir)
+                
+                # if there is only a clipping event
+                if len(eventsDict['LEFT-CLIPPING']) == 1:
+                    clipConsensus = eventsDict['LEFT-CLIPPING'][0].clipped_seq()
+                
+                # if there is more than a clipping event
+                elif len(eventsDict['LEFT-CLIPPING']) > 1:
+                    clipConsensusPath, clipConsensus = bkp.makeConsSeqs(eventsDict['LEFT-CLIPPING'], 'INT', bkpDir)
             
-            #unix.rm([bkpDir])
-            
-            # if there is a consensus
-            if clipConsensus != None:
+            ## 3. polyA search if there is a consensus
+            if clipConsensus:
                 
                 # set metacluster identity to partnered if there is polyA/polyT tail in consensus seq
                 if has_polyA_illumina(clipConsensus): metacluster.identity = 'partnered'
@@ -797,9 +814,9 @@ def has_polyA_illumina(targetSeq):
     ## 0. Set up monomer searching parameters ##
     windowSize = 8
     maxWindowDist = 2
-    minMonomerSize = 15
+    minMonomerSize = 8
     minPurity = 95
-    maxDist2Ends = 3 
+    maxDist2Ends = 1 
     
     monomerTails = []
     
