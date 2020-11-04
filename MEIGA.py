@@ -264,7 +264,7 @@ if __name__ == '__main__':
 	##############################################
 	scriptName = os.path.basename(sys.argv[0])
 	scriptName = os.path.splitext(scriptName)[0]
-	version='0.27.0'
+	version='0.28.0'
 
 	print()
 	print('***** ', scriptName, version, 'configuration *****')
@@ -359,7 +359,7 @@ if __name__ == '__main__':
  
 	scriptName = os.path.basename(sys.argv[0])
 	scriptName = os.path.splitext(scriptName)[0]
-	version='0.26.0'
+	version='0.28.0'
 
 	## Mandatory
 	confDict['technology'] = technology
