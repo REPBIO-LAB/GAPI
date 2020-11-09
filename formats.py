@@ -8,12 +8,13 @@ import itertools
 import sys
 import time
 import re
+import multiprocessing as mp
 
 # Internal
 import log
 import gRanges
 import structures
-from VIGA_SR import call_VIGASR
+import virus
 
 
 ## FUNCTIONS ##
@@ -187,7 +188,9 @@ class FASTA():
         openMode = 'a' if mode == 'append' else 'w'
         
         if safetyLock:
-            call_VIGASR.lock.acquire()
+            l = mp.Lock()
+            virus.init(l)
+            virus.lock.acquire()
 
         fastaFile = open(filePath, openMode)
 
@@ -201,7 +204,8 @@ class FASTA():
         fastaFile.close()
         
         if safetyLock:
-            call_VIGASR.lock.release()
+            virus.init(l)
+            virus.lock.release()
 
     def retrieve_seqs(self, targetNames):
         '''

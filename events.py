@@ -14,7 +14,7 @@ import formats
 from cigar import Cigar
 import gRanges
 import alignment
-from VIGA_SR import virusSR
+import virus
 
 
 ###############
@@ -397,7 +397,7 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
 
         
     if 'VIRUS' in targetINT2Search and viralSeqs:
-        discordantEventsIdent = virusSR.is_virusSR(discordants, viralSeqs)
+        discordantEventsIdent = virus.is_virusSR(discordants, viralSeqs)
     # If VIRUS is not selected, add events with identity == None. (If VIRUS is selected they are already in discordantEventsIdent)
     else:
         discordantsIdentityMEs.update(discordantsNone)

@@ -2,263 +2,25 @@
 Module 'virus' - for dealing with virus specific needs
 '''
 ## External
-import subprocess
 import unix
-import time
+import pysam
+from cigar import Cigar
+import numpy as np
+import os
+import Bio.SeqUtils
+from Bio.SeqUtils import lcc
 import multiprocessing as mp
-import itertools
-from Bio import SeqIO
 
 ## Internal
-import bamtools
 import formats
 import log
 import sequences
-import filters
 import alignment
-import retrotransposons
-import callers
 
-## [SR CHANGE]
-import os
-import re
-
-def is_virusSR(events, viralSeqs):
-    '''
-    TODO SR: NOW THIS IS SAME AS IN RT, SO I SHOULD DO ONLY 1!!
-    '''
-    matesIdentity = {}
-
-    for discordant in events:
-
-        if discordant.readName in viralSeqs.keys():
-            identity = viralSeqs[discordant.readName]
-        else:
-            identity = None
-        
-        discordant.setIdentity(identity)
-
-        if discordant.identity:
-            featureType = discordant.identity
-        else:
-            featureType = 'None'
-
-        ## Add discordant read pair to the dictionary
-        #identity = discordant.orientation + '-DISCORDANT-' + featureType
-        identity = 'DISCORDANT-' + featureType
-
-
-        if featureType != 'None':
-            discordant.element = 'VIRUS'
-
-        # a) There are already discordant read pairs with this identity
-        if identity in matesIdentity:
-            matesIdentity[identity].append(discordant)
-
-        # b) First discordant read pair with this identity
-        else:
-            matesIdentity[identity] = [ discordant ] 
-    
-    return matesIdentity
-    '''
-    ## 1. Collect mate sequence of discordant events ##
-    msg = '[Start bamtools.collectMatesSeq]'
-    log.subHeader(msg)
-    start = time.time()
-    bamtools.collectMatesSeq(events, tumourBam, normalBam, True, 20)
-    end = time.time()
-    print("TIEMPO DE collectMatesSeq" + str(end - start))
-    msg = '[End bamtools.collectMatesSeq]'
-    log.subHeader(msg)
-
-    ## 2. Identify mate sequence of discordant events ##
-    msg = '[Start identifySequence]'
-    log.subHeader(msg)
-    eventsIdentityDict = identifySequence(events, outDir, viralDb)
-    msg = '[End identifySequence]'
-    log.subHeader(msg)
-
-    return eventsIdentityDict
-    '''
-
-# TODO: UNUSED FUNCTION
-def identifySequence(events, outDir, viralDb):
-    '''
-    From a list of events, perform a search with their sequence in order to find out its identity.
-    
-    Input:
-        1. events: list of events
-        2. outDir
-    Output:
-        1. eventsIdentityDict -> keys: eventType + identity. values: list of events
-    '''
-
-    ## TODO: Make specific temp folder for these filer
-
-    eventsIdentityDict = {}
-    fastaObj = formats.FASTA()
-    
-    for event in events:
-        if event.mateSeq != None:
-
-            # Write fasta file containing the read sequence
-            fastaDict={}
-            fastaDict[event.readName]=event.mateSeq
-            fastaObj.seqDict = fastaDict
-            FASTA_file = outDir + '/' + str(event.id) + '.fasta'
-            fastaObj.write(FASTA_file)
-
-            PAF_file = outDir + '/' + str(event.id) + 'alignments.paf'
-
-            #db = '/lustre/scratch117/casm/team154/jt14/3vi/data/databases/RVDBv12.2_MEIGA_HUMAN/consensusViralDb.mmi'
-
-            # Perform aligment
-            aligmentMaxNbMatches = sequences.aligmentMaxNbMatches(FASTA_file, viralDb, PAF_file, outDir)
-
-            command = 'rm ' + FASTA_file               
-            os.system(command) 
-
-            if aligmentMaxNbMatches != None:
-
-                # Require a minimum percentage of aligment
-                lenAlig = abs(aligmentMaxNbMatches.qEnd - aligmentMaxNbMatches.qBeg)
-
-                percAlig = filters.fraction(lenAlig, aligmentMaxNbMatches.qLen)
-
-                # TODO: ponerlo de parametrooo???
-                if percAlig:
-                    if percAlig > 0.5: 
-                    
-                        identity = aligmentMaxNbMatches.tName.split('|')[0]
-                        # In order to know more than simply the species.
-                        #specificIdentity = aligmentMaxNbMatches.tName.split('|')[1]
-                        specificIdentity = re.split('\|| ',aligmentMaxNbMatches.tName)[1]
-
-                        # Add identities to event object
-                        event.specificIdentity = specificIdentity
-
-                        # Add identity to the eventType and make the output dictionary
-                        eventTypeIdentity = event.orientation + '-' + event.type + '-' + identity
-
-                        if eventTypeIdentity not in eventsIdentityDict.keys():
-                            eventsIdentityDict[eventTypeIdentity] = []
-
-                        eventsIdentityDict[eventTypeIdentity].append(event)
-
-            ## DESILENCIAAAAR!
-            #command = 'rm ' + PAF_file               
-            #os.system(command) 
-    
-    ## TODO: Do cleanup
-
-    return eventsIdentityDict
-
+# Multiprocessing lock as global variable. Useful for safely writting from different processes to the same output file.
 def init(l):
     global lock
     lock = l
-
-#virus.find_viral_reads(self.bam, self.normalBam, self.confDict['viralDb'], self.confDict['komplexityThreshold'], self.confDict['minTotalMatchVirus'], self.confDict['minParcialMatchVirus'], self.confDict['maxMatchCheckMAPQVirus'], self.confDict['minMAPQVirus'], self.confDict['maxBasePercVirus'], self.confDict['minLccVirus'], self.confDict['processes'], self.outDir)
-def find_virus_discordants(bam, normalBam, viralDb, komplexityThreshold, minTotalMatchVirus, minParcialMatchVirus, maxMatchCheckMAPQVirus, minMAPQVirus, maxBasePercVirus, minLccVirus, processes, outDir):
-    
-    # Create directory
-    collectVirusDir = outDir + '/COLLECT_VIRUS'
-
-    # Filter by complexity (with komplexity)
-    allFastas = sequences.komplexityFilter(komplexityThreshold, 'allFastas_all.fasta', 'allFastas.fasta', collectVirusDir)
-    
-    # Align with bwa allFastas vs viralDb and filter resulting bam
-    # TODO SR: bwa allFastas vs viralDb: check if bwa -T parameter does something that we need
-    allSam = alignment.alignment_bwa(allFastas, viralDb, 'allSam', processes, collectVirusDir)
-
-    # Index bam
-    bamtools.samtools_index_bam(allSam, collectVirusDir)
-
-    # WHEN THIS PART IS DESILENCED THIS IS NEEDED:
-    #allSam = collectVirusDir + '/allSam.sam'
-    viralSeqs = bamtools.filterBAM2FastaDict(allSam, minTotalMatchVirus, minParcialMatchVirus, maxMatchCheckMAPQVirus, minMAPQVirus, maxBasePercVirus, minLccVirus)
-
-    # Collect all identities that have hits in viralBam
-    fastaIdentities = list(set(list(itertools.chain(*viralSeqs.values()))))
-
-    # Write a fasta file containing only those sequences that are in identities:
-    # self.confDict['viralDb'] -> Papillomaviridae|LC270039.1 02-AUG-2017
-    # fastaIdentities = self.viralSeqs.values() -> Papillomaviridae|LC270039.1
-    identDbPath = collectVirusDir + '/identDb.fasta'
-    identDb = open(identDbPath, 'w')
-    viralDb = open(viralDb, 'r')
-
-    for record in SeqIO.parse(viralDb,'fasta'):
-        for fastaIdentity in fastaIdentities:
-            if fastaIdentity in record.id:
-                identDb.write(">" + record.id + "\n")
-                identDb.write(str(record.seq) + "\n")
-                break
-
-    viralDb.close()
-    identDb.close()
-
-    return viralSeqs, identDbPath
-
-# TODO: This function are quite similar to retrotransposons ones, so maybe we can merge them in some way
-def virus_structure(FASTA_file, index, outDir):
-    '''    
-    Infer the insertion size, structure and strand of viral insertions
-
-    Input:
-        1. FASTA_file: Path to FASTA file containing the sequence
-        2. index: Minimap2 index for consensus viral sequences database
-        3. outDir: Output directory
-        
-    Output:
-        1. structure: dictionary containing insertion structure information
-    '''     
-    structure = {}
-
-    ## 0. Create logs directory ##
-    logDir = outDir + '/Logs'
-    unix.mkdir(logDir)
-
-    ## 1. Align the sequence into the viral sequences database ##
-    PAF_file = alignment.alignment_minimap2(FASTA_file, index, 'alignment2consensusVirus', 1, outDir)
-
-    ## 2. Read PAF alignments ##
-    PAF = formats.PAF()
-    PAF.read(PAF_file)
-
-    # Exit function if no hit on the viral database
-    if not PAF.alignments:
-        return structure
-
-    ## 3. Chain complementary alignments ##
-    chain = PAF.chain(100, 30)
-
-    ## 4. Infer insertion features ##
-    ## Retrieve inserted seq
-    #FASTA = formats.FASTA()
-    #FASTA.read(FASTA_file)
-    #sequence = list(FASTA.seqDict.values())[0]
-
-    # TODO: Maybe it's a good idea to change the junciton.consSeq for this one
-    
-    ## 4.1 Insertion type
-    # TODO: Put VIRUSDSC in output
-    structure['INS_TYPE'], structure['FAMILY'], structure['CYTOBAND'] = insertion_type(chain)
-
-    ## 4.2 Insertion strand
-    structure['STRAND'] = retrotransposons.infer_strand_alignment(structure['INS_TYPE'], chain)
-
-    ## 4.3 Sequence lengths 
-    lengths = infer_lengths(structure['INS_TYPE'], chain, structure['STRAND'])
-    structure.update(lengths)
-
-
-    ## 4.5 Target site duplication (TO DO LATER...)
-    #search4tsd()
-    
-    ## 4.6 Percentage resolved
-    structure['PERC_RESOLVED'] = chain.perc_query_covered()
-    
-    return structure
 
 # TODO: This function are quite similar to retrotransposons ones, so maybe we can merge them in some way
 def insertion_type(chain):
@@ -319,7 +81,7 @@ def insertion_type(chain):
         srcId = [] 
 
     return insType, family, srcId
-
+    
 def infer_lengths(insType, chain, strand):
     '''
     Determine the length of each type of sequence composing the insertion
@@ -364,3 +126,218 @@ def infer_lengths(insType, chain, strand):
         lengths['viralHit_' + str(hitNb)]['TRUNCATION_3_LEN'] = consensusLen - viralEnd
     
     return lengths
+
+# TODO: This function are quite similar to retrotransposons ones, so maybe we can merge them in some way
+def virus_structure(FASTA_file, index, outDir):
+    '''    
+    Infer the insertion size, structure and strand of viral insertions
+
+    Input:
+        1. FASTA_file: Path to FASTA file containing the sequence
+        2. index: Minimap2 index for consensus viral sequences database
+        3. outDir: Output directory
+        
+    Output:
+        1. structure: dictionary containing insertion structure information
+    '''     
+    structure = {}
+
+    ## 0. Create logs directory ##
+    logDir = outDir + '/Logs'
+    unix.mkdir(logDir)
+
+    ## 1. Align the sequence into the viral sequences database ##
+    PAF_file = alignment.alignment_minimap2(FASTA_file, index, 'alignment2consensusVirus', 1, outDir)
+
+    ## 2. Read PAF alignments ##
+    PAF = formats.PAF()
+    PAF.read(PAF_file)
+
+    # Exit function if no hit on the viral database
+    if not PAF.alignments:
+        return structure
+
+    ## 3. Chain complementary alignments ##
+    # TODO; De momento dejo 50 pero ajustarlo!
+    chain = PAF.chain(100, 50)
+    for ali in chain.alignments:
+        print ('EVAH')
+        print (ali.qBeg)
+        print (ali.qEnd)
+    print (chain.perc_query_covered())
+    print (PAF_file)
+
+    ## 4. Infer insertion features ##
+    ## Retrieve inserted seq
+    #FASTA = formats.FASTA()
+    #FASTA.read(FASTA_file)
+    #sequence = list(FASTA.seqDict.values())[0]
+
+    # TODO: Maybe it's a good idea to change the junciton.consSeq for this one
+    
+    ## 4.1 Insertion type
+    # TODO: Put VIRUSDSC in output
+    structure['INS_TYPE'], structure['FAMILY'], structure['CYTOBAND'] = insertion_type(chain)
+
+    ## 4.2 Insertion strand
+    #structure['STRAND'] = retrotransposons.infer_strand_alignment(structure['INS_TYPE'], chain)
+    structure['STRAND'] = None
+
+    ## 4.3 Sequence lengths 
+    lengths = infer_lengths(structure['INS_TYPE'], chain, structure['STRAND'])
+    structure.update(lengths)
+
+
+    ## 4.5 Target site duplication (TO DO LATER...)
+    #search4tsd()
+    
+    ## 4.6 Percentage resolved
+    structure['PERC_RESOLVED'] = chain.perc_query_covered()
+    
+    return structure
+
+
+def is_virusSR(events, viralSeqs):
+    '''
+    TODO SR: NOW THIS IS SAME AS IN RT, SO I SHOULD DO ONLY 1!!
+    '''
+    matesIdentity = {}
+
+    for discordant in events:
+
+        if discordant.readName in viralSeqs.keys():
+            identity = viralSeqs[discordant.readName]
+        else:
+            identity = None
+        
+        discordant.setIdentity(identity)
+
+        if discordant.identity:
+            featureType = discordant.identity
+        else:
+            featureType = 'None'
+
+        ## Add discordant read pair to the dictionary
+        #identity = discordant.orientation + '-DISCORDANT-' + featureType
+        identity = 'DISCORDANT-' + featureType
+
+
+        if featureType != 'None':
+            discordant.element = 'VIRUS'
+
+        # a) There are already discordant read pairs with this identity
+        if identity in matesIdentity:
+            matesIdentity[identity].append(discordant)
+
+        # b) First discordant read pair with this identity
+        else:
+            matesIdentity[identity] = [ discordant ] 
+    
+    return matesIdentity
+    '''
+    ## 1. Collect mate sequence of discordant events ##
+    msg = '[Start bamtools.collectMatesSeq]'
+    log.subHeader(msg)
+    start = time.time()
+    bamtools.collectMatesSeq(events, tumourBam, normalBam, True, 20)
+    end = time.time()
+    print("TIEMPO DE collectMatesSeq" + str(end - start))
+    msg = '[End bamtools.collectMatesSeq]'
+    log.subHeader(msg)
+
+    ## 2. Identify mate sequence of discordant events ##
+    msg = '[Start identifySequence]'
+    log.subHeader(msg)
+    eventsIdentityDict = identifySequence(events, outDir, viralDb)
+    msg = '[End identifySequence]'
+    log.subHeader(msg)
+
+    return eventsIdentityDict
+    '''
+
+def filterBAM2FastaDict(BAM, minTotalMatchVirus, minParcialMatchVirus, maxMatchCheckMAPQVirus, minMAPQVirus, maxBasePercVirus, minLccVirus, mode='SR'):
+    '''
+    '''
+
+    # Read bam and store in a dictionary
+    bamFile = pysam.AlignmentFile(BAM, 'rb')
+
+    iterator = bamFile.fetch()
+    
+    fastaDict= {}
+
+    # For each read alignment
+    for alignmentObj in iterator:
+        alignmentPass = False
+        #numMatches = 0
+        queryCoord = 0
+        print ('alignmentObj.query_name ' + str(alignmentObj.query_name))
+        #print ('alignmentObj.is_unmapped ' + str(alignmentObj.is_unmapped))
+
+        if not alignmentObj.is_unmapped:
+            ctuples = alignmentObj.cigartuples
+            allMatches = [t[1] for t in ctuples if t[0] == 0]
+            totalMatch = sum (allMatches)
+            print ('totalMatch ' + str(totalMatch))
+            if totalMatch >= minTotalMatchVirus:
+                c = Cigar(alignmentObj.cigarstring)
+                for citem  in list(c.items()):
+                    # If cigar is query consuming, update query coordinates:
+                    if citem[1] != 'M' and citem[1] != 'D' and citem[1] != '=':
+                        queryCoord = queryCoord + int(citem[0])
+                    elif citem[1] == 'M' or citem[1] == '=':
+                        print ('citem[0] ' + str(citem[0]))
+                        print ('maxMatchCheckMAPQVirus'  + str(maxMatchCheckMAPQVirus))
+                        print ('alignmentObj.mapping_quality'  + str(alignmentObj.mapping_quality))
+                        print ('minMAPQVirus'  + str(minMAPQVirus))
+                        if citem[0] >= minParcialMatchVirus:
+                            if (citem[0] <= maxMatchCheckMAPQVirus and alignmentObj.mapping_quality > minMAPQVirus) or citem[0] > maxMatchCheckMAPQVirus:
+                                sequence = alignmentObj.query_sequence[queryCoord:(queryCoord + int(citem[0]))]
+                                # Calculate base percentage
+                                basePercs = sequences.baseComposition(sequence)[1]
+                                # Delete total value of base percentage result
+                                del basePercs['total']
+                                print ('basePercs ' + str(basePercs))
+                                # Only those sequences with base percentage lower than 85 are collected:
+                                if all(perc < maxBasePercVirus for perc in basePercs.values()):
+                                    # Calculate complexity
+                                    complexity = Bio.SeqUtils.lcc.lcc_simp(sequence)
+                                    print ('complexity ' + str(complexity))
+                                    print ('minLccVirus ' + str(minLccVirus))
+                                    if complexity > minLccVirus:
+                                        #print ('PassAll')
+                                        # TODO: put this in a good way!!!!!
+                                        if mode=='LR':
+                                            if len(sequence)>10:
+                                                alignmentPass = True
+                                                break # Cambio 28/08 11:53
+                                        else:
+                                            alignmentPass = True
+                                            break # Cambio 28/08 11:53
+                                    else:
+                                        queryCoord = queryCoord + int(citem[0])
+                                else:
+                                    queryCoord = queryCoord + int(citem[0])
+                        else:
+                            queryCoord = queryCoord + int(citem[0])
+        '''
+        print (numMatches)
+        if numMatches > 90: # TODO SR: put this as an option
+            alignmentPass = True
+        elif alignmentObj.mapping_quality >= viralBamMAPQ and numMatches >= int(selectedPartialMatches):
+            alignmentPass = True
+        # New condition:
+        # TODO SR: Put as options!!!
+        elif alignmentObj.mapping_quality >= 40 and numMatches >= 60:
+            alignmentPass = True
+        '''
+        print ('alignmentPass ' + str(alignmentPass))
+        if alignmentPass == True:
+            # Add to fasta dict
+            if alignmentObj.query_name in fastaDict.keys():
+                fastaDict[alignmentObj.query_name].append(alignmentObj.reference_name)
+            else:
+                fastaDict[alignmentObj.query_name] = []
+                fastaDict[alignmentObj.query_name].append(alignmentObj.reference_name)
+
+    return fastaDict

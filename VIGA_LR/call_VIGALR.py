@@ -16,7 +16,7 @@ from collections import Counter
 # TEMP BORRAR
 import Bio.SeqUtils
 from Bio.SeqUtils import lcc
-from VIGA_SR import bamtools_VIGASR
+from VIGA_LR import bamtools_VIGALR
 from VIGA_LR import virusLR
 
 # Internal
@@ -266,7 +266,7 @@ class SV_caller_long(SV_caller):
 
         # Keys: readName_metacluster.beg = identity (solo aquellos que pasaron los filtros)
         if pysam.idxstats(BAM_sorted) != '*\t0\t0\t0\n': # If bam is not empty
-            eventsIdentity2 = bamtools_VIGASR.filterBAM2FastaDict_LR(BAM_sorted, minTotalMatchVirus, minParcialMatchVirus, maxMatchCheckMAPQVirus, minMAPQVirus, maxBasePercVirus, minLccVirus, mode='LR')
+            eventsIdentity2 = bamtools_VIGALR.filterBAM2FastaDict_LR(BAM_sorted, minTotalMatchVirus, minParcialMatchVirus, maxMatchCheckMAPQVirus, minMAPQVirus, maxBasePercVirus, minLccVirus, mode='LR')
         else:
             eventsIdentity2 = {}
 
@@ -291,7 +291,7 @@ class SV_caller_long(SV_caller):
 
         # Keys: readName_metacluster.beg = identity (solo aquellos que pasaron los filtros)
         if pysam.idxstats(BAM_sorted_minimap) != '*\t0\t0\t0\n': # If bam is not empty
-            eventsIdentity3 = bamtools_VIGASR.filterBAM2FastaDict_LR(BAM_sorted_minimap, minTotalMatchVirus, minParcialMatchVirus, maxMatchCheckMAPQVirus, minMAPQVirus, maxBasePercVirus, minLccVirus, mode='LR', allHits_viral=allHits_viral_minimap)
+            eventsIdentity3 = bamtools_VIGALR.filterBAM2FastaDict_LR(BAM_sorted_minimap, minTotalMatchVirus, minParcialMatchVirus, maxMatchCheckMAPQVirus, minMAPQVirus, maxBasePercVirus, minLccVirus, mode='LR', allHits_viral=allHits_viral_minimap)
         else:
             eventsIdentity3 = {}
 
