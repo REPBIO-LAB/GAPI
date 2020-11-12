@@ -51,7 +51,8 @@ if __name__ == '__main__':
 	parser.add_argument('--polishing-rounds', default=1, dest='rounds', type=int, help='Number of polishing rounds to be attempted. Default: 1')
 	parser.add_argument('-p', '--processes', default=1, dest='processes', type=int, help='Number of processes. Default: 1')
 	parser.add_argument('-o', '--outDir', default=os.getcwd(), dest='outDir', help='Output directory. Default: current working directory')
-
+	parser.add_argument('--genotyper', action="store_true", default=False, dest='genotyper', help='Genotype calls. Only available for Illumina data')
+	
 	## BAM processing
 	parser.add_argument('--targetBins', default=None, dest='targetBins', type=str, help='Bed file containing target genomic bins for SV calling. Overrides --binSize and --refs. Default: None')
 	parser.add_argument('-bS', '--binSize', default=1000000, dest='binSize', type=int, help='Input bams will be analised in genomic bins of this size. Default: 1000000')
@@ -142,6 +143,7 @@ if __name__ == '__main__':
 	rounds = args.rounds
 	processes = args.processes
 	outDir = args.outDir
+	genotyper = args.genotyper
 
 	## BAM processing
 	targetBins = args.targetBins
@@ -286,7 +288,8 @@ if __name__ == '__main__':
 	print('gene-annot-dir: ', annovarDir)
 	print('polishing-rounds: ', rounds)
 	print('processes: ', processes)
-	print('outDir: ', outDir, "\n")
+	print('outDir: ', outDir)
+	print('genotyper mode: ', genotyper, "\n") 
 
 	print('** BAM processing **')
 	print('targetBins: ', targetBins)
@@ -374,6 +377,7 @@ if __name__ == '__main__':
 	confDict['annovarDir'] = annovarDir
 	confDict['rounds'] = rounds
 	confDict['processes'] = processes
+	confDict['genotyper'] = genotyper
 
 	## BAM processing
 	confDict['targetBins'] = targetBins
