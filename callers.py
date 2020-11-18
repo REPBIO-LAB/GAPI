@@ -1053,8 +1053,8 @@ class SV_caller_short_ME(SV_caller):
         unix.rm([annotDir])
         
         ### 5. Write output
-        output.write_short_calls(metaclusters, self.outDir, self.bam, self.confDict)
-        output.write_short_calls(metaclustersFail, self.outDir, self.bam, self.confDict, PASS = False)
+        output.write_short_calls(metaclusters, self.outDir)
+        #output.write_short_calls(metaclustersFail, self.outDir, PASS = False)
         
         
     def infer_readSize(self):
@@ -1106,13 +1106,14 @@ class SV_caller_short_ME(SV_caller):
 
         metaclusters = [item for sublist in metaclusters for item in sublist]
         
-        # filter metaclusters
-        metaclustersPass, metaclustersFail = [], []
-        for metacluster in metaclusters:
-            if metacluster.failedFilters:
-                metaclustersFail.append(metacluster)
-            else:
-                metaclustersPass.append(metacluster)
+        # # filter metaclusters
+        # metaclustersPass, metaclustersFail = [], []
+        # for metacluster in metaclusters:
+        #     if metacluster.failedFilters:
+        #         metaclustersFail.append(metacluster)
+        #     else:
+        #         metaclustersPass.append(metacluster)
+        metaclustersPass, metaclustersFail = metaclusters, []
                 
         # Remove output directory
         unix.rm([self.outDir + '/CLUSTER/'])
@@ -1270,11 +1271,11 @@ class SV_caller_short_ME(SV_caller):
             filters2Apply.remove('GERMLINE')
             #filters2Apply.remove('SVs-NORMAL')
         
-        filters.filter_metaclusters_sonia(metaclusters, filters2Apply, self.confDict, self.bam, self.normalBam)
-        
-        
-        if metaclusters == []:
+        #filters.filter_metaclusters_sonia(metaclusters, filters2Apply, self.confDict, self.bam, self.normalBam)
+        filteredMetaclusters = filters.filter_clusters(metaclusters, filters2Apply, self.bam, self.normalBam, self.confDict, 'META')
+
+        if filteredMetaclusters == []:
             unix.rm([binDir])
-            metaclusters = {}
+            filteredMetaclusters = {}
         
-        return metaclusters
+        return filteredMetaclusters

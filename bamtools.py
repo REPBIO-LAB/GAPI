@@ -521,15 +521,6 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample, supplementary = True):
                 if alignmentObj.mate_is_unmapped:
                     continue
             
-            # Discard alignment if insert size not greater than min_insertSize:
-            if 'insertSize' in confDict['readFilters']:
-                
-                min_insertSize = 5000
-                insertSize = alignmentObj.template_length
-                
-                if insertSize != 0 and abs(insertSize) < min_insertSize :
-                    continue
-            
             # Filter SMS reads (reads with CIGAR #S#M#S)
             if 'SMS' in confDict['readFilters']:
                     
@@ -564,6 +555,19 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample, supplementary = True):
 
         ## 4. Collect DISCORDANT
         if 'DISCORDANT' in confDict['targetEvents']:
+            
+            # Filtering: 
+            # to do: move to a functiom
+            if confDict['readFilters'] != None:
+                
+                # Discard alignment if insert size not greater than min_insertSize:
+                if 'insertSize' in confDict['readFilters']:
+                    
+                    min_insertSize = 5000
+                    insertSize = alignmentObj.template_length
+                    
+                    if insertSize != 0 and abs(insertSize) < min_insertSize :
+                        continue
             
             DISCORDANTS = collectDISCORDANT(alignmentObj, sample)
 
