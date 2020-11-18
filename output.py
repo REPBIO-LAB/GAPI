@@ -9,6 +9,7 @@ from collections import Counter
 # Internal
 import structures
 import formats
+import bamtools
 
 def VCFMetaclustersFields(metaclusters):
     '''
@@ -928,36 +929,30 @@ def write_short_calls(metaclusters, outDir, bam, confDict, PASS = True):
     # For each cluster
     for cluster in metaclusters:
         
-        ## A. Return nb of reads that support each cluster
-        subclusters = cluster.create_subclusters()
+        # ## A. Return nb of reads that support each cluster
+        # subclusters = cluster.create_subclusters()
+        # supportKey, supportNbReads = [], []
         
-        supportKey = []
-        supportNbReads = []
+        # for key in subclusters.keys():
+        #     supportKey.append(key)
+        #     supportNbReads.append(len(subclusters[key].events))
         
-        for key in subclusters.keys():
-            supportKey.append(key)
-            supportNbReads.append(len(subclusters[key].events))
+        # supportKeys = ','.join([str(key) for key in supportKey])
+        # supportReads = ','.join([str(nb) for nb in supportNbReads])
         
-        supportKeys = ','.join([str(key) for key in supportKey])
-        supportReads = ','.join([str(nb) for nb in supportNbReads])
-        
-        cluster5_nbALT = None
-        cluster5_nbALL = None
+        ## A. Return nb of reads that support 5' end cluster
+        cluster5_nbALT, cluster5_nbALL = None, None
        
-        if cluster.strand == "+" and 'PLUS-DISCORDANT' in subclusters.keys():
-                
-                cluster5end = subclusters['PLUS-DISCORDANT']
-                cluster5_nbALT = len(cluster5end.events)
-                cluster5_nbALL = calculate_nbReads(cluster5end.ref, cluster5end.beg, cluster5end.end, bam, confDict, "+", None)
-        
-        elif cluster.strand == "-" and 'MINUS-DISCORDANT' in subclusters.keys():
-                    
-                cluster5end = subclusters['MINUS-DISCORDANT']
-                cluster5_nbALT = len(cluster5end.events)
-                cluster5_nbALL = calculate_nbReads(cluster5end.ref, cluster5end.beg, cluster5end.end, bam, confDict, "-", None)
-
-        
-        
+        if cluster.strand == "+" and 'PLUS-DISCORDANT' in subclusters.keys():    
+            cluster5end = subclusters['PLUS-DISCORDANT']
+            cluster5_nbALT = len(cluster5end.events)
+            cluster5_nbALL = bamtools.calculate_nbReads(cluster5end.ref, cluster5end.beg, cluster5end.end, bam, confDict, "+", None)
+    
+        elif cluster.strand == "-" and 'MINUS-DISCORDANT' in subclusters.keys():   
+            cluster5end = subclusters['MINUS-DISCORDANT']
+            cluster5_nbALT = len(cluster5end.events)
+            cluster5_nbALL = bamtools.calculate_nbReads(cluster5end.ref, cluster5end.beg, cluster5end.end, bam, confDict, "-", None)
+            
         ## B. Other prints
         readIds = ','.join(cluster.supportingReads()[3])
         normalReads = cluster.supportingReads()[4]
@@ -977,7 +972,7 @@ def write_short_calls(metaclusters, outDir, bam, confDict, PASS = True):
         failedFilters = cluster.failedFilters if hasattr(cluster, 'failedFilters') else None
         
         # call = [cluster.ref, str(beg), str(end), str(cluster.beg), str(cluster.end), str(cluster.refLeftBkp), str(cluster.refRightBkp), str(cluster.failedFilters), str(cluster.orientation), str(cluster.identity), str(cluster.src_id), str(geneAnnot), str(repeatAnnot), str(cluster.pA), str(cluster.plus_pA), str(cluster.minus_pA), str(cluster.plus_id), str(cluster.minus_id), str(cluster.strand), str(cluster.supportingReads()[0]), str(cluster.supportingReads()[1]), str(cluster.supportingReads()[2]), str(cluster.nbDISCORDANT()), str(cluster.nbCLIPPINGS()), readIds, str(normal_readIds)]
-        call = [cluster.ref, str(beg), str(end), supportKeys, supportReads, str(cluster5_nbALT), str(cluster5_nbALL), str(cluster.failedFilters), str(cluster.orientation), str(cluster.identity), str(cluster.src_id), str(region), str(gene), str(families), str(subfamilies), str(distances), str(cluster.pA), str(cluster.plus_pA), str(cluster.minus_pA), str(cluster.plus_id), str(cluster.minus_id), str(cluster.strand), str(cluster.supportingReads()[0]), str(cluster.supportingReads()[1]), str(cluster.supportingReads()[2]), str(cluster.nbDISCORDANT()), str(cluster.nbCLIPPINGS()), readIds, str(normal_readIds)]
+        call = [cluster.ref, str(beg), str(end), str(cluster5_nbALT), str(cluster5_nbALL), str(cluster.orientation), str(cluster.identity), str(cluster.src_id), str(region), str(gene), str(families), str(subfamilies), str(distances), str(cluster.pA), str(cluster.plus_pA), str(cluster.minus_pA), str(cluster.plus_id), str(cluster.minus_id), str(cluster.strand), str(cluster.supportingReads()[0]), str(cluster.supportingReads()[1]), str(cluster.supportingReads()[2]), str(cluster.nbDISCORDANT()), str(cluster.nbCLIPPINGS()), readIds, str(normal_readIds)]
         calls.append(call)
             
     ## 3. Sort transduction calls first by chromosome and then by start position
@@ -1001,103 +996,3 @@ def write_short_calls(metaclusters, outDir, bam, confDict, PASS = True):
 
     # 	mergedOutput = outFile.merge(c=colList, o=colFormat, d=10, header=True)
     # 	mergedOutput.saveas(outFilePath)
-
-import pysam
-def calculate_nbReads(ref, binBeg, binEnd, bam, confDict, orientation, sample, supplementary = True):
-    '''
-    Collect structural variant (SV) events in a genomic bin from a bam file
-
-    Input:
-        1. ref: target referenge
-        2. binBeg: bin begin
-        3. binEnd: bin end
-        4. bam: indexed BAM file
-        5. confDict:
-            * targetEvents       -> list with target SV events (INS: insertion; DEL: deletion; CLIPPING: left and right clippings, DISCORDANT: discordant)
-            * minMAPQ        -> minimum mapping quality
-            * minCLIPPINGlen -> minimum clipping lenght
-            * minINDELlen    -> minimum INS and DEL lenght
-            * overhang       -> Number of flanking base pairs around the INDEL events to be collected from the supporting read. If 'None' the complete read sequence will be collected)
-        6. sample: type of sample (TUMOUR, NORMAL or None)
-    Output:
-        1. NB_READ: number of alignments in interval. All included
-    '''
-    # Define target interval
-    targetInterval = (binBeg, binEnd)
-    
-    ## Initialize counter
-    NB_READ = 0
-        
-    ## Open BAM file for reading
-    bamFile = pysam.AlignmentFile(bam, "rb")
-    
-    ## Extract alignments
-    iterator = bamFile.fetch(ref, binBeg, binEnd)
-    
-    # For each read alignment
-    for alignmentObj in iterator:
-        
-        ### 1. Filter out alignments based on different criteria:
-        MAPQ = int(alignmentObj.mapping_quality) # Mapping quality
-        
-        ## Unmapped reads   
-        if alignmentObj.is_unmapped == True:
-            continue
-        
-        ## No query sequence available
-        if alignmentObj.query_sequence == None:
-            continue
-        
-        ## Aligments with MAPQ < threshold
-        if (MAPQ < confDict['minMAPQ']):
-            continue
-        
-        ## Duplicates filtering enabled and duplicate alignment
-        if (confDict['filterDuplicates'] == True) and (alignmentObj.is_duplicate == True):
-            continue
-        
-        # Filter supplementary alignments if FALSE. (Neccesary to avoid pick supplementary clipping reads while adding to discordant clusters in short reads mode)
-        if supplementary == False and alignmentObj.is_supplementary == True:
-            continue
-        
-        # Filtering: 
-        # to do: move to a functiom
-        if confDict['readFilters'] != None:
-            
-            # Discard alignment if mate is unmapped:
-            if 'mateUnmap' in confDict['readFilters']:
-                
-                if alignmentObj.mate_is_unmapped:
-                    continue
-            
-            # Discard alignment if insert size not greater than min_insertSize:
-            if 'insertSize' in confDict['readFilters']:
-                
-                min_insertSize = 5000
-                insertSize = alignmentObj.template_length
-                
-                if insertSize != 0 and abs(insertSize) < min_insertSize :
-                    continue
-            
-            # Filter SMS reads (reads with CIGAR #S#M#S)
-            if 'SMS' in confDict['readFilters']:
-                    
-                firstOperation, firstOperationLen = alignmentObj.cigartuples[0]
-                lastOperation, lastOperationLen = alignmentObj.cigartuples[-1]
-                
-                if ((firstOperation == 4) or (firstOperation == 5)) and ((lastOperation == 4) or (lastOperation == 5)):
-                    continue
-        
-        if orientation == "+" and alignmentObj.is_reverse:
-            continue
-        
-        if orientation == "-" and not alignmentObj.is_reverse:
-            continue
-             
-        NB_READ += 1
-        
-    ## Close 
-    bamFile.close()
-    
-    # return sv candidates
-    return NB_READ
