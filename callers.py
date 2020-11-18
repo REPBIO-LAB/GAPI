@@ -1231,7 +1231,7 @@ class SV_caller_short_ME(SV_caller):
         log.step(step, msg)
         
         filters2Apply = ['MIN-NBREADS', 'GERMLINE', 'AREAMAPQ', 'AREASMS']
-        if self.mode == 'SINGLE':
+        if self.confDict['genotyper'] or self.mode == 'SINGLE':
             filters2Apply.remove('GERMLINE')
             
         metaclusters = filters.filter_clusters(metaclusters, filters2Apply, self.bam, self.normalBam, self.confDict, 'META')
@@ -1267,9 +1267,9 @@ class SV_caller_short_ME(SV_caller):
         # filters2Apply = ['IDENTITY', 'META-RANGE', 'GERMLINE', 'ANNOTATION', 'SVs-NORMAL']
         # Remove 'SVs-NORMAL'. It seems to be problematic in some region of chrX. Revisar!!
         filters2Apply = ['IDENTITY', 'META-RANGE', 'GERMLINE', 'ANNOTATION']
-        if self.mode == 'SINGLE':
+        if self.confDict['genotyper'] or self.mode == 'SINGLE':
             filters2Apply.remove('GERMLINE')
-            filters2Apply.remove('SVs-NORMAL')
+            #filters2Apply.remove('SVs-NORMAL')
         
         #filters.filter_metaclusters_sonia(metaclusters, filters2Apply, self.confDict, self.bam, self.normalBam)
         filteredMetaclusters = filters.filter_clusters(metaclusters, filters2Apply, self.bam, self.normalBam, self.confDict, 'META')
