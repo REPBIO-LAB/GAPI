@@ -1053,8 +1053,8 @@ class SV_caller_short_ME(SV_caller):
         unix.rm([annotDir])
         
         ### 5. Write output
-        output.write_short_calls(metaclusters, self.outDir)
-        #output.write_short_calls(metaclustersFail, self.outDir, PASS = False)
+        output.write_short_calls(metaclusters, self.outDir, self.bam, self.confDict)
+        #output.write_short_calls(metaclustersFail, self.outDir, self.bam, self.confDict, PASS = False)
         
         
     def infer_readSize(self):
