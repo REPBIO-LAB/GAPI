@@ -9,6 +9,7 @@ from collections import Counter
 # Internal
 import structures
 import formats
+import bamtools
 
 def VCFMetaclustersFields(metaclusters):
     '''
@@ -904,7 +905,7 @@ def write_tdCounts_sureselect(outBed, outDir):
     outFile.close()
 
 
-def write_short_calls(metaclusters, outDir, PASS = True):
+def write_short_calls(metaclusters, outDir, bam, confDict, PASS = True):
     '''
     Write metacluster calls into file
 
@@ -928,6 +929,30 @@ def write_short_calls(metaclusters, outDir, PASS = True):
     # For each cluster
     for cluster in metaclusters:
         
+        ## A. Return nb of reads that support 5' end cluster
+        subclusters = cluster.create_subclusters()
+        
+        # supportKey, supportNbReads = [], []
+        # for key in subclusters.keys():
+        #     supportKey.append(key)
+        #     supportNbReads.append(len(subclusters[key].events))
+        
+        # supportKeys = ','.join([str(key) for key in supportKey])
+        # supportReads = ','.join([str(nb) for nb in supportNbReads])
+        
+        cluster5_nbALT, cluster5_nbALL = None, None
+       
+        if cluster.strand == "+" and 'PLUS-DISCORDANT' in subclusters.keys():    
+            cluster5end = subclusters['PLUS-DISCORDANT']
+            cluster5_nbALT = len(cluster5end.events)
+            cluster5_nbALL = bamtools.calculate_nbReads(cluster5end.ref, cluster5end.beg, cluster5end.end, bam, confDict, "+", None)
+    
+        elif cluster.strand == "-" and 'MINUS-DISCORDANT' in subclusters.keys():   
+            cluster5end = subclusters['MINUS-DISCORDANT']
+            cluster5_nbALT = len(cluster5end.events)
+            cluster5_nbALL = bamtools.calculate_nbReads(cluster5end.ref, cluster5end.beg, cluster5end.end, bam, confDict, "-", None)
+            
+        ## B. Other prints
         readIds = ','.join(cluster.supportingReads()[3])
         normalReads = cluster.supportingReads()[4]
         normal_readIds = ','.join(normalReads) if normalReads else None
@@ -935,11 +960,18 @@ def write_short_calls(metaclusters, outDir, PASS = True):
         # if bkp has being defined, use it as call coordinates
         beg = cluster.refLeftBkp if cluster.refLeftBkp is not None else cluster.beg
         end = cluster.refRightBkp if cluster.refRightBkp is not None else cluster.end
-        geneAnnot = cluster.geneAnnot if hasattr(cluster, 'geneAnnot') else None
-        repeatAnnot = cluster.repeatAnnot if hasattr(cluster, 'repeatAnnot') else None
+        region, gene = cluster.geneAnnot if hasattr(cluster, 'geneAnnot') else ("None", "None")
+        
+        ## Insertion region annotation
+        repeats = cluster.repeatAnnot if hasattr(cluster, 'repeatAnnot') else []        
+        families = ','.join([repeat['family'] for repeat in repeats]) if repeats else None 
+        subfamilies = ','.join([repeat['subfamily'] for repeat in repeats]) if repeats else None   
+        distances = ','.join([str(repeat['distance']) for repeat in repeats]) if repeats else None   
+        
         failedFilters = cluster.failedFilters if hasattr(cluster, 'failedFilters') else None
         
-        call = [cluster.ref, str(beg), str(end), str(cluster.beg), str(cluster.end), str(cluster.refLeftBkp), str(cluster.refRightBkp), str(cluster.failedFilters), str(cluster.orientation), str(cluster.identity), str(cluster.src_id), str(geneAnnot), str(repeatAnnot), str(cluster.pA), str(cluster.plus_pA), str(cluster.minus_pA), str(cluster.plus_id), str(cluster.minus_id), str(cluster.strand), str(cluster.supportingReads()[0]), str(cluster.supportingReads()[1]), str(cluster.supportingReads()[2]), str(cluster.nbDISCORDANT()), str(cluster.nbCLIPPINGS()), readIds, str(normal_readIds)]
+        # call = [cluster.ref, str(beg), str(end), str(cluster.beg), str(cluster.end), str(cluster.refLeftBkp), str(cluster.refRightBkp), str(cluster.failedFilters), str(cluster.orientation), str(cluster.identity), str(cluster.src_id), str(geneAnnot), str(repeatAnnot), str(cluster.pA), str(cluster.plus_pA), str(cluster.minus_pA), str(cluster.plus_id), str(cluster.minus_id), str(cluster.strand), str(cluster.supportingReads()[0]), str(cluster.supportingReads()[1]), str(cluster.supportingReads()[2]), str(cluster.nbDISCORDANT()), str(cluster.nbCLIPPINGS()), readIds, str(normal_readIds)]
+        call = [cluster.ref, str(beg), str(end), str(cluster5_nbALT), str(cluster5_nbALL), str(cluster.orientation), str(cluster.identity), str(cluster.src_id), str(region), str(gene), str(families), str(subfamilies), str(distances), str(cluster.pA), str(cluster.plus_pA), str(cluster.minus_pA), str(cluster.plus_id), str(cluster.minus_id), str(cluster.strand), str(cluster.supportingReads()[0]), str(cluster.supportingReads()[1]), str(cluster.supportingReads()[2]), str(cluster.nbDISCORDANT()), str(cluster.nbCLIPPINGS()), readIds, str(normal_readIds)]
         calls.append(call)
             
     ## 3. Sort transduction calls first by chromosome and then by start position
