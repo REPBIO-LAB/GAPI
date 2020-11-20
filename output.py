@@ -929,10 +929,10 @@ def write_short_calls(metaclusters, outDir, bam, confDict, PASS = True):
     # For each cluster
     for cluster in metaclusters:
         
-        # ## A. Return nb of reads that support each cluster
-        # subclusters = cluster.create_subclusters()
-        # supportKey, supportNbReads = [], []
+        ## A. Return nb of reads that support 5' end cluster
+        subclusters = cluster.create_subclusters()
         
+        # supportKey, supportNbReads = [], []
         # for key in subclusters.keys():
         #     supportKey.append(key)
         #     supportNbReads.append(len(subclusters[key].events))
@@ -940,7 +940,6 @@ def write_short_calls(metaclusters, outDir, bam, confDict, PASS = True):
         # supportKeys = ','.join([str(key) for key in supportKey])
         # supportReads = ','.join([str(nb) for nb in supportNbReads])
         
-        ## A. Return nb of reads that support 5' end cluster
         cluster5_nbALT, cluster5_nbALL = None, None
        
         if cluster.strand == "+" and 'PLUS-DISCORDANT' in subclusters.keys():    
