@@ -6,14 +6,11 @@ Module 'sequences' - Contains functions for the manipulation and extracting info
 # External
 import os
 import subprocess
-import unix
 
 # Internal
-import formats
-
-## [SR CHANGE]
-import log
-
+from GAPI import formats
+from GAPI import log
+from GAPI import unix
 
 ## FUNCTIONS ##
 def rev_complement(seq):

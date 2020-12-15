@@ -7,8 +7,8 @@ Module 'structures' - Contains functions and classes to organize data into more 
 import multiprocessing as mp
 
 # Internal
-import log
-import gRanges
+from GAPI import log
+from GAPI import gRanges
 
 ## FUNCTIONS ##
 

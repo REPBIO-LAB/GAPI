@@ -1,24 +1,26 @@
 '''
-Module to solve the bkp INGUAL DESPUES SE PUEDE UNIR!
+Module to solve the bkp 
 '''
-import databases
-import formats
+
+## External
 import os
 import subprocess
-import log
-import unix
 import operator
 import re
 import pysam
-## [SR CHANGE]
-import sequences
-import assembly
-import alignment
-import events
 import itertools
-import bamtools
-import formats
-import clusters
+
+## Internal
+from GAPI import databases
+from GAPI import formats
+from GAPI import log
+from GAPI import unix
+from GAPI import sequences
+from GAPI import assembly
+from GAPI import alignment
+from GAPI import events
+from GAPI import bamtools
+from GAPI import clusters
 
 def bkp(metaclusters):
     '''

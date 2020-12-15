@@ -12,10 +12,10 @@ from sklearn.metrics import silhouette_score
 import numpy as np
 
 # Internal
-import log
-import clusters
-import gRanges
-import structures
+from GAPI import log
+from GAPI import clusters
+from GAPI import gRanges
+from GAPI import structures
 
 
 ## FUNCTIONS ##

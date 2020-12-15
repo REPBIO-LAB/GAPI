@@ -5,13 +5,13 @@ Module 'assembly' - Contains funtions to create contigs from a set of input sequ
 ## DEPENDENCIES ##
 # External
 import subprocess
+import os
 
 # Internal
-import log
-import unix
-import alignment
-import os
-import formats
+from GAPI import log
+from GAPI import unix
+from GAPI import alignment
+from GAPI import formats
 
 
 ## FUNCTIONS ##

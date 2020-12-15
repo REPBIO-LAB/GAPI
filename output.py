@@ -7,9 +7,9 @@ import statistics
 from collections import Counter
 
 # Internal
-import structures
-import formats
-import bamtools
+from GAPI import structures
+from GAPI import formats
+from GAPI import bamtools
 
 def VCFMetaclustersFields(metaclusters):
     '''

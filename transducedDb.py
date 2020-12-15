@@ -10,8 +10,8 @@ import subprocess
 import mappy as mp
 
 # Internal
-import unix
-import formats
+from GAPI import unix
+from GAPI import formats
 
 
 ######################

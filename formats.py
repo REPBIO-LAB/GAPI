@@ -11,10 +11,10 @@ import re
 import multiprocessing as mp
 
 # Internal
-import log
-import gRanges
-import structures
-import virus
+from GAPI import log
+from GAPI import gRanges
+from GAPI import structures
+from GAPI import virus
 
 
 ## FUNCTIONS ##

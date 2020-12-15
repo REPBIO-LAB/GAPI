@@ -2,12 +2,6 @@
 Module 'stats' - Contains functions for basic statistical operations
 '''
 
-## DEPENDENCIES ##
-# External
-
-
-# Internal
-
 
 ###############
 ## FUNCTIONS ##

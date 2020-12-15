@@ -15,31 +15,30 @@ from operator import itemgetter
 from collections import Counter
 import scipy
 import time
+
 # NOTE 2020: New 2020
 import Bio.SeqUtils
 from Bio.SeqUtils import lcc
 
-
 # Internal
-import log
-import formats
-import unix
-import clustering
-import events
-import structures
-import alignment
-import bamtools 
-import assembly
-import repeats
-import retrotransposons
-import filters
-import bkp
-import annotation
-import sequences
-import gRanges
-import stats
-import fileinput
-import virus
+from GAPI import log
+from GAPI import formats
+from GAPI import unix
+from GAPI import clustering
+from GAPI import events
+from GAPI import structures
+from GAPI import alignment
+from GAPI import bamtools 
+from GAPI import assembly
+from GAPI import repeats
+from GAPI import retrotransposons
+from GAPI import filters
+from GAPI import bkp
+from GAPI import annotation
+from GAPI import sequences
+from GAPI import gRanges
+from GAPI import virus
+from GAPI import stats
 
 ###############
 ## FUNCTIONS ##

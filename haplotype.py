@@ -5,10 +5,10 @@ import pandas as pd
 import math 
 
 # Internal
-import unix
-import formats
-import alignment
-import bamtools
+from GAPI import unix
+from GAPI import formats
+from GAPI import alignment
+from GAPI import bamtools
 
 def snp2haplotype(vcf, lenght):
     '''

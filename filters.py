@@ -6,12 +6,12 @@ import pysam
 import statistics
 
 ## Internal
-import gRanges
-import bamtools
-import stats
-import structures
-import clusters
-import events
+from GAPI import gRanges
+from GAPI import bamtools
+from GAPI import stats
+from GAPI import structures
+from GAPI import clusters
+from GAPI import events
 
 
 ###############

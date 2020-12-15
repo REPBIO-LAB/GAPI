@@ -9,11 +9,11 @@ import subprocess
 from operator import itemgetter
 
 # Internal
-import unix
-import formats
-import databases
-import log
-import gRanges
+from GAPI import unix
+from GAPI import formats
+from GAPI import databases
+from GAPI import log
+from GAPI import gRanges
 
 def load_annotations(annotations2load, refLengths, annotationsDir, germlineMEI, threads, outDir):
     '''

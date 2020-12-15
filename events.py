@@ -5,16 +5,16 @@ Module 'events' - Contains classes for dealing with structural variation events 
 ## DEPENDENCIES ##
 # External
 import re
+from cigar import Cigar
 
 # Internal
-import annotation
-import structures
-import bamtools
-import formats
-from cigar import Cigar
-import gRanges
-import alignment
-import virus
+from GAPI import annotation
+from GAPI import structures
+from GAPI import bamtools
+from GAPI import formats
+from GAPI import gRanges
+from GAPI import alignment
+from GAPI import virus
 
 
 ###############

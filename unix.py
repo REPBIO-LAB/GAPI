@@ -8,7 +8,7 @@ import os
 import subprocess
 
 # Internal
-import log
+from GAPI import log
 
 ## FUNCTIONS ##
 

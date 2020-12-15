@@ -14,15 +14,15 @@ from Bio.Seq import Seq
 import operator
 
 # Internal
-import log
-import unix
-import formats
-import alignment
-import sequences
-import annotation
-import bamtools
-import bkp
-import events
+from GAPI import log
+from GAPI import unix
+from GAPI import formats
+from GAPI import alignment
+from GAPI import sequences
+from GAPI import annotation
+from GAPI import bamtools
+from GAPI import bkp
+from GAPI import events
 
 ## FUNCTIONS ##
 def retrotransposon_structure(FASTA_file, index, outDir):

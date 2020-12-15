@@ -7,11 +7,11 @@ Module 'repeats' - Contains functions for the identification and characterizatio
 import subprocess
 
 # Internal
-import log
-import unix
-import formats
-import alignment
-import sequences
+from GAPI import log
+from GAPI import unix
+from GAPI import formats
+from GAPI import alignment
+from GAPI import sequences
 
 ## FUNCTIONS ##
 def is_simple_repeat(FASTA_file, minPercSimple, outDir):

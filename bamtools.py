@@ -14,12 +14,12 @@ import Bio.SeqUtils
 from Bio.SeqUtils import lcc
 
 # Internal
-import log
-import unix
-import events
-import gRanges
-import formats
-import sequences
+from GAPI import log
+from GAPI import unix
+from GAPI import events
+from GAPI import gRanges
+from GAPI import formats
+from GAPI import sequences
 
 ## FUNCTIONS ##
 def get_refs(bam):

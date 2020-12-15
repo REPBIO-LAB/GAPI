@@ -9,10 +9,10 @@ import os
 import pysam
 
 # Internal
-import log
-import unix
-import bamtools 
-import formats
+from GAPI import log
+from GAPI import unix
+from GAPI import bamtools 
+from GAPI import formats
 
 
 ## FUNCTIONS ##

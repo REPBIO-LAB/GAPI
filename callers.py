@@ -14,21 +14,21 @@ import statistics
 import itertools
 
 # Internal
-import log
-import unix
-import databases
-import formats
-import bamtools
-import structures
-import events
-import clusters
-import output
-import annotation
-import bkp
-import filters
-import alignment
-import gRanges
-import retrotransposons
+from GAPI import log
+from GAPI import unix
+from GAPI import databases
+from GAPI import formats
+from GAPI import bamtools
+from GAPI import structures
+from GAPI import events
+from GAPI import clusters
+from GAPI import output
+from GAPI import annotation
+from GAPI import bkp
+from GAPI import filters
+from GAPI import alignment
+from GAPI import gRanges
+from GAPI import retrotransposons
 
 ## FUNCTIONS ##
 

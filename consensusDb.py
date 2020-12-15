@@ -8,7 +8,7 @@ import os
 import sys
 
 # Internal
-import formats
+from GAPI import formats
 
 
 ######################

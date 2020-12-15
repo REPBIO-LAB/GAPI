@@ -7,9 +7,8 @@ Module 'databases' - Contains functions and classes to deal with different types
 import subprocess
 
 # Internal
-import unix 
-# [SR CHANGE]
-import log
+from GAPI import unix 
+from GAPI import log
 
 ## FUNCTIONS ##
 def buildRetrotransposonDb(fastaDir, includeTransduced, outDir):

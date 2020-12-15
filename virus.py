@@ -2,7 +2,6 @@
 Module 'virus' - for dealing with virus specific needs
 '''
 ## External
-import unix
 import pysam
 from cigar import Cigar
 import numpy as np
@@ -12,10 +11,11 @@ from Bio.SeqUtils import lcc
 import multiprocessing as mp
 
 ## Internal
-import formats
-import log
-import sequences
-import alignment
+from GAPI import formats
+from GAPI import log
+from GAPI import sequences
+from GAPI import alignment
+from GAPI import unix
 
 # Multiprocessing lock as global variable. Useful for safely writting from different processes to the same output file.
 def init(l):
