@@ -58,6 +58,33 @@ def get_ref_lengths(bam):
     
     return refLengths
 
+def infer_readSize(bam):
+    '''
+    Infer read size from bam file
+
+    Note: we should improve the script by taking 1000 random reads from the bam file
+    '''
+        
+    # take the first 500 reads of the bam file
+    command = 'samtools view ' + bam + '| awk \'{print length($10)}\' | head -500 | tr \'\n\' \' \''
+    result = subprocess.run(command, stdout=subprocess.PIPE, shell=True)
+        
+    # if command fails, exit
+    if result.returncode != 0:
+        step = 'infer_readSize'
+        msg = 'readSize inference failed' 
+        log.step(step, msg)
+        sys.exit(1)
+        
+    # save the result in a list of integers
+    readSizes_str = result.stdout.decode('utf-8').split(" ")
+    readSizes_str.remove("")
+    readSizes_int = [int(i) for i in readSizes_str]
+        
+    # calculate the mode
+    readSize = statistics.mode(readSizes_int)
+        
+    return(readSize)
 
 def alignment_length_cigar(CIGAR):
     '''
