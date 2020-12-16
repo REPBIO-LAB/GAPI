@@ -108,54 +108,6 @@ def bkp_fromClusters(metaclusters):
             rightBkp = max(set(rightBkps), key=rightBkps.count)
             metacluster.refRightBkp = rightBkp
 
-def bkp_retroTest(metaclusters, bam, readSize):
-    '''
-    Determine precise breakpoint in sureselect data:
-    - if supplementary cluster in metacluster, use supplementary events coordinates
-    - elif, use MINUS-DISC cluster beg coordinate
-    - elif, use PLUS-DISC cluster end coordinate. It must be calculated for mate clusters
-    
-    Input: 
-    1. metaclusters: List of metaclusters
-    2. bam: Bam file
-    3. readSize: Bam read size
-    
-    Output:
-    There is no output, but refLeftBkp and refRightBkp attributes are filled
-    '''
-        
-    for metacluster in metaclusters:
-        
-        # create subclusters
-        subclusters = metacluster.create_subclusters()
-        clippingKeys = set(['LEFT-CLIPPING', 'RIGHT-CLIPPING']).intersection(subclusters.keys())
-        
-        # if there is a SUPPLEMENTARY cluster:
-        if 'SUPPLEMENTARY' in subclusters.keys():
-            
-            bkp = subclusters['SUPPLEMENTARY'].inferBkp_shortReads()
-            metacluster.refLeftBkp, metacluster.refRightBkp = bkp, bkp
-        
-        # elif there is a CLIPPING cluster:
-        elif bool(clippingKeys):
-            
-            bkp = subclusters[[*clippingKeys][0]].infer_breakpoint()
-            metacluster.refLeftBkp, metacluster.refRightBkp = bkp, bkp
-        
-        # elif there is a MINUS-DISCORDANT cluster:
-        elif 'MINUS-DISCORDANT' in subclusters.keys():
-            
-            metacluster.refLeftBkp, metacluster.refRightBkp = subclusters['MINUS-DISCORDANT'].beg, subclusters['MINUS-DISCORDANT'].beg
-        
-        # elif there is a PLUS-DISCORDANT cluster:
-        elif 'PLUS-DISCORDANT' in subclusters.keys():
-                               
-                readNames = set([event.readName for event in subclusters['PLUS-DISCORDANT'].events])
-                
-                fullCLuster = clusters.discCluster_from_readNames(readNames, metacluster.ref, metacluster.beg, metacluster.beg + 3*readSize, bam, 'TUMOUR')
-                
-                if fullCLuster:
-                    metacluster.refLeftBkp, metacluster.refRightBkp = fullCLuster.end, fullCLuster.end
                 
 def bkp_shortReads_ME(metaclusters, confDict, bam, normalBam):
     '''
