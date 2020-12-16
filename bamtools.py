@@ -9,9 +9,7 @@ import subprocess
 import sys
 from cigar import Cigar
 import numpy as np
-import os
-import Bio.SeqUtils
-from Bio.SeqUtils import lcc
+import statistics
 
 # Internal
 from GAPI import log
