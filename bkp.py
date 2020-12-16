@@ -109,51 +109,6 @@ def bkp_fromClusters(metaclusters):
             metacluster.refRightBkp = rightBkp
 
                 
-def bkp_shortReads_ME(metaclusters, confDict, bam, normalBam):
-    '''
-    Determine precise breakpoints
-    
-    Input: 
-    1. metaclusters: List of metaclusters
-    
-    Output:
-    There is no output, but refLeftBkp and refRightBkp attributes are filled
-    '''
-        
-    for metacluster in metaclusters:
-        
-        ## A) Create subclusters
-        subclusters = metacluster.create_subclusters()
-        discordantKeys = set(['MINUS-DISCORDANT', 'PLUS-DISCORDANT']).intersection(subclusters.keys())
-        
-        ## B) Narrow metacluster coordinates
-        # if it is a RECIPROCAL metacluster:
-        if discordantKeys == {'MINUS-DISCORDANT', 'PLUS-DISCORDANT'}:
-            
-            beg = subclusters['MINUS-DISCORDANT'].beg
-            end = subclusters['PLUS-DISCORDANT'].end
-            
-            if beg < end:
-                metacluster.refLeftBkp, metacluster.refRightBkp = beg, end
-            else:
-                metacluster.refLeftBkp, metacluster.refRightBkp = end, beg
-                
-        # elif there is a MINUS-DISCORDANT cluster:
-        elif discordantKeys == {'MINUS-DISCORDANT'}:
-            
-            metacluster.refLeftBkp, metacluster.refRightBkp = subclusters['MINUS-DISCORDANT'].beg, subclusters['MINUS-DISCORDANT'].beg
-        
-        # elif there is a PLUS-DISCORDANT cluster:
-        elif discordantKeys == {'PLUS-DISCORDANT'}:
-            
-            metacluster.refLeftBkp, metacluster.refRightBkp = subclusters['PLUS-DISCORDANT'].end, subclusters['PLUS-DISCORDANT'].end
-        
-        ## C) Collect CLIPPINGS 
-        metacluster.supportingCLIPPING_sonia(confDict, bam, normalBam)
-    
-    ## D) Refine bkp using clipping info
-    bkp_fromClusters(metaclusters)
-        
 def analyzeMetaclusters(metaclusters, confDict, bam, normalBam, mode, outDir, binId, identDbPath):
     '''
     Four main steps
