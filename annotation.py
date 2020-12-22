@@ -15,7 +15,7 @@ from GAPI import databases
 from GAPI import log
 from GAPI import gRanges
 
-def load_annotations(annotations2load, refLengths, annotationsDir, germlineMEI, threads, outDir):
+def load_annotations(annotations2load, refLengths, annotationsDir, germlineMEI, threads, outDir, tdEnd = 3):
     '''
     Load a set of annotation files in bed formats into a bin database
 
@@ -26,6 +26,7 @@ def load_annotations(annotations2load, refLengths, annotationsDir, germlineMEI, 
         4. germlineMEI: Bed file containing set of known germline MEI. None if not available
         5. threads: number of threads used to parallelize the bin database creation
         6. outDir: Output directory
+        7. tdEnd: Default 3. [3 or 5]
     
     Output:
         1. annotations: dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
@@ -58,7 +59,7 @@ def load_annotations(annotations2load, refLengths, annotationsDir, germlineMEI, 
         ## Create bed file containing transduced regions
         sourceBed = annotationsDir + '/srcElements.bed'
         # buffer equals -150 to avoid the end of the src element
-        transducedPath = databases.create_transduced_bed(sourceBed, 10000, -150, outDir)
+        transducedPath = databases.create_transduced_bed(sourceBed, tdEnd, 10000, -150, outDir)
         
         ## Load transduced regions into a bin database
         annotations['TRANSDUCTIONS'] = formats.bed2binDb(transducedPath, refLengths, threads)

@@ -149,7 +149,7 @@ def buildIdentityDb(metacluster, db, outDir):
         
     return indexDbSpecificIdentity
 
-def create_transduced_bed(sourceBed, size, buffer, outDir):
+def create_transduced_bed(sourceBed, srcEnd, size, buffer, outDir):
     '''
     Create bed file containing regions frequently transduced by source elements
 
@@ -161,10 +161,10 @@ def create_transduced_bed(sourceBed, size, buffer, outDir):
                       4) cytobandId
                       5) family
                       6) strand
-
-        2. size: transduced region size
-        3. buffer: buffer to apply to the end of the elemnt. ME end - buffer to define transduced region beg
-        4. outDir: Output directory
+        2. srcEnd: source element end to look for transductions. 5 or 3 ends (int)
+        3. size: transduced region size
+        4. buffer: buffer to apply to the end of the elemnt. ME end - buffer to define transduced region beg
+        5. outDir: Output directory
 
     Output:
         1. transducedPath: Bed file containing transduced region coordinates
@@ -182,29 +182,34 @@ def create_transduced_bed(sourceBed, size, buffer, outDir):
     ## Read bed with source elements annotation line by line
     for line in sourceBed:
         line = line.rstrip('\r\n')
-
+        
         ## Discard header
         if not line.startswith("#"):   
-     
+            
             fieldsList = line.split("\t")
             ref, beg, end, name, cytobandId, family, strand = fieldsList
-		
-            ## a) Element in plus
-            # ---------------> end ........transduced........ end + size
-            if (strand == '+'):
+            
+            ## a) Elements:
+            # beg ---------------> end ........transduced........ end + size
+            # beg <--------------- end ........transduced........ end + size
+            if ((strand == '+') and (srcEnd == 3)) or ((strand == '-') and (srcEnd == 5)):
                 
                 tdBeg = int(end) - buffer
                 tdEnd = int(end) + size
-
-		    ## b) Element in minus
-		    # beg - size ........transduced........ beg <--------------- end  
-            else:
-
+                
+            ## b) Elements:
+            # beg - size ........transduced........ beg <--------------- end
+            # beg - size ........transduced........ beg ---------------> end
+            elif ((strand == '-') and (srcEnd == 3)) or ((strand == '+') and (srcEnd == 5)):
+                
                 tdBeg = int(beg) - size
                 tdEnd = int(beg) + buffer
-
+                
+            else:
+                print("There is a problem with the transduction coordinates")
+                
             ## Write into output file
             row = "\t".join([ref, str(tdBeg), str(tdEnd), name, cytobandId, family, strand, "\n"])
             transducedBed.write(row)
-
+            
     return transducedPath

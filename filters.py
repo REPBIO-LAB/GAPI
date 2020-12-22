@@ -94,7 +94,7 @@ def filter_clipping(clipping, filters2Apply, confDict):
     ## 4. FILTER 4: Average mapping quality of supplementary alignments 
     if 'SUPPL-MAPQ' in filters2Apply:
     
-        if not filter_suppl_MAPQ(clipping, 20):
+        if not filter_suppl_MAPQ(clipping, 10):
             failedFilters.append('SUPPL-MAPQ')
 
     ## 5. FILTER 5: filter out clusters formed by tumour and normal reads. Discard germline variation
@@ -153,7 +153,7 @@ def filter_discordant(discordant, filters2Apply, bam, normalBam, confDict):
     ## 4. FILTER 4: Filter out clusters based on average MAPQ for mate alignments ##
     if 'MATE-MAPQ' in filters2Apply:
     
-        if not filter_discordant_mate_MAPQ(discordant, 20, bam, normalBam):
+        if not filter_discordant_mate_MAPQ(discordant, 10, bam, normalBam):
             failedFilters.append('MATE-MAPQ')
         
     ## 5. FILTER 5: filter out clusters formed by tumour and normal reads. Discard germline variation (TILL HERE) 
@@ -387,10 +387,10 @@ def filter_metacluster(metacluster, filters2Apply, confDict, bam, normalBam = No
         if not filter_percSVs_inNormal(metacluster, maxPercSVs, normalBam, confDict):
             failedFilters.append('SVs-NORMAL')
     
-    ## 13. FILTER 13: Whether a transduction is on the same chr as the source element with no pA support
-    if 'srcREF-TDs' in filters2Apply:
-        if not filter_TDs_sameRef_srcElement(metacluster):
-            failedFilters.append('srcREF-TDs')
+    ## 13. FILTER 13: Whether a transduction and the source element are in chr6 with no pA support
+    if 'srcREF-TDs-ref6' in filters2Apply:
+        if not filter_TDs_chr6_srcElement(metacluster):
+            failedFilters.append('srcREF-TDs-ref6')
                 
     return failedFilters
 
@@ -1360,10 +1360,10 @@ def filter_percSVs_inNormal(metacluster, maxPercSVs, normalBam, confDict):
     return(PASS)
      
 
-def filter_TDs_sameRef_srcElement(metacluster):
+def filter_TDs_chr6_srcElement(metacluster):
     '''
-    Filter metacluster if it's a transduction and the source element is located in the same ref as insertion. 
-    Metalusters will only be discarded if no polyA support is found.
+    Filter metacluster if there is a transduction in chr 6 and the source element is located in chr 6 as well.
+    It is a source of FPs. Metalusters will only be discarded if no polyA support is found.
     
     Input:
     1. metacluster
@@ -1373,12 +1373,18 @@ def filter_TDs_sameRef_srcElement(metacluster):
     '''
     PASS = True
     
-    # If it's a transduction
-    if metacluster.identity == 'TD1' or metacluster.identity == 'TD2':
+    # If it's a transduction in chr6
+    if metacluster.ref == '6' and metacluster.identity in ['TD1', 'TD2', 'partnered', 'orphan']:
         
         # Extract src_id ref
         src_id = metacluster.src_id.replace('p', 'q')
         src_ref = src_id.split('q')[0]
+        
+        print("filter_TDs_sameRef_srcElement")
+        print("src_ref, metacluster.ref, metacluster.pA")
+        print(str(src_ref))
+        print(str(metacluster.ref))
+        print(str(metacluster.pA))
         
         # If scr_ref is equal to transduction ref and there is no pA support
         if metacluster.ref == src_ref and not metacluster.pA:
