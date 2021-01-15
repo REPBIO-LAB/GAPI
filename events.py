@@ -259,8 +259,7 @@ def collect_soft_clipped_seqs(clippings):
 
     return clippedFasta
 
-
-def determine_discordant_identity_MEIs(discordants, repeatsBinDb, transducedBinDb, readSize):
+def determine_discordant_identity_MEIs(discordants, repeatsBinDb, transducedBinDb, exonsBinDb, readSize):
     '''
     Determine discortant read pair identity based on the mapping position of anchor´s mate
 
@@ -268,7 +267,8 @@ def determine_discordant_identity_MEIs(discordants, repeatsBinDb, transducedBinD
         1. discordants: list containing input discordant read pair events
         2. repeatsBinDb: dictionary containing annotated retrotransposons organized per chromosome (keys) into genomic bins (values)
         3. transducedBinDb: dictionary containing source element transduced regions (keys) into genomic bins (values)
-        4. readSize: read size
+        4. exonsBinDb: dictionary containing exons organized per chromosome (keys) into genomic bins (values)
+        5. readSize: read size
 
     Output:
         1. discordantsIdentity: dictionary containing lists of discordant read pairs organized taking into account their orientation and if the mate aligns in an annotated retrotransposon 
@@ -281,25 +281,40 @@ def determine_discordant_identity_MEIs(discordants, repeatsBinDb, transducedBinD
     
     ## 1. Assess if discordant read pairs support transduction insertion if transduction database provided
     if transducedBinDb is not None:
-        discordantsTd = annotation.intersect_mate_annotation(discordants, transducedBinDb, 'cytobandId', readSize)
+        discordantsTd = annotation.intersect_mate_annotation(discordants, transducedBinDb, ['family', 'cytobandId', 'srcEnd'], readSize)
 
         ## Separate discordants matching from those not matching source elements
         discordants = []
 
         if 'PLUS_DISCORDANT_None' in discordantsTd:
-            discordants = discordants + discordantsTd['PLUS_DISCORDANT_None']
+            discordants += discordantsTd['PLUS_DISCORDANT_None']
             discordantsTd.pop('PLUS_DISCORDANT_None', None)
 
         if 'MINUS_DISCORDANT_None' in discordantsTd:
-            discordants = discordants + discordantsTd['MINUS_DISCORDANT_None']
+            discordants += discordantsTd['MINUS_DISCORDANT_None']
             discordantsTd.pop('MINUS_DISCORDANT_None', None)
     else:
 
         discordantsTd = {}
+        
+    ## 2. Assess if discordant read pairs support pseudogene insertion if exons database provided
+    if exonsBinDb is not None:
+        discordantsExons = annotation.intersect_mate_annotation(discordants, exonsBinDb, ['geneName'], readSize)
 
-    ## 2. Assess if discordant read pairs support retrotransposons insertion if repeats database provided
+        if 'PLUS_DISCORDANT_None' in discordantsExons:
+            discordants += discordantsExons['PLUS_DISCORDANT_None']
+            discordantsExons.pop('PLUS_DISCORDANT_None', None)
+
+        if 'MINUS_DISCORDANT_None' in discordantsExons:
+            discordants += discordantsExons['MINUS_DISCORDANT_None']
+            discordantsExons.pop('MINUS_DISCORDANT_None', None)
+    else:
+
+        discordantsExons = {}
+
+    ## 3. Assess if discordant read pairs support retrotransposons insertion if repeats database provided
     if repeatsBinDb is not None:
-        discordantsRt = annotation.intersect_mate_annotation(discordants, repeatsBinDb, 'family', readSize)
+        discordantsRt = annotation.intersect_mate_annotation(discordants, repeatsBinDb, ['family'], readSize)
 
         if 'PLUS_DISCORDANT_None' in discordantsRt:
             discordantsRt.pop('PLUS_DISCORDANT_None', None)
@@ -311,10 +326,9 @@ def determine_discordant_identity_MEIs(discordants, repeatsBinDb, transducedBinD
         discordantsRt = {}
 
     ## 3. Merge discordant read pairs supporting RT and transduction insertions if transduction database provided    
-    discordantsIdentity = structures.merge_dictionaries([discordantsTd, discordantsRt])
+    discordantsIdentity = structures.merge_dictionaries([discordantsTd, discordantsExons, discordantsRt])
     
     return discordantsIdentity
-
 
 def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, bam, normalBam, binDir, targetINT2Search, viralSeqs):
     '''
@@ -339,7 +353,7 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
     if 'ME' in targetINT2Search:
         ## 1. Assess if discordant read pairs support transduction insertion if transduction database provided
         if transducedBinDb is not None:
-            discordantsTd = annotation.intersect_mate_annotation(discordants, transducedBinDb, 'cytobandId', None)
+            discordantsTd = annotation.intersect_mate_annotation(discordants, transducedBinDb, ['cytobandId'], None)
 
             ## Separate discordants matching from those not matching source elements
             discordants = []
@@ -360,7 +374,7 @@ def determine_discordant_identity(discordants, repeatsBinDb, transducedBinDb, ba
         discordantsNone['PLUS-DISCORDANT-None'] = []
         discordantsNone['MINUS-DISCORDANT-None'] = []
         if repeatsBinDb is not None:
-            discordantsRt = annotation.intersect_mate_annotation(discordants, repeatsBinDb, 'family', None)
+            discordantsRt = annotation.intersect_mate_annotation(discordants, repeatsBinDb, ['family'], None)
 
             if 'PLUS-DISCORDANT-None' in discordantsRt:
                 discordantsNone['PLUS-DISCORDANT-None'].extend(discordantsRt['PLUS-DISCORDANT-None'])
@@ -1201,18 +1215,21 @@ def collect_clipped_seqs(clippings):
 
     return clippedFasta
 
-
-def SA_as_DISCORDANTS(clippings, readSize):
+def SA_as_DISCORDANTS(clippings, confDict):
     '''
     Store clippings with supplementary alignments (SA) as discordant pairs
     
     Input:
     1. List of clipping events
+    2. confDict:
+        * readSize
+        * readFilters - insertSize 5 kb
     
     Output:
     2. List of discordant events
     '''
     DISCORDANTS = []
+    readSize = confDict['readSize']
     
     for clipping in clippings:
         
@@ -1233,7 +1250,21 @@ def SA_as_DISCORDANTS(clippings, readSize):
                     else:
                         end = clipping.beg
                         beg = end - (readSize - clipping.length)
+                    
+                    # Filtering: 
+                    # to do: move to a functiom
+                    if confDict['readFilters'] != None:
                         
+                        # Discard alignment if insert size not greater than min_insertSize:
+                        if 'insertSize' in confDict['readFilters']:
+                            
+                            min_insertSize = 5000
+                            insertSize = suppA.beg - beg
+                            
+                            if clipping.ref == suppA.ref and abs(insertSize) < min_insertSize :
+                                
+                                continue
+                                
                     # create discordant event using clipping coordinates
                     event = DISCORDANT(clipping.ref, beg, end, clipping.orientation, clipping.pair, clipping.readName, None, clipping.sample, False)
                     

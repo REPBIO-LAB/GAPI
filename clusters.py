@@ -2388,17 +2388,28 @@ class META_cluster():
         self.rightClipType = None
         self.leftClipType = None
 
-        # Short reads:
-        self.identity = None
+        ## Short reads:
         self.orientation = None
+        # ins type and identity
+        self.ins_type = None
+        self.identity = None
+        self.plus_id = None
+        self.minus_id = None
+        # transduction attributes
+        self.src_id = None
+        self.plus_src_id = None
+        self.minus_src_id = None
+        self.src_end = None
+        self.plus_src_end = None
+        self.minus_src_end = None
+        self.src_type = None
+        # polyA
         self.pA = None
         self.plus_pA = None
         self.minus_pA = None
-        self.plus_id = None
-        self.minus_id = None
-        self.strand = None
-        self.src_id = None
+        # mei characteristics
         self.TSD = None
+        self.strand = None
         self.repeatAnnot = None
 
         # Short reads:
@@ -2427,10 +2438,16 @@ class META_cluster():
         Define plus and minus cluster identities, and set polyA attributes if polyA present
         '''
         self.identity = None
-        
+        self.plus_id = None
+        self.minus_id = None
+
         ## 1. collect events identities
         plus_identities = [event.identity for event in self.events if event.orientation == 'PLUS']
-        minus_identities = [event.identity for event in self.events if event.orientation == 'MINUS']
+        minus_identities = [event.identity for event in self.events if event.orientation == 'MINUS']     
+        
+        # get total counts
+        countPlus = len(plus_identities)
+        countMinus = len(minus_identities)
         
         ## 2. set pA support
         if 'Simple_repeat' in plus_identities:
@@ -2445,12 +2462,45 @@ class META_cluster():
         plus_identityDict = Counter(plus_identities)
         minus_identityDict = Counter(minus_identities)
         
-        # select most supported identity
+        # select most supported identity for plus cluster
         if plus_identityDict:
-            self.plus_id = max(plus_identityDict.items(), key=itemgetter(1))[0]
-              
+            
+            # select identity with the max support
+            plus_identityDict_max = max(plus_identityDict.items(), key=itemgetter(1))
+            
+            # if the support is > 10% of total identity counts
+            if plus_identityDict_max[1]/countPlus > 0.1:
+                
+                plus_id = plus_identityDict_max[0].split('_')
+                self.plus_id = plus_id[0]
+                
+                # if it's a TD
+                if len(plus_id) == 3:
+                    self.plus_src_id, self.plus_src_end = plus_id[1], plus_id[2]
+            
+        # if polyA ('Simple_repeat') support is more than 90%
+        if not self.plus_id and countPlus > 0:
+            self.plus_id = 'Simple_repeat'
+        
+        # select most supported identity for minus cluster    
         if minus_identityDict:
-            self.minus_id = max(minus_identityDict.items(), key=itemgetter(1))[0]
+            
+            # select identity with the max support
+            minus_identityDict_max = max(minus_identityDict.items(), key=itemgetter(1))
+            
+            # if the support is > 10% of total identity counts
+            if minus_identityDict_max[1]/countMinus > 0.1:
+                
+                minus_id = minus_identityDict_max[0].split('_')
+                self.minus_id = minus_id[0]
+                
+                # if it's a TD
+                if len(minus_id) == 3:
+                    self.minus_src_id, self.minus_src_end = minus_id[1], minus_id[2]
+            
+        # if polyA ('Simple_repeat') support is more than 90%
+        if not self.minus_id and countMinus > 0:
+            self.minus_id = 'Simple_repeat'
                    
     def sort(self):
         '''
@@ -2927,9 +2977,6 @@ class META_cluster():
             
         else:
             clippingEventsDict = bamtools.collectSV_paired(ref, beg, end, bam, normalBam, clippingConfDict)
-
-        print('clippingEventsDict')
-        print(clippingEventsDict)
         
         # When cluster orientation is 'PLUS', add the biggest right clipping cluster if any:
         if self.orientation == 'PLUS':

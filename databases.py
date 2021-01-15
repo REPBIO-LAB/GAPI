@@ -149,10 +149,10 @@ def buildIdentityDb(metacluster, db, outDir):
         
     return indexDbSpecificIdentity
 
-def create_transduced_bed(sourceBed, srcEnd, size, buffer, outDir):
+def create_transduced_bed(sourceBed, srcEnds, size, buffer, outDir):
     '''
     Create bed file containing regions frequently transduced by source elements
-
+    
     Input:
         1. sourceBed: Bed file source elements coordinates, cytoband identifier, family and orientation. Following fields required:
                       1) chrom
@@ -161,24 +161,24 @@ def create_transduced_bed(sourceBed, srcEnd, size, buffer, outDir):
                       4) cytobandId
                       5) family
                       6) strand
-        2. srcEnd: source element end to look for transductions. 5 or 3 ends (int)
+        2. srcEnds: source elements ends to look for transductions. [3, 5]
         3. size: transduced region size
         4. buffer: buffer to apply to the end of the elemnt. ME end - buffer to define transduced region beg
         5. outDir: Output directory
-
+        
     Output:
         1. transducedPath: Bed file containing transduced region coordinates
     '''
-
+    
     ## Open file handlers
     sourceBed = open(sourceBed, 'r')
     transducedPath = outDir + '/transduced_regions.bed'
     transducedBed = open(transducedPath, 'w')
-
+    
     ## Write header in outfile
-    row = "\t".join(['#ref', 'tdBeg', 'tdEnd', 'name', 'cytobandId', 'family', 'strand', "\n"])
+    row = "\t".join(['#ref', 'tdBeg', 'tdEnd', 'name', 'cytobandId', 'family', 'strand', 'srcEnd', "\n"])
     transducedBed.write(row)
-
+    
     ## Read bed with source elements annotation line by line
     for line in sourceBed:
         line = line.rstrip('\r\n')
@@ -188,28 +188,31 @@ def create_transduced_bed(sourceBed, srcEnd, size, buffer, outDir):
             
             fieldsList = line.split("\t")
             ref, beg, end, name, cytobandId, family, strand = fieldsList
-            
-            ## a) Elements:
-            # beg ---------------> end ........transduced........ end + size
-            # beg <--------------- end ........transduced........ end + size
-            if ((strand == '+') and (srcEnd == 3)) or ((strand == '-') and (srcEnd == 5)):
+                    
+            ## For each end of the source elements
+            for srcEnd in srcEnds:
                 
-                tdBeg = int(end) - buffer
-                tdEnd = int(end) + size
-                
-            ## b) Elements:
-            # beg - size ........transduced........ beg <--------------- end
-            # beg - size ........transduced........ beg ---------------> end
-            elif ((strand == '-') and (srcEnd == 3)) or ((strand == '+') and (srcEnd == 5)):
-                
-                tdBeg = int(beg) - size
-                tdEnd = int(beg) + buffer
-                
-            else:
-                print("There is a problem with the transduction coordinates")
-                
-            ## Write into output file
-            row = "\t".join([ref, str(tdBeg), str(tdEnd), name, cytobandId, family, strand, "\n"])
-            transducedBed.write(row)
+                ## a) Elements:
+                # beg ---------------> end ........transduced........ end + size
+                # beg <--------------- end ........transduced........ end + size
+                if ((strand == '+') and (srcEnd == 3)) or ((strand == '-') and (srcEnd == 5)):
+                    
+                    tdBeg = int(end) - buffer
+                    tdEnd = int(end) + size
+                    
+                ## b) Elements:
+                # beg - size ........transduced........ beg <--------------- end
+                # beg - size ........transduced........ beg ---------------> end
+                elif ((strand == '-') and (srcEnd == 3)) or ((strand == '+') and (srcEnd == 5)):
+                    
+                    tdBeg = int(beg) - size
+                    tdEnd = int(beg) + buffer
+                    
+                else:
+                    print("There is a problem with the transduction coordinates")
+                    
+                ## Write into output file
+                row = "\t".join([ref, str(tdBeg), str(tdEnd), name, cytobandId, family, strand, str(srcEnd), "\n"])
+                transducedBed.write(row)
             
     return transducedPath

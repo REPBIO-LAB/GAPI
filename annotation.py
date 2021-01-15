@@ -7,6 +7,7 @@ Module 'annotation' - Contains functions for the annotation of genomic intervals
 import os
 import subprocess
 from operator import itemgetter
+import pickle
 
 # Internal
 from GAPI import unix
@@ -15,7 +16,24 @@ from GAPI import databases
 from GAPI import log
 from GAPI import gRanges
 
-def load_annotations(annotations2load, refLengths, annotationsDir, germlineMEI, threads, outDir, tdEnd = 3):
+
+def newestFile(path):
+    '''
+    Get the most recently modified file in path
+    
+    Input:
+    1. path: directory to be interrogated
+    
+    Output:
+    2. newestPath: newest path or file in the indicated directory
+    '''
+    files = os.listdir(path)
+    paths = [os.path.join(path, basename) for basename in files]
+    newestPath = max(paths, key=os.path.getctime)
+    
+    return newestPath
+
+def load_annotations(annotations2load, refLengths, annotationsDir, germlineMEI, threads, outDir, tdEnds = [3]):
     '''
     Load a set of annotation files in bed formats into a bin database
 
@@ -26,14 +44,29 @@ def load_annotations(annotations2load, refLengths, annotationsDir, germlineMEI, 
         4. germlineMEI: Bed file containing set of known germline MEI. None if not available
         5. threads: number of threads used to parallelize the bin database creation
         6. outDir: Output directory
-        7. tdEnd: Default 3. [3 or 5]
+        7. tdEnds: Default [3]. [3, 5]
     
     Output:
         1. annotations: dictionary containing one key per type of annotation loaded and bin databases containing annotated features as values (None for those annotations not loaded)
     '''
-    ## 0. Initialize dictionary
+    
+    ## 1. Check for cached dictionary
+    cachePath = annotationsDir + '/.cache'
+    cacheFile = cachePath + '/' + '_'.join(annotations2load) + '.pkl'
+    
+    # If cache exist and it's the most recent file in dir
+    if os.path.exists(cacheFile) and newestFile(annotationsDir) == cachePath: 
+            
+            # Load annotations from cache
+            pickle_in = open(cacheFile, "rb")
+            annotations = pickle.load(pickle_in)
+            
+            return annotations
+    
+    ## 2. Initialize dictionary
     annotations = {}
     annotations['REPEATS'] = None
+    annotations['RETROTRANSPOSONS'] = None
     annotations['TRANSDUCTIONS'] = None
     annotations['EXONS'] = None
     annotations['GERMLINE-MEI'] = None
@@ -41,39 +74,57 @@ def load_annotations(annotations2load, refLengths, annotationsDir, germlineMEI, 
     ## Create output directory
     unix.mkdir(outDir)
 
-    ## 1A. Load annotated repeats into a bin database
+    ## 3. Load annotated repeats into a bin database
     if 'REPEATS' in annotations2load:
 
         repeatsBed = annotationsDir + '/repeats.bed'
         annotations['REPEATS'] = formats.bed2binDb(repeatsBed, refLengths, threads)
-
-    ## 1B. Load L1 repeats and pA into a bin database
-    elif 'REPEATS-L1' in annotations2load:
         
+    elif 'REPEATS-L1' in annotations2load:
+    
         repeatsBed = annotationsDir + '/repeats.L1.pA.bed'
         annotations['REPEATS'] = formats.bed2binDb(repeatsBed, refLengths, threads)
-    
-    ## 2. Create transduced regions database
+
+    ## 4. Load annotated repeats into a bin database
+    if 'RETROTRANSPOSONS' in annotations2load:
+
+        repeatsBed = annotationsDir + '/retrotransposons.bed'
+        annotations['RETROTRANSPOSONS'] = formats.bed2binDb(repeatsBed, refLengths, threads)
+        
+    ## 5. Create germline MEI database
+    if 'REPEATS-POLYA' in annotations2load:
+        
+        polyABed = annotationsDir + '/polyA.bed'
+        annotations['REPEATS-POLYA'] = formats.bed2binDb(polyABed, refLengths, threads)
+        
+    ## 6. Create transduced regions database
     if 'TRANSDUCTIONS' in annotations2load:
 
         ## Create bed file containing transduced regions
         sourceBed = annotationsDir + '/srcElements.bed'
         # buffer equals -150 to avoid the end of the src element
-        transducedPath = databases.create_transduced_bed(sourceBed, tdEnd, 10000, -150, outDir)
+        transducedPath = databases.create_transduced_bed(sourceBed, tdEnds, 10000, -150, outDir)
         
         ## Load transduced regions into a bin database
         annotations['TRANSDUCTIONS'] = formats.bed2binDb(transducedPath, refLengths, threads)
 
-    ## 3. Create exons database
+    ## 7. Create exons database
     if 'EXONS' in annotations2load:
 
         exonsBed = annotationsDir + '/exons.bed'
         annotations['EXONS'] = formats.bed2binDb(exonsBed, refLengths, threads)
 
-    ## 4. Create germline MEI database
-    if 'GERMLINE-MEI' in annotations2load:
+    ## 8. Create germline MEI database
+    if 'GERMLINE-MEI' in annotations2load and germlineMEI:
+        
         annotations['GERMLINE-MEI'] = formats.bed2binDb(germlineMEI, refLengths, threads)
 
+    ## 9. Create the cache if does not exist
+    unix.mkdir(cachePath)
+    pickleOut = open(cacheFile, "wb")
+    pickle.dump(annotations, pickleOut)
+    pickleOut.close()
+        
     return annotations
 
 def annotate(events, steps, annotations, annovarDir, outDir):
@@ -600,14 +651,14 @@ def run_annovar(inputFile, annovarDir, outDir):
     return out1, out2
 
 
-def intersect_mate_annotation(discordants, annotation, targetField, readSize):
+def intersect_mate_annotation(discordants, annotation, targetFields, readSize):
     '''
     For each input read assess if the mate aligns over an annotated feature
 
     Input: 
         1) discordants: list containing input discordant read pair events
         2) annotation: dictionary containing annotated features organized per chromosome (keys) into genomic bins (values)
-        3) targetField: optional field name to be used to determine overlapping feature name
+        3) targetFields: List of optional fields to be used to determine overlapping feature name
         4) readSize: read size
 
     Output:
@@ -640,13 +691,13 @@ def intersect_mate_annotation(discordants, annotation, targetField, readSize):
 
             # b) Mate aligns within a single feature
             elif len(overlappingFeatures) == 1:
-                featureType = overlappingFeatures[0][0].optional[targetField]
+                featureType = '_'.join([overlappingFeatures[0][0].optional[targetField] for targetField in targetFields])
 
             # c) Mate overlaps multiple features
             else:
-                overlappingFeatures = sorted(overlappingFeatures,key=itemgetter(1), reverse=True)
-                featureType = overlappingFeatures[0][0].optional[targetField]
-            
+                overlappingFeatures = sorted(overlappingFeatures, key=itemgetter(1), reverse=True)
+                featureType = '_'.join([overlappingFeatures[0][0].optional[targetField] for targetField in targetFields])
+                
         # B) No feature in the same ref as mate
         else:
             featureType = 'None'
@@ -666,5 +717,3 @@ def intersect_mate_annotation(discordants, annotation, targetField, readSize):
             matesIdentity[identity] = [ discordant ] 
     
     return matesIdentity
-
-
