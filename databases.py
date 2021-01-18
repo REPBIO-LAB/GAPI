@@ -195,7 +195,7 @@ def create_transduced_bed(sourceBed, srcEnds, size, buffer, outDir):
                 ## a) Elements:
                 # beg ---------------> end ........transduced........ end + size
                 # beg <--------------- end ........transduced........ end + size
-                if ((strand == '+') and (srcEnd == 3)) or ((strand == '-') and (srcEnd == 5)):
+                if ((strand == '+') and (srcEnd == '3')) or ((strand == '-') and (srcEnd == '5')):
                     
                     tdBeg = int(end) - buffer
                     tdEnd = int(end) + size
@@ -203,7 +203,7 @@ def create_transduced_bed(sourceBed, srcEnds, size, buffer, outDir):
                 ## b) Elements:
                 # beg - size ........transduced........ beg <--------------- end
                 # beg - size ........transduced........ beg ---------------> end
-                elif ((strand == '-') and (srcEnd == 3)) or ((strand == '+') and (srcEnd == 5)):
+                elif ((strand == '-') and (srcEnd == '3')) or ((strand == '+') and (srcEnd == '5')):
                     
                     tdBeg = int(beg) - size
                     tdEnd = int(beg) + buffer
