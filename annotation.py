@@ -66,6 +66,7 @@ def load_annotations(annotations2load, refLengths, annotationsDir, germlineMEI, 
     ## 2. Initialize dictionary
     annotations = {}
     annotations['REPEATS'] = None
+    annotations['REPEATS-POLYA'] = None
     annotations['RETROTRANSPOSONS'] = None
     annotations['TRANSDUCTIONS'] = None
     annotations['EXONS'] = None

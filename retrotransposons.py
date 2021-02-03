@@ -825,74 +825,134 @@ def determine_MEI_type_discordants(metacluster, discordantsIdentDict):
     2. discordantsIdentDict: dict of dicordants ordered by orientation and mate identity (keys)
     
     Output: metacluster.identity attribute is filled
-    '''   
-    # split discordantsIdentDict by cluster orientation
-    plus_identity, minus_identity = None, None
+    '''
+    # 0. Reinitialize metacluster identity attributes
+    metacluster.plus_id, metacluster.minus_id = None, None
+    metacluster.plus_src_id, metacluster.minus_src_id = None, None
+    metacluster.plus_src_end, metacluster.minus_src_end = None, None
     
+    # split discordantsIdentDict by cluster orientation
     plus_identityDict = {key: len(value) for key, value in discordantsIdentDict.items() if 'PLUS' in key}
     minus_identityDict = {key: len(value) for key, value in discordantsIdentDict.items() if 'MINUS' in key}
-    
+
     # select most supported identity of plus cluster
     if plus_identityDict:
         plus_identity = max(plus_identityDict.items(), key=operator.itemgetter(1))[0].split('_', 2)[2]
+        
+        plus_id = plus_identity.split('_')
+        metacluster.plus_id = plus_id[0]
+                    
+        # if it's a TD
+        if len(plus_id) == 3:
+            metacluster.plus_src_id, metacluster.plus_src_end = plus_id[1], plus_id[2]
         
     # select most supported identity of minus cluster   
     if minus_identityDict:
         minus_identity = max(minus_identityDict.items(), key=operator.itemgetter(1))[0].split('_', 2)[2]
     
-    # if plus_identity and minus_identity has been assigned
-    if plus_identity and minus_identity:
-        
-        ## 1. Set identities
-        identities = [plus_identity, minus_identity]
-               
-        ## 2. Set identity in metacluster attribute
-        # if identities == [srcId_A, srcId_A] --> orphan 
-        if len(set(identities)) == 1 and 'L1' not in identities and 'Simple_repeat' not in identities:
-            metacluster.identity = 'TD2'
-            metacluster.src_id = identities[0]
-        
-        # if identities == [L1, pA] --> solo    
-        elif len(set(identities)) == 2 and set(identities) == {'L1', 'Simple_repeat'}:
-            metacluster.identity = 'TD0'
-        
-        # if identities == [L1, srcId_A] --> partnered   
-        elif len(set(identities)) == 2 and 'L1' in identities:
-            metacluster.identity = 'TD1'
-            identities.remove('L1')
-            metacluster.src_id = identities[0]
-            
-        # if identities == [srcId_A, pA] --> orphan   
-        elif len(set(identities)) == 2 and 'Simple_repeat' in identities:
-            metacluster.identity = 'TD2'
-            identities.remove('Simple_repeat')
-            metacluster.src_id = identities[0]
-        
-        # if identities == [L1, L1] --> solo     
-        elif len(set(identities)) == 1 and 'L1' in identities:
-            metacluster.identity = 'TD0'
-            
-        # if identities == [pA, pA] --> solo     
-        elif len(set(identities)) == 1 and 'Simple_repeat' in identities:
-            metacluster.identity = 'pA'
-            
-        else: 
-            metacluster.identity = identities
+        minus_id = minus_identity.split('_')
+        metacluster.minus_id = minus_id[0]
+                    
+        # if it's a TD
+        if len(minus_id) == 3:
+            metacluster.minus_src_id, metacluster.minus_src_end = minus_id[1], minus_id[2]
+
+    ## 1. Set identities
+    identities = [metacluster.plus_id, metacluster.minus_id]
+    src_ids = [metacluster.plus_src_id, metacluster.minus_src_id]
+    src_ends = [metacluster.plus_src_end, metacluster.minus_src_end]
     
-    # if there is no identity or just one cluster identified:
+    while None in identities: identities.remove(None)
+    while None in src_ids: src_ids.remove(None)
+    while None in src_ends: src_ends.remove(None)
+    
+    ## If both clusters have the identity and it's the same
+    if len(identities) == 2 and len(set(identities)) == 1:
+        
+        # if no cluster pointing to a TD --> solo and PSD insertions
+        if not src_ids:
+        
+            if metacluster.plus_id == 'L1':
+                metacluster.identity = 'L1'
+                metacluster.ins_type = 'TD0'
+            
+            elif metacluster.plus_id == 'Alu':
+                metacluster.identity = 'Alu'
+                metacluster.ins_type = 'TD0'
+                
+            elif metacluster.plus_id == 'SVA':
+                metacluster.identity = 'SVA'
+                metacluster.ins_type = 'TD0'
+                
+            elif metacluster.plus_id == 'Simple_repeat':
+                metacluster.identity = 'pA'
+                metacluster.ins_type = 'TD0'
+            
+            elif metacluster.plus_id:
+                metacluster.identity = metacluster.plus_id
+                metacluster.ins_type = 'PSD'
+        
+        # there is a source identifier and a src end --> TD
+        elif len(set(src_ids)) == 1 and len(set(src_ends)) == 1:
+            
+            # partnered
+            if len(src_ids) == 1:
+                metacluster.identity = metacluster.plus_id
+                metacluster.ins_type = 'TD1'
+                # BUG
+                # metacluster.src_id = metacluster.plus_src_id
+                # metacluster.src_end = metacluster.plus_src_end
+                metacluster.src_id = '_'.join(list(set(src_ids)))
+                metacluster.src_end = '_'.join(list(set(src_ends)))
+                metacluster.src_type = 'GERMLINE' 
+            
+            # orphan
+            elif len(src_ids) == 2:
+                metacluster.identity = metacluster.plus_id
+                metacluster.ins_type = 'TD2'
+                # BUG
+                # metacluster.src_id = metacluster.plus_src_id
+                # metacluster.src_end = metacluster.plus_src_end
+                metacluster.src_id = '_'.join(list(set(src_ids)))
+                metacluster.src_end = '_'.join(list(set(src_ends)))
+                metacluster.src_type = 'GERMLINE' 
+        
+        # not canonical
+        else:
+            metacluster.identity = metacluster.plus_id
+            metacluster.ins_type = 'UNRESOLVED-TD'
+            if src_ids: metacluster.src_id = '_'.join(src_ids)
+            if src_ends: metacluster.src_end = '_'.join(src_ends)
+    
+    # if not both clusters have identity or it is different
     else:
         
-        if plus_identity: metacluster.identity = 'plus_' + plus_identity
+        # if only one cluster has identity
+        if len(identities) == 1:
+            metacluster.identity = identities[0]
+            metacluster.ins_type = 'RG'
         
-        elif minus_identity: metacluster.identity = 'minus_' + minus_identity
+        # if both clusters have identity, but are different
+        elif len(identities) == 2:
+            
+            # if one of the clusters is pA support
+            if 'Simple_repeat' in identities:
+                identities.remove('Simple_repeat')
+                metacluster.identity = identities[0]
+                
+                if metacluster.identity in ['L1', 'Alu', 'SVA']:
+                    metacluster.ins_type = 'TD2' if src_ids else 'TD0-TD1'
+                else:
+                    metacluster.ins_type = 'PSD'
+                        
+            else:
+                metacluster.identity = '_'.join(identities)
+                metacluster.ins_type = 'UNDEFINED'
         
-        else: metacluster.identity = None
-        
-    # set pA support
-    for key in discordantsIdentDict.keys():
-        
-        if 'Simple_repeat' in key:
-            metacluster.pA = True
+        # set src attributes if TD
+        if src_ids: metacluster.src_id = '_'.join(list(set(src_ids)))
+        if src_ends: metacluster.src_end = '_'.join(list(set(src_ends)))
+        if metacluster.src_id: metacluster.src_type = 'GERMLINE'
 
         
 def filter_DISCORDANTS_insertSize(discordants, min_insertSize):
@@ -935,8 +995,8 @@ def metaclusters_MEI_type(metaclusters):
         
         ## 1. Set identity
         identities = [metacluster.plus_id, metacluster.minus_id]
-        src_ids = [metacluster.plus_src_id, metacluster.plus_src_id]
-        src_ends = [metacluster.plus_src_end, metacluster.plus_src_end]
+        src_ids = [metacluster.plus_src_id, metacluster.minus_src_id]
+        src_ends = [metacluster.plus_src_end, metacluster.minus_src_end]
         
         while None in identities: identities.remove(None)
         while None in src_ids: src_ids.remove(None)
