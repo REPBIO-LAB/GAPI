@@ -3,9 +3,10 @@ Module 'singleCell' - Contains classes for with single cell data (SVs, for now..
 '''
 
 # External
+import multiprocessing as mp
 
 # Internal 
-
+import depth 
 
 class population():
     '''
@@ -43,6 +44,12 @@ class population():
         '''
         return len(self.cells)
 
+    def cells2list(self):
+        '''
+        Return list with all the cells in the population
+        '''
+        return list(self.cells.values())
+
     def bam2cells(self, bamDict):
         '''
         Add bam file to each corresponding cell
@@ -58,6 +65,61 @@ class population():
 
             # Add bam path
             self.cells[cellId].bam = bamPath
+    
+    def read_depth(self, binSize, minMAPQ, filterDup, targetRefs, processes):
+        '''
+        Compute read depth genome wide for all cells in the population
+
+        Input:
+            1. binSize: segments size 
+            2. minMAPQ: minimum read mapping quality
+            3. filterDup: filter read duplicates (True) or not (False)
+            4. targetRefs: list with target references
+            5. processes: number of processes for parallelization
+        '''
+        ## 1. Make cell list
+        cells = self.cells2list()
+        cells = [[cell, binSize, minMAPQ, filterDup, targetRefs, 1] for cell in cells]
+
+        ## 2. Compute read depth per cell
+        # Cells will be distributed into X processes
+        pool = mp.Pool(processes=processes)
+        pool.starmap(self.read_depth_sc, cells)
+        pool.close()
+        pool.join()
+
+
+    def read_depth_sc(self, cell, binSize, minMAPQ, filterDup, targetRefs, processes):
+        '''
+        Compute read depth genome wide a single cell
+
+        Input:
+            1. cell: cell instance
+            2. binSize: segments size 
+            3. minMAPQ: minimum read mapping quality
+            4. filterDup: filter read duplicates (True) or not (False)
+            5. targetRefs: list with target references
+            6. processes: number of processes for parallelization
+        '''
+        print('read_depth_sc: ', cell.id, cell, binSize, minMAPQ, filterDup, targetRefs, processes)
+
+        ## Create configuration dictionary
+        confDict = {}
+        confDict['binSize'] = binSize
+        confDict['minMAPQ'] = minMAPQ        
+        confDict['filterDup'] = filterDup
+        confDict['targetRefs'] = targetRefs
+        confDict['processes'] = processes
+
+        ## Do depth calling
+        caller = depth.read_depth_caller(cell.bam, cell.id, confDict)
+        segments = caller.read_depth_wg()
+
+        print('segments: ', len(segments), segments)
+        
+        ## Organize segments by chromosomes
+        for segment in segments:
+            cell.chromosomes[segment.ref].segments.append(segment)
 
 class cell():
     '''
@@ -118,5 +180,6 @@ class chromosome():
         self.beg = 0
         self.end = length
         self.len = length
+        self.segments = []
         
     
