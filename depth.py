@@ -54,8 +54,8 @@ class segment():
 
         Input:
             1. bam: path to bam file
-            2. minMAPQ: minimum mapping quality
-            3. filterDup: filter duplicates (True) or not (False)
+            2. minMAPQ: minimum read mapping quality
+            3. filterDup: filter read duplicates (True) or not (False)
 
         Output: 
             Update TDP, WDP, CDP counters
@@ -115,7 +115,7 @@ class read_depth_caller():
     '''
     Read depth caller 
     '''
-    def __init__(self, bam, sampleId, confDict, outDir):
+    def __init__(self, bam, sampleId, confDict):
         '''
         Initialize object instance
 
@@ -123,14 +123,15 @@ class read_depth_caller():
             1. bam: input bam file
             2. sampleId: sample identifier
             3. confDict: configuration dictionary with the following key value pairs:
+                - binSize: segments size 
                 - targetRefs: list with target references
                 - processes: number of processes for parallelization
-            4. outDir: output directory
+                - minMAPQ: minimum read mapping quality
+                - filterDup: filter read duplicates (True) or not (False)
         '''
         self.bam = bam
         self.sampleId = sampleId
         self.confDict = confDict
-        self.outDir = outDir
 
         ## Compute reference lengths
         self.refLengths = bamtools.get_ref_lengths(self.bam)
@@ -139,7 +140,22 @@ class read_depth_caller():
         '''
         Compute read depth genome wide across non-overlapping bins or for a predefined set of intervals
         '''
-    
+        ### 1. Define genomic bins for read depth computation ##
+        bins = bamtools.binning(None, self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
+
+        ## Select the first 10 bins for testing:
+        bins = bins[:10]
+
+        ### 2. Calculate read depth per genomic bin ##
+        segments = [self.read_depth_segment(ref, beg, end) for ref, beg, end in bins]
+
+        return segments
+
+    def read_depth_wg_mp(self):
+        '''
+        Compute read depth genome wide across non-overlapping bins or for a predefined set of intervals. 
+        Computation is speed up via multi-processing
+        '''
         ### 1. Define genomic bins for read depth computation ##
         bins = bamtools.binning(None, self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
 
@@ -155,7 +171,6 @@ class read_depth_caller():
 
         return segments
 
-
     def read_depth_segment(self, ref, beg, end):
         '''
         Compute read depth for a genomic segment/bin
@@ -164,7 +179,7 @@ class read_depth_caller():
         segmentObj = segment(ref, beg, end, self.bam, self.sampleId)
 
         ## Compute read depth
-        segmentObj.read_depth(self.bam, self.confDict['minMAPQ'], self.confDict['filterDup'] )
+        segmentObj.read_depth(self.bam, self.confDict['minMAPQ'], self.confDict['filterDup'])
 
         ## Return segment
         return segmentObj
