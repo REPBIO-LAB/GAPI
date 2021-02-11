@@ -9,8 +9,8 @@ import math
 import pandas as pd
 
 # Internal 
-import depth 
-import log
+from GAPI import depth 
+from GAPI import log
 
 class population():
     '''

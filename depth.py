@@ -11,7 +11,7 @@ import pysam
 import numpy as np
 
 # Internal
-import bamtools 
+from GAPI import bamtools 
 
 ## FUNCTIONS ##
 
