@@ -8,16 +8,18 @@ import multiprocessing as mp
 import os
 import time
 import pysam
-
+import numpy as np
 
 # Internal
 import bamtools 
 
 ## FUNCTIONS ##
 
+
 ## CLASSES ##
 class segment():
     '''
+    Genomic segment
     '''
     def __init__(self, ref, beg, end, bam, sampleId):
         '''
@@ -30,17 +32,22 @@ class segment():
             4. bam: path to bam file
             5. sampleId: sample identifier
         '''
-        ## General attributes:
+        ## General:
         self.ref = ref
         self.beg = beg
         self.end = end
         self.bam = bam
         self.sampleId = sampleId
         
-        ## Read depth attributes:
+        ## Read depth:
         self.TDP = 0 # Total 
         self.WDP = 0 # Watson (+)
         self.CDP = 0 # Crick (-)
+
+        ## Read depth ratios/fold changes:
+        self.TDP_fc = None
+        self.WDP_fc = None
+        self.CDP_fc = None
 
     def coordId(self):
         '''
@@ -110,6 +117,60 @@ class segment():
         ## Close bam
         bamFile.close()
 
+class consensus_segment():
+    '''
+    Consensus genomic segment
+    '''
+    def __init__(self, ref, beg, end, segments):
+        '''
+        Initialize object instance
+        
+        Input:
+            1. ref: reference
+            2. beg: begin position
+            3. end: end position
+            4. segments: list of segment instances spanning the same genomic position
+        '''
+        self.ref = ref
+        self.beg = beg
+        self.end = end
+        self.segments = segments
+
+        ## Read depth attributes
+        self.TDP = None # Total 
+        self.WDP = None # Watson (+)
+        self.CDP = None # Crick (-)
+        self.TDP_sd = None # Total 
+        self.WDP_sd = None # Watson (+)
+        self.CDP_sd = None # Crick (-)
+
+    def coordId(self):
+        '''
+        Return segment coordinates identifier as ref:beg-end
+        '''
+        return self.ref + ':' + str(self.beg) + '-' + str(self.end)
+
+    def consensus_read_depth(self):
+        '''
+        Compute compute consensus read depth by taking into account the depth across all segments
+
+        Output: 
+            Define TDP, WDP, CDP and their standard deviations (TDP_sd, WDP_sd, CDP_sd)
+        '''
+        ## 1. Total read depth
+        TDP_list = [segment.TDP for segment in self.segments]
+        self.TDP = np.mean(TDP_list)
+        self.TDP_sd = np.std(TDP_list)
+
+        ## 2. Watson read depth
+        WDP_list = [segment.WDP for segment in self.segments]
+        self.WDP = np.mean(WDP_list)
+        self.WDP_sd = np.std(WDP_list)
+
+        ## 3. Crick read depth
+        CDP_list = [segment.CDP for segment in self.segments]
+        self.CDP = np.mean(CDP_list)
+        self.CDP_sd = np.std(CDP_list)
 
 class read_depth_caller():
     '''
@@ -143,9 +204,9 @@ class read_depth_caller():
         ### 1. Define genomic bins for read depth computation ##
         bins = bamtools.binning(None, self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
 
-        ## Select the first 10 bins for testing:
-        bins = bins[:10]
-
+        ## Select the first and last 10 bins for testing:
+        #bins = bins[:11] + bins[-9:]
+        
         ### 2. Calculate read depth per genomic bin ##
         segments = [self.read_depth_segment(ref, beg, end) for ref, beg, end in bins]
 
@@ -159,8 +220,8 @@ class read_depth_caller():
         ### 1. Define genomic bins for read depth computation ##
         bins = bamtools.binning(None, self.bam, self.confDict['binSize'], self.confDict['targetRefs'])
 
-        ## Select the first 10 bins for testing:
-        bins = bins[:11]
+        ## Select the first and last 10 bins for testing:
+        bins = bins[:11] + bins[-9:]
 
         ### 2. Calculate read depth per genomic bin ##
         # Genomic bins will be distributed into X processes
