@@ -255,6 +255,56 @@ def is_virusSR(events, viralSeqs):
     return eventsIdentityDict
     '''
 
+
+# CHANGE 02/02/2021
+#def segunda parte de virus_structure
+def virus_structure_woAlignment(sup, PAF_file):
+    '''
+    Analyse structure of viral alignment
+
+    Input:
+        1. sup: supplementary cluster TODO: change name as it could be any cluster.
+        2. PAF_file: Path to PAF alignment
+    Output:
+        1. structure: Dictionary containing characteristics of the alignment:
+    '''
+    
+    # Initialize variables
+    structure = {}
+
+    ## 2. Read PAF alignments ##
+    PAF = formats.PAF()
+    nombre = 'insert' +'_'+ str(sup.ref) +'_'+ str(sup.beg)
+    PAF.readSpecific(PAF_file, nombre)
+
+    # Exit function if no hit on the viral database
+    if not PAF.alignments:
+        return structure
+    
+    ## 3. Chain complementary alignments ##
+    # TODO: Ajust this 50 value!
+    chain = PAF.chain(100, 50)
+
+    # NOTE: Maybe it's a good idea to change the junciton.consSeq for this one
+    
+    ## 4.1 Insertion type
+    # TODO: Put VIRUSDSC in output
+    structure['INS_TYPE'], structure['FAMILY'], structure['CYTOBAND'] = insertion_type(chain)
+
+    ## 4.2 Insertion strand
+    # NOTE: TO DO LATER
+    structure['STRAND'] = None
+
+    ## 4.3 Sequence lengths 
+    lengths = infer_lengths(structure['INS_TYPE'], chain, structure['STRAND'])
+    structure.update(lengths)
+    
+    ## 4.6 Percentage resolved
+    structure['PERC_RESOLVED'] = chain.perc_query_covered()
+    
+    return structure
+
+
 def filterBAM2FastaDict(BAM, minTotalMatchVirus, minParcialMatchVirus, maxMatchCheckMAPQVirus, minMAPQVirus, maxBasePercVirus, minLccVirus, mode='SR'):
     '''
     '''
@@ -341,3 +391,38 @@ def filterBAM2FastaDict(BAM, minTotalMatchVirus, minParcialMatchVirus, maxMatchC
                 fastaDict[alignmentObj.query_name].append(alignmentObj.reference_name)
 
     return fastaDict
+
+
+## FORMATS functions
+
+## CLASSES ##
+class FASTA_VIRUS(formats.FASTA):
+    '''
+    '''
+    def write_advanced(self, filePath, mode = 'write', safetyLock = False):
+        '''
+        FASTA file writer. Write data stored in the dictionary into a FASTA file
+        Mode: write -> write new file. append -> append to existing file or create if tit doesnt exist.
+        safetyLock -> Set as True if FASTA file will be written simultaneously by different threads 
+        '''
+        openMode = 'a' if mode == 'append' else 'w'
+        
+        if safetyLock:
+            l = mp.Lock()
+            init(l)
+            lock.acquire()
+
+        fastaFile = open(filePath, openMode)
+
+        for header, seq in self.seqDict.items():
+            header = '>' + header
+
+            fastaFile.write("%s\n" % header)
+            fastaFile.write("%s\n" % seq)
+
+        # Close output fasta file
+        fastaFile.close()
+        
+        if safetyLock:
+            init(l)
+            lock.release()
