@@ -366,3 +366,28 @@ def organize_hits_paf(PAF_path):
         hits[alignment.qName].alignments.append(alignment)
 
     return hits     
+
+def getPAFAlign(FASTA_file, indexDb, outDir):
+    '''
+    Align FASTA with minimap2 and retrieve PAF file
+    Input:
+        1. FASTA_file
+        2. indexDb
+        3. outDir
+    Output:
+        1. PAF file of alignment
+    '''
+    # Name of output PAF file
+    PAF_file = FASTA_file.replace(".fa", "_alignments.paf")
+
+    # Align FASTA against given db 
+    command = 'minimap2 ' + indexDb + ' ' + FASTA_file + ' > ' + PAF_file
+    err = open(outDir + '/minimap2.err', 'w') 
+    status = subprocess.call(command, stderr=err, shell=True)
+
+    if status != 0:
+        step = 'ALIGN-INSERT'
+        msg = 'minimap2 alignment failed' 
+        log.step(step, msg)
+    
+    return PAF_file
