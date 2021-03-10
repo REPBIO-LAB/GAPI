@@ -258,36 +258,6 @@ def filter_internal_monomers(monomers, targetSeq, maxDist2Ends, minInternalMonom
 
     return filteredMonomers
 
-def aligmentMaxNbMatches(FASTA_file, db, PAF_file, outDir):
-    '''
-    '''
-
-    # DESILENCIAAAAAR!!!
-    
-    # TODO: append en el error!
-    err = open(outDir + '/identifyMate.err', 'w')
-    command = 'minimap2 ' + db + ' ' + FASTA_file + ' > ' + PAF_file
-    status = subprocess.call(command, stderr=err, shell=True)
-
-    if status != 0:
-        step = 'IDENTIFY MATE SEQ'
-        msg = 'Identify mate sequence failed' 
-        log.step(step, msg)
-        
-
-    # If PAF file is not empty
-    if not os.stat(PAF_file).st_size == 0:
-        PAFObj = formats.PAF()
-        PAFObj.read(PAF_file)
-
-        # Pick the identity of the aligment with highest number of matches
-        aligmentMaxNbMatches = PAFObj.sortNbMatches()[0]
-
-    else:
-        aligmentMaxNbMatches = None
-
-    return aligmentMaxNbMatches
-
 
 ## CLASSES ##
 class monomer():
@@ -360,23 +330,6 @@ def create_targeted_fasta(targetIntervalList, reference, outDir):
 
     return target
 
-## [SR CHANGE]
-def getPAFAlign(FASTA_file, indexDb, outDir):
-    # Alineo el fasta consenso
-    # TODO ponerlo bien
-    PAF_file = FASTA_file.replace(".fa", "_alignments.paf")
-
-    #err = open(logDir + '/align.err', 'w') 
-    command = 'minimap2 ' + indexDb + ' ' + FASTA_file + ' > ' + PAF_file
-    err = open(outDir + '/minimap2.err', 'w') 
-    status = subprocess.call(command, stderr=err, shell=True)
-
-    if status != 0:
-        step = 'ALIGN-INSERT'
-        msg = 'minimap2 alignment failed' 
-        log.step(step, msg)
-    
-    return PAF_file
 
 def komplexityFilter(komplexityThreshold, inFasta, outFasta, outDir):
     '''
