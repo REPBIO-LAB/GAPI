@@ -502,11 +502,6 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
     
     return clustersList
 
-
-
-
-
-
 def KMeans_clustering(events, x, y):
     '''
     Group events into clusters through K-means and one or two attributes 

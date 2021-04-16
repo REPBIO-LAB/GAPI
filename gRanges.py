@@ -165,10 +165,10 @@ def complementary(begA, endA, begB, endB, maxDist, maxPercOverlap):
         2. orientation: 'LEFT' (B on the left of A), 'RIGHT' (B on the right of A) or None (not complementary)
     '''  
     ## 1. Redefine intervals by adding the maximum distance to their begin and end coordinates
-    newBegA = begA - maxDist
-    newEndA = endA + maxDist
-    newBegB = begB - maxDist
-    newEndB = endB + maxDist
+    newBegA = int(begA) - maxDist
+    newEndA = int(endA) + maxDist
+    newBegB = int(begB) - maxDist
+    newEndB = int(endB) + maxDist
 
     ## 2. Assess if redefined intervals do overlap
     boolean = overlap(newBegA, newEndA, newBegB, newEndB)[0]
