@@ -16,10 +16,6 @@ from collections import Counter
 import scipy
 import time
 
-# NOTE 2020: New 2020
-import Bio.SeqUtils
-from Bio.SeqUtils import lcc
-
 # Internal
 from GAPI import log
 from GAPI import formats
@@ -944,7 +940,6 @@ def insertedSeq2fasta(metaclusters, outDir, lccFilter=False):
             if complexity > 1.9:
                 FASTA.seqDict[metaclusterId] = insert
         
-
         FASTA.seqDict[metaclusterId] = insert
         
     ## Write fasta         
@@ -953,50 +948,6 @@ def insertedSeq2fasta(metaclusters, outDir, lccFilter=False):
 
     return fastaPath
 
-# NOTE 2020: new 2020
-# TODO 2020: Similar to insertedSeq2fasta (consider merging them!!)
-def soloBNDSeq2fasta(metaclusters, outDir):
-    '''
-    Collect all the consensus inserted sequences from a list of metaclusters supporting INS and 
-    generate fasta file containing them 
-
-    Input:
-        1. metaclusters: list of metaclusters
-        2. outDir: output directory
-
-    Output:
-        1. fastaPath: fasta file containing all the consensus inserted sequences
-    '''
-    ## Initiate FASTA object
-    FASTA = formats.FASTA()
-
-    # For each metacluster
-    for metacluster in metaclusters:
-
-        ## Skip insertion type inference if consensus event not available
-        if metacluster.consensusEvent is None:
-            continue               
-
-        ## Retrieve inserted sequence and add to the FASTA
-        metaclusterId = metacluster.ref + ':' + str(metacluster.beg) + '-' + str(metacluster.end)
-        insert = metacluster.consensusEvent.clipped_seq()
-
-        # NOTE 2020: New 2020
-        
-        complexity = Bio.SeqUtils.lcc.lcc_simp(insert)
-        print ('complexity ' + str(insert) + ' '+ str(complexity))
-
-        # NOTE 2020: If works, put as option
-        if complexity > 1.9:
-            FASTA.seqDict[metaclusterId] = insert
-
-        #FASTA.seqDict[metaclusterId] = insert
-        
-    ## Write fasta         
-    fastaPath = outDir + '/inserted_sequences.fa'
-    FASTA.write(fastaPath)    
-
-    return fastaPath
 
 def assignAligments2metaclusters_paf(metaclusters, PAF_path):
     '''
