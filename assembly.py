@@ -201,7 +201,7 @@ def getConsensusSeq(FASTA_file, outDir):
         msfPath = FASTA_file.replace("fa", "msf")
         # TODO: Add muscle to environment
         err = open(outDir + '/muscle.err', 'w') 
-        command = '/mnt/netapp2/uscmg_aplic/0_external_tools/13_MUSCLE/3.8.31/muscle -in ' + FASTA_file + ' -out ' + msfPath + ' -msf'
+        command = 'muscle -in ' + FASTA_file + ' -out ' + msfPath + ' -msf'
 
         status = subprocess.call(command, stderr=err, shell=True)
 
@@ -214,7 +214,7 @@ def getConsensusSeq(FASTA_file, outDir):
         consensusPath = FASTA_file.replace("_supportingReads", "_consensus")
         # TODO: Add emboss to environment
         err = open(outDir + '/cons.err', 'w') 
-        command = '/mnt/netapp2/uscmg_aplic/0_external_tools/98_EMBOSS/EMBOSS-6.6.0/emboss/cons -sequence ' + msfPath + ' -outseq ' + consensusPath + ' -identity 0 -plurality 0'
+        command = 'cons -sequence ' + msfPath + ' -outseq ' + consensusPath + ' -identity 0 -plurality 0'
         status = subprocess.call(command, stderr=err, shell=True)
 
         if status != 0:

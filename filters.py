@@ -182,54 +182,6 @@ def filter_discordant(discordant, filters2Apply, bam, normalBam, confDict):
     
     return failedFilters
 
-def filter_metaclusters_SR(metaclusters, filters2Apply, confDict, bam, normalBam = None):
-    '''
-    Function to apply filters all metaclusters. 
-
-    Input:
-        1. metaclustersDict: dictionary with the following structure: keys -> SV_type, value -> list of metaclusters corresponding to this SV_type.
-        2. filters2Apply: dictionary containing lists as values list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
-        3. confDict
-        4. bam
-
-    Output:
-        1. metaclustersPassDict: Dictionary with same structure as the input one, containing those metaclusters that passed all the filters.
-        2. metaclustersFailDict: Dictionary with same structure as the input one, containig those metaclusters that failed one or more filters.
-    '''
-
-    metaclustersPass = []
-    metaclustersFail = []
-
-    ## 1. Make list with the indexes of the metaclusters do not passing some filter
-    filteredIndexes = []
-
-    ## For each metacluster
-    for index, metacluster in enumerate(metaclusters):
-
-        # Set meacluster element:
-        element = metacluster.setElement() if metacluster.setElement() else 'GENERIC'
-        ## Apply filters
-        metacluster.failedFilters = filter_metacluster(metacluster, filters2Apply[element], confDict, bam, normalBam)
-        
-        # Metacluster fails some filter
-        if metacluster.failedFilters:
-            filteredIndexes.append(index)
-
-    ## 2. Divide metaclusters in those passing and failing filtering
-    for index, metacluster in enumerate(metaclusters):
-        
-        ## a) Failing some filter
-        if index in filteredIndexes:
-
-            metaclustersFail.append(metacluster)
-
-        ## b) Passing all the filters
-        else:
-
-            metaclustersPass.append(metacluster)
-
-    return metaclustersPass, metaclustersFail
-
 
 def filter_metaclusters_sonia(metaclusters, filters2Apply, confDict, bam, normalBam):
     '''
@@ -934,8 +886,8 @@ def applyFilters(clusters):
     newClusterDict = {}
     clusterTypes = clusters.eventTypes
 
-    ## TODO: aqui seria mejor qitarlo de la lista en vez de hacer una nueva
-    ## TODO: aqui mirar de coger el clusterType de otra manera sin tener que hacer dos loops:
+    # NOTE: It would be better remove it from the list instead of create a new list
+    # NOTE: It would be better get clusterType in another way, without performing two loops
     for clusterType in clusterTypes:
         for cluster in clusters.collect([clusterType]):
             newClusterDict[clusterType]=[]
@@ -944,39 +896,6 @@ def applyFilters(clusters):
 
     return newClusterDict
 
-
-## [SR CHANGE]
-def filterDISCORDANT(cluster, filters2Apply, confDict, bam):
-    '''
-    Apply appropriate filters to each DISCORDANT-CLUSTER.
-
-    Input:
-        1. cluster: cluster object
-        2. filters2Apply: list containing the filters to apply (only those filters that make sense with the cluster type will be applied)
-        3. confDict
-    Output:
-        1. filterDiscordantResults -> keys: name of filters; values: True if the cluster pass the filter, False if it doesn't pass.
-    '''
-
-    filterDiscordantResults = {}
-
-    ## 1. FILTER 1: Minimum number of reads per cluster
-    if 'MIN-NBREADS' in filters2Apply: # check if the filter is selected
-        filterDiscordantResults['MIN-NBREADS'] = minNbEventsFilter(cluster, confDict['minClusterSize'])
-
-    ## 2. FILTER 2: Maximum number of reads per cluster
-    if 'MAX-NBREADS' in filters2Apply: # check if the filter is selected
-        filterDiscordantResults['MAX-NBREADS'] = filter_max_nb_reads(cluster, confDict['maxClusterSize'])
-
-    ## 3. FILTER 3: Area mapping quality
-    if "AREAMAPQ" in filters2Apply:
-        filterDiscordantResults["AREAMAPQ"] = area(cluster,confDict,bam)[0]
-
-    ## 4. FILTER 4: Area clipping SMS
-    if "AREASMS" in filters2Apply:
-        filterDiscordantResults["AREASMS"] = area(cluster,confDict,bam)[1]
-
-    return filterDiscordantResults
 
 # [SR CHANGE]
 def area(cluster,confDict,bam):

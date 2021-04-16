@@ -14,7 +14,6 @@ import multiprocessing as mp
 from GAPI import log
 from GAPI import gRanges
 from GAPI import structures
-from GAPI import virus
 
 
 ## FUNCTIONS ##
@@ -180,19 +179,13 @@ class FASTA():
             seq = ''.join(s.strip() for s in next(faiter))
             self.seqDict[header] = seq
 
-    def write(self, filePath, mode = 'write', safetyLock = False):
+    def write(self, filePath):
         '''
         FASTA file writer. Write data stored in the dictionary into a FASTA file
         Mode: write -> write new file. append -> append to existing file or create if tit doesnt exist.
         '''
-        openMode = 'a' if mode == 'append' else 'w'
-        
-        if safetyLock:
-            l = mp.Lock()
-            virus.init(l)
-            virus.lock.acquire()
 
-        fastaFile = open(filePath, openMode)
+        fastaFile = open(filePath, 'w')
 
         for header, seq in self.seqDict.items():
             header = '>' + header
@@ -202,10 +195,6 @@ class FASTA():
 
         # Close output fasta file
         fastaFile.close()
-        
-        if safetyLock:
-            virus.init(l)
-            virus.lock.release()
 
     def retrieve_seqs(self, targetNames):
         '''
