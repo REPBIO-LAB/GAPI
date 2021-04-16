@@ -6,8 +6,6 @@ import pysam
 from cigar import Cigar
 import numpy as np
 import os
-import Bio.SeqUtils
-from Bio.SeqUtils import lcc
 import multiprocessing as mp
 
 ## Internal
@@ -303,95 +301,6 @@ def virus_structure_woAlignment(sup, PAF_file):
     structure['PERC_RESOLVED'] = chain.perc_query_covered()
     
     return structure
-
-
-def filterBAM2FastaDict(BAM, minTotalMatchVirus, minParcialMatchVirus, maxMatchCheckMAPQVirus, minMAPQVirus, maxBasePercVirus, minLccVirus, mode='SR'):
-    '''
-    '''
-
-    # Read bam and store in a dictionary
-    bamFile = pysam.AlignmentFile(BAM, 'rb')
-
-    iterator = bamFile.fetch()
-    
-    fastaDict= {}
-
-    # For each read alignment
-    for alignmentObj in iterator:
-        alignmentPass = False
-        #numMatches = 0
-        queryCoord = 0
-        print ('alignmentObj.query_name ' + str(alignmentObj.query_name))
-        #print ('alignmentObj.is_unmapped ' + str(alignmentObj.is_unmapped))
-
-        if not alignmentObj.is_unmapped:
-            ctuples = alignmentObj.cigartuples
-            allMatches = [t[1] for t in ctuples if t[0] == 0]
-            totalMatch = sum (allMatches)
-            print ('totalMatch ' + str(totalMatch))
-            if totalMatch >= minTotalMatchVirus:
-                c = Cigar(alignmentObj.cigarstring)
-                for citem  in list(c.items()):
-                    # If cigar is query consuming, update query coordinates:
-                    if citem[1] != 'M' and citem[1] != 'D' and citem[1] != '=':
-                        queryCoord = queryCoord + int(citem[0])
-                    elif citem[1] == 'M' or citem[1] == '=':
-                        print ('citem[0] ' + str(citem[0]))
-                        print ('maxMatchCheckMAPQVirus'  + str(maxMatchCheckMAPQVirus))
-                        print ('alignmentObj.mapping_quality'  + str(alignmentObj.mapping_quality))
-                        print ('minMAPQVirus'  + str(minMAPQVirus))
-                        if citem[0] >= minParcialMatchVirus:
-                            if (citem[0] <= maxMatchCheckMAPQVirus and alignmentObj.mapping_quality > minMAPQVirus) or citem[0] > maxMatchCheckMAPQVirus:
-                                sequence = alignmentObj.query_sequence[queryCoord:(queryCoord + int(citem[0]))]
-                                # Calculate base percentage
-                                basePercs = sequences.baseComposition(sequence)[1]
-                                # Delete total value of base percentage result
-                                del basePercs['total']
-                                print ('basePercs ' + str(basePercs))
-                                # Only those sequences with base percentage lower than 85 are collected:
-                                if all(perc < maxBasePercVirus for perc in basePercs.values()):
-                                    # Calculate complexity
-                                    complexity = Bio.SeqUtils.lcc.lcc_simp(sequence)
-                                    print ('complexity ' + str(complexity))
-                                    print ('minLccVirus ' + str(minLccVirus))
-                                    if complexity > minLccVirus:
-                                        #print ('PassAll')
-                                        # TODO: put this in a good way!!!!!
-                                        if mode=='LR':
-                                            if len(sequence)>10:
-                                                alignmentPass = True
-                                                break # Cambio 28/08 11:53
-                                        else:
-                                            alignmentPass = True
-                                            break # Cambio 28/08 11:53
-                                    else:
-                                        queryCoord = queryCoord + int(citem[0])
-                                else:
-                                    queryCoord = queryCoord + int(citem[0])
-                        else:
-                            queryCoord = queryCoord + int(citem[0])
-        '''
-        print (numMatches)
-        if numMatches > 90: # TODO SR: put this as an option
-            alignmentPass = True
-        elif alignmentObj.mapping_quality >= viralBamMAPQ and numMatches >= int(selectedPartialMatches):
-            alignmentPass = True
-        # New condition:
-        # TODO SR: Put as options!!!
-        elif alignmentObj.mapping_quality >= 40 and numMatches >= 60:
-            alignmentPass = True
-        '''
-        print ('alignmentPass ' + str(alignmentPass))
-        if alignmentPass == True:
-            # Add to fasta dict
-            if alignmentObj.query_name in fastaDict.keys():
-                fastaDict[alignmentObj.query_name].append(alignmentObj.reference_name)
-            else:
-                fastaDict[alignmentObj.query_name] = []
-                fastaDict[alignmentObj.query_name].append(alignmentObj.reference_name)
-
-    return fastaDict
-
 
 ## FORMATS functions
 
