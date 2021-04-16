@@ -5,12 +5,6 @@ Module 'retrotransposons' - Contains functions for the identification and charac
 ## DEPENDENCIES ##
 # External
 import subprocess
-
-# External (Needed for ORF program)
-from Bio import SeqIO
-from Bio import pairwise2
-from Bio.pairwise2 import format_alignment
-from Bio.Seq import Seq
 import operator
 
 # Internal
@@ -630,7 +624,6 @@ def is_polyA(sequence, minPerc):
     return polyA, percPolyA
 
 
-
 def trim_polyA(sequence):
     '''
     Trim poly(A) at sequence end 
@@ -663,59 +656,6 @@ def trim_polyA(sequence):
 
     return sequence
 
-def find_orf(sequence):
-    '''
-    '''
-    seq = Seq(sequence)
-
-    table = 1
-    min_pro_len=100
-	
-    ### Reference ORF1 and ORF2 protein sequences (source: https://www.uniprot.org/)
-    orf1='MGKKQNRKTGNSKTQSASPPPKERSSSPATEQSWMENDFDELREEGFRRSNYSELREDIQTKGKEVENFEKNLEECITRITNTEKCLKELMELKTKARELREECRSLRSRCDQLEERVSAMEDEMNEMKREGKFREKRIKRNEQSLQEIWDYVKRPNLRLIGVPESDVENGTKLENTLQDIIQENFPNLARQANVQIQEIQRTPQRYSSRRATPRHIIVRFTKVEMKEKMLRAAREKGRVTLKGKPIRLTADLSAETLQARREWGPIFNILKEKNFQPRISYPAKLSFISEGEIKYFIDKQMLRDFVTTRPALKELLKEALNMERNNRYQPLQNHAKM'
-    orf2='MTGSNSHITILTLNVNGLNSPIKRHRLASWIKSQDPSVCCIQETHLTCRDTHRLKIKGWRKIYQANGKQKKAGVAILVSDKTDFKPTKIKRDKEGHYIMVKGSIQQEELTILNIYAPNTGAPRFIKQVLSDLQRDLDSHTLIMGDFNTPLSILDRSTRQKVNKDTQELNSALHQTDLIDIYRTLHPKSTEYTFFSAPHHTYSKIDHIVGSKALLSKCKRTEIITNYLSDHSAIKLELRIKNLTQSRSTTWKLNNLLLNDYWVHNEMKAEIKMFFETNENKDTTYQNLWDAFKAVCRGKFIALNAYKRKQERSKIDTLTSQLKELEKQEQTHSKASRRQEITKIRAELKEIETQKTLQKINESRSWFFERINKIDRPLARLIKKKREKNQIDTIKNDKGDITTDPTEIQTTIREYYKHLYANKLENLEEMDTFLDTYTLPRLNQEEVESLNRPITGSEIVAIINSLPTKKSPGPDGFTAEFYQRYKEELVPFLLKLFQSIEKEGILPNSFYEASIILIPKPGRDTTKKENFRPISLMNIDAKILNKILANRIQQHIKKLIHHDQVGFIPGMQGWFNIRKSINVIQHINRAKDKNHVIISIDAEKAFDKIQQPFMLKTLNKLGIDGMYLKIIRAIYDKPTANIILNGQKLEAFPLKTGTRQGCPLSPLLFNIVLEVLARAIRQEKEIKGIQLGKEEVKLSLFADDMIVYLENPIVSAQNLLKLISNFSKVSGYKINVQKSQAFLYNNNRQTESQIMGELPFTIASKRIKYLGIQLTRDVKDLFKENYKPLLKEIKEDTNKWKNIPCSWVGRINIVKMAILPKVIYRFNAIPIKLPMTFFTELEKTTLKFIWNQKRARIAKSILSQKNKAGGITLPDFKLYYKATVTKTAWYWYQNRDIDQWNRTEPSEIMPHIYNYLIFDKPEKNKQWGKDSLLNKWCWENWLAICRKLKLDPFLTPYTKINSRWIKDLNVKPKTIKTLEENLGITIQDIGVGKDFMSKTPKAMATKDKIDKWDLIKLKSFCTAKETTIRVNRQPTTWEKIFATYSSDKGLISRIYNELKQIYKKKTNNPIKKWAKDMNRHFSKEDIYAAKKHMKKCSSSLAIREMQIKTTMRYHLTPVRMAIIKKSGNNRCWRGCGEIGTLVHCWWDCKLVQPLWKSVWRFLRDLELEIPFDPAIPLLGIYPKDYKSCCYKDTCTRMFIAALFTIAKTWNQPNCPTMIDWIKKMWHIYTMEYYAAIKNDEFISFVGTWMKLETIILSKLSQEQKTKHRIFSLIGGN'
-	
-    ### define variables
-    orf1_dim = len(orf1)
-    orf2_dim = len(orf2)
-
-    orf1_status=None
-    orf2_status=None
-    orf1_pro=None
-    orf2_pro=None
-    orf1_len=None
-    orf2_len=None
-    orf1_sco=None
-    orf2_sco=None
-	
-    methionine ='M'
-    orf=''
-	
-    ### Core algorythm
-    for strand, nuc in [(+1, seq), (-1, seq.reverse_complement())]:
-        for frame in range(3):
-            for pro in nuc[frame:].translate(table).split("*"):
-                if len(pro) >= min_pro_len:
-                    orf= methionine + pro.split(methionine, 1)[-1]
-					
-                    ### Asses L1 ORF1 status
-                    if len(orf) in range(orf1_dim-200, orf1_dim+200) and pairwise2.align.globalxx(orf, orf1, score_only=True) > 300:
-                        #print("BINGO: ORF1")
-                        orf1_status="ORF1"
-                        orf1_len=len(orf)
-                        orf1_pro=str(orf)
-                        orf1_sco=pairwise2.align.globalxx(orf, orf1, score_only=True)			
-
-                    ### Asses L1 ORF2 status
-                    if len(orf) in range(orf2_dim-500, orf2_dim+500) and pairwise2.align.globalxx(orf, orf2, score_only=True) > 1000:
-                        #print("BINGO: ORF2")
-                        orf2_status="ORF2"
-                        orf2_len=len(orf)
-                        orf2_pro=str(orf)
-                        orf2_sco=pairwise2.align.globalxx(orf, orf2, score_only=True)
-				
-    ### return ORF status and ORF parameters		
-    return orf1_status, orf2_status, orf1_len, orf2_len, orf1_pro, orf2_pro, orf1_sco, orf2_sco
 
 def has_polyA_illumina(targetSeq):
     '''
