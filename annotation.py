@@ -33,7 +33,7 @@ def newestFile(path):
     
     return newestPath
 
-def load_annotations(annotations2load, refLengths, annotationsDir, germlineMEI, threads, outDir, tdEnds = [3]):
+def load_annotations(annotations2load, refLengths, annotationsDir, germlineMEI, threads, outDir, tdEnds = ['3']):
     '''
     Load a set of annotation files in bed formats into a bin database
 
