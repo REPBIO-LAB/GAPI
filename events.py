@@ -525,6 +525,16 @@ class INS():
         insert = self.readSeq[begPos:endPos]
         
         return insert
+    
+    def pick_ALT(self, offset):
+        '''
+        Pick and return the inserted sequence 
+        '''
+        begPos = self.readBkp - offset 
+        endPos = self.readBkp + self.length + offset 
+        insert = self.readSeq[begPos:endPos]
+        
+        return insert
 
 
 class DEL():
