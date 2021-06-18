@@ -5,6 +5,36 @@ Module 'gRanges' - Contains functions to do operations with genomic ranger or co
 ## DEPENDENCIES ##
 
 ## FUNCTIONS ##
+def makeGenomicBins(refLengths, binSize, targetRefs):
+    '''
+    '''
+    ## Select target references
+    if targetRefs != None:
+        targetRefs = [str(i) for i in targetRefs]
+        refLengths  = {ref: refLengths [ref] for ref in targetRefs}
+
+    ## Split each reference into evenly sized bins
+    bins = []
+
+    # For each reference
+    for ref, length in refLengths .items():
+
+        ## Define bins boundaries
+        boundaries = [boundary for boundary in range(0, length, binSize)]
+        boundaries = boundaries + [length]
+
+        ## Make bins
+        for idx, beg in enumerate(boundaries):
+
+            ## Skip last element from the list
+            if beg < boundaries[-1]:
+                end = boundaries[idx + 1]
+                window = (ref, beg, end)
+                bins.append(window)
+
+    return bins
+
+
 def rangeList2dict(ranges):
     '''
     Organize list of ranges into a dictionary  
