@@ -55,7 +55,7 @@ def snp2haplotype(vcf, lenght):
     
         ## Add SNP call to the vector
         key = variant.ref + '->' + variant.alt
-        
+    
         ## Skip if unknown nucleotyde substitution or multiallelic
         if key not in codes:
             continue
@@ -66,6 +66,48 @@ def snp2haplotype(vcf, lenght):
 
     return haplotype
 
+def indel2haplotype(vcf, lenght):
+    '''
+    Generate haplotype vector from a VCF containing INDEL calls.
+
+    Input: 
+        1. vcf: SNP and INDEL calls in VCF format
+        2. length: length of reference sequence
+
+    Output:
+        1. haplotype: haplotype vector containing the status for each reference position 
+                      (0, no change; -X: deletion; +X: insertion)
+    '''
+    ## 2. Initialize haplotype vector as always reference (0s)
+    haplotype = [0] * lenght
+
+    ## 3. Update haplotype vector with identified SNPs
+    # Read VCF
+    VCF = formats.VCF()
+    VCF.read(vcf)
+
+    # Iterate over each identified variant
+    for variant in VCF.variants:
+
+        # a) Skip if not indel
+        if 'INDEL' not in variant.info:
+            continue
+
+        # a) Deletion
+        elif len(variant.ref) > len(variant.alt):
+
+            index = variant.pos - 1 # Convert 1-based (vcf) to 0-based (vector)
+            haplotype[index] = '-' + variant.ref
+
+        # b) Insertion
+        elif len(variant.ref) < len(variant.alt):
+            index = variant.pos - 1 # Convert 1-based (vcf) to 0-based (vector)
+            haplotype[index] = '+' + variant.alt
+
+    return haplotype
+
+
+        
 
 def compute_haplotypes(sequences, reference, outDir):
     '''
@@ -89,7 +131,8 @@ def compute_haplotypes(sequences, reference, outDir):
     inputFasta = formats.FASTA()             
     inputFasta.read(sequences)
 
-    haplotypes = {}
+    snp_haplotypes = {}
+    indel_haplotypes = {}
 
     ## For each input sequence
     for seqId, seq in inputFasta.seqDict.items():
@@ -116,20 +159,26 @@ def compute_haplotypes(sequences, reference, outDir):
         os.system(command) 
         
         ## 6. Convert SNP calls into vector representation
-        haplotype = snp2haplotype(calls, refLen)
-        haplotypes[seqId] = haplotype
+        snp_haplotype = snp2haplotype(calls, refLen)
+        snp_haplotypes[seqId] = snp_haplotype
+
+        ## 7. Convert INDEL calls into vector representation
+        indel_haplotype = indel2haplotype(calls, refLen)
+        indel_haplotypes[seqId] = indel_haplotype
 
         ## Cleanup
         unix.rm([tmpDir])
 
     ## Generate dataframe containing haplotypes
     colNames = list(str(i) for i in range(1, refLen + 1))
-    haplotypesDf = pd.DataFrame.from_dict(haplotypes, orient='index', columns=colNames)
+    snp_haplotypesDf = pd.DataFrame.from_dict(snp_haplotypes, orient='index', columns=colNames)
+    indel_haplotypesDf = pd.DataFrame.from_dict(indel_haplotypes, orient='index', columns=colNames)
+
 
     ## Cleanup
     unix.rm([outDir])
 
-    return haplotypesDf
+    return snp_haplotypesDf, indel_haplotypesDf
 
 def diagnostic_scores(haplotypes):
     '''
