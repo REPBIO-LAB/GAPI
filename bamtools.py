@@ -468,7 +468,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample, supplementary = True):
         3. binEnd: bin end
         4. bam: indexed BAM file
         5. confDict:
-            * targetEvents       -> list with target SV events (INS: insertion; DEL: deletion; CLIPPING: left and right clippings, DISCORDANT: discordant)
+            * targetEvents   -> list with target SV events (INS: insertion; DEL: deletion; CLIPPING: left and right clippings, DISCORDANT: discordant)
             * minMAPQ        -> minimum mapping quality
             * minCLIPPINGlen -> minimum clipping lenght
             * minINDELlen    -> minimum INS and DEL lenght
