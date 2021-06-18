@@ -278,3 +278,43 @@ def INS2VCF(metaclusters, index, refLengths, source, build, species, outName, ou
            'QHITS', 'THITS', 'RTCOORD', 'POLYA', 'INSEQ']
 
     VCF.write(infoIds, [], outName, outDir)
+
+def alt_assemblies2fasta(metaclustersPass, metaclustersFailed, offset, outDir):
+    '''
+    Write fasta file with the consensus assemblies supporting the variant
+    
+    Input:
+        1. metaclustersPass: List of metaclusters that passed all filters
+        2. metaclustersFailed: List of metaclusters that do not passed all filters
+        3. offset: Number of nt surrounding the event
+        4. outDir: Output directory
+    
+    Output:
+        Fasta file (alt-assembly.fa) in outDir 
+    '''
+    # Set variables and create fasta object. 
+    offset = 1000
+    altAssemblies_fa = outDir + '/' + 'alt-assembly.fa'
+    altAssemblies = formats.FASTA()
+    
+    # Store all info in fasta object seqDict 
+    if 'INS' in metaclustersPass:
+        
+        for metacluster in metaclustersPass['INS']:
+            
+            # create header using ref_bkp_PASS as dict key
+            svId = '_'.join([str(metacluster.ref), str(metacluster.mean_pos()[0]), 'PASS'])
+            # keep sequence as dict value
+            altAssemblies.seqDict[svId] = metacluster.consensusEvent.pick_ALT(offset) if metacluster.consensusEvent is not None else None
+
+    if 'INS' in metaclustersFailed:
+        
+        for metacluster in metaclustersPass['INS']:
+            
+            # create header using ref_bkp_PASS as dict key
+            svId = '_'.join([str(metacluster.ref), str(metacluster.mean_pos()[0]), 'FAILED'])
+            # keep sequence as dict value
+            altAssemblies.seqDict[svId] = metacluster.consensusEvent.pick_ALT(offset) if metacluster.consensusEvent is not None else None
+    
+    # Write fasta object dict to fasta file                
+    altAssemblies.write(altAssemblies_fa)
