@@ -75,14 +75,14 @@ def bed2binDb(bedPath, refLengths, threads):
 
     Output:
         1. wgBinDb: dictionary containing references as keys and the corresponding 'bin_database' as value
-    '''
+    '''    
     ## Read bed
     bed = BED()
     targetRefs = list(refLengths.keys())
     bed.read(bedPath, 'nestedDict', targetRefs)
-
+    
     ## Create bin database
-    wgBinDb = structures.create_bin_database_parallel(refLengths, bed.lines, threads)
+    wgBinDb = structures.create_bin_database(refLengths, bed.lines)
 
     return wgBinDb
 
@@ -817,6 +817,15 @@ class PAF_chain():
 
         return percCovered
 
+    def nb_templates(self):
+        '''
+        Compute the number of different templates in the chain
+        '''
+        templates = list(set([alignment.tName for alignment in self.alignments]))
+        nbTemplates = len(templates)
+
+        return nbTemplates, templates
+
 class VCF():
     '''
     VCF class
@@ -884,18 +893,18 @@ class VCF():
 
             ## A) Source
             if line.startswith('##source'):
-                source = line.split('=')[1]
+                source = line.split('=', 1)[1]
             
             ## B) Reference
             elif line.startswith('##reference'):
-                build = line.split('=')[1]
+                build = line.split('=', 1)[1]
 
             ## C) Contig
             elif line.startswith('##contig'):
                 substring = re.search('<(.*)>', line)
 
                 for field in substring.group(1).split(','):
-                    key, value = field.split('=')
+                    key, value = field.split('=', 1)
 
                     if key == 'ID':
                         cId = value
@@ -914,7 +923,7 @@ class VCF():
                 values = []
 
                 for field in substring.group(1).split(','):
-                    fields = field.split('=')
+                    fields = field.split('=', 1)
                     
                     if len(fields) == 2:
                         values.append(fields[1])
@@ -928,7 +937,7 @@ class VCF():
                 values = []
 
                 for field in substring.group(1).split(','):
-                    fields = field.split('=')
+                    fields = field.split('=', 1)
                     
                     if len(fields) == 2:
                         values.append(fields[1])
@@ -1326,12 +1335,12 @@ class VCF_variant():
 
         Output:
             1. genotypes: list
-        '''       
+        '''      
         genotypes = []
 
         for sampleId in sampleIds:
                     
-            genotype = ':'.join([self.format[sampleId][ID] for ID in IDS])
+            genotype = ':'.join([self.format[sampleId][ID] for ID in IDS if ID in self.format[sampleId]])
             genotypes.append(genotype)
 
         return genotypes
@@ -1609,3 +1618,250 @@ def pslQueryRefDict(pslPath):
             pslDict[pslAlign.qName] = []
             pslDict[pslAlign.qName].append(pslAlign.tName)
     return pslDict
+
+
+class mosaiCatcherSVs():
+    '''
+    Class for dealing with mosaiCatcher output file containing structural variants (SV)
+    '''
+
+    def __init__(self):
+        '''
+        Initialize empty class instance
+        '''
+        self.SVs = None
+        self.structure =  None
+
+    def read(self, filePath, structure, targetRefs):
+        '''
+        File reader. Read and store SV calls into a data structure
+
+        Input:
+            1) filePath: path to MosaiCatcher output file
+            2) structure: data structure where SV calls will be stored. 3 Possible structures:
+                - 'List': SVs organized into a list
+                - 'Dict': SVs organized into a dictionary where each key will correspond to a reference and the corresponding value will be the list of SVs in that reference
+                - 'NestedDict': SVs organized into a nested dictionary with first level keys corresponding to the cell, second level to the reference and the corresponding value the list of SVs
+            3) targetRefs: list containing target references. SVs with refs not included in the list will not be loaded. 
+                            If 'None' all the SVs will be loaded
+
+        Initialize SVs attribute as output
+        '''
+        self.structure = structure
+
+        # a) Organize SVs into a list
+        if (self.structure == 'List'):
+
+            self.SVs = self.organize_list(filePath, targetRefs)
+
+        # b) Organize BED entries into a dict
+        elif (self.structure == 'Dict'):
+            
+            self.SVs = self.organize_dict(filePath, targetRefs)
+
+        # b) Organize BED entries into a nested dict
+        elif (self.structure == 'NestedDict'):
+            
+            self.SVs = self.organize_nestedDict(filePath, targetRefs)
+
+        # d) Unkown data type structure provided
+        else:
+            print('[ERROR] MosaiCatcher SV file reader. Unknown structure provided: ', structure)
+            sys.exit(1)
+
+    def organize_list(self, filePath, targetRefs):
+        '''
+        Organize bed file lines in a list
+
+        Input:
+            1) filePath: path to MosaiCatcher output file
+            2) targetRefs: list containing target references. SVs with refs not included in the list will not be loaded. 
+                            If 'None' all the SVs will be loaded
+        
+        Output:
+            1) SVs: list containing SVs
+        '''
+        mosaiCatcherOut = open(filePath)
+        SVs = []
+        
+        # For line in the file
+        for line in mosaiCatcherOut:
+            
+            # Skip blank lines and header
+            if (not line) or line.startswith('chrom'):
+                continue
+            
+            # Split data line into fields
+            fields = line.split()   
+
+            # Create SV object              
+            SV = SV_call(fields)
+
+            # Add SV to the list
+            if (targetRefs is None) or (SV.ref in targetRefs):
+                SVs.append(SV)
+        
+        return SVs
+
+    def organize_dict(self, filePath, targetRefs):
+        '''
+        Organize bed file lines in a dictionary where each key will correspond to a reference and the corresponding value will be the list of lines in that reference
+        
+        Input:
+            1) filePath: path to MosaiCatcher output file
+            2) targetRefs: list containing target references. SVs with refs not included in the list will not be loaded. 
+                            If 'None' all the SVs will be loaded
+
+        Output:
+            1) SVs: dictionary containing SVs. One key per reference and the list of SVs per reference as value
+        '''
+        mosaiCatcherOut = open(filePath)
+        SVs = {}
+
+        # For line in the file
+        for line in mosaiCatcherOut:
+            
+            # Skip blank lines and header
+            if (not line) or line.startswith('chrom'):
+                continue
+            
+            # Split data line into fields
+            fields = line.split()       
+            SV = SV_call(fields)
+
+            if (targetRefs is None) or (SV.ref in targetRefs):
+
+                # a) Initialize reference and add SV
+                if SV.ref not in SVs:
+                    SVs[SV.ref] = [SV]
+
+                # b) Add to preexisting reference
+                else:
+                    SVs[SV.ref].append(SV)
+
+        return SVs
+
+    def organize_nestedDict(self, filePath, targetRefs):
+        '''
+        Organize SVs into a nested dictionary with first level keys corresponding to the cell, second level to the reference and the corresponding value the list of SVs
+        
+        Input:
+            1) filePath: path to MosaiCatcher output file
+            2) targetRefs: list containing target references. SVs with refs not included in the list will not be loaded. 
+                           If 'None' all the SVs will be loaded
+
+        Output:
+            1) SVs: dictionary containing SVs. One key per cellId and reference and the lists of SVs as values
+        '''
+        mosaiCatcherOut = open(filePath)
+        SVs = {}
+
+        # For line in the file
+        for line in mosaiCatcherOut:
+            
+            # Skip blank lines and header
+            if (not line) or line.startswith('chrom'):
+                continue
+            
+            # Split data line into fields
+            fields = line.split()       
+            SV = SV_call(fields)
+
+            if (targetRefs is None) or (SV.ref in targetRefs):
+
+                # A) Initialize cell 
+                if SV.cellId not in SVs:
+                    SVs[SV.cellId] = {}
+                    SVs[SV.cellId][SV.ref] = [SV]
+
+                # B) Add to preexisting cell
+                else:
+
+                    # a) Initialize reference and add SV
+                    if SV.ref not in SVs[SV.cellId]:
+                        SVs[SV.cellId][SV.ref] = [SV]
+
+                    # b) Add to preexisting reference
+                    else:
+                        SVs[SV.cellId][SV.ref].append(SV)
+                        
+        return SVs
+
+class SV_call():
+    '''
+    SV call class 
+    '''
+    number = 0 # Number of instances
+
+    def __init__(self, fields):
+        '''
+        Initialize paf line
+        '''
+        SV_call.number += 1 # Update instances counter
+        self.id = 'SV_call_' + str(SV_call.number)
+
+        ## Coordinates
+        self.ref = str(fields[0])
+        self.ref = self.ref.replace('chr', '') # Remove chr string from the identifier
+        self.beg = int(float(fields[1]))
+        self.end = int(float(fields[2]))
+        self.dist2end = None                   # Distance to the telomere end
+        
+        ## Identifiers
+        self.sampleId = str(fields[3])
+        self.cellId = str(fields[4])
+
+        ## Strand state
+        self.state = str(fields[5])  # WW, CC, WC  
+        self.scalar = int(fields[6]) # ?? seems to be always one
+        self.nbBins = int(fields[7]) # Number of genomic bins spanned by the SV call
+
+        ## Structural variation (SV) type
+        str(fields[8]).split('_')
+
+        self.SV_type1, self.haplo1 = self.parse_sv_call_name(fields[8])  # Most likely SV and haplotype   
+        self.haploCode1 = str(fields[9]) # Haplotype code for 1. Unique identifier for SV type and haplotype
+
+        self.SV_type2, self.haplo2 = self.parse_sv_call_name(fields[10]) # Second most likely SV and haplotype   
+        self.haploCode2 = str(fields[11]) # Haplotype code for 2. Unique identifier for SV type and haplotype
+
+        ## Statistics
+        self.llr2ref = float(fields[12]) # Log likelyhood ratio between most likely SV and the reference
+        self.llr2SV_type2 = float(fields[13]) # Log likelyhood ratio between most likely SV and second
+        self.AF = float(fields[14]) # Variant allele fraction (in the population of cells)
+
+    def len(self):
+        '''
+        Compute SV length
+
+        Output:
+            1. length: structural variant length
+        '''
+        length = self.end - self.beg
+
+        return length
+    
+    def parse_sv_call_name(self, string):
+        '''
+        Parse SV call name string
+
+        Input:
+            1. string: 'sv_call_name' or 'sv_call_name_2nd' fields from MosaiCatcher SVs output file
+
+        Output:
+            1. SV_type: Structural variant type (del, dup, idup, inv, complex)
+            2. haplotype: Haplotype (h1 or h2)
+        '''
+        fields = string.split("_")   
+
+        # a) Haplotype info not available
+        if len(fields) == 1:
+            SV_type = fields[0]
+            haplotype = None           
+
+        # b) Haplotype info available
+        else:
+            SV_type = fields[0]
+            haplotype = fields[1]           
+
+        return SV_type, haplotype
