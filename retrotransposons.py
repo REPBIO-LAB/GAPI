@@ -648,8 +648,38 @@ def trim_polyA(sequence):
     seqLen = len(sequence)
     dist2end = seqLen - candidate.end
 
-    if dist2end <= 30:
+    if dist2end <= 10:
         sequence = sequence[:candidate.beg]
+
+    else:
+        sequence = sequence
+
+    return sequence
+
+
+def trim_polyT(sequence):
+    '''
+    Trim poly(T) at sequence begin 
+    '''
+    ## Configuration for monomere search:
+    windowSize = 8
+    maxWindowDist = 2
+    minMonomerSize = 10
+    minPurity = 80  
+
+    ## Seach poly(T) monomers
+    targetMonomer = 'T'
+    monomersT = sequences.find_monomers(sequence, targetMonomer, windowSize, maxWindowDist, minMonomerSize, minPurity)
+
+    if not monomersT:
+        return sequence
+        
+    ## Select monomer closest to sequence begin
+    candidate = monomersT[0]
+
+    ## Filter out monomer if more than Xbp from begin
+    if candidate.beg <= 10:
+        sequence = sequence[candidate.end:]
 
     else:
         sequence = sequence
