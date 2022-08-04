@@ -112,6 +112,37 @@ def alignment_minimap2(FASTA, index, fileName, processes, outDir):
 
     return PAF
 
+def alignment_minimap2_bam(FASTA, index, fileName, processes, outDir):
+    '''
+    Align a set of sequence into a reference with minimap2
+
+    Input:
+        1. FASTA: Path to FASTA file with sequences to align
+        2. index: Path to the the index of the reference in .mmi format (generated with minimap2)
+        3. fileName: output file will be named accordingly
+        4. processes: Number of processes used by minimap2
+        5. outDir: Output directory
+
+    Output:
+        1. BA;: Path to BAM file containing input sequences alignments or 'None' if alignment failed 
+    '''
+    ## 1. Align the sequences into the reference
+    # Note, condider to use -Y to get soft clippings for supplementary alignments
+    SAM = outDir + '/' + fileName + '.sam'
+    err = open(outDir + '/align.err', 'w') 
+    command = 'minimap2 -a -t ' + str(processes) + ' ' + index + ' ' + FASTA + ' > ' + SAM
+    status = subprocess.call(command, stderr=err, shell=True)
+
+    if status != 0:
+        step = 'ALIGN'
+        msg = 'Local alignment failed' 
+        log.step(step, msg)
+
+    ## 2. SAM to BAM conversion
+    BAM = bamtools.SAM2BAM(SAM, outDir)
+
+    return BAM
+
 
 def alignment_minimap2_spliced(FASTA, index, fileName, processes, outDir):
     '''
