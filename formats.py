@@ -287,7 +287,7 @@ class BED():
         '''
         Initialize empty class instance
         '''
-        self.lines = None
+        self.lines = []
         self.structure =  None
 
     def read(self, filePath, structure, targetRefs):
@@ -324,14 +324,14 @@ class BED():
             print('[ERROR] Bed file reader. Unknown structure provided: ', structure)
             sys.exit(1)
 
-    def write(self, outPath):
+    def write(self, outPath, optional):
         '''
         BED file writer. Write bed entries into bed file
 
         Input:
             1) outPath: path to output bed file
+            2) optional: list with optional fields to include into the output file. Empty if no optional fields
 
-        NOTE: Update to include optional fields
         '''
         ## Collect all the entries into a list
         # a) Entries organized into a list
@@ -349,7 +349,7 @@ class BED():
         with open(outPath, 'w') as outFile:
 
             ## Write header
-            fields = ['#ref', 'beg', 'end']
+            fields = ['#ref', 'beg', 'end'] + optional
 
             if hasattr(outEntries[0], 'name'):
                 fields.append('name')
@@ -362,9 +362,9 @@ class BED():
 
                 fields = [entry.ref, str(entry.beg), str(entry.end)]
 
-                # Add name if available
-                if hasattr(entry, 'name'):
-                    fields.append(entry.name)
+                # Add optional fields
+                for field in optional:
+                    fields.append(entry.optional[field])
 
                 # Create row
                 row = "\t".join(fields)
