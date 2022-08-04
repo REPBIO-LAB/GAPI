@@ -107,8 +107,6 @@ def indel2haplotype(vcf, lenght):
     return haplotype
 
 
-        
-
 def compute_haplotypes(sequences, reference, outDir):
     '''
     Compute haplotype matrix for a set of input sequences by comparing against a reference sequence
@@ -174,8 +172,77 @@ def compute_haplotypes(sequences, reference, outDir):
     snp_haplotypesDf = pd.DataFrame.from_dict(snp_haplotypes, orient='index', columns=colNames)
     indel_haplotypesDf = pd.DataFrame.from_dict(indel_haplotypes, orient='index', columns=colNames)
 
-
     ## Cleanup
+    #unix.rm([outDir])
+
+    return snp_haplotypesDf, indel_haplotypesDf
+
+
+def compute_haplotypes_minimap(sequences, ref, index, outDir):
+    '''
+    Compute haplotype matrix for a set of input sequences by comparing against a reference sequence
+    
+    Input:
+        1. sequences: path to FASTA file containing input sequences
+        2. ref: path to FASTA file containing reference
+        3. index: path to minimap2 index for reference 
+        4. outDir: output file directory
+    '''
+    ## 1. Create output firectory ##
+    unix.mkdir(outDir)
+
+    ## 2. Compute reference length ##
+    fasta_ref = formats.FASTA()             
+    fasta_ref.read(ref)
+    refLen = len(list(fasta_ref.seqDict.values())[0])
+
+    ## 3. Compute haplotypes ##
+    ## Read input sequences
+    inputFasta = formats.FASTA()             
+    inputFasta.read(sequences)
+
+    snp_haplotypes = {}
+    indel_haplotypes = {}
+
+    ## For each input sequence
+    for seqId, seq in inputFasta.seqDict.items():
+        
+        ## 3.1 Create tmp output directory
+        tmpDir = outDir + '/' + seqId
+        unix.mkdir(tmpDir)
+
+        ## 3.2 Create fasta containing target sequence
+        targetFasta = formats.FASTA()             
+        targetFasta.seqDict[seqId] = seq
+        target = tmpDir + '/' + seqId + '.fa'
+        targetFasta.write(target)
+
+        ## 3.3 Map target sequence against consensus
+        BAM = alignment.alignment_minimap2_bam(target, index, seqId, 1, tmpDir)
+
+        ## 3.4 Call SNPs and INDELS
+        calls = tmpDir + '/' + seqId + '.vcf' 
+        command = 'samtools mpileup -f ' + ref + ' -g ' + BAM + ' | bcftools call --ploidy 1 -c - > ' + calls
+        os.system(command) 
+        
+        ## 3.5 Convert SNP calls into vector representation
+        snp_haplotype = snp2haplotype(calls, refLen)
+        snp_haplotypes[seqId] = snp_haplotype
+
+        ## 3.6 Convert INDEL calls into vector representation
+        indel_haplotype = indel2haplotype(calls, refLen)
+        indel_haplotypes[seqId] = indel_haplotype
+
+        ## Cleanup
+        unix.rm([tmpDir])
+
+    ## 4. Generate dataframe containing haplotypes
+    colNames = list(str(i) for i in range(1, refLen + 1))
+    snp_haplotypesDf = pd.DataFrame.from_dict(snp_haplotypes, orient='index', columns=colNames)
+    indel_haplotypesDf = pd.DataFrame.from_dict(indel_haplotypes, orient='index', columns=colNames)
+
+
+    ## 5. Cleanup
     unix.rm([outDir])
 
     return snp_haplotypesDf, indel_haplotypesDf
