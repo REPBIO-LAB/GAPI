@@ -345,7 +345,7 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
     
     # For each window size
     for windowSize in binDb.binSizes:
-        
+
         # For each bin in the current window size
         # It needs to be sorted. Index_bin = beg / windowSize
         for index in sorted(binDb.data[windowSize]):
