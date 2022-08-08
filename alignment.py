@@ -112,6 +112,36 @@ def alignment_minimap2(FASTA, index, fileName, processes, outDir):
 
     return PAF
 
+
+def alignment_minimap2_hifi(FASTA, ref, fileName, processes, outDir):
+    '''
+    Align a set of sequence into a reference with minimap2
+
+    Input:
+        1. FASTA: Path to FASTA file with sequences to align
+        2. ref: Path to the fasta of the reference sequence 
+        3. fileName: output file will be named accordingly
+        4. processes: Number of processes used by minimap2
+        5. outDir: Output directory
+
+    Output:
+        1. PAF: Path to PAF file containing input sequences alignments or 'None' if alignment failed 
+    '''
+    ## Align the sequences into the reference
+    # Note, condider to use -Y to get soft clippings for supplementary alignments
+    PAF = outDir + '/' + fileName + '.paf'
+    err = open(outDir + '/align.err', 'w') 
+    command = 'minimap2 -x map-hifi -t ' + str(processes) + ' ' + ref + ' ' + FASTA + ' > ' + PAF
+    status = subprocess.call(command, stderr=err, shell=True)
+
+    if status != 0:
+        step = 'ALIGN'
+        msg = 'Local alignment failed' 
+        log.step(step, msg)
+
+    return PAF
+
+
 def alignment_minimap2_bam(FASTA, index, fileName, processes, outDir):
     '''
     Align a set of sequence into a reference with minimap2
