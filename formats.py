@@ -626,7 +626,7 @@ class PAF():
 
             ## Skip truncated lines
             if len(fields) < 12:
-                print('[ERROR] Truncated line: ' + len(fields) + ' fields')
+                print('[ERROR] Truncated line: ' + str(len(fields)) + ' fields')
                 continue
 
             line = PAF_alignment(fields)
