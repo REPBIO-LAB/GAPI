@@ -48,7 +48,7 @@ GAPI does not require any further installation step. It is written in Python and
     * numpy
       
 ## Developers
-GAPI was initially developed by Bernardo Rodríguez Martín and Eva García Álvarez, with contributions from Sonia Zumalave, Javier Temes and Martin Santamarina, in the Mobile Genomes Group (https://mobilegenomes.es) at the Center for Research in Molecular Medicine and Chronic Diseases (CiMUS) (2018–2022). Since 2024, it has been maintained and further developed at the Repetitive DNA Biology Lab (https://www.crg.eu/en/content/research/independent-fellow/bernardo-rodriguez-martin) at the Centre for Genomic Regulation (CRG).
+GAPI was initially developed by Bernardo Rodríguez Martín and Eva García Álvarez, with contributions from Sonia Zumalave, Javier Temes and Martin Santamarina, in the Mobile Genomes Group (https://mobilegenomes.es) at the Center for Research in Molecular Medicine and Chronic Diseases (CiMUS) (2018–2022). Since 2024, it has been maintained and further developed at the Repetitive DNA Biology Lab (REPBIO)(https://www.crg.eu/en/content/research/independent-fellow/bernardo-rodriguez-martin) at the Centre for Genomic Regulation (CRG).
 
 ## License
 GAPI is distributed under GPL-3.0 License.
