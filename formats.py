@@ -15,7 +15,6 @@ from GAPI import log
 from GAPI import gRanges
 from GAPI import structures
 
-
 ## FUNCTIONS ##
 def chrom_lengths_index(index):
     '''
@@ -565,7 +564,7 @@ class BED():
             # b) Add to preexisting entry name
             else:
                 groupedEntries[entry.optional['name']].append(entry)
-        
+                        
         return groupedEntries
 
 class BED_entry():
@@ -595,14 +594,12 @@ class BED_entry():
         self.optional = {}
 
         for i in range(3, len(header), 1):
-            self.optional[header[i]] = fields[i]
-        
+            self.optional[header[i]] = fields[i]       
 
 class PAF():
     '''
     Class for dealing with files in PAF format. 
     '''
-
     def __init__(self):
         '''
         Initialize empty class instance
@@ -756,6 +753,13 @@ class PAF_alignment():
         self.blockLen = int(fields[10])
         self.MAPQ = int(fields[11])   
 
+    def alignmentString(self):
+        '''
+        Create string with alignment information: tBeg-tEnd,alignmentLen(based on the query)
+        '''
+        string = str(self.alignmentLen()) + ',' + str(self.tBeg) + '-' + str(self.tEnd)
+        return string
+    
     def alignmentLen(self):
         '''
         Compute the query alignment length
@@ -775,7 +779,6 @@ class PAF_chain():
     '''    
     Chain of complementary PAF alignments  
     '''
-
     def __init__(self, alignments):
         '''
         Initialize chain instance. 
@@ -836,7 +839,6 @@ class VCF():
     '''
     VCF class
     '''
-
     def __init__(self):
         '''
         '''
@@ -893,6 +895,7 @@ class VCF():
 
         source = None
         build = None
+        sampleIds = None
 
         ## Read header line by line
         for line in header:
@@ -956,12 +959,8 @@ class VCF():
 
                 fields = line.split("\t")
 
-                ## a) Not Multisample VCF file
-                if len(fields) <= 8:
-                    sampleIds = None
-
-                ## b) Multisample VCF file
-                else:
+                ## a) Multisample VCF file
+                if len(fields) > 8:
                     sampleIds = [fields[i] for i in range(9, len(fields))]
                 
         ## Create VCF header object
@@ -1125,7 +1124,6 @@ class VCF():
 
         return outFile
 
-
 class VCF_header():
     '''
     VCF header class
@@ -1233,10 +1231,9 @@ class VCF_header():
                 'ID': ID,
                 'Number': self.info[ID][0],
                 'Type': self.info[ID][1],
-                'Description': self.info[ID][2],
+                'Description': self.info[ID][2]
             }
-            
-            template = """##INFO=<ID={ID},Number={Number},Type={Type},Description={Description}>\n"""
+            template = """##INFO=<ID={ID},Number={Number},Type={Type},Description=\"{Description}\">\n"""
             entry = template.format(**data)
             entries.append(entry)
 
@@ -1322,14 +1319,9 @@ class VCF_variant():
                 else:
                     entry = ID + '=' + str(self.info[ID])
 
-                # a) Last element
-                if index == len(IDS)-1:
-                    INFO = INFO + entry 
+                INFO = INFO + entry + ';'
 
-                # b) Not last element:
-                else:
-                    INFO = INFO + entry + ';'
-
+        INFO = INFO[:-1]
         return INFO
 
     def build_genotypes(self, IDS, sampleIds):
@@ -1871,3 +1863,312 @@ class SV_call():
             haplotype = fields[1]           
 
         return SV_type, haplotype
+
+class TRF():
+    '''
+    Class for dealing with Tandem Repeat Finder output files
+    '''
+
+    def __init__(self):
+        '''
+        Initialize empty class instance
+        '''
+        self.callsDict = {}
+
+    def read(self, filePath):
+        '''
+        TRF file reader. Read and store tandem repeat calls a dictionary:
+        '''
+        trfFile = open(filePath)
+
+        # For line in the file
+        for line in trfFile:
+            
+            ## Skip comments and blank lines
+            if line.startswith('#') or not line:
+                continue
+
+            ## Read sequence id
+            if line.startswith('@'):
+                seqId = line[1:-1]
+
+                ## Initialize object
+                if seqId not in self.callsDict:
+                    self.callsDict[seqId] = TRF_calls(seqId)
+            
+                continue
+
+            ## Create tandem repeat object and add to the objects dictionary
+            self.callsDict[seqId].add(line)
+
+    def add_seq_size(self, FASTA):
+        '''
+        Add the size to every analyzed sequence for tandem repeats
+        '''
+        for seqId in FASTA.seqDict:
+
+            seqLen = len(FASTA.seqDict[seqId])
+
+            if seqId in self.callsDict:
+                self.callsDict[seqId].seqLen = seqLen
+
+                for call in self.callsDict[seqId].calls:
+                    call.seqLen = seqLen
+
+
+class TRF_calls():
+    '''
+    TRF calls for a given sequence
+    '''
+
+    def __init__(self, seqId):
+        '''
+        Initialize empty class instance
+        '''
+        self.seqId = seqId
+        self.seqLen = None
+        self.calls = []
+
+    def add(self, line):
+        '''
+        Add tandem repeat call
+        '''
+        ## Create TRF call and add to the list
+        self.calls.append(TRF_call(line)) 
+
+    def sortByLen(self):
+        '''
+        Sort alignments by query alignment length in descending order
+        '''
+        sortedLen = sorted(self.calls, key=lambda x: x.trLen, reverse=True)
+        return sortedLen
+
+    def is_tandem_repeat(self, minPerc, maxDist, maxPercOverlap):
+        '''
+        Assess if the sequence is a tandem repeat or not based on the % explained by TRF calls
+
+        NOTE: Now I will use a very simple criteria for starting that will rely on picking the longest call and discarding the others. Later look into
+        more sophisticated approaches which will search for complementary TR calls
+        '''
+        ## 0. Abort assessment if seqlen not available 
+        if self.seqLen is None:
+            return None, None, None, None
+
+        ## 1. Chain TRF hits
+        chain = self.chain(maxDist, maxPercOverlap)
+
+        ## 2. Percentage sequence resolved based on the call
+        fraction = chain.perc_query_covered()
+
+        ## 3. Make decision
+        if fraction >= minPerc:
+            is_tandem_repeat = True
+
+            ## Collect info
+            # - Number of Motifs
+            # - Motif sequences
+            nbMotifs = len(chain.alignments)
+            motifs = ','.join([hit.motifSeq for hit in chain.alignments])
+
+        else:
+            is_tandem_repeat = False
+            nbMotifs = None
+            motifs = None
+
+
+        return is_tandem_repeat, fraction, nbMotifs, motifs
+
+    def SVA_hexamer(self, seq, strand, maxDist, maxPercOverlap):
+        '''
+        Assess if the sequence is a tandem repeat or not based on the % explained by TRF calls
+
+        NOTE: Now I will use a very simple criteria for starting that will rely on picking the longest call and discarding the others. Later look into
+        more sophisticated approaches which will search for complementary TR calls
+        '''
+        ### 1. Select hexamer hits (CT rich repeats)
+        hits = []
+
+        for hit in self.calls:
+
+            dist2beg = hit.beg
+            dist2end = len(seq) - hit.end
+
+            if (strand == '+') and (dist2beg < 300) and (hit.percC > 50) and (hit.percT > 20) and (len(hit.trSeq) > 10):
+                hits.append(hit)
+            
+            elif (strand == '-') and (dist2end < 300) and (hit.percG > 50) and (hit.percA > 20) and (len(hit.trSeq) > 10):
+                hits.append(hit)
+
+        ### 2. Make hexamer call
+        # a) No hit
+        if not hits:
+            hexamerSeq = None
+            trimmedSeq = seq
+
+        # b) Candidate hits
+        else:
+            ## Replace all hits by only hexamere hits
+            self.calls = hits
+
+            ## Chain hexamer hits
+            chain = self.chain(maxDist, maxPercOverlap)
+            hexBeg, hexEnd = chain.interval()
+            hexamerSeq = seq[hexBeg:hexEnd]
+            trimmedSeq = seq[:hexBeg] + seq[hexEnd:]
+
+        return hexamerSeq, trimmedSeq
+
+    def chain(self, maxDist, maxPercOverlap):
+        '''
+        Chain PAF alignments based on alignment complementariety
+
+        Input:
+            1. maxDist: maximum distance between both ranges 
+            2. maxPercOverlap: maximum percentage of overlap between ranges
+
+        Output:
+            1. chain: PAF_chain object instance
+        '''
+        ## 1. Sort alignments by decreasing query alignment length 
+        sortedAlignments = self.sortByLen()
+
+        ## 2. Pick longest alignment and initiate chain
+        longest = sortedAlignments[0]
+        chain = TRF_chain([longest])
+        
+        # remove alignment 
+        del sortedAlignments[0]
+
+        roundCounter = 1
+
+        ## 3. Attemp to extend the chain with complementary alignments
+        while True:
+
+            # START ALIGNMENT CHAIN EXTENSION ROUND
+            # Initialize boolean as not complementary alignment found
+            complBool = False
+
+            # Go through all the available alignments 
+            for index, alignment in enumerate(sortedAlignments):
+
+                ## Assess if alignment complementary to the chain
+                chainBeg, chainEnd = chain.interval()
+                complBool, orientation = gRanges.complementary(chainBeg, chainEnd, alignment.beg, alignment.end, maxDist, maxPercOverlap)
+
+                ## Complementary alignment found 
+                if complBool:
+
+                    ## Add alignment to the chain 
+                    # a) Add to the chain begin
+                    if orientation == "LEFT":
+                        chain.alignments.insert(0,alignment)
+
+                    # b) Add to the chain end
+                    else:
+                        chain.alignments.append(alignment)
+
+                    ## Remove from list
+                    del sortedAlignments[index]
+
+                    ## Stop once complementary found
+                    break
+
+            roundCounter += 1
+
+            # STOP CHAIN EXTENSION IF: 
+            # a) No complementary alignment found in the last round OR
+            # b) Mo alignments left
+            if complBool == False or not sortedAlignments:
+                break
+
+        return chain
+
+class TRF_chain():
+    '''    
+    Chain of complementary PAF alignments  
+    '''
+    def __init__(self, alignments):
+        '''
+        Initialize chain instance. 
+        
+        Input:
+            1. alignments. List of PAF_alignment instances
+        '''
+        self.alignments = alignments
+
+    def interval(self):
+        '''
+        Return query interval covered by the chain
+        '''
+        firstAlignment = self.alignments[0]
+        lastAlignment = self.alignments[-1]
+        
+        return firstAlignment.beg, lastAlignment.end
+
+    def perc_query_covered(self):
+        '''
+        Compute the percentage of the query sequence covered by the chain of alignments
+        '''
+        # a) No alignments available
+        if len(self.alignments) == 0:
+            percCovered = 0
+
+        # b) Alignments available
+        else:
+
+            ## Compute the number of bases covered
+            beg, end = self.interval()
+            alignmentLen = end - beg
+
+            ## Compute the percentage of bases covered
+            percCovered = float(alignmentLen)/self.alignments[0].seqLen*100
+
+        return percCovered
+
+class TRF_call():
+    '''
+    TRF call for a given sequence
+    '''
+    def __init__(self, line):
+        '''
+        Initialize empty class instance
+        '''
+        # Split data line into fields
+        fields = line.split()        
+
+        # Create attributes
+        self.beg = int(fields[0]) - 1
+        self.end = int(fields[1]) - 1
+        self.repeat_size = float(fields[2])
+        self.nb_copies = float(fields[3])
+        self.motif_size = float(fields[4])
+        self.percNatches = float(fields[5])
+        self.percIndels = float(fields[6])
+        self.alignmentScore = float(fields[7])
+        self.percA = float(fields[8])
+        self.percC = float(fields[9])
+        self.percG = float(fields[10])
+        self.percT = float(fields[11])
+        self.entropy = float(fields[12])
+        self.motifSeq = str(fields[13])
+        self.trSeq = str(fields[14])
+        self.noTr5 = str(fields[15])
+        self.noTr3 = str(fields[16])
+
+        ## Not available by default
+        self.trLen = self.end - self.beg
+        self.seqLen = None
+
+    def fraction_input_seq(self):
+        '''
+        Compute the fraction of the input sequence corresponding to the tandem repeat call
+        '''
+        # A) Compute fraction
+        if self.seqLen is not None:
+            trFraction = self.trLen / self.seqLen * 100
+
+        # B) Not compute as length not available
+        else:
+            trFraction = None
+
+        return trFraction

@@ -1366,9 +1366,9 @@ class cluster():
         
         # Define cluster coordinates 
         ref = self.events[0].ref
-        beg = self.events[0].beg
+        beg = min([event.beg for event in self.events])
         end = max([event.end for event in self.events])
-        
+            
         return ref, beg, end
 
     def add(self, events2add):
@@ -2434,7 +2434,7 @@ class META_cluster():
 
         # Define cluster coordinates 
         ref = self.events[0].ref
-        beg = self.events[0].beg
+        beg = min([event.beg for event in self.events])
         end = max([event.end for event in self.events])
         
         return ref, beg, end

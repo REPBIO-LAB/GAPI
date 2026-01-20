@@ -178,6 +178,79 @@ def infer_strand(insType, sequence, chain):
     return strand, polyA
     
 
+def infer_strand_polyA_simple(sequence):
+    '''
+    Infer insertion strand based on two criteria:
+        1) Location of polyA/T tail at sequence ends
+
+    Input: 
+        1. sequence: consensus inserted sequence
+
+    Output:
+        1. strand: Insertion strand (+, - or None) 
+        2. polyA: boolean specifying if polyA/T sequence was found
+    '''
+    ### Set up configuration parameters
+    windowSize = 8
+    maxWindowDist = 2
+    minMonomerSize = 10
+    minPurity = 80 
+
+    maxDist2Ends = 10 
+    minInternalMonomerSize = 20
+
+    ## 1. Search for polyA at the insert 3' end ##
+    # 1.1 Extract unaligned 3' end of the inserted sequence
+    targetSeq = sequence
+
+    # 1.2 Search for poly(A) monomers on the 3' end 
+    targetMonomer = 'A'
+    monomers3end = sequences.find_monomers(targetSeq, targetMonomer, windowSize, maxWindowDist, minMonomerSize, minPurity)
+
+    # 1.3 Filter internal monomers
+    monomers3end = sequences.filter_internal_monomers(monomers3end, targetSeq, maxDist2Ends, minInternalMonomerSize)
+
+    ## 2. Search for polyT at the insert 5' end ##
+    # 2.1 Extract unaligned 5' end of the inserted sequence
+    targetSeq = sequence
+
+    # 2.2 Search for poly(T) monomers on the 5' end 
+    targetMonomer = 'T'
+    monomers5end = sequences.find_monomers(targetSeq, targetMonomer, windowSize, maxWindowDist, minMonomerSize, minPurity)
+
+    # 2.3 Filter internal monomers
+    monomers5end = sequences.filter_internal_monomers(monomers5end, targetSeq, maxDist2Ends, minInternalMonomerSize)
+
+    ## 3. Determine strand ##
+    # 3.1 Compute 3' monomers accumulative length
+    monomers3endLengths = [monomer.length() for monomer in monomers3end]
+    accumulative3prime = sum(monomers3endLengths)
+     
+    # 3.2 Compute 5' monomers accumulative length
+    monomers5endLengths = [monomer.length() for monomer in monomers5end]
+    accumulative5prime = sum(monomers5endLengths)
+
+    # 3.3 Determine if polyA/T at 5' or 3' end (indicative of strand orientation) 
+    # a) Unknown strand if:
+    # - No monomer found in any end OR
+    # - Ambiguity as 3' and 5' monomers with equal size
+    if ((accumulative3prime == 0) and (accumulative5prime == 0)) or (accumulative3prime == accumulative5prime) :
+        strand = None
+        polyA = False
+
+    # b) Positive strand
+    elif accumulative3prime > accumulative5prime:
+        strand = '+'
+        polyA = True
+
+    # c) Negative strand
+    else:
+        strand = '-'
+        polyA = True
+
+    return strand, polyA
+
+
 def infer_strand_polyA(sequence, chain):
     '''
     Infer insertion strand based on two criteria:
@@ -639,7 +712,7 @@ def trim_polyA(sequence):
     monomersA = sequences.find_monomers(sequence, targetMonomer, windowSize, maxWindowDist, minMonomerSize, minPurity)
 
     if not monomersA:
-        return sequence
+        return sequence, 'None', 'None'
         
     ## Select monomer closest to sequence end
     candidate = monomersA[-1]
@@ -650,11 +723,15 @@ def trim_polyA(sequence):
 
     if dist2end <= 10:
         sequence = sequence[:candidate.beg]
+        polyA = candidate.seq
+        polyAlen = len(polyA)
 
     else:
         sequence = sequence
+        polyA = 'None'
+        polyAlen = 'None'
 
-    return sequence
+    return sequence, polyAlen, polyA
 
 
 def trim_polyT(sequence):
@@ -672,7 +749,7 @@ def trim_polyT(sequence):
     monomersT = sequences.find_monomers(sequence, targetMonomer, windowSize, maxWindowDist, minMonomerSize, minPurity)
 
     if not monomersT:
-        return sequence
+        return sequence, 'None', 'None'
         
     ## Select monomer closest to sequence begin
     candidate = monomersT[0]
@@ -680,11 +757,15 @@ def trim_polyT(sequence):
     ## Filter out monomer if more than Xbp from begin
     if candidate.beg <= 10:
         sequence = sequence[candidate.end:]
+        polyT = candidate.seq
+        polyTlen = len(polyT)
 
     else:
         sequence = sequence
+        polyT = 'None'
+        polyTlen = 'None'
 
-    return sequence
+    return sequence, polyTlen, polyT
 
 
 def has_polyA_illumina(targetSeq):
@@ -1053,4 +1134,36 @@ def metaclusters_MEI_type(metaclusters):
             if src_ids: metacluster.src_id = '_'.join(list(set(src_ids)))
             if src_ends: metacluster.src_end = '_'.join(list(set(src_ends)))
             if metacluster.src_id: metacluster.src_type = 'GERMLINE'
+
+def polyA_len(sequence):
+    '''
+    Compute poly(A) length
+    '''
+    ## Configuration for monomere search:
+    windowSize = 8
+    maxWindowDist = 2
+    minMonomerSize = 10
+    minPurity = 80
+
+    ## Seach poly(A) monomers
+    targetMonomer = 'A'
+    monomersA = sequences.find_monomers(sequence, targetMonomer, windowSize, maxWindowDist, minMonomerSize, minPurity)
+
+    if not monomersA:
+        return 0
+
+    ## Select monomer closest to sequence end
+    candidate = monomersA[-1]
+
+    ## Filter out monomer if more than Xbp from end
+    seqLen = len(sequence)
+    dist2end = seqLen - candidate.end
+
+    if dist2end <= 30:
+        polyAlen = candidate.end - candidate.beg
+
+    else:
+        polyAlen = 0
+
+    return polyAlen
             

@@ -83,7 +83,6 @@ def minimap2_presets(technology):
 
     return preset
 
-
 def alignment_minimap2(FASTA, index, fileName, processes, outDir):
     '''
     Align a set of sequence into a reference with minimap2
@@ -111,7 +110,6 @@ def alignment_minimap2(FASTA, index, fileName, processes, outDir):
         log.step(step, msg)
 
     return PAF
-
 
 def alignment_minimap2_hifi(FASTA, ref, fileName, processes, outDir):
     '''
@@ -202,8 +200,34 @@ def alignment_minimap2_spliced(FASTA, index, fileName, processes, outDir):
 
     return SAM
 
-
 def alignment_bwa(FASTA, reference, fileName, processes, outDir):
+    '''
+    Align a set of sequence into a reference with bwa mem
+
+    Input:
+        1. FASTA: Path to FASTA file with sequences to align
+        2. reference: Path to the reference genome in fasta format (bwa mem index must be located in the same folder)
+        3. fileName: output file will be named accordingly
+        4. processes: Number of processes used by bwa mem(
+        5. outDir: Output directory
+
+    Output:
+        1. SAM: Path to SAM file containing input sequences alignments or 'None' if alignment failed 
+    '''
+    ## Align the sequences into the reference
+    SAM = outDir + '/' + fileName + '.sam'
+    err = open(outDir + '/align.err', 'w') 
+    command = 'bwa mem -k 8 -T 0 -Y -t ' + str(processes) + ' ' + reference + ' ' + FASTA + ' > ' + SAM
+    status = subprocess.call(command, stderr=err, shell=True)
+
+    if status != 0:
+        step = 'ALIGN'
+        msg = 'Alignment failed' 
+        log.step(step, msg)
+
+    return SAM
+
+def alignment_bwa_2(FASTA, reference, fileName, processes, outDir):
     '''
     Align a set of sequence into a reference with bwa mem
 
@@ -353,7 +377,6 @@ def targeted_alignment_minimap2(FASTA, targetInterval, reference, outDir, outFor
 
     return BAM    
 
-
 def targetered2genomic_coord(event, ref, offset):
     '''
     Convert event coordinates resulting from the realignment of a sequence into a target region into genomic coordinates
@@ -396,7 +419,6 @@ def targetered2genomic_coord(event, ref, offset):
             event.supplAlignment = supplAlignments
 
     return event
-
 
 def organize_hits_paf(PAF_path):
     '''

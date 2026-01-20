@@ -25,8 +25,7 @@ def create_bin_database(refLengths, eventsDict):
 
                 * SECOND LEVEL KEYS:
                     - EVENT_TYPE_1 -> list of objects
-                    - ...
-        
+                    - ...        
     Output:
         1. wgBinDb: dictionary containing references as keys and the corresponding 'bin_database' as value
     '''    
@@ -41,8 +40,10 @@ def create_bin_database(refLengths, eventsDict):
             continue
 
         # Define bin sizes
-        binSizes = [100, 1000, 10000, 100000, refLen]
-
+        #binSizes = [100, 1000, 10000, 100000, int(refLen)]
+        #binSizes = [1000000, 10000000, int(refLen)]
+        binSizes = [10000, 100000, 1000000, int(refLen)]
+        
         # Create bin database for reference
         binDb = create_bin_database_interval(ref, 0, refLen, eventsDict[ref], binSizes)      
 
@@ -89,7 +90,7 @@ def create_bin_database_parallel(refLengths, eventsDict, threads):
         # Add to the list of tuples
         fields = (ref, 0, refLen, eventsDict[ref], binSizes)
         tupleList.append(fields)
-        
+    
     ## 2. Create bin database per chromosome
     pool = mp.Pool(processes=threads)
     databases = pool.starmap(create_bin_database_interval, tupleList)
@@ -362,7 +363,7 @@ class bin_database():
                 events.append([event, overlapLen, overlapPerc, coord])
         
         return events
-      
+    
     def traverse(self, rootIndex, rootSize, eventTypes):
         '''
         Traverse bin structure starting in a root bin and going through all the bins located at upper levels

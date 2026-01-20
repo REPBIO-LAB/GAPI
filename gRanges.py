@@ -87,7 +87,7 @@ def overlap(begA, endA, begB, endB):
         overlapLen = 0
 
     return boolean, overlapLen
-        
+
 def overlap_extended(begA, endA, begB, endB):
     '''
     Check if two ranges overlap. Report also the overlapping coordinates for each range
