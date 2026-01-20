@@ -4,8 +4,9 @@ GAPI is a set of python modules containing classes and functions for a wide rang
  
 GAPI has been used for as the core library for the implementation of SVAN and MEIGA, two computational pipelines for the annotation and detection of structural variants and Mobile Element Insertions:
 
-SVAN - Schloissnig et al., “Structural variation in 1,019 diverse humans based on long-read sequencing”, Nature, July 23, 2025, https://doi.org/10.1038/s41586-025-09290-7
-MEIGA - Zumalave et al., “Synchronous L1 retrotransposition events promote chromosomal crossover early in human tumorigenesis”, bioRxiv, August 27, 2024, https://doi.org/10.1101/2024.08.27.596794
+SVAN - Schloissnig et al., “Structural variation in 1,019 diverse humans based on long-read sequencing”, Nature, July 23, 2025, https://doi.org/10.1038/s41586-025-09290-7.
+
+MEIGA - Zumalave et al., “Synchronous L1 retrotransposition events promote chromosomal crossover early in human tumorigenesis”, bioRxiv, August 27, 2024, https://doi.org/10.1101/2024.08.27.596794.
 
 ## Download 
 Two different ways:
