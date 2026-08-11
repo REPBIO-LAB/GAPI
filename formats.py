@@ -851,7 +851,10 @@ class VCF():
         '''
         Read VCF file
         '''
-        vcfFile = open(filePath)
+        if str(filePath).endswith('.gz'):
+            vcfFile = gzip.open(filePath, 'rt')
+        else:
+            vcfFile = open(filePath)
 
         ## 1. Read VCF and differenciate between header and variant entries
         header = []
