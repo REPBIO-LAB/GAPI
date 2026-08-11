@@ -9,6 +9,7 @@ import sys
 import time
 import re
 import multiprocessing as mp
+import gzip
 
 # Internal
 from GAPI import log
