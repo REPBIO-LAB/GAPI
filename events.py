@@ -595,6 +595,7 @@ class CLIPPING():
         self.pair = str(pair)
         self.readName = readName
         self.readSeq = readSeq
+        self.readQual = alignmentObj.query_qualities
         self.readBkp = readBkp        
         self.sample = sample
         self.clusterId = None
@@ -701,15 +702,41 @@ class CLIPPING():
         Retrieve clipped piece of read sequence
         '''
         ## SONIA: It is troublesome when self.clippingType == 'hard'!
+
+        ## Jingyu: not sure if this is the right way to handle it, 
+        ## but I think we should return None if the clipping is hard or if the readSeq is None
+        if self.clippingType != "soft" or self.readSeq is None:
+            return None
+        
         # a) Right clipping
         if self.clippedSide == 'right':
             clippedSeq = self.readSeq[self.readBkp:]
 
         # b) Left clipping
-        else:
+        elif self.clippedSide == "left":
             clippedSeq = self.readSeq[:self.readBkp]
+        else:
+            raise ValueError("Invalid clipped side: {}".format(self.clippedSide))
         
         return clippedSeq
+
+    def clipped_qual(self):
+        '''
+        Retrieve the quality scores of the clipped piece of read sequence
+        '''
+        if self.clippingType != "soft" or self.readQual is None:
+            return None
+        
+        # a) Right clipping
+        if self.clippedSide == 'right':
+            clippedQual = self.readQual[self.readBkp:]
+
+        # b) Left clipping
+        elif self.clippedSide == "left":
+            clippedQual = self.readQual[:self.readBkp]
+        else:
+            raise ValueError("Invalid clipped side: {}".format(self.clippedSide))
+        return clippedQual
 
     def ref_seq(self):
         '''
