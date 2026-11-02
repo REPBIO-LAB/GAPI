@@ -34,26 +34,6 @@ def get_refs(bam):
     refs  = ','.join(bamFile.references)
     return refs
 
-def open_alignment_file(input_path, reference_fasta=None):
-    """
-    Open a CRAM or BAM file for reading.
-
-    Parameters:
-    input_path (str): Path to the input CRAM or BAM file.
-    reference_fasta (str, optional): Path to the reference FASTA file (required for CRAM files).
-
-    Returns:
-    pysam.AlignmentFile: An AlignmentFile object for reading the input file.
-    """
-    if input_path.lower().endswith('.cram'):
-        if reference_fasta is None:
-            raise ValueError("Reference FASTA file must be provided for CRAM files.")
-        return pysam.AlignmentFile(input_path, 'rc', reference_filename=reference_fasta)
-    elif input_path.lower().endswith('.bam'):
-        return pysam.AlignmentFile(input_path, 'rb')
-    else:
-        raise ValueError("Unsupported file format. Please provide a .cram or .bam file.")
-
 
 def get_ref_lengths(bam):
     '''
@@ -478,7 +458,7 @@ def collectSV_paired(ref, binBeg, binEnd, tumourBam, normalBam, confDict):
     return eventsDict
 
 
-def collectSV(ref, binBeg, binEnd, bam, confDict, sample, supplementary = True, reference_fasta = None):
+def collectSV(ref, binBeg, binEnd, bam, confDict, sample, supplementary = True):
     '''
     Collect structural variant (SV) events in a genomic bin from a bam file
 
@@ -525,7 +505,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample, supplementary = True, 
         eventsDict['DISCORDANT'] = []
 
     ## Open BAM file for reading
-    bamFile = open_alignment_file(bam, reference_fasta)
+    bamFile = pysam.AlignmentFile(bam, "rb")
 
     ## Extract alignments
     iterator = bamFile.fetch(ref, binBeg, binEnd)

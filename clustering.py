@@ -86,7 +86,7 @@ def distance_clustering(binDb, binSize, eventTypes, clusterType, maxDist, minClu
         1. clustersList: list of created clusters
     '''    
     clustersList = []
-    binsInClusters = set()
+    binsInClusters = []
 
     ## Make list with all the available bins
     binIds = list(binDb.data[binSize].keys())
@@ -108,7 +108,7 @@ def distance_clustering(binDb, binSize, eventTypes, clusterType, maxDist, minClu
 
         ### 2. Initiate root cluster ##
         cluster = clusters.create_cluster(events, clusterType)
-        binsInClusters.add(binIndex) # now bin incorporated into cluster
+        binsInClusters.append(binIndex) # now bin incorporated into cluster
 
         ### 3. Root cluster extension
         ## Go forward from current bin (*).  
@@ -137,7 +137,7 @@ def distance_clustering(binDb, binSize, eventTypes, clusterType, maxDist, minClu
 
                     # Add events within bin to the cluster 
                     cluster.add(events)
-                    binsInClusters.add(forwardIndex) # now bin incorporated into cluster
+                    binsInClusters.append(forwardIndex) # now bin incorporated into cluster
                     forwardIndex += 1        
 
                 # b) Event outside -> Stop extension
@@ -337,7 +337,7 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
     Output:
         1. clustersList: list of created clusters/metaclusters
     '''    
-    eventsInClusters = set()
+    eventsInClusters = []
     clustersDict = {}
 
     # print('binDb')
@@ -457,7 +457,7 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
                     else:
                         events2Cluster = [eventA] + eventsOverlapA 
                         
-                    eventsInClusters.update(event.id for event in events2Cluster)
+                    eventsInClusters += [event.id for event in events2Cluster]
 
                     ## Add events to the merged cluster
                     mergedCluster.add(events2Cluster)
@@ -484,7 +484,7 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
                     if len(events2Cluster) >= minClusterSize:
 
                         # Add events to the list of events already included into clusters
-                        eventsInClusters.update(event.id for event in events2Cluster)
+                        eventsInClusters += [ event.id for event in events2Cluster]
 
                         # Create cluster                        
                         cluster = clusters.create_cluster(events2Cluster, clusterType)

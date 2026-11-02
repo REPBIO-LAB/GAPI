@@ -272,7 +272,7 @@ class bin_database():
                     if eventType in self.data[binSize][binIndex]:
 
                         # Add events to the list
-                        events.extend(self.data[binSize][binIndex][eventType].events)
+                        events = events + self.data[binSize][binIndex][eventType].events
 
         ## Sort events by begin coordinate
         events.sort(key=lambda event: event.beg)
@@ -304,7 +304,7 @@ class bin_database():
                 if eventType in self.data[binSize][binIndex]:
 
                     # Add events to the list
-                    events.extend(self.data[binSize][binIndex][eventType].events)
+                    events = events + self.data[binSize][binIndex][eventType].events
 
         ## Sort events by begin coordinate
         events.sort(key=lambda event: event.beg)
