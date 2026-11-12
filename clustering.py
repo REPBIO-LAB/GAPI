@@ -448,30 +448,29 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
                     ## Make list of clusters overlapping A
                     clusters2merge = [clustersDict[clusterId] for clusterId in clustersOverlapA]
 
-                    ## Create merged cluster                    
-                    mergedCluster = clusters.merge_clusters(clusters2merge, clusterType)
-
                     ## Add events to the list of events already included into clusters
                     if eventA.id in eventsInClusters:
                         events2Cluster = eventsOverlapA
                     else:
                         events2Cluster = [eventA] + eventsOverlapA 
+
+                    ## Create merged cluster                    
+                    if clusterType == 'META' and len(clusters2merge) == 1:
+                        mergedCluster = clusters2merge[0]
+                    else:
+                        mergedCluster = clusters.merge_clusters(clusters2merge, clusterType)
+
+                    if events2Cluster:
+                        ## Add events to the merged cluster
+                        mergedCluster.add(events2Cluster)
+                        eventsInClusters.update(event.id for event in events2Cluster)
                         
-                    eventsInClusters.update(event.id for event in events2Cluster)
+                    # Remove replaced objects, but retain a reused object.
+                    for old_cluster in clusters2merge:
+                        if old_cluster.id != mergedCluster.id:
+                            clustersDict.pop(old_cluster.id, None)
 
-                    ## Add events to the merged cluster
-                    mergedCluster.add(events2Cluster)
-
-                    ## Add merged cluster to the clusters dictionary
                     clustersDict[mergedCluster.id] = mergedCluster
-
-                    # print('clustersDict')
-                    # print(clustersDict)
-                    # print(mergedCluster.id)
-                    
-                    ## Remove clusters that were merged from the clusters dictionary 
-                    for cluster in clusters2merge:
-                        clustersDict.pop(cluster.id, None)
 
                 # C) No cluster overlaps A
                 else:

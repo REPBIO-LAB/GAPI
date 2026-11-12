@@ -2499,6 +2499,9 @@ class META_cluster():
             1. clusters2add: List of clusters to be added 
         '''
         ## 0. Update metacluster's id attribute
+        if not clusters2add:
+            return
+        
         for cluster in clusters2add:
             cluster.clusterId = self.id
 
