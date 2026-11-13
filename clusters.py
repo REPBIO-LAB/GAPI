@@ -356,6 +356,15 @@ def create_clusters(eventsBinDb, confDict):
 
     ## 2. Organize clusters into bins ##    
     binSizes = [100, 1000, 10000, 100000, 1000000]
+
+    # Add a containing level, preserving the nested bin structure.
+    largest_bin = binSizes[-1]
+    region_end = int(eventsBinDb.end)
+    top_size = (region_end // largest_bin + 1) * largest_bin
+    binSizes.append(top_size)
+
+    log.warning("added a large bin of size %d" % top_size)
+
     clustersBinDb = structures.create_bin_database_interval(eventsBinDb.ref, eventsBinDb.beg, eventsBinDb.end, clustersDict, binSizes)
 
     return clustersBinDb

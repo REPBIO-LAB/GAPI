@@ -202,7 +202,9 @@ class bin_database():
                 ## B) Event spans several bins. Try with the next bin size 
                 else:
                     continue
-
+            else:
+                log.warning("Event with coordinates %s-%s does not fit in any bin size" % (event.beg, event.end))
+                
         ## 3. For each bin sort the events in increasing coordinates order
         for binSize in self.data.keys():
             for binIndex in self.data[binSize].keys():
