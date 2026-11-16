@@ -632,6 +632,8 @@ class CLIPPING():
             self.refLen = alignmentObj.reference_length
             self.isDup = alignmentObj.is_duplicate
 
+        self._annotate_polyA()
+        
     def fullReadName(self):
         '''
         Return the supporting read name including mate info
@@ -737,6 +739,15 @@ class CLIPPING():
         else:
             raise ValueError("Invalid clipped side: {}".format(self.clippedSide))
         return clippedQual
+
+    def mean_clip_quality(self):
+        """Return the mean clipped-base quality, or None if unavailable."""
+        qualities = self.clipped_qual()
+
+        if qualities is None or len(qualities) == 0:
+            return None
+
+        return sum(qualities) / len(qualities)
 
     def ref_seq(self):
         '''
@@ -957,6 +968,117 @@ class CLIPPING():
             complementaryAlignments.append(complementary)
                 
         return complementaryAlignments
+
+    def _annotate_polyA(self):
+        """
+        Annotate the CLIPPING object to see if it contains a polyA sequence.
+        
+        For clip size >= 10, we look for a polyA sequence of at least 10 bases with at least 90% purity. 
+        For clip size between 5 and 9, we require the entire clip to be pure A or T.
+
+        Output:
+            None (modifies the object in place)
+        """
+
+        side = self.clippedSide
+    
+        # Initialize every field, including for unavailable/hard-clipped events.
+        self.is_polyA = False
+        self.polyA_checked = False
+        self.polyA_type = None
+        self.polyA_base = {'left': 'A', 'right': 'T'}.get(side)
+        self.polyA_length = 0
+        self.polyA_purity = None
+        self.polyA_distance = None
+        self.polyA_beg = None
+        self.polyA_end = None
+    
+        if side not in ('left', 'right'):
+            return
+    
+        # Hard-clipped bases are absent from BAM SEQ.
+        if self.clippingType != 'soft' or self.readSeq is None:
+            return
+    
+        seq = self.clipped_seq()
+        if not seq or len(seq) != self.length:
+            return
+    
+        seq = seq.upper()
+        n = len(seq)
+        base = self.polyA_base
+    
+        self.polyA_checked = True
+        self.polyA_type = (
+            'long' if n >= 10 else
+            'short' if n >= 5 else
+            'too_short'
+        )
+    
+        # Clips shorter than 5 bp do not qualify.
+        if n < 5:
+            return
+    
+        # Short channel: the entire 5–9 bp clip must be pure A or T.
+        if n < 10:
+            if seq != base * n:
+                return
+    
+            beg, end = 0, n
+            count = n
+            distance = 0
+    
+        # Long channel: tract >=10 bp, purity >=90%, distance <=10 bp.
+        else:
+            # Orient the search from the breakpoint towards the read end.
+            # Reverse left clips only; do NOT complement their bases.
+            oriented = seq[::-1] if side == 'left' else seq
+    
+            prefix = [0]
+            for nucleotide in oriented:
+                prefix.append(prefix[-1] + (nucleotide == base))
+    
+            best = None
+    
+            for start in range(min(10, n - 10) + 1):
+                if oriented[start] != base:
+                    continue
+                
+                for stop in range(start + 10, n + 1):
+                    # Keep boundaries on target bases, avoiding mismatch padding.
+                    if oriented[stop - 1] != base:
+                        continue
+                    
+                    length = stop - start
+                    matches = prefix[stop] - prefix[start]
+    
+                    # Integer comparison avoids threshold rounding errors.
+                    if matches * 100 < length * 90:
+                        continue
+                    
+                    key = (length, matches / length, -start)
+    
+                    if best is None or key > best[0]:
+                        best = (key, start, stop, matches)
+    
+            if best is None:
+                return
+    
+            _, start, stop, count = best
+            distance = start
+    
+            # Restore coordinates within the original clipped sequence.
+            if side == 'left':
+                beg, end = n - stop, n - start
+            else:
+                beg, end = start, stop
+    
+        self.is_polyA = True
+        self.polyA_length = end - beg
+        self.polyA_purity = 100.0 * count / (end - beg)
+        self.polyA_distance = distance
+        self.polyA_beg = beg
+        self.polyA_end = end
 
 class SUPPLEMENTARY():
     '''

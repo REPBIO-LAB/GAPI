@@ -363,7 +363,7 @@ def create_clusters(eventsBinDb, confDict):
     top_size = (region_end // largest_bin + 1) * largest_bin
     binSizes.append(top_size)
 
-    log.warning("added a large bin of size %d" % top_size)
+    print("Warning: added a large bin of size %d" % top_size)
 
     clustersBinDb = structures.create_bin_database_interval(eventsBinDb.ref, eventsBinDb.beg, eventsBinDb.end, clustersDict, binSizes)
 
