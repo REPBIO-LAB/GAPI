@@ -633,6 +633,10 @@ class CLIPPING():
             self.isDup = alignmentObj.is_duplicate
 
         self._annotate_polyA()
+        self.kmer_status = "not_run"
+        self.kmer_taxid = None
+        self.kmer_name = None
+        self.kmer_class = None
         
     def fullReadName(self):
         '''
