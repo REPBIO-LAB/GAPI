@@ -356,6 +356,15 @@ def create_clusters(eventsBinDb, confDict):
 
     ## 2. Organize clusters into bins ##    
     binSizes = [100, 1000, 10000, 100000, 1000000]
+
+    # Add a containing level, preserving the nested bin structure.
+    largest_bin = binSizes[-1]
+    region_end = int(eventsBinDb.end)
+    top_size = (region_end // largest_bin + 1) * largest_bin
+    binSizes.append(top_size)
+
+    print("Warning: added a large bin of size %d" % top_size)
+
     clustersBinDb = structures.create_bin_database_interval(eventsBinDb.ref, eventsBinDb.beg, eventsBinDb.end, clustersDict, binSizes)
 
     return clustersBinDb
@@ -399,18 +408,19 @@ def polish_clusters(clustersBinDb, minClusterSize):
     ## 3. Polish CLIPPING clusters (TO DO)
 
 
-def create_metaclusters(clustersBinDb, buffer = 200):
+def create_metaclusters(clustersBinDb, buffer = 200, directional_clipping_buffer=False):
     '''    
     Group SV cluster events into metaclusters
 
     Input:
         1. clustersBinDb: Data structure containing a set of clusters organized in genomic bins
         2. buffer: buffer to extend cluster coordinates
+        3. directional_clipping_buffer: flag to indicate whether to use directional padding
 
     Output:
         1. metaclusters: list containing newly created metaclusters
     '''
-    metaclusters = clustering.reciprocal_overlap_clustering(clustersBinDb, 1, 1, clustersBinDb.eventTypes, buffer, 'META')
+    metaclusters = clustering.reciprocal_overlap_clustering(clustersBinDb, 1, 1, clustersBinDb.eventTypes, buffer, 'META', directional_clipping_buffer)
 
     return metaclusters
 
@@ -2499,6 +2509,9 @@ class META_cluster():
             1. clusters2add: List of clusters to be added 
         '''
         ## 0. Update metacluster's id attribute
+        if not clusters2add:
+            return
+        
         for cluster in clusters2add:
             cluster.clusterId = self.id
 

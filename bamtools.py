@@ -492,6 +492,7 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample, supplementary = True, 
             * minMAPQ        -> minimum mapping quality
             * minCLIPPINGlen -> minimum clipping lenght
             * minINDELlen    -> minimum INS and DEL lenght
+            * minMeanClipQual -> minimum mean clipping quality
             * overhang       -> Number of flanking base pairs around the INDEL events to be collected from the supporting read. If 'None' the complete read sequence will be collected)
         6. sample: type of sample (TUMOUR, NORMAL or None)
 
@@ -505,6 +506,11 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample, supplementary = True, 
     
     NOTE: * include secondary alignment filter???
     '''
+    min_mean_clip_qual = confDict.get("minMeanClipQual")
+
+    if (min_mean_clip_qual is not None and not 0 <= min_mean_clip_qual <= 93):
+        raise ValueError("minMeanClipQual must be between 0 and 93, or None")
+    
     # Define target interval
     targetInterval = (binBeg, binEnd)
 
@@ -575,20 +581,31 @@ def collectSV(ref, binBeg, binEnd, bam, confDict, sample, supplementary = True, 
                 if ((firstOperation == 4) or (firstOperation == 5)) and ((lastOperation == 4) or (lastOperation == 5)):
                     continue
             
-        ## 2. Collect CLIPPINGS
-        if 'CLIPPING' in confDict['targetEvents']:
+        ## 2. Collect CLIPPINGS
+        if "CLIPPING" in confDict["targetEvents"]:
+            left_CLIPPING, right_CLIPPING = collectCLIPPING(
+                alignmentObj,
+                confDict["minCLIPPINGlen"],
+                targetInterval,
+                sample,
+            )
 
-            left_CLIPPING, right_CLIPPING = collectCLIPPING(alignmentObj, confDict['minCLIPPINGlen'], targetInterval, sample)
+            for event_type, clip in (
+                ("LEFT-CLIPPING", left_CLIPPING),
+                ("RIGHT-CLIPPING", right_CLIPPING),
+            ):
+                if clip is None:
+                    continue
 
-            # Left CLIPPING found
-            if left_CLIPPING != None:
-                eventsDict['LEFT-CLIPPING'].append(left_CLIPPING)
-        
-            # Right CLIPPING found
-            if right_CLIPPING != None:
+                if min_mean_clip_qual is not None:
+                    mean_quality = clip.mean_clip_quality()
                     
-                eventsDict['RIGHT-CLIPPING'].append(right_CLIPPING)
-                    
+                    if (mean_quality is None or mean_quality < min_mean_clip_qual
+                    ):
+                        continue
+
+                eventsDict[event_type].append(clip)
+
         ## 3. Collect INDELS
         if ('INS' in confDict['targetEvents']) or ('DEL' in confDict['targetEvents']):
 

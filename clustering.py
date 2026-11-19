@@ -321,8 +321,20 @@ def distance_clustering(binDb, binSize, eventTypes, clusterType, maxDist, minClu
     
 #     return clustersList
 
+def _buffered_interval(obj, buffer):
+    """Return the buffered interval for an input cluster."""
+    if getattr(obj, 'clusterType', None) == 'CLIPPING':
+        # Use a one-sided buffer only when all members agree on the side.
+        sides = {getattr(event, 'clippedSide', None) for event in obj.events}
+        if sides == {'left'}:
+            return obj.beg - buffer, obj.end
+        if sides == {'right'}:
+            return obj.beg, obj.end + buffer
 
-def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTypes, buffer, clusterType):
+    # Use symmetric padding for non-clipping clusters or ambiguous sides.
+    return obj.beg - buffer, obj.end + buffer
+
+def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTypes, buffer, clusterType, directional_clipping_buffer=False):
     '''
     Group events/clusters based on reciprocal overlap into clusters/metaclusters
 
@@ -337,6 +349,19 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
     Output:
         1. clustersList: list of created clusters/metaclusters
     '''    
+    # Apply directional padding only during metaclustering.
+    use_directional_buffer = directional_clipping_buffer and clusterType == 'META'
+    input_intervals = {}
+
+    def input_interval(obj):
+        if not use_directional_buffer:
+            return obj.beg - buffer, obj.end + buffer
+
+        # Cache input cluster intervals for this clustering run.
+        if obj.id not in input_intervals:
+            input_intervals[obj.id] = _buffered_interval(obj, buffer)
+        return input_intervals[obj.id]
+    
     eventsInClusters = set()
     clustersDict = {}
 
@@ -378,13 +403,22 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
                     
                     # the new coordinates are the ones in cluster 
                     clusterA = clustersDict[eventA.clusterId]
-                    clustersOverlapA.append(eventA.clusterId)                    
-                    begA = clusterA.beg - buffer
-                    endA = clusterA.end + buffer
-                    
+                    clustersOverlapA.append(eventA.clusterId)
+
+                    if use_directional_buffer:
+                        # Use the current META members' buffered intervals.
+                        # Recompute the bounds because META membership can change.
+                        spans = [
+                            input_interval(root)
+                            for root in clusterA.rawSubclusters
+                        ]
+                        begA = min(beg for beg, _ in spans)
+                        endA = max(end for _, end in spans)
+                    else:
+                        begA = clusterA.beg - buffer
+                        endA = clusterA.end + buffer
                 else:
-                    begA = eventA.beg - buffer
-                    endA = eventA.end + buffer
+                    begA, endA = input_interval(eventA)
                                 
                 ## Identify events overlapping A (skip A itself and event pairs already assessed)
                 for eventB in events[idx + 1:]:
@@ -394,9 +428,8 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
                         # print('if (eventB.clusterId in clustersOverlapA)')
                         continue
                     
-                    ## Add buffer to ranges
-                    begB = eventB.beg - buffer
-                    endB = eventB.end + buffer
+                    # Apply the same input-cluster padding policy to B.
+                    begB, endB = input_interval(eventB)
                     
                     overlap, overlapLen = gRanges.rcplOverlap(begA, endA, begB, endB, minPercOverlap)
                     
@@ -448,30 +481,29 @@ def reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTy
                     ## Make list of clusters overlapping A
                     clusters2merge = [clustersDict[clusterId] for clusterId in clustersOverlapA]
 
-                    ## Create merged cluster                    
-                    mergedCluster = clusters.merge_clusters(clusters2merge, clusterType)
-
                     ## Add events to the list of events already included into clusters
                     if eventA.id in eventsInClusters:
                         events2Cluster = eventsOverlapA
                     else:
                         events2Cluster = [eventA] + eventsOverlapA 
+
+                    ## Create merged cluster                    
+                    if clusterType == 'META' and len(clusters2merge) == 1:
+                        mergedCluster = clusters2merge[0]
+                    else:
+                        mergedCluster = clusters.merge_clusters(clusters2merge, clusterType)
+
+                    if events2Cluster:
+                        ## Add events to the merged cluster
+                        mergedCluster.add(events2Cluster)
+                        eventsInClusters.update(event.id for event in events2Cluster)
                         
-                    eventsInClusters.update(event.id for event in events2Cluster)
+                    # Remove replaced objects, but retain a reused object.
+                    for old_cluster in clusters2merge:
+                        if old_cluster.id != mergedCluster.id:
+                            clustersDict.pop(old_cluster.id, None)
 
-                    ## Add events to the merged cluster
-                    mergedCluster.add(events2Cluster)
-
-                    ## Add merged cluster to the clusters dictionary
                     clustersDict[mergedCluster.id] = mergedCluster
-
-                    # print('clustersDict')
-                    # print(clustersDict)
-                    # print(mergedCluster.id)
-                    
-                    ## Remove clusters that were merged from the clusters dictionary 
-                    for cluster in clusters2merge:
-                        clustersDict.pop(cluster.id, None)
 
                 # C) No cluster overlaps A
                 else:
