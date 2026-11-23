@@ -408,20 +408,20 @@ def polish_clusters(clustersBinDb, minClusterSize):
     ## 3. Polish CLIPPING clusters (TO DO)
 
 
-def create_metaclusters(clustersBinDb, buffer = 200, directional_clipping_buffer=False):
+def create_metaclusters(clustersBinDb, buffer = 200, directional_buffer=False):
     '''    
     Group SV cluster events into metaclusters
 
     Input:
         1. clustersBinDb: Data structure containing a set of clusters organized in genomic bins
         2. buffer: buffer to extend cluster coordinates
-        3. directional_clipping_buffer: flag to indicate whether to use directional padding
+        3. directional_buffer: flag to indicate whether to use directional padding
 
     Output:
         1. metaclusters: list containing newly created metaclusters
     '''
-    if directional_clipping_buffer:
-        metaclusters = clustering.directional_reciprocal_overlap_clustering(clustersBinDb, 1, 1, clustersBinDb.eventTypes, buffer, 'META', directional_clipping_buffer)
+    if directional_buffer:
+        metaclusters = clustering.directional_reciprocal_overlap_clustering(clustersBinDb, 1, 1, clustersBinDb.eventTypes, buffer, 'META', directional_buffer)
     else:
         metaclusters = clustering.reciprocal_overlap_clustering(clustersBinDb, 1, 1, clustersBinDb.eventTypes, buffer, 'META')
 

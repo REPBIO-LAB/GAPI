@@ -632,7 +632,7 @@ class CLIPPING():
             self.refLen = alignmentObj.reference_length
             self.isDup = alignmentObj.is_duplicate
 
-        self._annotate_polyA()
+        self.annotate_polyA()
         self.kmer_status = "not_run"
         self.kmer_taxid = None
         self.kmer_name = None
@@ -973,7 +973,7 @@ class CLIPPING():
                 
         return complementaryAlignments
 
-    def _annotate_polyA(self):
+    def annotate_polyA(self):
         """
         Annotate the CLIPPING object to see if it contains a polyA sequence.
         

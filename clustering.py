@@ -321,7 +321,7 @@ def distance_clustering(binDb, binSize, eventTypes, clusterType, maxDist, minClu
     
 #     return clustersList
 
-def _buffered_interval(obj, buffer):
+def buffered_interval(obj, buffer):
     """Return the buffered interval for an input cluster."""
     if getattr(obj, 'clusterType', None) == 'CLIPPING':
         # Use a one-sided buffer only when all members agree on the side.
@@ -334,7 +334,7 @@ def _buffered_interval(obj, buffer):
     # Use symmetric padding for non-clipping clusters or ambiguous sides.
     return obj.beg - buffer, obj.end + buffer
 
-def directional_reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTypes, buffer, clusterType, directional_clipping_buffer=False):
+def directional_reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTypes, buffer, clusterType, directional_buffer=False):
     '''
     Group events/clusters based on reciprocal overlap into clusters/metaclusters
 
@@ -350,7 +350,7 @@ def directional_reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterS
         1. clustersList: list of created clusters/metaclusters
     '''    
     # Apply directional padding only during metaclustering.
-    use_directional_buffer = directional_clipping_buffer and clusterType == 'META'
+    use_directional_buffer = directional_buffer and clusterType == 'META'
     input_intervals = {}
 
     def input_interval(obj):
@@ -359,7 +359,7 @@ def directional_reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterS
 
         # Cache input cluster intervals for this clustering run.
         if obj.id not in input_intervals:
-            input_intervals[obj.id] = _buffered_interval(obj, buffer)
+            input_intervals[obj.id] = buffered_interval(obj, buffer)
         return input_intervals[obj.id]
     
     eventsInClusters = set()
