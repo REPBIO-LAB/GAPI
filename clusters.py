@@ -420,7 +420,10 @@ def create_metaclusters(clustersBinDb, buffer = 200, directional_clipping_buffer
     Output:
         1. metaclusters: list containing newly created metaclusters
     '''
-    metaclusters = clustering.reciprocal_overlap_clustering(clustersBinDb, 1, 1, clustersBinDb.eventTypes, buffer, 'META', directional_clipping_buffer)
+    if directional_clipping_buffer:
+        metaclusters = clustering.directional_reciprocal_overlap_clustering(clustersBinDb, 1, 1, clustersBinDb.eventTypes, buffer, 'META', directional_clipping_buffer)
+    else:
+        metaclusters = clustering.reciprocal_overlap_clustering(clustersBinDb, 1, 1, clustersBinDb.eventTypes, buffer, 'META')
 
     return metaclusters
 
