@@ -334,9 +334,10 @@ def buffered_interval(obj, buffer):
     # Use symmetric padding for non-clipping clusters or ambiguous sides.
     return obj.beg - buffer, obj.end + buffer
 
-def directional_reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTypes, buffer, clusterType, directional_buffer=False):
+def directional_reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterSize, eventTypes, buffer, clusterType):
     '''
-    Group events/clusters based on reciprocal overlap into clusters/metaclusters
+    Group events/clusters based on directional reciprocal overlap into metaclusters
+    !!! So far, this function is only used for metaclustering of CLIPPING clusters. It may be generalized in the future.
 
     Input:
         1. binDb: data structure containing a set of events/clusters organized in genomic bins  
@@ -350,13 +351,9 @@ def directional_reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterS
         1. clustersList: list of created clusters/metaclusters
     '''    
     # Apply directional padding only during metaclustering.
-    use_directional_buffer = directional_buffer and clusterType == 'META'
     input_intervals = {}
 
     def input_interval(obj):
-        if not use_directional_buffer:
-            return obj.beg - buffer, obj.end + buffer
-
         # Cache input cluster intervals for this clustering run.
         if obj.id not in input_intervals:
             input_intervals[obj.id] = buffered_interval(obj, buffer)
@@ -405,18 +402,15 @@ def directional_reciprocal_overlap_clustering(binDb, minPercOverlap, minClusterS
                     clusterA = clustersDict[eventA.clusterId]
                     clustersOverlapA.append(eventA.clusterId)
 
-                    if use_directional_buffer:
-                        # Use the current META members' buffered intervals.
-                        # Recompute the bounds because META membership can change.
-                        spans = [
-                            input_interval(root)
-                            for root in clusterA.rawSubclusters
-                        ]
-                        begA = min(beg for beg, _ in spans)
-                        endA = max(end for _, end in spans)
-                    else:
-                        begA = clusterA.beg - buffer
-                        endA = clusterA.end + buffer
+                    # Use the current META members' buffered intervals.
+                    # Recompute the bounds because META membership can change.
+                    spans = [
+                        input_interval(root)
+                        for root in clusterA.rawSubclusters
+                    ]
+                    begA = min(beg for beg, _ in spans)
+                    endA = max(end for _, end in spans)
+
                 else:
                     begA, endA = input_interval(eventA)
                                 
