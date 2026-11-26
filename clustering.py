@@ -327,9 +327,9 @@ def buffered_interval(obj, buffer):
         # Use a one-sided buffer only when all members agree on the side.
         sides = {getattr(event, 'clippedSide', None) for event in obj.events}
         if sides == {'left'}:
-            return obj.beg - buffer, obj.end
-        if sides == {'right'}:
             return obj.beg, obj.end + buffer
+        if sides == {'right'}:
+            return obj.beg - buffer, obj.end
 
     # Use symmetric padding for non-clipping clusters or ambiguous sides.
     return obj.beg - buffer, obj.end + buffer
