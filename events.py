@@ -15,7 +15,7 @@ from GAPI import formats
 from GAPI import gRanges
 from GAPI import alignment
 from GAPI import virus
-
+from GAPI import sequences
 
 ###############
 ## FUNCTIONS ##
@@ -1032,51 +1032,68 @@ class CLIPPING():
             count = n
             distance = 0
     
-        # Long channel: tract >=10 bp, purity >=90%, distance <=10 bp.
+        # Long channel: tract >=10 bp, purity >=90%, distance <=5 bp.
         else:
-            # Orient the search from the breakpoint towards the read end.
-            # Reverse left clips only; do NOT complement their bases.
+            # Scan away from the breakpoint. Reverse left clips without complementing.
             oriented = seq[::-1] if side == 'left' else seq
-    
+            window_size = 4
+            min_tract_length = 10
+            min_tract_purity = 90
+            max_breakpoint_distance = 5
+
+            # Each seed window allows one mismatch (purity 75). Only adjacent seeds are merged.
+            candidates = sequences.find_monomers(
+                oriented, base,
+                windowSize=window_size,
+                maxWindowDist=0,
+                minMonomerSize=window_size,
+                minPurity=75,
+            )
+
+            # Count target bases in any interval using prefix counts.
             prefix = [0]
             for nucleotide in oriented:
                 prefix.append(prefix[-1] + (nucleotide == base))
-    
+
             best = None
-    
-            for start in range(min(10, n - 10) + 1):
-                if oriented[start] != base:
-                    continue
-                
-                for stop in range(start + 10, n + 1):
-                    # Keep boundaries on target bases, avoiding mismatch padding.
-                    if oriented[stop - 1] != base:
+            flank = window_size - 1
+            for candidate in candidates:
+                # Refine inside the candidate and up to 3 bases on either side.
+                first_start = max(0, candidate.beg - flank)
+                last_stop = min(n, candidate.end + flank)
+                last_start = min(max_breakpoint_distance, last_stop - min_tract_length)
+
+                for start in range(first_start, last_start + 1):
+                    if oriented[start] != base:
                         continue
-                    
-                    length = stop - start
-                    matches = prefix[stop] - prefix[start]
-    
-                    # Integer comparison avoids threshold rounding errors.
-                    if matches * 100 < length * 90:
-                        continue
-                    
-                    key = (length, matches / length, -start)
-    
-                    if best is None or key > best[0]:
-                        best = (key, start, stop, matches)
-    
+
+                    for stop in range(start + min_tract_length, last_stop + 1):
+                        # Keep both ends on target bases.
+                        if oriented[stop - 1] != base:
+                            continue
+
+                        length = stop - start
+                        matches = prefix[stop] - prefix[start]
+                        if matches * 100 < length * min_tract_purity:
+                            continue
+
+                        # Prefer longer, then purer, then closer tracts.
+                        key = (length, matches / length, -start)
+                        if best is None or key > best[0]:
+                            best = (key, start, stop, matches)
+
             if best is None:
                 return
-    
+
             _, start, stop, count = best
             distance = start
-    
-            # Restore coordinates within the original clipped sequence.
+
+            # Restore zero-based, half-open coordinates in the original clip.
             if side == 'left':
                 beg, end = n - stop, n - start
             else:
                 beg, end = start, stop
-    
+
         self.is_polyA = True
         self.polyA_length = end - beg
         self.polyA_purity = 100.0 * count / (end - beg)
